@@ -3,8 +3,7 @@
 #import "SGPrefs.h"
 
 BOOL SGRedesignAvailable(void) {
-    if (@available(iOS 26.0, *)) return YES;
-    return NO;
+    return YES;
 }
 
 BOOL SGRedesignedUI(void) {
