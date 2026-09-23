@@ -8,7 +8,11 @@
 // The field goes on top of the plane's own subviews, so Spotify's gradients are covered rather than
 // fought over, and nothing depends on a repaint hook.
 //
-// The picture comes from the Kit's now playing artwork: the now playing bar's 40pt cover, published by
+// With Moving background on (SGRKeyPlayerMotion, the default) the field is the Kit's moving field of the
+// artwork's colours (SGRFlow.h) rather than the still blurred artwork; a paused song holds it still.
+//
+// The picture comes from the Kit's now playing artwork, keyed on the picture the playing track names
+// (SGRBridges.h, issue #58): the Kit's own fetch of it, the now playing bar's 40pt cover, published by
 // the Kit, and the player's own 354pt cover, published here from the cell in the middle of the
 // sideways list of covers (AccessibleCollectionView, 01.txt:28, one CoverArtCellImpl per queued track,
 // the ones out of view hidden). Until the first picture has been read the field takes the colour
@@ -50,6 +54,9 @@ static SGRArtworkField *fieldIn(UIView *plane) {
     if (field) return field;
     field = [[SGRArtworkField alloc] initWithFrame:plane.bounds];
     field.showsBackdrop = YES;
+    field.flows = SGEnabled(SGRKeyPlayerMotion);
+    // A paused song holds the colours still, the way it rests the cover (PlayerArtwork.x).
+    field.motionHeld = SGPlayerState().isPaused;
     field.bleed = kBleed;
     objc_setAssociatedObject(plane, &kFieldKey, field, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     sg_field = field;
@@ -135,6 +142,7 @@ static void publishCover(void) {
 }
 
 - (void)playerStateDidChange:(SPTPlayerState *)state {
+    sg_field.motionHeld = state.isPaused;
     NSString *track = SGURIString(state.track.URI);
     if (!track || [track isEqualToString:_track]) return;
     _track = track;

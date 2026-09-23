@@ -8,7 +8,7 @@ static NSArray<NSString *> *viewNames(void) {
 }
 
 UIViewController *SGLiveActivitySettingsPage(void) {
-    SGModRow *on = SGOptionRow(@"Live Activity", @"On the lock screen and in the Dynamic Island", SGKeyLiveActivity);
+    SGModRow *on = SGOptionRow(@"Live Activity", nil, SGKeyLiveActivity);
     on.changed = ^(BOOL value) { SGSetLiveActivityEnabled(value); };
     SGModRow *view = SGChoiceRow(@"Shows", nil, SGKeyLiveActivityView, viewNames(), SGLiveActivityLyrics);
     return [[SGModPage alloc] initWithTitle:@"Live Activity" intro:nil sections:@[

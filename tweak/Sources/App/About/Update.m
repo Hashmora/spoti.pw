@@ -4,12 +4,13 @@
 // commit, each ending in a link to it. One request brings the last twenty releases rather than only
 // the newest, which is what lets the Updates page show every version between this build and the
 // newest one. Asked a few seconds after Spotify comes up (UpdateNotice.m) and when Mod Settings
-// opens, at most once every six hours either way, and on demand from the page; nothing but the
-// request itself leaves.
+// opens, at most once every six hours either way, and on demand from the page. spoti.pw is asked
+// first and hands on GitHub's list; the request carries Usage.m's body. GitHub itself is the fallback.
 #import "Core/SGCore.h"
 #import "About.h"
 
-NSString *const SGUpdateURL = @"https://api.github.com/repos/skopevoj/spoti.pw/releases?per_page=20";
+NSString *const SGUpdateURL = @"https://spoti.pw/api/update";
+static NSString *const kGitHubURL = @"https://api.github.com/repos/skopevoj/spoti.pw/releases?per_page=20";
 NSString *const SGUpdateCheckedNotification = @"spotifyglass.update.checked.notification";
 
 static NSString *const kChecked = @"spotifyglass.update.checked";
@@ -178,25 +179,38 @@ static NSArray<NSDictionary *> *releasesFrom(NSData *data) {
     return entries.count ? entries : nil;
 }
 
+static void ask(NSString *url, NSData *body, void (^done)(NSArray<NSDictionary *> *releases, NSInteger status, NSError *error)) {
+    NSURLSessionConfiguration *configuration = NSURLSessionConfiguration.ephemeralSessionConfiguration;
+    configuration.timeoutIntervalForRequest = 10;
+    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:url]
+                                                           cachePolicy:NSURLRequestReloadIgnoringLocalCacheData
+                                                       timeoutInterval:10];
+    [request setValue:@"application/vnd.github+json" forHTTPHeaderField:@"Accept"];
+    if (body) {
+        request.HTTPMethod = @"POST";
+        request.HTTPBody = body;
+        [request setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
+    }
+    NSURLSessionDataTask *task = [[NSURLSession sessionWithConfiguration:configuration]
+        dataTaskWithRequest:request
+          completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+        NSInteger status = [response isKindOfClass:NSHTTPURLResponse.class] ? ((NSHTTPURLResponse *)response).statusCode : 0;
+        done(status == 200 ? releasesFrom(data) : nil, status, error);
+    }];
+    [task resume];
+}
+
 void SGCheckForUpdate(BOOL force) {
     NSUserDefaults *store = NSUserDefaults.standardUserDefaults;
     NSTimeInterval last = [store doubleForKey:kChecked];
     if (sg_running) return;
-    if (!force && last > 0 && NSDate.date.timeIntervalSince1970 - last < kInterval) return;
+    // The day's count goes out with the first check of the day, whatever the six hours say.
+    BOOL owed = SGUsageOwed();
+    if (!force && !owed && last > 0 && NSDate.date.timeIntervalSince1970 - last < kInterval) return;
 
     sg_running = YES;
     sg_failure = nil;
-    NSURLSessionConfiguration *configuration = NSURLSessionConfiguration.ephemeralSessionConfiguration;
-    configuration.timeoutIntervalForRequest = 10;
-    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:SGUpdateURL]
-                                                           cachePolicy:NSURLRequestReloadIgnoringLocalCacheData
-                                                       timeoutInterval:10];
-    [request setValue:@"application/vnd.github+json" forHTTPHeaderField:@"Accept"];
-    NSURLSessionDataTask *task = [[NSURLSession sessionWithConfiguration:configuration]
-        dataTaskWithRequest:request
-          completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
-        NSArray<NSDictionary *> *releases = releasesFrom(data);
-        NSInteger status = [response isKindOfClass:NSHTTPURLResponse.class] ? ((NSHTTPURLResponse *)response).statusCode : 0;
+    void (^finish)(NSArray<NSDictionary *> *, NSInteger, NSError *) = ^(NSArray<NSDictionary *> *releases, NSInteger status, NSError *error) {
         dispatch_async(dispatch_get_main_queue(), ^{
             sg_running = NO;
             if (!releases) {
@@ -208,10 +222,17 @@ void SGCheckForUpdate(BOOL force) {
             } else {
                 [store setObject:releases forKey:kReleases];
                 [store setDouble:NSDate.date.timeIntervalSince1970 forKey:kChecked];
-                SGLog(@"update check: GitHub's newest is %@, this build is %s", releases.firstObject[@"version"], SG_VERSION);
+                SGLog(@"update check: the newest is %@, this build is %s", releases.firstObject[@"version"], SG_VERSION);
             }
             [NSNotificationCenter.defaultCenter postNotificationName:SGUpdateCheckedNotification object:nil];
         });
-    }];
-    [task resume];
+    };
+    NSData *body = SGUsageBody();
+    if (body) SGUsageNoteAsked();
+    SGLog(@"update check: asking spoti.pw %@", body ? @"with the usage body" : @"without the usage body");
+    ask(SGUpdateURL, body, ^(NSArray<NSDictionary *> *releases, NSInteger status, NSError *error) {
+        if (releases) return finish(releases, status, error);
+        SGLog(@"update check: spoti.pw answered HTTP %ld, asking GitHub", (long)status);
+        ask(kGitHubURL, nil, finish);
+    });
 }

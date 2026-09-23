@@ -10,6 +10,10 @@
 // lyrics in the player on and off (PlayerLyrics.x): filled while they are up, dimmed and dead for a
 // track that has none.
 //
+// The row sits lower than Spotify puts it, just over the home indicator the way the Music app's does
+// (issue #54): the footer unit's view is translated down, the controls follow it part of the way, and a
+// band of the redesign's hands the touches below the bottom stack's bounds back to the row.
+//
 // Tree (trees/clean/player/01.txt:295-320): FooterElementsUnit's view 402x44 > UIStackView 382x44 >
 // ElementView > ConnectButtonOutputSwitcherViewHolder id=Components.ConnectButtonOutputSwitcher 153x36
 // (a 19x19 UIImageView glyph and a MarqueeLabel with the device name), a spacer, a hidden media trimmer,
@@ -26,7 +30,16 @@ static NSString *const kLyricsSymbol = @"quote.bubble", *const kLyricsSymbolOpen
 static const CGFloat kLeading = 0.2, kMiddle = 0.5, kTrailing = 0.8;
 static const CGFloat kGlyphMaxWidth = 30;
 
-static char kConnectKey, kShareKey, kTrimmerKey, kQueueKey, kLyricsGlyphKey;
+// Issue #54: Spotify ends its bottom stack 61pt above the screen's bottom (01.txt:127, 576.67 + 236 of
+// 874), so the row's middle sat 83pt up, well clear of the home indicator, and the controls crowded it.
+// The Music app keeps that row just over the home indicator: its middle this far above the safe area's
+// bottom, and never less than kRowMinBottom above the screen's on a phone without a home indicator.
+static const CGFloat kRowAboveSafeArea = 20, kRowMinBottom = 34;
+// The controls follow a share of the row's move when nothing stands between them, so the gaps above
+// and below them even out instead of all the room opening under them.
+static const CGFloat kControlsShare = 0.3;
+
+static char kConnectKey, kShareKey, kTrimmerKey, kQueueKey, kLyricsGlyphKey, kReachKey;
 static __weak SGRGlyphButton *sg_lyricsGlyph;
 
 // The view the footer's stack view arranges around `view`.
@@ -95,6 +108,82 @@ static UIView *connectGlyphIn(UIView *holder) {
     return glyph;
 }
 
+#pragma mark - lower down
+
+// Moved down, the row is drawn partly below the bottom stack it is arranged in, and UIKit does not look
+// into a view for a touch outside its bounds. This band over the part that hangs out hands such a touch
+// to the row itself, and lets every other one through.
+@interface SGRFooterReach : UIView
+@property (nonatomic, weak) UIView *row;
+@end
+
+@implementation SGRFooterReach
+- (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
+    UIView *row = self.row;
+    if (!row.window || row.alpha < 0.01 || row.hidden) return nil;
+    UIView *hit = [row hitTest:[row convertPoint:point fromView:self] withEvent:event];
+    return hit == row ? nil : hit;
+}
+@end
+
+static UIViewController *unitOf(UIView *view) {
+    UIResponder *next = view.nextResponder;
+    return [next isKindOfClass:UIViewController.class] && ((UIViewController *)next).viewIfLoaded == view ? (UIViewController *)next : nil;
+}
+
+// The arranged view drawn right above `row` in its stack, by where the stack put them.
+static UIView *rowAbove(UIView *row) {
+    UIView *best = nil;
+    CGFloat top = row.center.y - row.bounds.size.height / 2, bestBottom = -CGFLOAT_MAX;
+    for (UIView *sibling in row.superview.subviews) {
+        if (sibling == row || sibling.hidden || sibling.alpha < 0.01 || sibling.bounds.size.height < 1) continue;
+        CGFloat bottom = sibling.center.y + sibling.bounds.size.height / 2;
+        if (bottom <= top + 1 && bottom > bestBottom) {
+            best = sibling;
+            bestBottom = bottom;
+        }
+    }
+    return best;
+}
+
+static void lowerRow(UIView *row) {
+    UIView *stack = row.superview, *player = stack.superview;
+    UIWindow *window = row.window;
+    if (![stack isKindOfClass:UIStackView.class] || !player || !window) return;
+    // Where the stack put the row, the row's own transform left out, and where it belongs.
+    CGFloat middle = [stack convertPoint:row.center toView:player].y;
+    CGFloat height = player.bounds.size.height;
+    CGFloat target = height - MAX(window.safeAreaInsets.bottom + kRowAboveSafeArea, kRowMinBottom);
+    CGFloat move = MAX(0, round(target - middle));
+    CGAffineTransform down = CGAffineTransformMakeTranslation(0, move);
+    if (!CGAffineTransformEqualToTransform(row.transform, down)) row.transform = down;
+
+    // Only the controls, and only straight above: a volume row between them keeps its place and theirs.
+    UIView *above = rowAbove(row);
+    BOOL controls = [NSStringFromClass(unitOf(above).class) containsString:@"PlaybackControlsElementsUnit"];
+    CGAffineTransform follow = CGAffineTransformMakeTranslation(0, controls ? round(move * kControlsShare) : 0);
+    if (above && controls && !CGAffineTransformEqualToTransform(above.transform, follow)) above.transform = follow;
+
+    SGRFooterReach *reach = objc_getAssociatedObject(row, &kReachKey);
+    if (!reach) {
+        reach = [SGRFooterReach new];
+        reach.row = row;
+        objc_setAssociatedObject(row, &kReachKey, reach, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    if (reach.superview != player) [player addSubview:reach];
+    CGRect stackFrame = [stack convertRect:stack.bounds toView:player];
+    CGRect drawn = [row convertRect:row.bounds toView:player];
+    CGFloat from = CGRectGetMaxY(stackFrame);
+    CGRect band = CGRectMake(CGRectGetMinX(drawn), from, drawn.size.width, MAX(0, CGRectGetMaxY(drawn) - from));
+    if (!CGRectEqualToRect(reach.frame, band)) reach.frame = band;
+
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        SGLog(@"redesign player: footer row from %.0f to %.0f of %.0f (safe area %.0f), controls %@ %.0f", middle, middle + move, height,
+              window.safeAreaInsets.bottom, controls ? @"follow" : @"stay", controls ? round(move * kControlsShare) : 0);
+    });
+}
+
 %hook _TtC20NowPlaying_ModesImpl18FooterElementsUnit
 - (void)viewDidLayoutSubviews {
     %orig;
@@ -131,6 +220,8 @@ static UIView *connectGlyphIn(UIView *holder) {
 
     UIView *queue = SGRFindByIdentifier(host, @"QueueButtonNowPlaying", &kQueueKey);
     CGFloat queueFrom = moveTo(arrangedAround(queue, host), queue, CGPointMake(CGRectGetMidX(queue.bounds), CGRectGetMidY(queue.bounds)), host, round(width * (rtl ? kLeading : kTrailing)));
+
+    lowerRow(host);
 
     static dispatch_once_t once;
     dispatch_once(&once, ^{

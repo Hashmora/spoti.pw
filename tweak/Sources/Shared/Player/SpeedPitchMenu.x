@@ -79,7 +79,7 @@ static const NSTimeInterval kSpeedInterval = 0.05;
 
 static NSTimeInterval sg_moreTappedAt;
 static BOOL sg_open;
-static char kBlockKey, kDecidedKey, kWatchedKey;
+static char kBlockKey, kDecidedKey, kWatchedKey, kShownAtKey, kRowsInKey;
 
 #pragma mark - the block
 
@@ -105,6 +105,11 @@ static UIImage *symbol(NSString *name, CGFloat size, UIImageSymbolWeight weight)
     return [UIImage systemImageNamed:name withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:size weight:weight]];
 }
 
+// A glyph with its colour drawn in, so it never passes through a tint on its way to the screen.
+static UIImage *paintedSymbol(NSString *name, CGFloat size, UIImageSymbolWeight weight, UIColor *color) {
+    return [symbol(name, size, weight) imageWithTintColor:color renderingMode:UIImageRenderingModeAlwaysOriginal];
+}
+
 static UILabel *makeLabel(UIFont *font, UIColor *color) {
     UILabel *label = [UILabel new];
     label.font = font;
@@ -117,6 +122,9 @@ static UILabel *makeLabel(UIFont *font, UIColor *color) {
     UIButton *button = [UIButton buttonWithType:UIButtonTypeSystem];
     button.titleLabel.font = monospacedDigits(font(UIFontTextStyleSubheadline, UIFontWeightSemibold, UIContentSizeCategoryExtraLarge));
     button.tintColor = primary();
+    [button setTitleColor:primary() forState:UIControlStateNormal];
+    [button setTitleColor:[primary() colorWithAlphaComponent:0.4] forState:UIControlStateHighlighted];
+    [button setTitleColor:primary() forState:UIControlStateDisabled];
     button.contentHorizontalAlignment = UIControlContentHorizontalAlignmentRight;
     button.accessibilityHint = @"Resets it";
     [button addTarget:self action:reset forControlEvents:UIControlEventTouchUpInside];
@@ -125,7 +133,7 @@ static UILabel *makeLabel(UIFont *font, UIColor *color) {
 
 // A glyph centred in a box of one size, so both sliders' tracks start and end at the same x.
 static UIImage *endImage(NSString *name, CGFloat size) {
-    UIImage *glyph = [symbol(name, size, UIImageSymbolWeightMedium) imageWithTintColor:secondary() renderingMode:UIImageRenderingModeAlwaysOriginal];
+    UIImage *glyph = paintedSymbol(name, size, UIImageSymbolWeightMedium, secondary());
     CGSize box = CGSizeMake(24, 24);
     return [[[UIGraphicsImageRenderer alloc] initWithSize:box] imageWithActions:^(UIGraphicsImageRendererContext *context) {
         [glyph drawAtPoint:CGPointMake((box.width - glyph.size.width) / 2, (box.height - glyph.size.height) / 2)];
@@ -169,6 +177,11 @@ static void placeTick(UISlider *slider) {
     if (!(self = [super initWithFrame:frame])) return nil;
     self.clipsToBounds = YES;
     self.backgroundColor = UIColor.clearColor;
+    // Nothing here draws in the tint: every colour is set on the view that draws it, and the glyphs have
+    // theirs painted in rather than tinted. The row came up in the system blue for a moment as the sheet
+    // appeared on the phone (issue #68), which is the tint a view inherits when nothing up the sheet sets
+    // one. The block's own tint is white as well, for whatever UIKit draws in it (the sliders' parts).
+    self.tintColor = primary();
 
     _row = [UIControl new];
     [_row addTarget:self action:@selector(toggle) forControlEvents:UIControlEventTouchUpInside];
@@ -178,15 +191,13 @@ static void placeTick(UISlider *slider) {
     _row.accessibilityTraits = UIAccessibilityTraitButton;
     [self addSubview:_row];
 
-    _icon = [[UIImageView alloc] initWithImage:symbol(@"slider.horizontal.3", 20, UIImageSymbolWeightRegular)];
-    _icon.tintColor = secondary();
+    _icon = [[UIImageView alloc] initWithImage:paintedSymbol(@"slider.horizontal.3", 20, UIImageSymbolWeightRegular, secondary())];
     _icon.contentMode = UIViewContentModeCenter;
     _title = makeLabel(font(UIFontTextStyleBody, UIFontWeightRegular, UIContentSizeCategoryExtraLarge), primary());
     _title.text = @"Speed and pitch";
     _summary = makeLabel(monospacedDigits(font(UIFontTextStyleSubheadline, UIFontWeightRegular, UIContentSizeCategoryExtraLarge)), secondary());
     _summary.textAlignment = NSTextAlignmentRight;
-    _chevron = [[UIImageView alloc] initWithImage:symbol(@"chevron.down", 13, UIImageSymbolWeightSemibold)];
-    _chevron.tintColor = secondary();
+    _chevron = [[UIImageView alloc] initWithImage:paintedSymbol(@"chevron.down", 13, UIImageSymbolWeightSemibold, secondary())];
     _chevron.contentMode = UIViewContentModeCenter;
     for (UIView *view in @[_icon, _title, _summary, _chevron]) {
         view.userInteractionEnabled = NO;
@@ -280,8 +291,6 @@ static NSString *pitchText(float pitch) {
     }];
     _speedValue.enabled = speedAllowed && _shownSpeed != 1;
     _pitchValue.enabled = pitchAvailable && _shownPitch != 0;
-    [_speedValue setTitleColor:primary() forState:UIControlStateDisabled];
-    [_pitchValue setTitleColor:primary() forState:UIControlStateDisabled];
     _speed.accessibilityValue = speedAllowed ? speedText(_shownSpeed) : @"Unavailable";
     _pitch.accessibilityValue = _shownPitch == 0 ? @"Original pitch" : [NSString stringWithFormat:@"%.0f semitones %@", fabsf(_shownPitch), _shownPitch > 0 ? @"up" : @"down"];
 
@@ -466,6 +475,63 @@ static BOOL isPlayerMenu(UIViewController *menu) {
     return ours;
 }
 
+#pragma mark - Spotify's rows
+
+// The sheet keeps its spinner up until Spotify's rows are in, and they are in when every item factory
+// has answered or run out of time: ContextMenuItemFactory holds a timer, and the timeout is the remote
+// config's ios-feature-contextmenu-platform.timeout (SPTContextMenu_InternalImplProperties reads it
+// between 1 and 60 s, 10 when the server says nothing). The block takes no part in that: it goes into
+// the table's header once and stays, and a sheet that gets its rows seconds later shows them under it
+// (harness/menu `loading`). So a menu that waits is timed from here, to tell a wait on Spotify's
+// factories from a main thread kept busy: each check says how late it ran.
+static NSInteger rowCount(UITableView *table) {
+    NSInteger rows = 0;
+    for (NSInteger section = 0; section < table.numberOfSections; section++) rows += [table numberOfRowsInSection:section];
+    return rows;
+}
+
+static BOOL spinning(UIView *view, int depth) {
+    if ([view isKindOfClass:UIActivityIndicatorView.class]) return ((UIActivityIndicatorView *)view).isAnimating && !view.isHidden && view.alpha > 0.01;
+    if (depth > 6) return NO;
+    for (UIView *child in view.subviews) {
+        if (spinning(child, depth + 1)) return YES;
+    }
+    return NO;
+}
+
+// Once, when the rows are first seen, and said only when they were late.
+static void noteRows(UIViewController *menu, UITableView *table) {
+    NSNumber *shownAt = objc_getAssociatedObject(menu, &kShownAtKey);
+    if (!shownAt || objc_getAssociatedObject(menu, &kRowsInKey) || !table || rowCount(table) == 0) return;
+    objc_setAssociatedObject(menu, &kRowsInKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    NSTimeInterval after = CACurrentMediaTime() - shownAt.doubleValue;
+    if (after > 0.5) SGLog(@"speed and pitch: Spotify's rows came in %.1f s after the menu appeared", after);
+}
+
+static void watchRows(UIViewController *menu) {
+    if (objc_getAssociatedObject(menu, &kShownAtKey)) return;
+    objc_setAssociatedObject(menu, &kShownAtKey, @(CACurrentMediaTime()), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    UITableView *table = findTable(menu.view, 0);
+    if (table && rowCount(table)) {
+        objc_setAssociatedObject(menu, &kRowsInKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        return;
+    }
+    __weak UIViewController *weakMenu = menu;
+    for (NSNumber *wait in @[@2, @6, @15, @40]) {
+        CFTimeInterval due = CACurrentMediaTime() + wait.doubleValue;
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(wait.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            UIViewController *shown = weakMenu;
+            if (!shown.viewIfLoaded.window || objc_getAssociatedObject(shown, &kRowsInKey)) return;
+            UITableView *rows = findTable(shown.view, 0);
+            noteRows(shown, rows);
+            if (objc_getAssociatedObject(shown, &kRowsInKey)) return;
+            SGLog(@"speed and pitch: no rows of Spotify's %@ s after the menu appeared (this check ran %.2f s late), spinner %@, table %.0fx%.0f holding %.0f",
+                  wait, CACurrentMediaTime() - due, spinning(shown.view, 0) ? @"spinning" : @"not spinning",
+                  rows.bounds.size.width, rows.bounds.size.height, rows.contentSize.height);
+        });
+    }
+}
+
 static void install(UIViewController *menu) {
     UIView *root = menu.viewIfLoaded;
     if (!root || !isPlayerMenu(menu)) return;
@@ -504,8 +570,14 @@ static void install(UIViewController *menu) {
         [table invalidateIntrinsicContentSize];
         return;
     }
+    noteRows(menu, table);
     // Spotify replaced the view, or the table changed width: put it back at the table's width.
     UIView *placed = block.inFooter ? table.tableFooterView : table.tableHeaderView;
+    if (placed != block) {
+        static int logged;
+        if (logged++ < 3) SGLog(@"speed and pitch: the table's %@ became %@, speed and pitch put back", block.inFooter ? @"footer" : @"header",
+                                placed ? NSStringFromClass(placed.class) : @"nothing");
+    }
     if (placed != block || fabs(block.frame.size.width - width) > 0.5) {
         block.frame = CGRectMake(0, block.frame.origin.y, width, [SGSpeedPitchView heightOpen:sg_open]);
         if (block.inFooter) table.tableFooterView = block;
@@ -524,6 +596,7 @@ static void install(UIViewController *menu) {
     %orig;
     SGSpeedPitchView *block = objc_getAssociatedObject(self, &kBlockKey);
     [block refresh];
+    if (block) watchRows((UIViewController *)self);
 }
 %end
 

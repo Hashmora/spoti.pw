@@ -18,6 +18,10 @@ void SGRSetNavbarLayout(NSArray<NSDictionary *> *layout);
 // Spotify's own tabs in Spotify's order, as Navbar.x last saw them on the bar.
 NSArray<NSString *> *SGRNavbarStock(void);
 void SGRSetNavbarStock(NSArray<NSString *> *stock);
+// What a tab of the mod's own opens: its URI as typed or pasted, share links made spotify: URIs, and
+// the URIs of presets that never opened (spotify:collection:playlists, up to 0.20) moved to the ones
+// that replaced them, so a tab saved back then works without being added again.
+NSURL *SGRNavbarTabURL(NSString *uri);
 
 // Navbar.x, called from the tab bar's layout passes in TabBar.x.
 void SGRComposeTabBar(UIView *tabBar);

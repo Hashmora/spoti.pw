@@ -212,6 +212,7 @@ static SGLyricsResult *fromPlain(id body) {
     SGLyricsResult *lyrics = [SGLyricsResult new];
     lyrics.starts = starts;
     lyrics.texts = texts;
+    lyrics.karaokeLines = SGKaraokeStaticLines(texts);
     return lyrics;
 }
 

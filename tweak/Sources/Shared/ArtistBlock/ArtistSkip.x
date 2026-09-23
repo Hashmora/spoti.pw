@@ -70,13 +70,6 @@ static void trackMayHaveChanged(void) {
     if (!key || [key isEqualToString:sg_seenTrack]) return;
     sg_seenTrack = key;
 
-    static BOOL logged;
-    if (!logged) {
-        logged = YES;
-        SGLogLong(@"artist block: track metadata", track.metadata.description);
-    }
-
-    if (!SGFlag(SGKeyArtistBlock, NO)) return;
     NSDictionary *artist = blockedArtistOf(track);
     if (artist) skip(track, artist);
 }
@@ -102,6 +95,7 @@ static void trackMayHaveChanged(void) {
 %hook MPNowPlayingInfoCenter
 - (void)setNowPlayingInfo:(NSDictionary *)info {
     %orig;
+    if (!SGFlag(SGKeyArtistBlock, NO)) return;
     dispatch_async(dispatch_get_main_queue(), ^{ trackMayHaveChanged(); });
 }
 %end

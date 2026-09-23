@@ -66,7 +66,7 @@ typedef NS_ENUM(NSInteger, SGArtistSection) {
     UITableViewCell *cell = SGDequeueCell(table, @"artist");
     switch (path.section) {
         case SGArtistSectionSwitch: {
-            SGFillCell(cell, @"Skip blocked artists", @"Their tracks are skipped as soon as they start", nil, nil);
+            SGFillCell(cell, @"Skip blocked artists", nil, nil, nil);
             UISwitch *toggle = [UISwitch new];
             toggle.onTintColor = SGGreen();
             toggle.on = SGFlag(SGKeyArtistBlock, NO);
@@ -87,7 +87,7 @@ typedef NS_ENUM(NSInteger, SGArtistSection) {
             break;
         }
         case SGArtistSectionAdd:
-            SGFillCell(cell, @"Block from what's playing…", @"The main artist or anyone featured", nil, @"person.crop.circle.badge.xmark");
+            SGFillCell(cell, @"Block from what's playing…", nil, nil, @"person.crop.circle.badge.xmark");
             cell.selectionStyle = UITableViewCellSelectionStyleDefault;
             break;
         default:

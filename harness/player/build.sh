@@ -1,27 +1,28 @@
 #!/bin/sh
 set -e
-SRC=/Users/vojta/Documents/quick/custom_spotify/custom_spotify/tweak/Sources
-OUT=$(dirname "$0")/build
+# SRC may point at another checkout of tweak/Sources (an older commit, to see a bug before its fix).
+SRC=${SRC:-$(cd "$(dirname "$0")/../../tweak/Sources" && pwd)}
+OUT=${OUT:-$(dirname "$0")/build}
 rm -rf "$OUT"; mkdir -p "$OUT/gen" "$OUT/PlayerHarness.app"
 
 for f in Redesigned/Player/PlayerLyrics.x Redesigned/Player/PlayerArtwork.x Redesigned/Player/PlayerFooter.x \
-         Redesigned/Player/PlayerScroll.x; do
+         Redesigned/Player/PlayerScroll.x Redesigned/Player/PlayerField.x Redesigned/Kit/SGRBridges.x; do
     name=$(basename "$f" .x)
     "$THEOS/bin/logos.pl" -c generator=internal "$SRC/$f" > "$OUT/gen/$name.m"
 done
 
 SDK=$(xcrun --sdk iphonesimulator --show-sdk-path)
 xcrun -sdk iphonesimulator clang -target arm64-apple-ios17.0-simulator -fobjc-arc -g -O0 \
-    -I"$SRC" -I"$SRC/Redesigned/Player" -I"$OUT/gen" -isysroot "$SDK" \
+    -I"$SRC" -I"$SRC/Redesigned/Player" -I"$SRC/Redesigned/Kit" -I"$OUT/gen" -isysroot "$SDK" \
     -Wno-deprecated-declarations \
     "$(dirname "$0")/main.m" "$(dirname "$0")/stubs.m" \
     "$OUT"/gen/*.m \
     "$SRC"/Core/SGLog.m "$SRC"/Core/SGPrefs.m "$SRC"/Core/SGViewTree.m "$SRC"/Core/SGGlass.m \
     "$SRC"/Core/SGBackdrop.m "$SRC"/Core/SGFlagForce.m "$SRC"/Core/SGUIMode.m \
-    "$SRC"/Redesigned/Kit/SGRTokens.m "$SRC"/Redesigned/Kit/SGRPalette.m "$SRC"/Redesigned/Kit/SGRField.m \
+    "$SRC"/Redesigned/Kit/SGRTokens.m "$SRC"/Redesigned/Kit/SGRPalette.m "$SRC"/Redesigned/Kit/SGRField.m "$SRC"/Redesigned/Kit/SGRFlow.m \
     "$SRC"/Redesigned/Kit/SGRGlass.m "$SRC"/Redesigned/Kit/SGRGlyph.m "$SRC"/Redesigned/Kit/SGRRestyle.m \
     "$SRC"/Redesigned/Kit/SGRedesign.m \
-    "$SRC"/Redesigned/Lyrics/SGRKaraokeView.m "$SRC"/Shared/Lyrics/KaraokeTiming.m "$SRC"/Shared/AdBlock/Protobuf.m \
+    "$SRC"/Redesigned/Lyrics/SGRKaraokeView.m "$SRC"/Redesigned/Lyrics/LyricsText.m "$SRC"/Shared/Lyrics/KaraokeTiming.m "$SRC"/Shared/Lyrics/Protobuf.m \
     -framework UIKit -framework QuartzCore -framework CoreGraphics -framework CoreImage -framework Foundation -framework Symbols \
     -o "$OUT/PlayerHarness.app/PlayerHarness"
 

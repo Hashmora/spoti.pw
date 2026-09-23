@@ -1,5 +1,7 @@
 #import "Core/SGCore.h"
 #import "SGRField.h"
+#import "SGRFlow.h"
+#import "SGRBridges.h"
 #import "SGRPalette.h"
 #import "SGRTokens.h"
 
@@ -32,6 +34,8 @@ static NSDictionary *noActions(void) {
     CALayer *_solid;
     CAGradientLayer *_black;
     CALayer *_backdrop;
+    SGRFlowLayer *_flow;
+    BOOL _watching;
     UIColor *_color;
     UIColor *_preferred;   // the page's own colour, made fit; wins over the artwork's
     UIImage *_image;
@@ -97,7 +101,70 @@ static NSDictionary *noActions(void) {
     _black.frame = painted;
     _black.locations = @[@(MIN(1, from / total)), @(MIN(1, to / total))];
     _backdrop.frame = CGRectMake(0, 0, bounds.size.width, [self backdropHeightNow]);
+    _flow.frame = CGRectMake(0, 0, bounds.size.width, [self backdropHeightNow]);
     [CATransaction commit];
+}
+
+#pragma mark - the moving field
+
+- (void)setFlows:(BOOL)flows {
+    if (flows == _flows) return;
+    _flows = flows;
+    if (flows && !_flow) {
+        _flow = [SGRFlowLayer layer];
+        _flow.hidden = YES;
+        [self.layer insertSublayer:_flow above:_solid];
+    }
+    // The moving field is the whole picture: no still backdrop over it, no fade to black under it.
+    _black.hidden = flows;
+    if (flows) _backdrop.hidden = YES;
+    else _flow.hidden = YES;
+    [self watch];
+    [self updateMotion];
+    [self setNeedsLayout];
+}
+
+- (void)setMotionHeld:(BOOL)held {
+    if (held == _motionHeld) return;
+    _motionHeld = held;
+    [self updateMotion];
+}
+
+- (void)watch {
+    if (_watching || !_flows) return;
+    _watching = YES;
+    NSNotificationCenter *center = NSNotificationCenter.defaultCenter;
+    for (NSNotificationName name in @[UIApplicationDidBecomeActiveNotification, UIApplicationWillResignActiveNotification,
+                                      NSProcessInfoPowerStateDidChangeNotification, UIAccessibilityReduceMotionStatusDidChangeNotification]) {
+        [center addObserver:self selector:@selector(updateMotionSoon) name:name object:nil];
+    }
+    SGRObservePlayerTransition(self, ^(id owner) { [owner updateMotion]; }, ^(id owner) { [owner updateMotion]; });
+}
+
+- (void)dealloc {
+    [NSNotificationCenter.defaultCenter removeObserver:self];
+}
+
+// The power state is reported off the main thread.
+- (void)updateMotionSoon {
+    dispatch_async(dispatch_get_main_queue(), ^{ [self updateMotion]; });
+}
+
+- (void)updateMotion {
+    if (!_flow) return;
+    // A locked phone keeps the player in its window, so being in front counts as much as being in one.
+    BOOL front = UIApplication.sharedApplication.applicationState == UIApplicationStateActive;
+    BOOL moving = _flows && !_flow.hidden && self.window && front && !SGRPlayerIsTransitioning() && !SGRReduceMotion()
+               && !NSProcessInfo.processInfo.lowPowerModeEnabled && !_motionHeld;
+    if (moving == _flow.moving) return;
+    _flow.moving = moving;
+    static NSUInteger logged;
+    if (logged++ < 6) SGLog(@"redesign kit: moving field %@", moving ? @"moves" : @"holds still");
+}
+
+- (void)didMoveToWindow {
+    [super didMoveToWindow];
+    [self updateMotion];
 }
 
 - (void)applyColor:(UIColor *)color animated:(BOOL)animated {
@@ -139,8 +206,8 @@ static NSDictionary *noActions(void) {
     _image = image;
     _identity = [identity copy];
     NSUInteger generation = ++_generation;
-    SGRPaletteRequest request = {CGSizeZero, NO, YES};
-    if (_showsBackdrop) request.backdropSize = CGSizeMake(self.bounds.size.width > 0 ? self.bounds.size.width : 402, [self backdropHeightNow]);
+    SGRPaletteRequest request = {CGSizeZero, NO, YES, _flows};
+    if (_showsBackdrop && !_flows) request.backdropSize = CGSizeMake(self.bounds.size.width > 0 ? self.bounds.size.width : 402, [self backdropHeightNow]);
     __weak SGRArtworkField *weakSelf = self;
     [SGRPalette paletteForImage:image request:request completion:^(SGRPalette *palette) {
         SGRArtworkField *field = weakSelf;
@@ -151,7 +218,15 @@ static NSDictionary *noActions(void) {
 
 - (void)applyPalette:(SGRPalette *)palette animated:(BOOL)animated {
     _read = YES;
-    if (_showsBackdrop && palette.backdrop) {
+    if (_flows && palette.flowColors) {
+        [_flow setColors:palette.flowColors animated:animated && !_flow.hidden];
+        _flow.hidden = NO;
+        [self updateMotion];
+        // Past the moving field's edges (the pull that dismisses the player) the colour under it goes on.
+        [self applyColor:_preferred ?: _flow.baseColor animated:animated];
+        return;
+    }
+    if (_showsBackdrop && !_flows && palette.backdrop) {
         [CATransaction begin];
         [CATransaction setDisableActions:YES];
         if (animated) {

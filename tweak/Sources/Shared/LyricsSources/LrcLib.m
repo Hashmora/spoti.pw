@@ -91,6 +91,7 @@ static SGLyricsResult *resultFrom(NSDictionary *record) {
     }
     result.starts = starts;
     result.texts = texts;
+    result.karaokeLines = SGKaraokeStaticLines(texts);
     return result;
 }
 

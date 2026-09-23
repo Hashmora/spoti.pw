@@ -22,8 +22,19 @@ The fixtures are real TTML and LRC with every word swapped for filler of the sam
 - `translated` Spanish with Apple's English translation and backing rows carried into it
 - `both` Korean with both, and English lines the pronunciation leaves out
 - `plain` line timed LRC, the words estimated, with a 13 s intro and a break after the first line
+- `linetimed` TTML timed by the line only (BiniLyrics' line timed shape): two voices, two lines sung
+  over each other at 42.4 s, a Hebrew line at 50.6 s, a 9 s break at 85.4 s, translations
+- `spotify-line`, `spotify-static` Spotify's own color-lyrics JSON, LINE_SYNCED and UNSYNCED, read by
+  the real `SGKaraokeLinesFromBody`; `static` plain text, as LRCLIB's plainLyrics
+  (these four are written by `fixtures/linetimed.py` from `plain`'s timing)
 - `rtl` (built in) right to left lines among left to right ones, a second voice, a break before the
   last line; `rtlx` the same with translations and a romanization
+
+Lines timed by the line light up whole; `-spotifyglass.lyricsSimulateWords 1` sweeps them on the
+estimate instead, as the Lyrics page's switch does. Untimed lyrics show every line lit, whatever `-at`.
+
+Run it on an iOS 26 simulator, by UDID: iOS 27 refuses an app without a scene delegate and crashes it
+at launch. `-dumpTo PATH` writes the dump to a file, for when `--console` shows nothing.
 
 A real file goes in with `-file /path/song.ttml`: the simulator reads the Mac's paths.
 

@@ -5,6 +5,7 @@
 #import "Shared/ArtistBlock/ArtistBlock.h"
 #import "Shared/Gestures/Gestures.h"
 #import "Shared/Lyrics/Lyrics.h"
+#import "Shared/LyricsMeanings/Meanings.h"
 #import "Shared/Player/PlayerSettings.h"
 #import "Native/Appearance/Appearance.h"
 #import "Native/Navbar/Navbar.h"
@@ -69,16 +70,14 @@ UIViewController *SGNavbarPage(void) {
     return SGRedesignedUIStored() ? SGRNavbarSettingsPage() : SGNavbarSettingsPage();
 }
 
-// The redesign always draws Apple Music style lyrics, and only it names their source and shows the
-// pronunciation and the translation a source has; the native look has its glass card and page instead.
+// Pronunciation, translation, word sweeping and line meanings exist only in the redesign's lyrics view.
 static UIViewController *lyricsPage(void) {
     BOOL redesigned = SGRedesignedUIStored();
     NSMutableArray<SGModRow *> *more = [NSMutableArray arrayWithObject:SGLockScreenLyricsRow()];
     if (!redesigned) [more insertObject:SGGlassLyricsRow() atIndex:0];
     NSMutableArray<SGModSection *> *sections = [NSMutableArray arrayWithObject:SGLyricsSourcesSection(redesigned)];
     if (redesigned) {
-        [sections addObject:SGNotedSection(@"Pronunciation and translation", @[SGRLyricsTextSizesRow(), SGLyricsTranslationLanguageRow()],
-                                           @"BiniLyrics and Unison carry Apple Music's own for many songs. The button in the corner of the lyrics shows them.")];
+        [sections addObject:SGSection(@"Display", @[SGLyricsWordTimingRow(), SGRLyricsTextSizesRow(), SGLyricsTranslationLanguageRow(), SGLyricsMeaningsRow()])];
     }
     [sections addObject:SGSection(nil, more)];
     return [[SGModPage alloc] initWithTitle:@"Lyrics" intro:SGRestartNote sections:sections footer:nil];
@@ -109,6 +108,5 @@ UIViewController *SGPlayerSettingsPage(void) {
     // Vibrations hook Spotify's own controls and its audio, so they answer under either look.
     [sections addObjectsFromArray:SGVibrationsSections()];
 
-    NSString *intro = @"Changes apply after you restart Spotify. Gestures, Blocked artists and Vibrations apply straight away.";
-    return [[SGModPage alloc] initWithTitle:@"Player" intro:intro sections:sections footer:nil];
+    return [[SGModPage alloc] initWithTitle:@"Player" intro:SGRestartNote sections:sections footer:nil];
 }

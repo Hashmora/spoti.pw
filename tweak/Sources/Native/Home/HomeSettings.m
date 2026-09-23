@@ -12,20 +12,20 @@ static SGModRow *choiceRow(NSString *title, NSString *subtitle, SGHomeChoice cho
 
 UIViewController *SGHomeGradientPage(void) {
     return [[SGModPage alloc] initWithTitle:@"Gradient"
-                                      intro:@"A wash behind the top of Home, under the avatar and the pills, fading into the page by the second shelf. Turning it on or off applies after you restart Spotify; the colour, the strength and the height take effect straight away."
+                                      intro:@"Turning it on or off applies after you restart Spotify."
                                    sections:@[
         SGSection(@"Gradient", @[
-            SGOptionRow(@"Show", @"Off leaves Home the way Spotify draws it", SGKeyHomeGradient),
+            SGOptionRow(@"Show", nil, SGKeyHomeGradient),
             choiceRow(@"Colour", nil, SGHomeChoiceTint),
-            choiceRow(@"Strength", @"How much of that colour reaches the top of the screen", SGHomeChoiceStrength),
-            choiceRow(@"Height", @"How far down the page it reaches before the page takes over", SGHomeChoiceHeight),
+            choiceRow(@"Strength", nil, SGHomeChoiceStrength),
+            choiceRow(@"Height", nil, SGHomeChoiceHeight),
         ]),
     ] footer:nil];
 }
 
 static UIViewController *libraryPage(void) {
     return [[SGModPage alloc] initWithTitle:@"Library" intro:nil sections:@[
-        SGNotedSection(@"Library", @[
+        SGSection(@"Library", @[
             SGFlagRow(@"Denser rows", @"ios-feature-yourlibaryx.denser_rows_enabled"),
             SGFlagRow(@"Sort playlists by recently updated", @"ios-feature-yourlibaryx.recently_updated_playlists_sort_enabled"),
             SGFlagRow(@"Sort artists by recently updated", @"ios-feature-yourlibaryx.recently_updated_artists_sort_enabled"),
@@ -33,14 +33,8 @@ static UIViewController *libraryPage(void) {
             SGFlagRow(@"Recents sort order", @"ios-feature-yourlibaryx.recents_sort_order_enabled"),
             SGFlagRow(@"Library settings", @"ios-feature-yourlibaryx.library_settings_enabled"),
             SGFlagRow(@"Library Pro", @"ios-feature-yourlibaryx.your_library_pro_enabled"),
-        ], @"Spotify's own Library options, some of them only rolled out to some accounts."),
+        ]),
     ] footer:nil];
-}
-
-// Flag rows show the flag's name as their subtitle by default.
-static SGModRow *bare(SGModRow *row) {
-    row.subtitle = nil;
-    return row;
 }
 
 UIViewController *SGHomeSettingsPage(void) {
@@ -60,7 +54,7 @@ UIViewController *SGHomeSettingsPage(void) {
         ]),
         SGSection(@"Home", @[
             SGWithSymbol(gradient, @"rectangle.tophalf.inset.filled"),
-            bare(SGFlagRow(@"Pull to refresh", @"ios-home-evopage-impl.pull_to_refresh_enabled")),
+            SGFlagRow(@"Pull to refresh", @"ios-home-evopage-impl.pull_to_refresh_enabled"),
         ]),
         SGSection(@"Hide on Home", @[
             SGHideRow(@"Filter pills", nil, SGHideHomePills),
@@ -68,8 +62,8 @@ UIViewController *SGHomeSettingsPage(void) {
             SGHideRow(@"Promo cards", nil, SGHideHomePromo),
             SGHideRow(@"Preview cards", nil, SGHideHomePreviews),
             SGHideRow(@"DJ card", nil, SGHideHomeDJ),
-            bare(SGKillRow(@"DJ button", @"ios-home-evopage-impl.idj_show_dj_button")),
-            bare(SGKillRow(@"DJ beta badge", @"ios-home-evopage-impl.dj_mdc_beta_badge_enabled")),
+            SGKillRow(@"DJ button", @"ios-home-evopage-impl.idj_show_dj_button"),
+            SGKillRow(@"DJ beta badge", @"ios-home-evopage-impl.dj_mdc_beta_badge_enabled"),
         ]),
     ];
     return [[SGModPage alloc] initWithTitle:@"Home & Library" intro:nil sections:sections footer:nil];

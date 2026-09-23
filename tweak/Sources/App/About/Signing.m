@@ -81,8 +81,7 @@ static void showFix(void) {
 SGModRow *SGSigningWarningRow(void) {
     if (SGSigningOpensFromLockScreen()) return nil;
     return SGWarningRow(@"The lock screen cannot open Spotify",
-                        @"Signed under a different name than it is installed under. Tap for the one "
-                        @"line that fixes it.",
+                        @"Tap for the fix",
                         ^{ showFix(); });
 }
 

@@ -21,6 +21,13 @@ extern NSNotificationName const SGRFieldColorDidChangeNotification;
 // that does not clip): positive values draw outside. The field never clips.
 @property (nonatomic) UIEdgeInsets bleed;
 @property (nonatomic) BOOL showsBackdrop;
+// The player's moving field instead of the still backdrop (SGRFlow.h): the artwork's colours drifting
+// over the whole of the bounds, with no fade to black. It moves only while the field is in a window,
+// the app is in front, the player is not opening or closing, Reduce Motion and Low Power Mode are off
+// and nothing holds it (motionHeld); otherwise it stays still where it was.
+@property (nonatomic) BOOL flows;
+// Held still by the owner (the player while playback is paused).
+@property (nonatomic) BOOL motionHeld;
 // The backdrop's height in points from the top of the bounds; 0 is the window's height.
 @property (nonatomic) CGFloat backdropHeight;
 // SGRNeutralField until a colour arrives.

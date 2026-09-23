@@ -1,5 +1,5 @@
 // Where the karaoke page gets its lines and its clock. The color-lyrics body is copied as it passes
-// the same URLSession delegates AdBlock/AdNetwork.x reads, untouched, and kept per track, since the
+// Spotify's URLSession delegates, untouched, and kept per track, since the
 // page may open long after the request finished. The clock is SPTEsperantoPlayer's state, asked for on
 // every frame: the player is caught the first time the app asks it, and its position runs on by itself.
 // With a source of the mod's on, the color-lyrics body is Shared/LyricsSources' to answer and it
@@ -12,11 +12,18 @@
 
 static const NSUInteger kKeptTracks = 40;
 static const NSUInteger kSeenTracks = 200;
+// A track whose request was lost may be asked for again after this long, twice as long after each loss
+// in a row up to the most: soon enough for the song still playing, not so soon that a busy server is pressed.
+static const NSTimeInterval kRetryPause = 10, kRetryPauseMost = 60;
 // What spclient needs from a request to answer it as the signed-in app.
 static NSString *const kSpclientHeaders[] = {@"authorization", @"client-token", @"app-platform", @"spotify-app-version", @"user-agent", @"accept-language"};
 
 static NSMutableDictionary<NSString *, NSArray<SGKaraokeLine *> *> *sg_lyrics;
 static NSMutableSet<NSString *> *sg_requested;
+// Of those, the ones with a request still out or waiting out its pause. A full cache spares their lines
+// and leaves them asked for, so no second request runs beside the first.
+static NSMutableSet<NSString *> *sg_asking;
+static NSMutableDictionary<NSString *, NSNumber *> *sg_losses;   // requests lost in a row, by track
 static NSDictionary<NSString *, NSString *> *sg_spclientHeaders;
 static __weak id sg_player;
 // Every track the player has reported, by id, so a source can name a track that is not the one
@@ -55,11 +62,36 @@ static void rememberHeaders(NSURLSession *session, NSURLRequest *request) {
     dispatch_async(dispatch_get_main_queue(), ^{ sg_spclientHeaders = headers; });
 }
 
+static SPTPlayerState *playerState(void);
+static NSString *idOf(SPTPlayerTrack *track);
+
+// The track after this one, when the player knows it.
+static SPTPlayerTrack *upNextIn(SPTPlayerState *state) {
+    id future = [state respondsToSelector:@selector(future)] ? state.future : nil;
+    id next = [future isKindOfClass:NSArray.class] ? [(NSArray *)future firstObject] : nil;
+    return [next isKindOfClass:objc_getClass("SPTPlayerTrack")] ? next : nil;
+}
+
+// Main queue only. A full cache is emptied but for the track playing, the one up next and those still
+// being asked for; what goes can be asked for again.
+static void keep(NSString *track, NSArray<SGKaraokeLine *> *lines) {
+    if (sg_lyrics.count >= kKeptTracks && !sg_lyrics[track]) {
+        NSMutableSet<NSString *> *spared = [sg_asking mutableCopy];
+        SPTPlayerState *state = playerState();
+        NSString *playing = idOf(state.track), *next = idOf(upNextIn(state));
+        if (playing) [spared addObject:playing];
+        if (next) [spared addObject:next];
+        for (NSString *kept in sg_lyrics.allKeys) {
+            if ([spared containsObject:kept]) continue;
+            [sg_lyrics removeObjectForKey:kept];
+            [sg_requested removeObject:kept];
+        }
+    }
+    sg_lyrics[track] = lines;
+}
+
 void SGKaraokeKeepLines(NSString *track, NSArray<SGKaraokeLine *> *lines) {
-    dispatch_async(dispatch_get_main_queue(), ^{
-        if (sg_lyrics.count >= kKeptTracks) [sg_lyrics removeAllObjects];
-        sg_lyrics[track] = lines;
-    });
+    dispatch_async(dispatch_get_main_queue(), ^{ keep(track, lines); });
 }
 
 static void received(NSURLSession *session, NSURLSessionTask *task, NSData *data) {
@@ -89,6 +121,19 @@ NSArray<SGKaraokeLine *> *SGKaraokeLinesForTrack(NSString *trackID) {
     return trackID ? sg_lyrics[trackID] : nil;
 }
 
+// Main queue only. The track stays asked for through the pause, so the readers asking on every tick
+// send nothing until it is over.
+static void askAgainLater(NSString *trackID) {
+    NSUInteger losses = sg_losses[trackID].unsignedIntegerValue;
+    sg_losses[trackID] = @(losses + 1);
+    NSTimeInterval pause = MIN(kRetryPause * pow(2, losses), kRetryPauseMost);
+    SGLog(@"karaoke: lyrics for %@ not answered, may ask again in %.0fs", trackID, pause);
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(pause * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        [sg_asking removeObject:trackID];
+        [sg_requested removeObject:trackID];
+    });
+}
+
 NSString *SGKaraokeSpotifyAuthorization(void) {
     return sg_spclientHeaders[@"authorization"];
 }
@@ -97,6 +142,7 @@ static void requestFromSpotify(NSString *trackID) {
     NSDictionary<NSString *, NSString *> *headers = sg_spclientHeaders;
     if (!headers) return;
     [sg_requested addObject:trackID];
+    [sg_asking addObject:trackID];
     NSString *address = [NSString stringWithFormat:@"https://spclient.wg.spotify.com/color-lyrics/v2/track/%@?format=json&vocalRemoval=false&market=from_token", trackID];
     NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:address]];
     [headers enumerateKeysAndObjectsUsingBlock:^(NSString *name, NSString *value, BOOL *stop) {
@@ -107,13 +153,35 @@ static void requestFromSpotify(NSString *trackID) {
     [NSURLProtocol setProperty:@YES forKey:SGLyricsOwnRequestKey inRequest:request];
     [[NSURLSession.sharedSession dataTaskWithRequest:request completionHandler:^(NSData *body, NSURLResponse *response, NSError *error) {
         NSArray<SGKaraokeLine *> *lines = SGKaraokeLinesFromBody(body);
-        SGLog(@"karaoke: fetched lyrics for %@: status %ld, %lu synced lines, error %@", trackID,
-              (long)[(NSHTTPURLResponse *)response statusCode], (unsigned long)lines.count, error);
-        if (lines) {
-            SGKaraokeKeepLines(trackID, lines);
+        NSInteger status = [response isKindOfClass:NSHTTPURLResponse.class] ? ((NSHTTPURLResponse *)response).statusCode : 0;
+        SGLog(@"karaoke: fetched lyrics for %@: status %ld, %lu lines (%@), error %@", trackID,
+              (long)status, (unsigned long)lines.count,
+              SGKaraokeLinesTiming(lines) == SGKaraokeTimingNone ? @"untimed" : @"line timed", error);
+        // A refused authorization is lost too: the captured one may have expired, and Spotify's next
+        // spclient request brings a fresh one.
+        BOOL lost = SGLyricsReplyFailed(response, error) || status == 401 || status == 403;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if (lost) {
+                askAgainLater(trackID);
+                return;
+            }
+            [sg_asking removeObject:trackID];
+            [sg_losses removeObjectForKey:trackID];
+            if (!lines) return;
+            // Asked after the chain found plain text only: Spotify's replace it only when they are timed.
+            NSArray<SGKaraokeLine *> *kept = sg_lyrics[trackID];
+            if (kept && SGKaraokeLinesTiming(kept) <= SGKaraokeLinesTiming(lines)) return;
+            keep(trackID, lines);
             SGLyricsSetCredit(trackID, @"Spotify");
-        }
+        });
     }] resume];
+}
+
+void SGKaraokeAskSpotifyForTiming(NSString *trackID) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (!trackID || [sg_requested containsObject:trackID]) return;
+        requestFromSpotify(trackID);
+    });
 }
 
 void SGKaraokeRequestLyrics(NSString *trackID) {
@@ -123,11 +191,14 @@ void SGKaraokeRequestLyrics(NSString *trackID) {
         return;
     }
     [sg_requested addObject:trackID];
+    [sg_asking addObject:trackID];
     SGLyricsFetch(trackID, ^(SGLyricsResult *lyrics) {
+        [sg_asking removeObject:trackID];
         if (lyrics.karaokeLines) {
-            SGKaraokeKeepLines(trackID, lyrics.karaokeLines);
+            keep(trackID, lyrics.karaokeLines);   // on the main queue, where the fetch answers
             SGLyricsSetCredit(trackID, lyrics.provider);
-            return;
+            // Plain text is shown while Spotify is asked whether it has the song timed.
+            if (SGKaraokeLinesTiming(lyrics.karaokeLines) != SGKaraokeTimingNone) return;
         }
         [sg_requested removeObject:trackID];
         requestFromSpotify(trackID);
@@ -199,9 +270,7 @@ void SGKaraokeRememberTrack(SPTPlayerTrack *track) {
 static void prefetch(SPTPlayerTrack *track, NSString *trackID, SPTPlayerState *state) {
     if (!sg_ownSources) return;
     SGLyricsPrefetch(trackID);
-    id future = [state respondsToSelector:@selector(future)] ? state.future : nil;
-    id next = [future isKindOfClass:NSArray.class] ? [(NSArray *)future firstObject] : nil;
-    if (![next isKindOfClass:objc_getClass("SPTPlayerTrack")]) return;
+    SPTPlayerTrack *next = upNextIn(state);
     NSString *nextID = idOf(next);
     if (!nextID || [nextID isEqualToString:trackID]) return;
     remember(next, nextID);
@@ -255,6 +324,8 @@ static void prefetch(SPTPlayerTrack *track, NSString *trackID, SPTPlayerState *s
     sg_seenTracks = [NSMutableDictionary dictionary];
     sg_lyrics = [NSMutableDictionary dictionary];
     sg_requested = [NSMutableSet set];
+    sg_asking = [NSMutableSet set];
+    sg_losses = [NSMutableDictionary dictionary];
     sg_ownSources = SGLyricsEnabled();
     %init;
     SGLog(@"karaoke: on");

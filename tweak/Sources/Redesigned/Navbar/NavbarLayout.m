@@ -1,5 +1,6 @@
 // The saved composition of the redesign's bar, as NSUserDefaults property lists, apart from the native look's.
 #import "Navbar.h"
+#import "Shared/Navigation/Links.h"
 
 NSString *const SGRNavbarID = @"id";
 NSString *const SGRNavbarTitle = @"title";
@@ -31,4 +32,10 @@ NSArray<NSString *> *SGRNavbarStock(void) {
 
 void SGRSetNavbarStock(NSArray<NSString *> *stock) {
     [NSUserDefaults.standardUserDefaults setObject:stock ?: @[] forKey:kNavbarStock];
+}
+
+NSURL *SGRNavbarTabURL(NSString *uri) {
+    NSURL *url = SGSpotifyURIFromText(uri);
+    if ([url.absoluteString isEqualToString:@"spotify:collection:playlists"]) return [NSURL URLWithString:@"spotify:playlists"];
+    return url;
 }

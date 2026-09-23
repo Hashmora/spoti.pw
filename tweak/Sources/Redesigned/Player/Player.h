@@ -11,7 +11,7 @@
 //     PlayerControls.x   previous, play and next as bare glyphs, monospaced times
 //     PlayerFooter.x     share gone, lyrics, Connect and queue as one row of three glyphs
 //     PlayerCards.x      every card under the player collapsed, so the list closes up
-//     PlayerScroll.x     the list pinned to the top, so the player is one screen and cannot be scrolled
+//     PlayerScroll.x     the list held at its top, so the player is one screen and cannot be scrolled up
 //     PlayerLyrics.x     the lyrics in the player: the cover as a thumbnail, the title up beside it
 //     PlayerGestures.x   the gestures' hookup
 //     PlayerMorph.x      the open and close grown out of the now playing bar's card, the cover flown
@@ -24,6 +24,10 @@
 #import <UIKit/UIKit.h>
 
 @class SGRArtworkField;
+
+// The artwork's colours moving behind the player (on until switched off), or the blurred artwork held
+// still; the row is on the Now playing page (Redesigned/NowPlayingBar/NowPlayingBarSettings.m).
+#define SGRKeyPlayerMotion @"spotifyglass.redesign.player.movingBackground"
 
 // The field behind the player, nil until the player has laid out once (PlayerField.x).
 SGRArtworkField *SGRPlayerField(void);

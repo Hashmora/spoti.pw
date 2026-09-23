@@ -45,3 +45,10 @@ The log says what the redesign answered with.
 What it does not cover: the real element framework's autolayout and the heights it measures, the page
 scrolling (Spotify fades the header out by alpha as it goes, which the mock does not), and the flags
 `AlbumField.x` forces.
+
+`download` on the launch line plays the download button's states instead of the header's (issue #65), from
+`../download-mock.h`: Spotify's button drawn by Lottie with no image view, its state in its accessibility
+identifier and in a mock of the Encore object behind it (`currentState`, `progress`), and shuffle's "on" dot.
+None, waiting, downloading (held at 50%), downloaded, shuffle on, removed with shuffle off, error, each held a
+few seconds and announced with a `[harness] state:` line to take a screenshot on. Nothing in it lays anything
+out, as on the phone.

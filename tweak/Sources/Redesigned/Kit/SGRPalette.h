@@ -20,6 +20,8 @@ typedef struct {
     // from 85%, to lay over the sharp picture with the same aspect fill.
     BOOL dissolve;
     BOOL amoled;
+    // The colours of a moving field (SGRFlow.h): the artwork's main colour in each quarter and overall.
+    BOOL flow;
 } SGRPaletteRequest;
 
 @interface SGRPalette : NSObject
@@ -27,12 +29,19 @@ typedef struct {
 @property (nonatomic, readonly) UIColor *fieldColor;
 @property (nonatomic, readonly) UIImage *backdrop;   // nil unless asked for, at most 160px wide
 @property (nonatomic, readonly) UIImage *dissolve;   // nil unless asked for, 96px wide
+// nil unless asked for: top left, top right, bottom left, bottom right, then the whole artwork's, each
+// the dominant colour there, its saturation lifted a little and its luminance held between
+// kFlowLuminanceMin and kFlowLuminanceMax, so white text keeps better than 5.5:1 on any of them.
+@property (nonatomic, readonly) NSArray<UIColor *> *flowColors;
 // nil to the completion when the image has no bitmap to read (a symbol, a CIImage).
 + (void)paletteForImage:(UIImage *)image request:(SGRPaletteRequest)request completion:(void (^)(SGRPalette *palette))completion;
 
 // `surface` tinted a little towards the artwork's dominant colour (brought down to a luminance of 0.05, then
 // 35% of it mixed in), so a tile or row on the surface quietly takes its cover's colour while white text on
-// it keeps its contrast. nil to the completion when the image has no bitmap to read.
+// it keeps its contrast. Never dimmer than `surface`: a mix that came out darker is lifted back to its
+// luminance keeping its hue, so a near-black cover cannot cost the tile the step of elevation it stands on,
+// nor sink it into the grey band SGRAmoled.x turns pure black. nil to the completion when the image has no
+// bitmap to read.
 + (void)tintForImage:(UIImage *)image surface:(UIColor *)surface completion:(void (^)(UIColor *tint))completion;
 @end
 

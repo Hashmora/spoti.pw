@@ -19,7 +19,7 @@ UIViewController *SGAlbumSettingsPage(void) {
             SGHideRow(@"Concerts", nil, SGHideAlbumConcerts),
             SGHideRow(@"Merch", nil, SGHideAlbumMerch),
             SGHideRow(@"You might also like", nil, SGHideAlbumYouMightLike),
-        ], @"Sections are found by their English titles, so these do nothing while Spotify is in another language."),
+        ], @"Works only with Spotify in English."),
     ];
     return [[SGModPage alloc] initWithTitle:@"Album" intro:nil sections:sections footer:nil];
 }

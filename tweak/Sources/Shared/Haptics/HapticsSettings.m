@@ -50,14 +50,14 @@ static SGModRow *strengthRow(NSString *key, void (^changed)(void)) {
 }
 
 NSArray<SGModSection *> *SGVibrationsSections(void) {
-    SGModRow *controls = SGSwitchRow(@"Controls", @"Play, pause, skipping, scrubbing, shuffle, repeat and adding a song", SGKeyControlHaptics);
+    SGModRow *controls = SGSwitchRow(@"Controls", nil, SGKeyControlHaptics);
     SGModRow *controlStrength = strengthRow(SGKeyControlStrength, ^{
         // Felt as it is set: a tap at the new strength with each step.
         SGPlayFeedback(SGFeedbackAdd);
     });
     controlStrength.visible = ^BOOL { return SGEnabled(SGKeyControlHaptics); };
 
-    SGModRow *music = SGOptionRow(@"Music Haptics", @"Taps and rumbles along with the music", SGKeyMusicHaptics);
+    SGModRow *music = SGOptionRow(@"Music Haptics", nil, SGKeyMusicHaptics);
     music.info = kMusicHapticsInfo;
     music.changed = ^(BOOL on) { SGSetMusicHapticsEnabled(on); };
     BOOL (^musicOn)(void) = ^BOOL { return SGFlag(SGKeyMusicHaptics, NO); };

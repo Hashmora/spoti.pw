@@ -13,12 +13,17 @@ static const CGFloat kFadeFrom = 0.55, kDissolveOpaque = 0.85;
 // A tint: the artwork's dominant colour brought down to this luminance, then this share of it mixed into
 // the surface it tints.
 static const CGFloat kTintLuminance = 0.05, kTintShare = 0.35;
+// A moving field's colours: luminance held between these (the ceiling 0.07 with Increase Contrast, as a
+// field's), saturation lifted by this much up to a cap, and a near-black one lifted by at most this factor.
+static const CGFloat kFlowLuminanceMin = 0.03, kFlowLuminanceMax = 0.13;
+static const CGFloat kFlowSaturationLift = 1.25, kFlowSaturationMax = 0.9, kFlowMaxLift = 4;
 
 @interface SGRPalette ()
 @property (nonatomic, readwrite) UIColor *edgeColor;
 @property (nonatomic, readwrite) UIColor *fieldColor;
 @property (nonatomic, readwrite) UIImage *backdrop;
 @property (nonatomic, readwrite) UIImage *dissolve;
+@property (nonatomic, readwrite) NSArray<UIColor *> *flowColors;
 @end
 
 static dispatch_queue_t paletteQueue(void) {
@@ -163,16 +168,14 @@ static UIImage *finished(CGImageRef blurred, BOOL dim, CGFloat dimBottom, CGFloa
 // The artwork's dominant colour in linear light: its pixels binned 3 bits a channel, each bin scored by its
 // count weighted towards colourful pixels, so a busy cover gives its main colour instead of the grey an
 // average makes. Near-black and near-white count for little unless they are nearly all there is.
-static BOOL dominantColorOf(CGImageRef image, CGFloat out[3]) {
-    CGContextRef context = newBitmap(kSample, kSample);
-    if (!context) return NO;
-    CGContextSetInterpolationQuality(context, kCGInterpolationMedium);
-    CGContextDrawImage(context, CGRectMake(0, 0, kSample, kSample), image);
-    const uint8_t *px = CGBitmapContextGetData(context);
+// The same over the rows y0..y1 and columns x0..x1 of a kSample square bitmap (rows top down).
+static BOOL dominantIn(const uint8_t *px, size_t x0, size_t y0, size_t x1, size_t y1, CGFloat out[3]) {
     enum { kBins = 512 };
     double sums[kBins][3] = {{0}}, scores[kBins] = {0};
     size_t counts[kBins] = {0};
     for (size_t i = 0; px && i < kSample * kSample; i++) {
+        size_t x = i % kSample, y = i / kSample;
+        if (x < x0 || x >= x1 || y < y0 || y >= y1) continue;
         const uint8_t *p = px + i * 4;
         if (p[3] < 128) continue;
         int bin = (p[0] >> 5) << 6 | (p[1] >> 5) << 3 | (p[2] >> 5);
@@ -182,7 +185,6 @@ static BOOL dominantColorOf(CGImageRef image, CGFloat out[3]) {
         counts[bin]++;
         sums[bin][0] += toLinear(p[0] / 255.0), sums[bin][1] += toLinear(p[1] / 255.0), sums[bin][2] += toLinear(p[2] / 255.0);
     }
-    CGContextRelease(context);
     int best = 0;
     for (int i = 1; i < kBins; i++) {
         if (scores[i] > scores[best]) best = i;
@@ -190,6 +192,52 @@ static BOOL dominantColorOf(CGImageRef image, CGFloat out[3]) {
     if (!counts[best]) return NO;
     for (int k = 0; k < 3; k++) out[k] = sums[best][k] / counts[best];
     return YES;
+}
+
+static BOOL dominantColorOf(CGImageRef image, CGFloat out[3]) {
+    CGContextRef context = newBitmap(kSample, kSample);
+    if (!context) return NO;
+    CGContextSetInterpolationQuality(context, kCGInterpolationMedium);
+    CGContextDrawImage(context, CGRectMake(0, 0, kSample, kSample), image);
+    BOOL found = dominantIn(CGBitmapContextGetData(context), 0, 0, kSample, kSample, out);
+    CGContextRelease(context);
+    return found;
+}
+
+#pragma mark - flow
+
+// A dominant colour in linear light made fit for a moving field: a little more colourful, and within
+// the luminance band that keeps white text readable on it.
+static UIColor *flowColorFor(const CGFloat linear[3], CGFloat ceiling) {
+    CGFloat r = toEncoded(linear[0]), g = toEncoded(linear[1]), b = toEncoded(linear[2]), h = 0, s = 0, v = 0, a = 1;
+    [[UIColor colorWithRed:r green:g blue:b alpha:1] getHue:&h saturation:&s brightness:&v alpha:&a];
+    [[UIColor colorWithHue:h saturation:MIN(kFlowSaturationMax, MAX(s, s * kFlowSaturationLift)) brightness:v alpha:1] getRed:&r green:&g blue:&b alpha:&a];
+    CGFloat lr = toLinear(r), lg = toLinear(g), lb = toLinear(b);
+    CGFloat luminance = 0.2126 * lr + 0.7152 * lg + 0.0722 * lb;
+    CGFloat k = 1;
+    if (luminance > ceiling) k = ceiling / luminance;
+    else if (luminance > 0 && luminance < kFlowLuminanceMin) k = MIN(kFlowMaxLift, kFlowLuminanceMin / luminance);
+    return [UIColor colorWithRed:toEncoded(MIN(1, lr * k)) green:toEncoded(MIN(1, lg * k)) blue:toEncoded(MIN(1, lb * k)) alpha:1];
+}
+
+// The artwork's main colour in each quarter, then over the whole of it: the field keeps the artwork's
+// colours roughly where the artwork has them.
+static NSArray<UIColor *> *flowColorsOf(CGImageRef image, CGFloat ceiling) {
+    CGContextRef context = newBitmap(kSample, kSample);
+    if (!context) return nil;
+    CGContextSetInterpolationQuality(context, kCGInterpolationMedium);
+    CGContextDrawImage(context, CGRectMake(0, 0, kSample, kSample), image);
+    const uint8_t *px = CGBitmapContextGetData(context);
+    size_t half = kSample / 2;
+    size_t regions[5][4] = {{0, 0, half, half}, {half, 0, kSample, half}, {0, half, half, kSample}, {half, half, kSample, kSample}, {0, 0, kSample, kSample}};
+    NSMutableArray<UIColor *> *colors = [NSMutableArray arrayWithCapacity:5];
+    CGFloat linear[3];
+    for (int i = 0; i < 5; i++) {
+        if (!dominantIn(px, regions[i][0], regions[i][1], regions[i][2], regions[i][3], linear)) break;
+        [colors addObject:flowColorFor(linear, ceiling)];
+    }
+    CGContextRelease(context);
+    return colors.count == 5 ? colors : nil;
 }
 
 static UIColor *tintOf(CGImageRef image, UIColor *surface) {
@@ -201,10 +249,26 @@ static UIColor *tintOf(CGImageRef image, UIColor *surface) {
         for (int k = 0; k < 3; k++) linear[k] *= kTintLuminance / luminance;
     }
     CGFloat t = kTintShare;
-    return [UIColor colorWithRed:r * (1 - t) + toEncoded(linear[0]) * t
-                           green:g * (1 - t) + toEncoded(linear[1]) * t
-                            blue:b * (1 - t) + toEncoded(linear[2]) * t
-                           alpha:1];
+    CGFloat mixed[3] = {r * (1 - t) + toEncoded(linear[0]) * t,
+                        g * (1 - t) + toEncoded(linear[1]) * t,
+                        b * (1 - t) + toEncoded(linear[2]) * t};
+
+    // The colour mixed in is held under a luminance of 0.05 but has no floor, so a near-black cover mixes the
+    // surface *down*: the tile ends up darker than the untinted surface it was meant to be a step above, and a
+    // neutral one lands in the 1-10% grey band SGRAmoled.x turns pure black, which takes the whole card with
+    // it -- a black square lost on a black page (The Weeknd's Trilogy, Bieber's SWAG; issue #36). So a mix
+    // dimmer than the surface is lifted back to the surface's luminance, in linear light and by one factor
+    // across the channels, which leaves its hue where the mix put it. Lifting cannot clip: the target
+    // luminance is the surface's ~0.014, and the most one channel can carry of it is 0.014 / 0.0722.
+    CGFloat want = 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
+    CGFloat lit[3] = {toLinear(mixed[0]), toLinear(mixed[1]), toLinear(mixed[2])};
+    CGFloat have = 0.2126 * lit[0] + 0.7152 * lit[1] + 0.0722 * lit[2];
+    if (have <= 0) return surface;
+    if (have < want) {
+        for (int k = 0; k < 3; k++) mixed[k] = toEncoded(MIN(1, lit[k] * want / have));
+    }
+
+    return [UIColor colorWithRed:mixed[0] green:mixed[1] blue:mixed[2] alpha:1];
 }
 
 @implementation SGRPalette
@@ -212,6 +276,7 @@ static UIColor *tintOf(CGImageRef image, UIColor *surface) {
 + (void)paletteForImage:(UIImage *)image request:(SGRPaletteRequest)request completion:(void (^)(SGRPalette *palette))completion {
     if (!completion) return;
     CGFloat ceiling = SGRIncreaseContrast() ? kMaxLuminanceContrast : kMaxLuminance;
+    CGFloat flowCeiling = SGRIncreaseContrast() ? kMaxLuminance : kFlowLuminanceMax;
     dispatch_async(paletteQueue(), ^{
         SGRPalette *palette = nil;
         CGImageRef cg = image.CGImage;
@@ -228,6 +293,7 @@ static UIColor *tintOf(CGImageRef image, UIColor *surface) {
                 if (blurred) palette.backdrop = finished(blurred, YES, request.amoled ? 0.55 : 0.45, kFadeFrom, 1, 1, 0);
                 CGImageRelease(blurred);
             }
+            if (request.flow) palette.flowColors = flowColorsOf(cg, flowCeiling);
             if (request.dissolve) {
                 CGFloat aspect = (CGFloat)CGImageGetHeight(cg) / CGImageGetWidth(cg);
                 size_t height = (size_t)MIN(kDissolveWidth * 2, MAX(kDissolveWidth / 2, round(kDissolveWidth * aspect)));

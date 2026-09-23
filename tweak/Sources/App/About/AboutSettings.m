@@ -35,12 +35,11 @@ static SGModRow *withSymbol(SGModRow *row, NSString *symbol) {
 // Which build this is, whether GitHub has a newer release, and where to reach the mod: without these
 // rows a build that is already installed has no way of telling its user that anything moved on.
 UIViewController *SGAboutPage(void) {
-    SGModRow *reset = withSymbol(SGActionRow(@"Reset all settings", @"Every switch off, Spotify as it came, then a restart", ^{ confirmReset(); }), @"trash");
+    SGModRow *reset = withSymbol(SGActionRow(@"Reset all settings", nil, ^{ confirmReset(); }), @"trash");
     reset.color = SGRed();
     NSString *spotify = [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"] ?: @"unknown";
     // The row reads out where the build stands and opens the changelog of everything newer than it.
     SGModRow *updates = SGPageRow(@"Updates", ^UIViewController *{ return SGUpdatePage(); });
-    updates.subtitle = @"What is new on GitHub, and whether this build is behind";
     updates.value = ^NSString *{ return SGUpdateStatus(); };
     return [[SGModPage alloc] initWithTitle:@"Mod" intro:nil sections:@[
         SGSection(nil, @[
@@ -49,13 +48,15 @@ UIViewController *SGAboutPage(void) {
             SGStatRow(@"Spotify", ^NSString *{ return spotify; }),
         ]),
         SGSection(nil, @[
-            withSymbol(SGLinkRow(@"Website", @"Features, and how to build it yourself", SGSiteURL), @"safari"),
-            withSymbol(SGLinkRow(@"GitHub", @"Source, releases and issues", SGRepoURL), @"chevron.left.forwardslash.chevron.right"),
-            withSymbol(SGActionRow(@"Welcome tour", @"The pages from the first launch, again", ^{ SGShowOnboarding(); }), @"map"),
+            withSymbol(SGLinkRow(@"Website", nil, SGSiteURL), @"safari"),
+            withSymbol(SGLinkRow(@"Discord", nil, SGDiscordURL), @"bubble.left.and.bubble.right"),
+            withSymbol(SGLinkRow(@"GitHub", nil, SGRepoURL), @"chevron.left.forwardslash.chevron.right"),
+            withSymbol(SGPageRow(@"Licenses", ^UIViewController *{ return SGLicensesPage(); }), @"doc.text"),
+            withSymbol(SGActionRow(@"Welcome tour", nil, ^{ SGShowOnboarding(); }), @"map"),
         ]),
         SGSection(nil, @[
-            withSymbol(SGActionRow(@"Export settings", @"Every switch and choice to a file to keep or share", ^{ SGExportSettings(); }), @"square.and.arrow.up"),
-            withSymbol(SGActionRow(@"Import settings", @"Replace yours with a file's, then a restart", ^{ SGImportSettings(); }), @"square.and.arrow.down"),
+            withSymbol(SGActionRow(@"Export settings", nil, ^{ SGExportSettings(); }), @"square.and.arrow.up"),
+            withSymbol(SGActionRow(@"Import settings", nil, ^{ SGImportSettings(); }), @"square.and.arrow.down"),
         ]),
         SGSection(nil, @[reset]),
     ] footer:nil];

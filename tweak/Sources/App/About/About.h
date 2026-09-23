@@ -6,7 +6,7 @@
 #import <UIKit/UIKit.h>
 #import "Settings/SGModPage.h"
 
-extern NSString *const SGUpdateURL;   // the site and the repo are in Settings/SGPageStyle.h
+extern NSString *const SGUpdateURL;   // spoti.pw's; the site and the repo are in Settings/SGPageStyle.h
 extern NSString *const SGUpdateCheckedNotification;   // on the main thread, after a check ends either way
 
 // One line of a release's changelog: what changed, under the heading Release Please put it under,
@@ -32,12 +32,21 @@ BOOL SGUpdateIsNewer(NSString *version);   // whether that release is newer than
 NSString *SGUpdateStatus(void);
 void SGCheckForUpdate(BOOL force);
 UIViewController *SGUpdatePage(void);   // UpdatePage.m: the state and the changelog
+UIViewController *SGLicensesPage(void); // Licenses.m: the mod's license and the third-party ones it ships
+
+// Usage.m: the body the check posts to spoti.pw, nil while the switch is off. The key sits outside
+// "spotifyglass." so that Reset all settings neither switches the count off nor undoes an opt-out.
+#define SGKeyUsage @"spotipw.usage"
+NSData *SGUsageBody(void);
+BOOL SGUsageOwed(void);        // on, and not yet sent this UTC day
+void SGUsageNoteAsked(void);
 
 // UpdateNotice.m: the sheet a release newer than this build brings on its own, a few seconds after
 // Spotify comes up, once per release. Watched from the settings %ctor; the switch is on the Updates
 // page and takes effect at once.
 #define SGKeyUpdateNotice @"spotifyglass.update.notice"
 void SGWatchForUpdates(void);
+BOOL SGUpdateNoticeShown(void);   // this run, so the donate sheet stays out of its way
 
 
 // Whether the now playing card on the lock screen can open this build. It depends on the signature,

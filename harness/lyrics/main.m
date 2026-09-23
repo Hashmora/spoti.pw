@@ -3,7 +3,8 @@
 // without the phone. The songs are TTML read by the real SGTTML.m, or LRC timed by the real estimate.
 //
 // Launch arguments (the argument domain of NSUserDefaults, so a setting's key works as one too):
-//   -song NAME     fixtures/NAME.ttml or NAME.lrc in the app, or rtl, built here (default duet)
+//   -song NAME     fixtures/NAME.ttml, .lrc, .json (Spotify's own) or .txt (plain) in the app, or rtl,
+//                  built here (default duet)
 //   -file PATH     a TTML or LRC file on the Mac instead
 //   -at MS         where the clock starts (default 0)
 //   -rate X        how fast it runs (default 1)
@@ -15,7 +16,8 @@
 //   -dump 1        prints the lines as read, with their pronunciations and translations, and quits
 //   -openMenu S    opens the pronunciation and translation menu S seconds in, as a tap on its button would
 //   -toggleAt S    switches the pronunciation and the translation over S seconds in, as the menu would
-// and the lyrics' own settings by their keys: -spotifyglass.redesign.lyricsPronunciation 1,
+// and the lyrics' own settings by their keys: -spotifyglass.lyricsSimulateWords 1 (sweep line timed
+// lines on the estimate), -spotifyglass.redesign.lyricsPronunciation 1,
 // -spotifyglass.redesign.lyricsTranslation 1, -spotifyglass.redesign.lyricsTextOrder '(translation, lyrics, pronunciation)'.
 #import <UIKit/UIKit.h>
 #import <objc/runtime.h>
@@ -106,15 +108,27 @@ static NSArray<SGKaraokeLine *> *linesOfLRC(NSString *lrc) {
 static NSArray<SGKaraokeLine *> *songNamed(NSString *name, NSString *file) {
     if (!file && [name isEqualToString:@"rtl"]) return rightToLeftSong();
     if (!file && [name isEqualToString:@"rtlx"]) return rightToLeftSongWithExtras();
-    NSString *path = file ?: [NSBundle.mainBundle pathForResource:name ofType:@"ttml"] ?: [NSBundle.mainBundle pathForResource:name ofType:@"lrc"];
+    NSString *path = file;
+    for (NSString *type in @[@"ttml", @"lrc", @"json", @"txt"]) path = path ?: [NSBundle.mainBundle pathForResource:name ofType:type];
     NSString *text = path ? [NSString stringWithContentsOfFile:path encoding:NSUTF8StringEncoding error:nil] : nil;
     if (!text) NSLog(@"harness: no song at %@", path ?: name);
-    return [path.pathExtension isEqualToString:@"lrc"] ? linesOfLRC(text) : SGTTMLLines(text);
+    NSString *type = path.pathExtension;
+    // Spotify's own color-lyrics JSON, read by the real parser, and plain text as the sources hand it on.
+    if ([type isEqualToString:@"json"]) return SGKaraokeLinesFromBody([text dataUsingEncoding:NSUTF8StringEncoding]);
+#ifdef SGKeyLyricsSimulateWords
+    if ([type isEqualToString:@"txt"]) return SGKaraokeStaticLines([text componentsSeparatedByString:@"\n"]);
+#endif
+    return [type isEqualToString:@"lrc"] ? linesOfLRC(text) : SGTTMLLines(text);
 }
 
 static void dump(NSArray<SGKaraokeLine *> *lines) {
     for (SGKaraokeLine *line in lines) {
-        printf("%7ld-%7ld %s %s\n", (long)line.start, (long)line.end, line.align ? "R" : "L", SGKaraokeLineText(line).UTF8String);
+#ifdef SGKeyLyricsSimulateWords
+        const char *timing = line.timing == SGKaraokeTimingWords ? "W" : line.timing == SGKaraokeTimingLine ? "~" : "-";
+#else
+        const char *timing = "?";
+#endif
+        printf("%7ld-%7ld %s%s %s\n", (long)line.start, (long)line.end, timing, line.align ? "R" : "L", SGKaraokeLineText(line).UTF8String);
         if (line.backing) printf("                  bg %s\n", SGKaraokeLineText(line.backing).UTF8String);
 #ifdef SGRKeyLyricsTextOrder
         // A pronunciation's words with the time each starts, "+" before one joined to the word before.
@@ -176,7 +190,9 @@ static void timedTick(id self, SEL _cmd) {
 #endif
     NSString *song = [args stringForKey:@"song"] ?: @"duet";
     SGKaraokeKeepLines(@"harness", songNamed(song, [args stringForKey:@"file"]));
-    if ([args boolForKey:@"dump"]) {
+    // -dumpTo PATH: the dump into a file on the Mac, for when simctl launch --console shows nothing.
+    if ([args stringForKey:@"dumpTo"]) freopen([args stringForKey:@"dumpTo"].fileSystemRepresentation, "w", stdout);
+    if ([args boolForKey:@"dump"] || [args stringForKey:@"dumpTo"]) {
         dump(SGKaraokeLinesForTrack(@"harness"));
         exit(0);
     }

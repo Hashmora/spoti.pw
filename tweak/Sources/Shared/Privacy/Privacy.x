@@ -1,17 +1,15 @@
 // Telemetry blocking: an NSURLProtocol that answers the analytics endpoints itself instead of
 // letting them out, and keeps a count of what it stopped for the Privacy page.
 //
-// Spotify sends its own events to spclient's /gabo-receiver-service/, and each SDK it carries has
-// somewhere of its own to send to: Firebase to app-measurement.com, the Facebook SDK to
-// graph.facebook.com/<id>/activities, then Branch, Comscore, Segment. Nothing on the list carries
-// playback, search, sign-in or deep links, which is why whole hosts are named where the host does
-// nothing else and a path is named where it does.
+// The SDKs Spotify ships each send somewhere of their own: Firebase to app-measurement.com, Facebook
+// to graph.facebook.com/<id>/activities, then Branch, Comscore, Segment. None of it carries playback,
+// search, sign-in or deep links, so a whole host is named where it does nothing else and a path where
+// it does. Spotify's own events, sent to spclient's
+// /gabo-receiver-service/, are left alone: Recents is built from the plays reported among them.
 //
 // A protocol handed to +registerClass: is only consulted by NSURLConnection and the shared
 // session, so both session configurations are given it as well: that is what the SDKs build their
-// sessions from. What the core sends over its own sockets is out of reach either way, and the
-// counter is what tells the two apart -- Spotify events climbing in it means those events travel
-// over NSURLSession after all.
+// sessions from. What the core sends over its own sockets is out of reach either way.
 #import "Core/SGCore.h"
 #import "Privacy.h"
 
@@ -19,7 +17,6 @@ typedef struct { const char *host, *path, *label; } SGBlockRule;
 
 // host matched on the domain and its subdomains, path as a substring; no path means the whole host.
 static const SGBlockRule kRules[] = {
-    {"spotify.com",                       "/gabo-receiver-service/", "Spotify events"},
     {"app-measurement.com",               NULL,                      "Firebase"},
     {"crashlytics.com",                   NULL,                      "Crashlytics"},
     {"facebook.com",                      "/activities",             "Facebook"},
@@ -42,10 +39,15 @@ static NSMutableDictionary<NSString *, NSNumber *> *sg_counts;
 @end
 
 // The class object stands in for a lock: counting happens on whichever thread the request was made
-// on, the Privacy page reads on the main one.
+// on, the Privacy page reads on the main one. A count stored under a label no rule has any more is
+// dropped as it loads, so the total adds up to the rows the page shows.
 static NSMutableDictionary<NSString *, NSNumber *> *countsLocked(void) {
     if (!sg_counts) {
         sg_counts = [[NSUserDefaults.standardUserDefaults dictionaryForKey:kCounts] mutableCopy] ?: [NSMutableDictionary dictionary];
+        NSSet<NSString *> *current = [NSSet setWithArray:SGBlockedLabels()];
+        for (NSString *label in sg_counts.allKeys) {
+            if (![current containsObject:label]) sg_counts[label] = nil;
+        }
     }
     return sg_counts;
 }

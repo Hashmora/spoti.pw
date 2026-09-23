@@ -1,7 +1,4 @@
-// The sizes a line's three texts are set in, as a list of them to drag: the top one is set largest,
-// at the lyrics' own size, the next smaller and the last smallest, the way the Lyrics sources list
-// is dragged into the order the sources are asked in. Apple Music lets the lyrics or the
-// pronunciation be the larger and keeps the translation the smallest; any order goes here.
+// Drag the three texts of a line into size order, largest first.
 #import "Core/SGCore.h"
 #import "Settings/SGModPage.h"
 #import "Settings/SGPageStyle.h"
@@ -25,8 +22,7 @@
     [super viewDidLoad];
     _order = [SGRLyricsTextOrder() mutableCopy];
     self.tableView.editing = YES;
-    _footer = SGNote(@"Drag to choose which is set largest. The pronunciation and the translation show under a line "
-                      "when the lyrics have them and you turn them on from the button in the lyrics' corner.");
+    _footer = SGNote(@"Pronunciation and translation are turned on from the button in the lyrics' corner.");
     self.tableView.tableFooterView = _footer;
 }
 
@@ -93,12 +89,5 @@
 @end
 
 SGModRow *SGRLyricsTextSizesRow(void) {
-    SGModRow *row = SGPageRow(@"Text sizes", ^UIViewController *{ return [SGRLyricsTextPage new]; });
-    row.subtitle = @"Which of the lyrics, their pronunciation and their translation is set largest";
-    row.value = ^NSString *{
-        NSMutableArray<NSString *> *names = [NSMutableArray array];
-        for (NSNumber *text in SGRLyricsTextOrder()) [names addObject:SGRLyricsTextName(text.integerValue)];
-        return [names componentsJoinedByString:@", "];
-    };
-    return row;
+    return SGPageRow(@"Text sizes", ^UIViewController *{ return [SGRLyricsTextPage new]; });
 }

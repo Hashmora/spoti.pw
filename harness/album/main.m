@@ -1,6 +1,8 @@
 // A mock of Spotify's album page under its own class names and accessibility identifiers, built from
 // trees/clean/album/03.txt, so Redesigned/Album can be laid out and looked at on the Mac.
 #import <UIKit/UIKit.h>
+#import <objc/runtime.h>
+#import "../download-mock.h"
 
 #pragma mark - Spotify's classes, by name
 
@@ -99,6 +101,15 @@ static UIImage *playGlyph(void) {
 // button inside it at the same size, and a glyph in the button.
 static UIView *actionButton(UIView *row, CGRect frame, NSString *identifier, NSString *symbol, NSString *a11y) {
     UIView *element = box(row, UIView.class, frame, nil);
+    // Drawn by Lottie, its state in its identifier and in the Encore object behind it (issue #65).
+    if ([identifier hasPrefix:@"DownloadButton.Granular."]) {
+        mockDownloadButton(element);
+        return element;
+    }
+    if ([identifier isEqualToString:@"Components.UI.AddToButton"]) {
+        mockAddToButton(element);
+        return element;
+    }
     UIView *button = box(element, MockEncoreButton.class, element.bounds, identifier);
     button.accessibilityLabel = a11y;
     UIImageView *glyph = [[UIImageView alloc] initWithFrame:CGRectInset(button.bounds, 12, 12)];
@@ -136,6 +147,33 @@ static UIView *actionButton(UIView *row, CGRect frame, NSString *identifier, NSS
 @end
 
 // What the redesign's row shows on Play's right: the label of the Kit's last round button, the trailing one.
+static UIControl *trailingButton(UIView *root) {
+    NSMutableArray<UIView *> *stack = [NSMutableArray arrayWithObject:root];
+    while (stack.count) {
+        UIView *v = stack.lastObject;
+        [stack removeLastObject];
+        if ([NSStringFromClass(v.class) isEqualToString:@"SGRHeaderInfo"]) {
+            UIControl *trailing = nil;
+            for (UIView *sub in v.subviews) {
+                if ([NSStringFromClass(sub.class) isEqualToString:@"SGRMirrorButton"]) trailing = (UIControl *)sub;
+            }
+            return trailing;
+        }
+        [stack addObjectsFromArray:v.subviews];
+    }
+    return nil;
+}
+
+// The trailing button's label and the symbol it draws.
+static NSString *trailingState(UIView *root) {
+    UIControl *trailing = trailingButton(root);
+    UIImageView *glyph = nil;
+    for (UIView *sub in trailing.subviews) {
+        if ([sub isKindOfClass:UIImageView.class] && !sub.hidden) glyph = (UIImageView *)sub;
+    }
+    return [NSString stringWithFormat:@"\"%@\" %@ tint %@", trailing.accessibilityLabel, glyph.image, glyph.tintColor];
+}
+
 static NSString *trailingLabel(UIView *root) {
     NSMutableArray<UIView *> *stack = [NSMutableArray arrayWithObject:root];
     while (stack.count) {
@@ -255,8 +293,11 @@ static NSString *trailingLabel(UIView *root) {
                          @[@"Components.UI.ContextMenuButton-3OxfaVgvTxUTy7276t7SPU", @"ellipsis", @"More options", @158, @0, @48, @48]];
     // `late` on the launch line: add is not in the row yet, the way an album opened for the first time has it.
     BOOL late = [NSProcessInfo.processInfo.arguments containsObject:@"late"];
+    // `download`: an album without add (the row's download is what Play's right shows then), playing the
+    // download button's states (download-mock.h).
+    BOOL downloads = [NSProcessInfo.processInfo.arguments containsObject:@"download"];
     for (NSArray *action in actions) {
-        if (late && [action[0] isEqualToString:@"Components.UI.AddToButton"]) continue;
+        if ((late || downloads) && [action[0] isEqualToString:@"Components.UI.AddToButton"]) continue;
         CGRect frame = CGRectMake([action[3] doubleValue], [action[4] doubleValue], [action[5] doubleValue], [action[6] doubleValue]);
         [_actionItems addObject:actionButton(_actionRow, frame, action[0], action[1], action[2])];
         [_actionFrames addObject:[NSValue valueWithCGRect:frame]];
@@ -376,10 +417,7 @@ static NSString *trailingLabel(UIView *root) {
     UIView *shuffleElement = box(page, UIView.class, CGRectMake(282, 62, 48, 48), nil);
     UIView *shuffle = box(shuffleElement, MockEncoreButton.class, shuffleElement.bounds, @"Components.UI.ShuffleButton");
     shuffle.accessibilityLabel = @"Shuffle tracks";
-    UIImageView *shuffleGlyph = [[UIImageView alloc] initWithFrame:CGRectInset(shuffle.bounds, 12, 12)];
-    shuffleGlyph.image = [UIImage systemImageNamed:@"shuffle"];
-    shuffleGlyph.tintColor = UIColor.whiteColor;
-    [shuffle addSubview:shuffleGlyph];
+    mockShuffleGlyph(shuffle);
 
     UIView *playElement = box(page, UIView.class, CGRectMake(338, 94, 48, 48), nil);
     UIView *playButton = box(playElement, _TtC28EncoreConsumerMobile_BaseKit14PlayButtonView.class, playElement.bounds, @"header-play-button");
@@ -393,6 +431,17 @@ static NSString *trailingLabel(UIView *root) {
     [condensed addSubview:disc];
 
     [self.window makeKeyAndVisible];
+    if (downloads) downloadScript();
+
+    // `addto`: saved from elsewhere at 3 s (the ⋯ sheet, nothing laid out), then Play's right tapped at 7 s.
+    if ([NSProcessInfo.processInfo.arguments containsObject:@"addto"]) {
+        UIView *rootView = root.view;
+        for (NSNumber *when in @[@2, @6.5, @8.5]) {
+            at(when.doubleValue, ^{ NSLog(@"[harness] add-to at %@s: %@", when, trailingState(rootView)); });
+        }
+        at(3, ^{ setAddTo(1); NSLog(@"[harness] add-to: saved from elsewhere"); });
+        at(7, ^{ [trailingButton(rootView) sendActionsForControlEvents:UIControlEventTouchUpInside]; });
+    }
 
     // In `late`, add arrives at 2.5 s, after every pass of the header's and the metadata's re-reads: an arranged
     // subview of the row, which lays out the row and nothing above it.
@@ -416,6 +465,28 @@ static NSString *trailingLabel(UIView *root) {
         NSLog(@"[harness] hero %@, title stack %@, action row %@",
               NSStringFromCGRect([cover.window convertRect:cover.bounds fromView:cover]),
               NSStringFromCGRect(self->_titleStack.frame), NSStringFromCGRect(self->_actionRow.frame));
+
+        // The ⋯ the redesign pins over the page, outside the scroll, and the artist line under the title,
+        // which opens whoever made the album (issues #57 and #56).
+        UIView *pinned = nil;
+        for (UIView *sub in page.subviews) {
+            if ([NSStringFromClass(sub.class) isEqualToString:@"SGRMirrorButton"]) pinned = sub;
+        }
+        NSLog(@"[harness] pinned more: %@ on the page, hidden=%d",
+              pinned ? NSStringFromCGRect(pinned.frame) : @"MISSING", pinned.hidden);
+        __block UIView *info = nil, *artist = nil;
+        void (^__block walk)(UIView *) = ^(UIView *v) {
+            if ([NSStringFromClass(v.class) isEqualToString:@"SGRHeaderInfo"]) info = v;
+            for (UIView *sub in v.subviews) walk(sub);
+        };
+        walk(root.view);
+        for (UIView *sub in info.subviews) {
+            if ([sub isKindOfClass:UILabel.class] && [((UILabel *)sub).text isEqualToString:@"The Weeknd"]) artist = sub;
+        }
+        UIView *onName = [info hitTest:CGPointMake(CGRectGetMidX(info.bounds), CGRectGetMidY(artist.frame)) withEvent:nil];
+        UIView *beside = [info hitTest:CGPointMake(24, CGRectGetMidY(artist.frame)) withEvent:nil];
+        NSLog(@"[harness] artist line: on the name %@, beside it %@", onName ? NSStringFromClass(onName.class) : @"through",
+              beside ? NSStringFromClass(beside.class) : @"through");
     });
 
     // Spotify lays the header out again after the redesign has moved things: the title block, its stack and

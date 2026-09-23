@@ -2,9 +2,15 @@
 // rest dim and blur with distance. Lines two voices sing at once are lit together, an instrumental
 // break holds three dots, and a line can show its pronunciation and its translation under it. The
 // lines and the clock are Shared/Lyrics/Lyrics.h's.
+//
+// Only words the source timed are swept. A line timed by the line lights up whole as it starts, as
+// Apple Music lights such a line, unless the Lyrics page's "Simulate word-by-word timing" asks for
+// its estimated words to be swept; lyrics with no timing at all are shown as plain text, every line
+// lit, nothing following the clock.
 #import "Core/SGCore.h"
 #import "SGRKaraokeView.h"
 #import "LyricsText.h"
+#import "MeaningSheet.h"
 #import "Shared/LyricsSources/LyricsSources.h"
 #import "Shared/Player/PlayerEvents.h"
 #import "Shared/Haptics/Haptics.h"
@@ -17,6 +23,10 @@ static const CGFloat kEdgeFade = 0.1;  // the lines fade out over this share at 
 static const CGFloat kBlurPerLine = 1.4, kMaxBlur = 6;
 // The (oh, aye) hanging under a line: smaller, a little dimmer, and just clear of it.
 static const CGFloat kBackingScale = 0.62, kBackingAlpha = 0.8, kBackingGap = 4;
+// The mark of a line Genius explains: a bubble after it for the artist's own word, a dotted underline
+// for anyone else's.
+static const CGFloat kBubbleSide = 22, kBubbleGap = 8, kBubbleGlyph = 11, kBubbleAlpha = 0.75, kBubbleReach = 14;
+static const CGFloat kUnderlineDrop = 1, kUnderlineWidth = 2, kUnderlineAlpha = 0.35;
 // The line naming the source, under the lyrics and outside the fade so it does not dim with them.
 static const CGFloat kCreditSize = 12, kCreditAlpha = 0.4, kCreditBottom = 10;
 // The button for the pronunciation and the translation, in the bottom leading corner as Apple Music
@@ -25,6 +35,9 @@ static const CGFloat kExtrasSide = 44, kExtrasBottom = 12, kExtrasGlyph = 17, kE
 static const NSTimeInterval kRestyleFade = 0.3;   // the lines crossfading to a new style
 static const NSTimeInterval kBrowseHold = 3;   // after scrolling by hand, how long until it follows the song again
 static const double kFloatMinMs = 700, kFloatLeadMs = 80;   // a short word still floats up this slowly
+// A line lit whole: how long its words take to come up to full white, and to float up together.
+static const NSTimeInterval kWholeFade = 0.35;
+static const double kWholeRiseMs = 900;
 static const double kClockSnapMs = 250, kClockPull = 0.08;
 // Lines get views this far outside the visible part, in screen heights: half a screen above it
 // and below, and a quarter more before a view is let go. Every view held is one more for the window
@@ -108,6 +121,10 @@ static UILabel *wordLabel(NSString *text, UIFont *font, UIColor *color, CGRect f
 @property (nonatomic, readonly) SGKaraokeWord *word;
 @property (nonatomic, readonly) UILabel *lit;
 @property (nonatomic) CGFloat offset;   // where the word starts along its line, rows laid end to end
+// Lit with the rest of its line at once rather than swept, and floated up with it over riseStart to
+// riseEnd, which are the word's own times until the sweep says otherwise.
+@property (nonatomic) BOOL whole;
+@property (nonatomic) double riseStart, riseEnd;
 - (void)fillTo:(CGFloat)cursor;
 - (void)floatAt:(double)ms;
 - (void)settle;
@@ -124,6 +141,8 @@ static UILabel *wordLabel(NSString *text, UIFont *font, UIColor *color, CGRect f
     self = [super initWithFrame:CGRectMake(0, 0, ceil(size.width), ceil(font.lineHeight))];
     if (!self) return nil;
     _word = word;
+    _riseStart = word.start;
+    _riseEnd = word.end;
     _rightToLeft = rightToLeft;
     [self addSubview:wordLabel(word.text, font, [UIColor colorWithWhite:1 alpha:kDimAlpha], self.bounds, rightToLeft)];
     _lit = wordLabel(word.text, font, UIColor.whiteColor, self.bounds, rightToLeft);
@@ -162,7 +181,7 @@ static UILabel *wordLabel(NSString *text, UIFont *font, UIColor *color, CGRect f
 // Rises like a critically damped spring let go as the word starts: no jolt, a long soft landing.
 // x = 5 at the end of the word is 96 % of the way up.
 - (void)floatAt:(double)ms {
-    double x = MAX(0, ms - _word.start + kFloatLeadMs) / MAX(_word.end - _word.start, kFloatMinMs) * 5;
+    double x = MAX(0, ms - _riseStart + kFloatLeadMs) / MAX(_riseEnd - _riseStart, kFloatMinMs) * 5;
     CGFloat lift = kLift * (1 - (1 + x) * exp(-x));
     if (lift == _lift) return;
     _lift = lift;
@@ -494,20 +513,32 @@ typedef struct {
 } SGSweepKnot;
 
 // One run of words lit by one sweep: a line's own, or its pronunciation's, each timed by its own words.
+// A whole one lights every word of the run at once from `start`, for a run whose words are not timed.
 @interface SGRKaraokeSweep : NSObject
 @property (nonatomic, readonly) NSArray<SGRKaraokeWordView *> *words;
-- (instancetype)initWithWords:(NSArray<SGRKaraokeWordView *> *)words;
+- (instancetype)initWithWords:(NSArray<SGRKaraokeWordView *> *)words wholeFrom:(double)start;
 - (void)showTime:(double)ms;
 @end
 
 @implementation SGRKaraokeSweep {
     SGSweepKnot *_knots;
     NSUInteger _knotCount;
+    BOOL _whole;
 }
 
-- (instancetype)initWithWords:(NSArray<SGRKaraokeWordView *> *)words {
+// start: NAN to sweep the words by their own times.
+- (instancetype)initWithWords:(NSArray<SGRKaraokeWordView *> *)words wholeFrom:(double)start {
     if (!(self = [super init])) return nil;
     _words = words;
+    _whole = !isnan(start);
+    if (_whole) {
+        for (SGRKaraokeWordView *word in words) {
+            word.whole = YES;
+            word.riseStart = start;
+            word.riseEnd = start + kWholeRiseMs;
+        }
+        return self;
+    }
     [self buildSweep];
     return self;
 }
@@ -562,7 +593,8 @@ static double secant(SGSweepKnot *knots, NSUInteger i) {
 }
 
 - (void)showTime:(double)ms {
-    CGFloat cursor = [self cursorAt:ms];
+    // A whole run is only ever shown while its line is sung, so it is lit throughout.
+    CGFloat cursor = _whole ? CGFLOAT_MAX : [self cursorAt:ms];
     for (SGRKaraokeWordView *word in _words) {
         [word fillTo:cursor];
         [word floatAt:ms];
@@ -580,9 +612,16 @@ static double secant(SGSweepKnot *knots, NSUInteger i) {
 @property (nonatomic, readonly) BOOL right;
 @property (nonatomic) BOOL active;
 @property (nonatomic) CGFloat blur;
-// under: the line a backing row hangs under, nil for a line of its own.
-- (instancetype)initWithLine:(SGKaraokeLine *)line width:(CGFloat)width style:(SGRKaraokeStyle *)style under:(SGRKaraokeLineView *)under blurred:(BOOL)blurred;
+// under: the line a backing row hangs under, nil for a line of its own. sweepsEstimates: the words of a
+// line timed only by the line are swept on their estimated times, rather than lit whole.
+- (instancetype)initWithLine:(SGKaraokeLine *)line width:(CGFloat)width style:(SGRKaraokeStyle *)style under:(SGRKaraokeLineView *)under
+                     blurred:(BOOL)blurred sweepsEstimates:(BOOL)sweepsEstimates;
 - (void)showTime:(double)ms;
+// Every word lit and left so, for lyrics with no timing: nothing is sung, so nothing is dim.
+- (void)showPlain;
+- (void)markMeaning:(NSArray<SGLyricsMeaning *> *)meanings;
+// Where the bubble can be tapped, in the line's own space; CGRectNull without one.
+@property (nonatomic, readonly) CGRect bubbleTarget;
 @end
 
 // The translation of a line being sung, brighter than a line waiting but never as bright as the words.
@@ -591,13 +630,18 @@ static const CGFloat kTranslationLit = 0.6;
 @implementation SGRKaraokeLineView {
     NSArray<SGRKaraokeSweep *> *_sweeps;   // the line's words, then their pronunciation's where shown
     NSArray<SGRKaraokeWordView *> *_words;   // every word of both
+    NSArray<SGRKaraokeWordView *> *_lyricWords;
+    UIImageView *_bubble;
+    CAShapeLayer *_underline;
     UILabel *_translation;
     NSUInteger _generation;
     SGRKaraokeLineView *_backing;
 }
 
 // A sweep's word views, each put where the layout has it and told where it sits along the sweep.
-- (SGRKaraokeSweep *)sweepOf:(NSArray<SGKaraokeWord *> *)words font:(UIFont *)font frames:(NSArray<NSValue *> *)frames offsets:(NSArray<NSNumber *> *)offsets {
+// start: NAN for words timed one by one, else when the run lights up whole.
+- (SGRKaraokeSweep *)sweepOf:(NSArray<SGKaraokeWord *> *)words font:(UIFont *)font frames:(NSArray<NSValue *> *)frames
+                     offsets:(NSArray<NSNumber *> *)offsets wholeFrom:(double)start {
     if (!words.count || frames.count != words.count) return nil;
     BOOL rightToLeft = readsRightToLeft([[words valueForKey:@"text"] componentsJoinedByString:@""]);
     NSMutableArray<SGRKaraokeWordView *> *views = [NSMutableArray arrayWithCapacity:words.count];
@@ -609,10 +653,18 @@ static const CGFloat kTranslationLit = 0.6;
         [self addSubview:view];
         [views addObject:view];
     }
-    return [[SGRKaraokeSweep alloc] initWithWords:views];
+    return [[SGRKaraokeSweep alloc] initWithWords:views wholeFrom:start];
 }
 
-- (instancetype)initWithLine:(SGKaraokeLine *)line width:(CGFloat)width style:(SGRKaraokeStyle *)style under:(SGRKaraokeLineView *)under blurred:(BOOL)blurred {
+// When a run of the line lights up whole, or NAN to sweep it: only words the source timed are swept,
+// unless the estimate is asked for.
+static double wholeFrom(SGKaraokeLine *run, BOOL sweepsEstimates) {
+    if (run.timing == SGKaraokeTimingWords || (run.timing == SGKaraokeTimingLine && sweepsEstimates)) return NAN;
+    return run.start;
+}
+
+- (instancetype)initWithLine:(SGKaraokeLine *)line width:(CGFloat)width style:(SGRKaraokeStyle *)style under:(SGRKaraokeLineView *)under
+                     blurred:(BOOL)blurred sweepsEstimates:(BOOL)sweepsEstimates {
     self = [super initWithFrame:CGRectZero];
     if (!self) return nil;
     _line = line;
@@ -620,12 +672,15 @@ static const CGFloat kTranslationLit = 0.6;
     SGRKaraokeLayout *layout = layOut(line, width, style, backing ? under.right : -1);
     _right = layout.right;
     NSMutableArray<SGRKaraokeSweep *> *sweeps = [NSMutableArray array];
-    SGRKaraokeSweep *sung = [self sweepOf:line.words font:style.lyrics frames:layout.lyricFrames offsets:layout.lyricOffsets];
-    SGRKaraokeSweep *spoken = [self sweepOf:line.pronunciation.words font:style.pronunciation frames:layout.spokenFrames offsets:layout.spokenOffsets];
+    SGRKaraokeSweep *sung = [self sweepOf:line.words font:style.lyrics frames:layout.lyricFrames offsets:layout.lyricOffsets
+                                wholeFrom:wholeFrom(line, sweepsEstimates)];
+    SGRKaraokeSweep *spoken = [self sweepOf:line.pronunciation.words font:style.pronunciation frames:layout.spokenFrames
+                                    offsets:layout.spokenOffsets wholeFrom:wholeFrom(line.pronunciation, sweepsEstimates)];
     if (sung) [sweeps addObject:sung];
     if (spoken) [sweeps addObject:spoken];
     _sweeps = sweeps;
     _words = [sung.words ?: @[] arrayByAddingObjectsFromArray:spoken.words ?: @[]];
+    _lyricWords = sung.words;
 
     if (!CGRectIsNull(layout.translation)) {
         _translation = [[UILabel alloc] initWithFrame:layout.translation];
@@ -638,7 +693,8 @@ static const CGFloat kTranslationLit = 0.6;
         [self addSubview:_translation];
     }
     if (layout.backingTop > 0) {
-        _backing = [[SGRKaraokeLineView alloc] initWithLine:line.backing width:width style:style.backing under:self blurred:NO];
+        _backing = [[SGRKaraokeLineView alloc] initWithLine:line.backing width:width style:style.backing under:self blurred:NO
+                                            sweepsEstimates:sweepsEstimates];
         _backing.alpha = kBackingAlpha;
         _backing.frame = CGRectMake(0, layout.backingTop, width, _backing.bounds.size.height);
         [self addSubview:_backing];
@@ -683,14 +739,21 @@ static const NSUInteger kLinesPerFrame = 4;
                          animations:^{ self->_translation.alpha = active ? kTranslationLit : kDimAlpha; } completion:nil];
     }
     if (active) {
+        NSMutableArray<SGRKaraokeWordView *> *whole = [NSMutableArray array];
         for (SGRKaraokeWordView *word in _words) {
             [word.layer removeAllAnimations];
             [word.lit.layer removeAllAnimations];
             word.lit.alpha = 1;
             word.lit.hidden = NO;
-            [word fillTo:-CGFLOAT_MAX];
+            [word fillTo:word.whole ? CGFLOAT_MAX : -CGFLOAT_MAX];
             [word settle];
+            if (word.whole) [whole addObject:word];
         }
+        // A line lit whole comes up to white together rather than popping on, as Apple Music's do.
+        if (!whole.count) return;
+        for (SGRKaraokeWordView *word in whole) word.lit.alpha = 0;
+        [UIView animateWithDuration:kWholeFade delay:0 options:UIViewAnimationOptionCurveEaseOut | UIViewAnimationOptionAllowUserInteraction
+                         animations:^{ for (SGRKaraokeWordView *word in whole) word.lit.alpha = 1; } completion:nil];
         return;
     }
     // A sung line fades back to dim rather than dropping its fill at once, and its words sink back
@@ -715,6 +778,76 @@ static const NSUInteger kLinesPerFrame = 4;
 - (void)showTime:(double)ms {
     for (SGRKaraokeSweep *sweep in _sweeps) [sweep showTime:ms];
     [_backing showTime:ms];   // timed on its own, so it lags the line as it is sung
+}
+
+- (void)showPlain {
+    for (SGRKaraokeWordView *word in _words) {
+        word.lit.hidden = NO;
+        word.lit.alpha = 1;
+        [word fillTo:CGFLOAT_MAX];
+    }
+    _translation.alpha = kTranslationLit;
+    [_backing showPlain];
+}
+
+- (CGRect)bubbleTarget {
+    return _bubble ? CGRectInset(_bubble.frame, -kBubbleReach, -kBubbleReach) : CGRectNull;
+}
+
+- (void)markMeaning:(NSArray<SGLyricsMeaning *> *)meanings {
+    [_bubble removeFromSuperview];
+    _bubble = nil;
+    [_underline removeFromSuperlayer];
+    _underline = nil;
+    if (!meanings.count || !_lyricWords.count) return;
+    if (meanings.firstObject.author == SGLyricsMeaningByArtist) {
+        SGRKaraokeWordView *last = _lyricWords.lastObject;
+        BOOL rightToLeft = readsRightToLeft(SGKaraokeLineText(_line));
+        CGRect word = CGRectMake(last.center.x - last.bounds.size.width / 2, last.center.y - last.bounds.size.height / 2,
+                                 last.bounds.size.width, last.bounds.size.height);
+        CGFloat x = rightToLeft ? CGRectGetMinX(word) - kBubbleGap - kBubbleSide : CGRectGetMaxX(word) + kBubbleGap;
+        UIImage *glyph = [UIImage systemImageNamed:@"quote.opening" withConfiguration:
+                          [UIImageSymbolConfiguration configurationWithPointSize:kBubbleGlyph weight:UIImageSymbolWeightBold]];
+        _bubble = [[UIImageView alloc] initWithImage:glyph];
+        _bubble.contentMode = UIViewContentModeCenter;
+        _bubble.tintColor = UIColor.blackColor;
+        _bubble.backgroundColor = UIColor.whiteColor;
+        _bubble.layer.cornerRadius = kBubbleSide / 2;
+        _bubble.alpha = kBubbleAlpha;
+        _bubble.frame = CGRectMake(x, CGRectGetMidY(word) - kBubbleSide / 2, kBubbleSide, kBubbleSide);
+        _bubble.isAccessibilityElement = YES;
+        _bubble.accessibilityLabel = @"Meaning from the artist";
+        [self addSubview:_bubble];
+        return;
+    }
+    // One dotted stroke under each row the line's words wrap onto.
+    UIBezierPath *path = [UIBezierPath bezierPath];
+    CGFloat rowY = NAN, from = 0, to = 0;
+    for (SGRKaraokeWordView *word in _lyricWords) {
+        CGFloat bottom = word.center.y + word.bounds.size.height / 2 + kUnderlineDrop;
+        CGFloat left = word.center.x - word.bounds.size.width / 2, right = left + word.bounds.size.width;
+        if (bottom != rowY) {
+            if (!isnan(rowY)) {
+                [path moveToPoint:CGPointMake(from, rowY)];
+                [path addLineToPoint:CGPointMake(to, rowY)];
+            }
+            rowY = bottom;
+            from = left;
+            to = right;
+            continue;
+        }
+        from = MIN(from, left);
+        to = MAX(to, right);
+    }
+    [path moveToPoint:CGPointMake(from, rowY)];
+    [path addLineToPoint:CGPointMake(to, rowY)];
+    _underline = [CAShapeLayer layer];
+    _underline.path = path.CGPath;
+    _underline.strokeColor = [UIColor colorWithWhite:1 alpha:kUnderlineAlpha].CGColor;
+    _underline.lineWidth = kUnderlineWidth;
+    _underline.lineCap = kCALineCapRound;
+    _underline.lineDashPattern = @[@0, @5];
+    [self.layer insertSublayer:_underline atIndex:0];
 }
 
 @end
@@ -940,6 +1073,10 @@ typedef struct {
     double _clock;
     NSInteger _reported;
     CFTimeInterval _clockTime;
+    BOOL _sweepsEstimates;   // the Lyrics page's "Simulate word-by-word timing", read once like the credit
+    BOOL _plain;             // the song has no timing at all: every line lit, nothing follows the clock
+    NSDictionary<NSNumber *, NSArray<SGLyricsMeaning *> *> *_meanings;   // Genius's, by line
+    NSUInteger _meaningsAsked;
 }
 
 - (instancetype)initWithFrame:(CGRect)frame {
@@ -972,11 +1109,17 @@ typedef struct {
     _credit.textColor = [UIColor colorWithWhite:1 alpha:kCreditAlpha];
     _credit.hidden = YES;
     _crediting = SGFlag(SGKeyLyricsCredit, NO);
+    _sweepsEstimates = SGFlag(SGKeyLyricsSimulateWords, NO);
     [self addSubview:_credit];
     [self addGestureRecognizer:[[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(tapped:)]];
+    [self addGestureRecognizer:[[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(held:)]];
     [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(playerTransitionChanged:) name:SGPlayerTransitionNotification object:nil];
     [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(playerTransitionChanged:) name:SGPlayerTransitionEndedNotification object:nil];
     [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(restyle) name:SGRLyricsTextDidChangeNotification object:nil];
+    // A locked phone leaves the card in its window, so the link has to be put down by the app going
+    // away rather than by the view going: see scheduleLink.
+    [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(scheduleLink) name:UIApplicationDidBecomeActiveNotification object:nil];
+    [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(scheduleLink) name:UIApplicationWillResignActiveNotification object:nil];
     return self;
 }
 
@@ -990,12 +1133,51 @@ typedef struct {
     if (_extras && !_extras.hidden && CGRectContainsPoint(_extras.frame, [tap locationInView:self])) return;
     CGPoint point = [tap locationInView:_scroll];
     for (SGRKaraokeLineView *view in _shown.allValues) {
+        CGRect target = view.bubbleTarget;
+        if (CGRectIsNull(target) || !CGRectContainsPoint(target, [_scroll convertPoint:point toView:view])) continue;
+        [self explainLine:view];
+        return;
+    }
+    if (_plain) return;   // a line with no time has nowhere to seek to
+    for (SGRKaraokeLineView *view in _shown.allValues) {
         if (!CGRectContainsPoint(CGRectInset(view.frame, -_margin, -_lineGap / 2), point)) continue;
         SGKaraokeSeek(view.line.start);
         SGPlayFeedback(SGFeedbackSkip);
         [self followSong];
         return;
     }
+}
+
+- (void)held:(UILongPressGestureRecognizer *)hold {
+    if (hold.state != UIGestureRecognizerStateBegan || !_meanings.count) return;
+    CGPoint point = [hold locationInView:_scroll];
+    for (SGRKaraokeLineView *view in _shown.allValues) {
+        if (!CGRectContainsPoint(CGRectInset(view.frame, -_margin, -_lineGap / 2), point)) continue;
+        [self explainLine:view];
+        return;
+    }
+}
+
+- (void)explainLine:(SGRKaraokeLineView *)view {
+    NSNumber *index = [_shown allKeysForObject:view].firstObject;
+    NSArray<SGLyricsMeaning *> *meanings = index ? _meanings[index] : nil;
+    if (!meanings.count) return;
+    SGPlayFeedback(SGFeedbackSkip);
+    SGRShowMeanings(SGKaraokeLineText(view.line), meanings);
+}
+
+// Genius is asked once the song's lines are in; lines that change under it are matched again.
+- (void)askMeanings {
+    _meanings = nil;
+    NSUInteger asked = ++_meaningsAsked;
+    NSArray<SGKaraokeLine *> *lines = _lines;
+    __weak SGRKaraokeView *weakSelf = self;
+    SGLyricsMeaningsFor(_track, lines, ^(NSDictionary<NSNumber *, NSArray<SGLyricsMeaning *> *> *byLine) {
+        SGRKaraokeView *page = weakSelf;
+        if (!page || asked != page->_meaningsAsked || lines != page->_lines) return;
+        page->_meanings = byLine;
+        for (NSNumber *key in page->_shown) [page->_shown[key] markMeaning:byLine[key]];
+    });
 }
 
 #pragma mark - scrolling by hand
@@ -1012,12 +1194,13 @@ typedef struct {
     [self showLinesInSight];
 }
 
+// Plain text has no song to follow back to: it stays where it was scrolled to, as a page of text does.
 - (void)scrollViewDidEndDragging:(UIScrollView *)scrollView willDecelerate:(BOOL)decelerate {
-    if (!decelerate) [self performSelector:@selector(followSong) withObject:nil afterDelay:kBrowseHold];
+    if (!decelerate && !_plain) [self performSelector:@selector(followSong) withObject:nil afterDelay:kBrowseHold];
 }
 
 - (void)scrollViewDidEndDecelerating:(UIScrollView *)scrollView {
-    [self performSelector:@selector(followSong) withObject:nil afterDelay:kBrowseHold];
+    if (!_plain) [self performSelector:@selector(followSong) withObject:nil afterDelay:kBrowseHold];
 }
 
 - (void)followSong {
@@ -1045,6 +1228,11 @@ typedef struct {
 // link now asks for 60 but takes 120, and is put down for as long as the player animates, which
 // NowPlayingBar.x announces as each animation starts and again as it ends. The timer is for an end
 // that is never announced.
+//
+// The link is also put down whenever the app is not in front. Spotify keeps playing there, and a
+// phone locked on the player kept the card ticking at 120 Hz against a screen that was off: 117 of
+// the 137 wake ups a second the mod cost over stock Spotify were this one link, measured with
+// scripts/battery-probe.sh. Nothing of the card is seen from the background, so nothing is drawn.
 - (void)scheduleLink {
     [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(startLink) object:nil];
     [_link invalidate];
@@ -1057,6 +1245,7 @@ typedef struct {
 
 - (void)startLink {
     if (!self.window || _link) return;
+    if (UIApplication.sharedApplication.applicationState != UIApplicationStateActive) return;
     _link = [CADisplayLink displayLinkWithTarget:self selector:@selector(tick)];
     _link.preferredFrameRateRange = CAFrameRateRangeMake(80, 120, 120);
     [_link addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
@@ -1122,16 +1311,18 @@ typedef struct {
     _breaks = calloc(count + 1, sizeof(SGRKaraokeBreak));
     _breakCount = 0;
     _hasSpoken = _hasTranslation = NO;
+    _plain = SGKaraokeLinesTiming(_lines) == SGKaraokeTimingNone;
     NSInteger sungTo = 0;   // the top of the song counts as where the singing before the first line ends
     for (NSUInteger i = 0; i < count; i++) {
         SGKaraokeLine *line = _lines[i];
         _spans[i] = (SGRKaraokeSpan){line.start, SGKaraokeSungEnd(line)};
-        if (line.start - sungTo >= kBreakMinMs) _breaks[_breakCount++] = (SGRKaraokeBreak){sungTo, line.start, (NSInteger)i};
+        if (!_plain && line.start - sungTo >= kBreakMinMs) _breaks[_breakCount++] = (SGRKaraokeBreak){sungTo, line.start, (NSInteger)i};
         sungTo = MAX(sungTo, _spans[i].end);
         _hasSpoken = _hasSpoken || line.pronunciation || line.backing.pronunciation;
         _hasTranslation = _hasTranslation || line.translation.length;
     }
     [self offerExtras];
+    [self askMeanings];
 }
 
 // Measures the song for the width and, once that is in, places it; Spotify's own lines stay in view
@@ -1274,6 +1465,7 @@ typedef struct {
 // nearest line being sung, from an open break as if it were a line of its own, and before the first
 // line from the line before it, as ever.
 - (NSInteger)distanceOf:(NSInteger)index {
+    if (_plain) return 0;   // nothing is sung, so every line reads as clearly as the rest
     if (_openBreak >= 0) return index >= _openBreak ? index - _openBreak + 1 : _openBreak - index;
     if (!_sungCount) return labs(index - _focus);
     NSInteger nearest = NSIntegerMax;
@@ -1285,7 +1477,10 @@ typedef struct {
 - (SGRKaraokeLineView *)viewForLine:(NSInteger)index {
     SGRKaraokeLineView *view = _shown[@(index)];
     if (view || !_tops || index < 0 || index >= (NSInteger)_tops.count) return view;
-    view = [[SGRKaraokeLineView alloc] initWithLine:_lines[index] width:_builtWidth - 2 * _margin style:_style under:nil blurred:_maxBlur > 0];
+    view = [[SGRKaraokeLineView alloc] initWithLine:_lines[index] width:_builtWidth - 2 * _margin style:_style under:nil
+                                            blurred:_maxBlur > 0 && !_plain sweepsEstimates:_sweepsEstimates];
+    if (_plain) [view showPlain];
+    [view markMeaning:_meanings[@(index)]];
     [_scroll addSubview:view];
     _shown[@(index)] = view;
     [self placeLine:view at:index animated:NO];
@@ -1458,6 +1653,15 @@ typedef struct {
         [self dropLineViews];
         [self offerExtras];
     }
+    // Plain text is shown while Spotify is asked whether it has the song timed; its answer replaces it.
+    NSArray<SGKaraokeLine *> *kept = _plain && _lines && track ? SGKaraokeLinesForTrack(track) : nil;
+    if (kept && kept != _lines) {
+        SGLog(@"karaoke: timed lines of %@ came in over the plain text", track);
+        _lines = nil;
+        _builtWidth = 0;
+        [self creditTo:nil];
+        [self dropLineViews];
+    }
     if (!_lines && track && (_lines = SGKaraokeLinesForTrack(track))) {
         SGLog(@"karaoke: showing %lu lines of %@", (unsigned long)_lines.count, track);
         [self timeLines];
@@ -1468,6 +1672,10 @@ typedef struct {
     if (_crediting && _lines && !_credit.text.length) [self creditTo:SGLyricsCreditFor(track)];
     if (!_tops) return;
     [self alignFade];
+    if (_plain) {
+        [self showLinesInSight];   // it moves only when scrolled by hand
+        return;
+    }
 
     double now = [self clockMs];
     NSInteger sung[kMostSung], focus, openBreak;

@@ -22,9 +22,14 @@ void SGRSuppress(UIView *view);
 // setFont: by a runtime subclass of the instance, like SGRSuppress. Idempotent.
 void SGRMonospacedDigits(UILabel *label);
 
-// `changed` after every setImage: on the image view, Spotify's included, for as long as the view lives, by a
-// runtime subclass of the instance like SGRSuppress. A second call replaces the block. NO when the view
-// cannot be subclassed (a KVO-observed instance): the caller then only sees what its own passes read.
+// `changed` after every setImage: on the image view, Spotify's included, for as long as the view lives: by a
+// runtime subclass of the instance like SGRSuppress, or, for one of Spotify's own classes (Encore's image
+// views, which no instance of can be subclassed), by an override on that class, which only ever reports the
+// instances that asked. A second call replaces the block. NO when neither took, which a log line says once:
+// the caller then only sees what its own passes read.
+//
+// This is how a picture that lands after a screen has been laid out reaches it: setting an image lays no
+// ancestor out, so nothing else tells the screen it is there.
 BOOL SGRObserveImage(UIImageView *view, void (^changed)(UIImageView *view));
 
 // `laidOut` after every layoutSubviews of the view, Spotify's included, for as long as the view lives, by
@@ -59,9 +64,14 @@ SGRShadowPlate *SGRShadowPlateIn(UIView *host, const void *key);
 // cell's own layout pass, and is cheap enough to.
 //
 // Only what is nearly as wide as the cell: a badge's black disc, a card's grey and an image's placeholder
-// are their own. A cell nested inside the cell (a card in a carousel) is not walked into: its own row
-// decides for it.
+// are their own. A cell nested inside the cell and narrower than that (a card in a carousel) is not walked
+// into: its own row decides for it.
 void SGRClearCellPaint(UIView *cell);
+
+// Fires one of Spotify's own buttons the way a tap on it would: the first control under `source`, through
+// SGRFire, and through -accessibilityActivate when that control answers its touches some other way. For a
+// control the redesign conceals and draws itself (the action row's buttons, a header's creator line).
+void SGRActivate(UIView *source);
 
 // Fires a control's action the way a tap would: the actions registered for primary action triggered,
 // else those for touch up inside. NO when the control has neither (an Encore control that reads its

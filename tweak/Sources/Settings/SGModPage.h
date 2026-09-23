@@ -31,6 +31,7 @@
 @property (nonatomic, copy) BOOL (^visible)(void);
 // A choice row's: a line under each name in its list, in the same order, and what runs once one is stored.
 @property (nonatomic, copy) NSArray<NSString *> *choiceNotes;
+@property (nonatomic, copy) NSString *choiceFooter;   // under a choice row's list
 @property (nonatomic, copy) void (^chosen)(NSInteger index);
 // A slider row's (SGSliderRow): its range and step, and the blocks that read its number, store one and
 // write one out.

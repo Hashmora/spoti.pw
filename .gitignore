@@ -17,3 +17,4 @@ tweak/Sources/Shared/Flags/SGFlagList.m
 /trees/clean
 harness/*/build/
 vendor/*/build/
+/video

@@ -123,9 +123,7 @@ static NSString *cellLabel(SGGestureAction action) {
     _header.autoresizingMask = UIViewAutoresizingFlexibleWidth;
     [_header addSubview:_grid];
     self.tableView.tableHeaderView = _header;
-    _footer = SGNote(@"The player answers a sideways swipe with the next track and a drag upwards "
-                    "with the cards below, so the double tap is what is left. Spotify's own buttons "
-                    "sit above the grid and keep their taps.");
+    _footer = SGNote(@"Spotify's own buttons keep their taps.");
     self.tableView.tableFooterView = _footer;
 }
 
@@ -191,7 +189,7 @@ static NSString *cellLabel(SGGestureAction action) {
     UITableViewCell *cell = SGDequeueCell(table, @"gesture");
     switch (path.section) {
         case 0: {
-            SGFillCell(cell, @"Double tap the player", @"Tap a cell above to say what it does", nil, nil);
+            SGFillCell(cell, @"Double tap the player", @"Tap a cell to set it", nil, nil);
             UISwitch *toggle = [UISwitch new];
             toggle.onTintColor = SGGreen();
             toggle.on = SGFlag(SGKeyGestures, NO);
@@ -214,7 +212,7 @@ static NSString *cellLabel(SGGestureAction action) {
             break;
         }
         default:
-            SGFillCell(cell, @"Start over", @"Every cell back to seeking and play or pause", nil, @"arrow.uturn.backward");
+            SGFillCell(cell, @"Start over", nil, nil, @"arrow.uturn.backward");
             cell.selectionStyle = UITableViewCellSelectionStyleDefault;
             break;
     }

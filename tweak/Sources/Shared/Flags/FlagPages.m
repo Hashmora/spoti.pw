@@ -23,7 +23,7 @@ static UIViewController *martiniPage(void) {
 }
 
 UIViewController *SGLabsPage(void) {
-    return [[SGModPage alloc] initWithTitle:@"Labs" intro:@"Features Spotify built and has not released. They may do nothing on your version. Changes apply after you restart Spotify." sections:@[
+    return [[SGModPage alloc] initWithTitle:@"Labs" intro:@"Unreleased features; some do nothing on your version. Changes apply after you restart Spotify." sections:@[
         SGSection(nil, @[
             SGWithSymbol(SGPageRow(@"AI Chat (Martini)", ^UIViewController *{ return martiniPage(); }), @"bubble.left.and.bubble.right"),
         ]),
@@ -37,7 +37,7 @@ UIViewController *SGLabsPage(void) {
             SGFlagRow(@"Fade out", @"ios-feature-sleeptimer.enable_fade_out"),
             SGFlagRow(@"One minute option", @"ios-feature-sleeptimer.enable_one_minute_option"),
             SGFlagRow(@"Options sheet", @"ios-feature-sleeptimer.use_options_sheet"),
-        ], @"The options sheet is locked on while Redesigned UI is on."),
+        ], @"Options sheet is always on in Redesigned UI."),
         SGSection(@"Player", @[
             SGFlagRow(@"Snake on the cover art", @"ios-feature-cover-art-snake.enabled"),
         ]),

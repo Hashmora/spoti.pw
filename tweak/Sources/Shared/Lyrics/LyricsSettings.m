@@ -1,4 +1,4 @@
-// The Lyrics page's parts. The page itself is App/Pages.m's, which adds what only one look has.
+// The Lyrics page's parts; App/Pages.m assembles the page.
 #import "Core/SGCore.h"
 #import "Settings/SGModPage.h"
 #import "Lyrics.h"
@@ -6,25 +6,29 @@
 #import "Shared/LyricsSources/LyricsSources.h"
 
 SGModSection *SGLyricsSourcesSection(BOOL namingSource) {
-    // The row reads the order out, so which sources are on is visible without opening it.
-    SGModRow *sources = SGPageRow(@"Lyrics sources", ^UIViewController *{ return SGLyricsSourcesPage(); });
-    sources.subtitle = @"BiniLyrics, Musixmatch, Unison, NetEase and LRCLIB, in the order you put them";
+    SGModRow *sources = SGPageRow(@"Sources", ^UIViewController *{ return SGLyricsSourcesPage(); });
     sources.value = ^NSString *{
         NSMutableArray<NSString *> *names = [NSMutableArray array];
         for (NSString *key in SGLyricsOrder()) [names addObject:SGLyricsProviderFor(key).name];
         return names.count ? [names componentsJoinedByString:@", "] : @"Off";
     };
     NSMutableArray<SGModRow *> *rows = [NSMutableArray arrayWithObjects:sources,
-        SGOptionRow(@"Lyrics for every track", @"Offers the lyrics card on tracks Spotify has no lyrics for; needs a source above", SGKeyLyricsAllTracks), nil];
-    if (namingSource) [rows addObject:SGOptionRow(@"Name the source", @"Reads out which source the lines on the full screen page came from", SGKeyLyricsCredit)];
-    return SGNotedSection(@"Where lyrics come from", rows, @"With no source on, Spotify's own lyrics are left alone.");
+        SGOptionRow(@"Lyrics for every track", @"Even where Spotify has none", SGKeyLyricsAllTracks), nil];
+    if (namingSource) [rows addObject:SGOptionRow(@"Show source", nil, SGKeyLyricsCredit)];
+    return SGSection(@"Sources", rows);
 }
 
 SGModRow *SGLockScreenLyricsRow(void) {
-    return SGOptionRow(@"Replace artist with lyrics", @"The line being sung shows in place of the artist, so lyrics show up on the lock screen and in CarPlay", SGKeyLockScreenLyrics);
+    return SGOptionRow(@"Lock screen lyrics", @"Current line in place of the artist", SGKeyLockScreenLyrics);
 }
 
 SGModRow *SGLyricsTranslationLanguageRow(void) {
-    return SGChoiceRow(@"Translation language", @"Of the translations the lyrics come with, the one to show; Any shows the first",
-                       SGKeyLyricsTranslationLanguage, SGLyricsTranslationLanguageNames(), 0);
+    SGModRow *row = SGChoiceRow(@"Translation language", nil, SGKeyLyricsTranslationLanguage, SGLyricsTranslationLanguageNames(), 0);
+    row.choiceFooter = @"Used when the lyrics come with translations. Any shows the first.";
+    return row;
+}
+
+// Only the redesign's lyrics view sweeps words.
+SGModRow *SGLyricsWordTimingRow(void) {
+    return SGOptionRow(@"Simulate word timing", nil, SGKeyLyricsSimulateWords);
 }

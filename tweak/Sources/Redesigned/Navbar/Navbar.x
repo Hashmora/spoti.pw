@@ -126,9 +126,14 @@ static UIView *iconView(NSString *name) {
     self.alpha = highlighted ? 0.5 : 1;
 }
 
-// Through the app's own link dispatcher (Shared/Navigation/Links.h).
+// Through the app's own link dispatcher (Shared/Navigation/Links.h). What the dispatcher makes of the
+// URI goes to the log first, so a tab that ends in Spotify's "Couldn't open link" says why.
 - (void)open {
-    NSURL *url = self.uri.length ? [NSURL URLWithString:self.uri] : nil;
+    NSURL *url = SGRNavbarTabURL(self.uri);
+    NSString *via = nil;
+    SGLinkRoute route = SGSpotifyURIRoute(url, &via);
+    SGLog(@"navbar: open %@ -> %@", url.absoluteString ?: self.uri,
+          route == SGLinkRouteOpens ? via : route == SGLinkRouteNone ? @"no handler" : @"unknown");
     if (!SGOpenSpotifyURI(url)) SGLog(@"navbar: cannot open %@, dispatcher %@", self.uri, SGLinkDispatcher());
 }
 

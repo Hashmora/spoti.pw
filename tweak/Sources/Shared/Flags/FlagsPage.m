@@ -40,7 +40,7 @@ static NSString *flagState(const SGFlagDef *flag, id value) {
     _search.placeholder = [NSString stringWithFormat:@"Search %lu flags", (unsigned long)SGFlagCount];
     _search.searchBarStyle = UISearchBarStyleMinimal;
     _search.delegate = self;
-    _header = SGNote(@"Spotify's remote config, read once at startup. Auto keeps the value Spotify sends; a change applies after you restart Spotify.");
+    _header = SGNote(@"Auto keeps Spotify's value. Changes apply after you restart Spotify.");
     [_header addSubview:_search];
     self.tableView.tableHeaderView = _header;
     [self reload];

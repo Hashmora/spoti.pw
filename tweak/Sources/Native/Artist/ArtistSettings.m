@@ -5,7 +5,7 @@
 UIViewController *SGArtistSettingsPage(void) {
     NSArray<SGModSection *> *sections = @[
         SGSection(@"Photo", @[
-            SGOptionRow(@"Fade into a blur", @"The photo melts into a blurred copy of itself instead of ending in a straight line", SGKeyArtistPhotoFade),
+            SGOptionRow(@"Fade into a blur", nil, SGKeyArtistPhotoFade),
         ]),
         SGSection(@"Hide in the header", @[
             SGHideRow(@"Explore (video deck)", nil, SGHideArtistExplore),
@@ -15,9 +15,9 @@ UIViewController *SGArtistSettingsPage(void) {
             SGHideRow(@"Verified badge", nil, SGHideArtistVerified),
             SGHideRow(@"Monthly listeners", nil, SGHideArtistListeners),
         ]),
-        SGNotedSection(@"Tabs", @[
+        SGSection(@"Tabs", @[
             SGHideRow(@"Hide the tab bar", nil, SGHideArtistTabBar),
-        ], @"Music, Video, Merch, Events and any other tab. The page stays on Music and no longer swipes to the others."),
+        ]),
         SGNotedSection(@"Hide on the page", @[
             SGHideRow(@"Songs you liked", nil, SGHideArtistLikedSongs),
             SGHideRow(@"Popular", nil, SGHideArtistPopular),
@@ -30,12 +30,13 @@ UIViewController *SGArtistSettingsPage(void) {
             SGHideRow(@"Fans also like", nil, SGHideArtistFansAlsoLike),
             SGHideRow(@"Appears on", nil, SGHideArtistAppearsOn),
             SGHideRow(@"Discovered on", nil, SGHideArtistDiscoveredOn),
-        ], @"Sections are found by their English titles, so these do nothing while Spotify is in another language."),
+        ], @"Works only with Spotify in English."),
         SGSection(@"Spotify's own", @[
             SGFlagRow(@"Share button in the header", @"ios-creator-impl.share_in_action_row_enabled_artist"),
             SGFlagRow(@"More options in the navigation bar", @"ios-creator-impl.context_menu_in_navigation_bar_enabled_artist"),
             SGFlagRow(@"Top collaborators", @"ios-creator-impl.is_top_collaborators_enabled"),
-            SGFlagRow(@"Artist facts", @"ios-creator-impl.is_artist_facts_enabled"),        ]),
+            SGFlagRow(@"Artist facts", @"ios-creator-impl.is_artist_facts_enabled"),
+        ]),
     ];
     return [[SGModPage alloc] initWithTitle:@"Artist" intro:nil sections:sections footer:nil];
 }

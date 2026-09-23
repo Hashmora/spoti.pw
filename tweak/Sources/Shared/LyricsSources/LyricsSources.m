@@ -37,9 +37,13 @@ static NSString *const kLegacyNetEase = @"spotifyglass.neteaseWordTiming";
 // walk can tell "no source has lyrics" from "a source could not say". Only the first is kept.
 static _Atomic NSUInteger sg_failures;
 
-void SGLyricsNoteReply(NSURLResponse *response, NSError *error) {
+BOOL SGLyricsReplyFailed(NSURLResponse *response, NSError *error) {
     NSInteger status = [response isKindOfClass:NSHTTPURLResponse.class] ? ((NSHTTPURLResponse *)response).statusCode : 0;
-    if (error || status == 429 || status >= 500) atomic_fetch_add(&sg_failures, 1);
+    return error || status == 429 || status >= 500;
+}
+
+void SGLyricsNoteReply(NSURLResponse *response, NSError *error) {
+    if (SGLyricsReplyFailed(response, error)) atomic_fetch_add(&sg_failures, 1);
 }
 
 NSURL *SGLyricsURL(NSString *base, NSDictionary<NSString *, NSString *> *query) {
@@ -144,17 +148,16 @@ NSArray<SGLyricsProvider *> *SGLyricsAllProviders(void) {
             provider.detail = detail;
             // A source that matches by Spotify's own track id has everything it needs from the
             // start; the rest wait for the player to name the track before they can search.
-            provider.needsName = ![@[@"musixmatch", @"spicylyrics"] containsObject:key];
+            provider.needsName = ![key isEqualToString:@"musixmatch"];
             provider.ask = ask;
             return provider;
         };
         all = @[
-            make(@"spicylyrics", @"Spicy Lyrics", @"Syllable timing matched by track id; asks with your Spotify token", SGSpicyLyricsAsk),
-            make(@"binilyrics", @"BiniLyrics", @"Apple Music's own word timing, over a million tracks", SGBiniLyricsAsk),
-            make(@"musixmatch", @"Musixmatch", @"The catalogue Spotify licenses; matched by track, never by name", SGMusixmatchAsk),
-            make(@"unison", @"Unison", @"Written by hand for Better Lyrics: few tracks, the best of them", SGUnisonAsk),
-            make(@"netease", @"NetEase", @"Word timing only, for what the others line time; swearing is starred out", SGNetEaseAsk),
-            make(@"lrclib", @"LRCLIB", @"Open and keyless, timed by the line: the floor under the rest", SGLrcLibAsk),
+            make(@"binilyrics", @"BiniLyrics", @"Apple Music word timing", SGBiniLyricsAsk),
+            make(@"musixmatch", @"Musixmatch", @"Spotify's licensed catalogue", SGMusixmatchAsk),
+            make(@"unison", @"Unison", @"Hand-timed, few tracks", SGUnisonAsk),
+            make(@"netease", @"NetEase", @"Word timing, censored", SGNetEaseAsk),
+            make(@"lrclib", @"LRCLIB", @"Line timing, open fallback", SGLrcLibAsk),
         ];
     });
     return all;
@@ -247,10 +250,19 @@ static void setUp(void) {
 }
 
 // Whether the source's lines are better than what the walk already has: any lines beat none, and
-// timing every word beats estimating them.
+// finer timing beats coarser — words timed beat a line's start, which beats plain text. Read off the
+// lines themselves, which say how they were really timed, rather than off what the source claimed.
 static BOOL betterLines(SGLyricsResult *merged, SGLyricsResult *fresh) {
     if (!fresh.karaokeLines.count) return NO;
-    return !merged.karaokeLines.count || (fresh.wordTimed && !merged.wordTimed);
+    return !merged.karaokeLines.count || SGKaraokeLinesTiming(fresh.karaokeLines) < SGKaraokeLinesTiming(merged.karaokeLines);
+}
+
+static NSString *timingName(NSArray<SGKaraokeLine *> *lines) {
+    switch (SGKaraokeLinesTiming(lines)) {
+        case SGKaraokeTimingWords: return @"word timed";
+        case SGKaraokeTimingLine: return @"line timed";
+        default: return @"untimed";
+    }
 }
 
 // The same for the text Spotify's own page shows: any text beats none, timed beats untimed.
@@ -304,7 +316,7 @@ static void finish(SGLyricsWalk *walk) {
     }
     SGLog(@"lyrics: %@ ends with %@", trackID, lyrics
           ? [NSString stringWithFormat:@"%lu %@ lines from %@, %lu page lines",
-             (unsigned long)lyrics.karaokeLines.count, lyrics.wordTimed ? @"word timed" : @"estimated",
+             (unsigned long)lyrics.karaokeLines.count, timingName(lyrics.karaokeLines),
              lyrics.provider, (unsigned long)lyrics.texts.count]
           : everyoneAsked && failed ? @"nothing, a request failed on the way; not kept, so the next request asks again"
           : everyoneAsked ? @"nothing"
