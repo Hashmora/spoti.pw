@@ -17,11 +17,11 @@
 
 static const CGFloat kCardRadius = 24;
 static char kGlassKey;
-static __weak UIVisualEffectView *sg_cardGlass;
+static __weak UIView *sg_cardGlass;
 static __weak UIView *sg_cardArtwork;
 
 CGRect SGRNowPlayingCardFrameIn(UIView *host, CGFloat *radius) {
-    UIVisualEffectView *glass = sg_cardGlass;
+    UIView *glass = sg_cardGlass;
     if (!glass.superview || !glass.window || !host) return CGRectNull;
     if (radius) *radius = MIN(kCardRadius, glass.bounds.size.height / 2);
     return [host convertRect:glass.bounds fromView:glass];
