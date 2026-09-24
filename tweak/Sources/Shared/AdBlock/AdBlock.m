@@ -82,7 +82,7 @@ static NSMutableDictionary<NSString *, NSNumber *> *countsLocked(void) {
 void SGAdBlockCountOne(NSString *label) {
     @synchronized (kCounts) {
         NSMutableDictionary *counts = countsLocked();
-        counts[label] = @(counts[label].unsignedIntegerValue + 1);
+        counts[label] = @(((NSNumber *)counts[label]).unsignedIntegerValue + 1);
         [NSUserDefaults.standardUserDefaults setObject:counts forKey:kCounts];
     }
 }
@@ -94,7 +94,7 @@ NSArray<NSString *> *SGAdBlockLabels(void) {
 NSUInteger SGAdBlockCount(NSString *label) {
     @synchronized (kCounts) {
         NSDictionary *counts = countsLocked();
-        if (label) return counts[label].unsignedIntegerValue;
+        if (label) return ((NSNumber *)counts[label]).unsignedIntegerValue;
         NSUInteger total = 0;
         for (NSNumber *n in counts.allValues) total += n.unsignedIntegerValue;
         return total;
