@@ -405,7 +405,7 @@ static char kCardGlassKey;
 
 - (void)viewDidLayoutSubviews {
     [super viewDidLayoutSubviews];
-    UIVisualEffectView *pane = SGGlassFor(_card, &kCardGlassKey);
+    UIView *pane = SGGlassFor(_card, &kCardGlassKey);
     pane.frame = _card.bounds;
     SGShapeGlass(pane, self.cardRadius, NO);
     [CATransaction begin];

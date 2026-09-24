@@ -1,13 +1,21 @@
-// Glass panes: one UIVisualEffectView per host, kept behind the host's own content.
+// Glass panes: one pane per host, kept behind the host's own content. On iOS 26 and up the pane is
+// real UIGlassEffect, drawn by the system; below that, with the person's "Legacy Liquid Glass" switch
+// on and their device able to do it (SGLegacyGlassAvailable(), SGLegacyGlass.h), it is an
+// SGLegacyGlassView instead, an approximation of the same look built on the private backdrop-layer
+// technique iOS itself used for Liquid Glass before it was public API. Anywhere else, or with the
+// switch off, it is a plain dark chrome blur, exactly as spoti.pw always drew it.
 #import <UIKit/UIKit.h>
 
-// UIGlassEffect made the only way that resolves its material, or a dark chrome blur before iOS 26.
+// UIGlassEffect made the only way that resolves its material, or a dark chrome blur as the fallback.
 UIVisualEffect *SGGlassEffect(void);
-UIVisualEffectView *SGGlassFor(UIView *host, const void *key);
+// A UIVisualEffectView, or an SGLegacyGlassView standing in for one. Callers only ever set its frame
+// and overrideUserInterfaceStyle and hand it to SGShapeGlass, so they need not tell the two apart.
+UIView *SGGlassFor(UIView *host, const void *key);
 // Several panes on one host, addressed by index; panes past `count` are hidden by SGHideGlassFrom.
-UIVisualEffectView *SGGlassAt(UIView *host, NSUInteger index);
+UIView *SGGlassAt(UIView *host, NSUInteger index);
 void SGHideGlassFrom(UIView *host, NSUInteger count);
-// Glass takes its shape from cornerConfiguration on iOS 26; layer.cornerRadius is the fallback.
+// Glass takes its shape from cornerConfiguration on iOS 26, from SGLegacyGlassView's own mesh update
+// below that, or from layer.cornerRadius as the last-resort fallback.
 void SGShapeGlass(UIView *glass, CGFloat radius, BOOL capsule);
 
 // The areas each look keeps transparent are its own: Native/Appearance/Repaint.h and
