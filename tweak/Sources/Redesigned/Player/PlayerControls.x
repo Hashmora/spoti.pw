@@ -17,6 +17,7 @@
 // is id=...-internal (:227). The sticky header has a play button of its own (:492), which a search
 // inside the unit's view never reaches.
 #import "Core/SGCore.h"
+#import "Core/SGGlass.h"
 #import "Redesigned/Kit/SGRKit.h"
 #import "Player.h"
 
@@ -169,12 +170,42 @@ static void playGlyph(UIView *host) {
     refreshPlayGlyph(NO);
 
     static dispatch_once_t once;
-    dispatch_once(&once, ^{ SGLog(@"redesign player: play glyph over %@ (disc %@ suppressed), spinner %@", NSStringFromClass(play.class), NSStringFromClass(disc.class), spinnerShowing(button) ? @"showing" : @"hidden"); });
+    dispatch_once(&once, ^{ SGLog(@"redesign player: play glyph over %@ (disc %@ suppressed), spinner %@", NSStringFromClass(play.class), NSStringFromClass(disc.class), spinnerShowing(button) ? @"showi
+// ── Liquid Glass под controls-row ──────────────────────────────────────────
+// Стеклянная таблетка за группой prev/play/next, симметричная NowPlayingBar.
+// kGlassRadius подобран под размер кнопок (56 pt каждая, 200+ pt в ряд).
+static const CGFloat kControlsGlassRadius = 28;
+static char kSGRPlayerControlsGlass;   // SGRPlayerControlsGlass — sentinel для grep
+
+static void styleControlsGlass(UIView *host) {
+    if (!host) return;
+    // host — вьюха PlaybackControlsElementsUnit; ищем первый UIView,
+    // который шире 160 pt и ниже 44 pt (строка с кнопками).
+    __block UIView *row = nil;
+    SGForEachView(host, ^(UIView *v) {
+        if (row) return;
+        CGSize s = v.bounds.size;
+        if (s.width > 160 && s.height > 44 && s.height < 120) row = v;
+    });
+    if (!row) return;
+
+    UIView *glass = SGGlassAt(host, 0);
+    glass.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
+    // Рамка: полная ширина строки, по центру по высоте
+    CGRect frame = [host convertRect:row.bounds fromView:row];
+    frame = CGRectInset(frame, -8, -6);
+    frame.size.height = MAX(frame.size.height, 56);
+    if (!CGRectEqualToRect(glass.frame, frame)) glass.frame = frame;
+    SGShapeGlass(glass, MIN(kControlsGlassRadius, frame.size.height / 2), NO);
+}
+
+ng" : @"hidden"); });
 }
 
 %hook _TtC20NowPlaying_ModesImpl28PlaybackControlsElementsUnit
 - (void)viewDidLayoutSubviews {
     %orig;
+    styleControlsGlass((UIView *)self);
     UIView *host = ((UIViewController *)self).viewIfLoaded;
     if (!host) return;
     // The unit lays out before its row does, and the glyphs are centred on the buttons in it.
