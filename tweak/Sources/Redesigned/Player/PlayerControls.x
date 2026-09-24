@@ -170,12 +170,14 @@ static void playGlyph(UIView *host) {
     refreshPlayGlyph(NO);
 
     static dispatch_once_t once;
-    dispatch_once(&once, ^{ SGLog(@"redesign player: play glyph over %@ (disc %@ suppressed), spinner %@", NSStringFromClass(play.class), NSStringFromClass(disc.class), spinnerShowing(button) ? @"showi
+    dispatch_once(&once, ^{ SGLog(@"redesign player: play glyph over %@ (disc %@ suppressed), spinner %@", NSStringFromClass(play.class), NSStringFromClass(disc.class), spinnerShowing(button) ? @"showing" : @"hidden"); });
+}
+
+
 // ── Liquid Glass под controls-row ──────────────────────────────────────────
 // Стеклянная таблетка за группой prev/play/next, симметричная NowPlayingBar.
-// kGlassRadius подобран под размер кнопок (56 pt каждая, 200+ pt в ряд).
+// kControlsGlassRadius подобран под размер кнопок (56 pt каждая, 200+ pt в ряд).
 static const CGFloat kControlsGlassRadius = 28;
-static char kSGRPlayerControlsGlass;   // SGRPlayerControlsGlass — sentinel для grep
 
 static void styleControlsGlass(UIView *host) {
     if (!host) return;
@@ -199,13 +201,9 @@ static void styleControlsGlass(UIView *host) {
     SGShapeGlass(glass, MIN(kControlsGlassRadius, frame.size.height / 2), NO);
 }
 
-ng" : @"hidden"); });
-}
-
 %hook _TtC20NowPlaying_ModesImpl28PlaybackControlsElementsUnit
 - (void)viewDidLayoutSubviews {
     %orig;
-    styleControlsGlass((UIView *)self);
     UIView *host = ((UIViewController *)self).viewIfLoaded;
     if (!host) return;
     // The unit lays out before its row does, and the glyphs are centred on the buttons in it.
@@ -214,6 +212,7 @@ ng" : @"hidden"); });
     skipGlyph(host, @"SPTNowPlayingPreviousTrackButton", &kPreviousKey, @"backward.fill");
     skipGlyph(host, @"SPTNowPlayingNextTrackButton", &kNextKey, @"forward.fill");
     playGlyph(host);
+    styleControlsGlass(host);
 }
 %end
 
