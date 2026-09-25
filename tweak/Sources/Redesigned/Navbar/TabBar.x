@@ -27,6 +27,8 @@ static const CGFloat kNavGlassBottomMargin = 8;  // gap under the bar, so it flo
 // capsule -- never a fixed corner radius that stops matching once the height changes.
 static const CGFloat kNavPlatterHeight = 64;
 static const CGFloat kNavItemSpacing = 4;    // tighter gaps between icons, like the real iOS 26+ pill
+static const CGFloat kNavItemWidth = 64;     // fixed per-tab width so the pill hugs its items and self-sizes
+                                              // instead of stretching them across whatever width it's given
 static __weak UIView *sg_stockBar;
 static CGFloat sg_room, sg_glassHeight;   // see "room for the glass bar"
 
@@ -345,6 +347,17 @@ static void makeRoom(UIViewController *container) {
     SGLog(@"tab bar: %.0f pt of room made under Spotify's bar for the glass bar's %.0f, over an inset of %.0f", room, height, inset);
 }
 
+// The whole per-item button UITabBar built (icon + label together), starting from its icon and
+// climbing past any wrapper no bigger than the icon itself, so the selection oval below can be sized
+// to the real tab -- text included -- one level up from the glyph, not just the glyph alone.
+static UIView *sgTabItemContainer(UIView *icon) {
+    UIView *v = icon.superview ?: icon;
+    while (v.superview && v.bounds.size.width <= icon.bounds.size.width + 1 && v.bounds.size.height <= icon.bounds.size.height + 1) {
+        v = v.superview;
+    }
+    return v;
+}
+
 // The private UIImageView UITabBar built for one item, found by the image it was handed (glyphOf's
 // output), the same way itemAt: matches a touch back to an item.
 static UIImageView *sgIconView(UITabBar *bar, UITabBarItem *item) {
@@ -395,6 +408,12 @@ static void syncBar(UIView *stockBar) {
         objc_setAssociatedObject(stockBar, &kHostKey, host, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
     bar.tintColor = SGRAccent();
+    // Centered + a fixed narrow itemWidth, not .automatic's fill-the-frame stretch: three tabs used to
+    // spread edge to edge across whatever width the bar was given, which is the "solid navbar" layout
+    // this pill was never meant to inherit. With a fixed width UIKit centers the group instead of
+    // stretching it, and the visible capsule below is sized to match that group, not the screen.
+    bar.itemPositioning = UITabBarItemPositioningCentered;
+    bar.itemWidth = kNavItemWidth;
     bar.itemSpacing = kNavItemSpacing;
     UIView *host = objc_getAssociatedObject(stockBar, &kHostKey);
 
@@ -459,10 +478,16 @@ static void syncBar(UIView *stockBar) {
     CGRect frame = CGRectMake(0, CGRectGetMaxY(bounds) - height - kNavGlassBottomMargin, width, height);
     if (!CGRectEqualToRect(host.frame, frame)) host.frame = frame;
 
-    // Top-aligned in host, exactly kNavPlatterHeight tall -- the actual floating capsule, same
-    // proportions as Telegram's own pill. Everything below it in host is the transparent
-    // home-indicator room, never shaped as glass.
-    CGRect platterFrame = CGRectMake(kNavGlassMargin, 0, width - kNavGlassMargin * 2, MIN(kNavPlatterHeight, height));
+    // The pill's own width, not the bar's: with itemWidth/itemPositioning centered above, sources.count
+    // tabs take up exactly this much room, so the capsule hugs them and grows/shrinks with the tab
+    // count instead of always spanning edge to edge like the old solid navbar did.
+    CGFloat contentWidth = MIN(width - kNavGlassMargin * 2, kNavItemWidth * sources.count + kNavItemSpacing * (sources.count - 1));
+    CGFloat platterHeight = MIN(kNavPlatterHeight, height);
+    // A small gap off host's top too, not just its bottom (kNavGlassBottomMargin): host's top edge sits
+    // right where the now-playing card's bottom edge is, so a platter pinned at y=0 touched the card
+    // directly with no breathing room between the two floating pieces.
+    CGFloat platterY = MIN(kNavGlassBottomMargin, MAX(0, height - platterHeight));
+    CGRect platterFrame = CGRectMake(floor((width - contentWidth) / 2), platterY, contentWidth, platterHeight);
     if (!CGRectEqualToRect(bar.frame, platterFrame)) bar.frame = platterFrame;
 
     // A glass pane behind the bar, the same way NowPlayingBar.x backs the mini player: real
@@ -511,17 +536,12 @@ static void syncBar(UIView *stockBar) {
     [bar layoutIfNeeded];
     UIImageView *selIcon = sgIconView(bar, selected ?: bar.selectedItem);
     if (selIcon) {
-        CGRect iconFrame = [selIcon convertRect:selIcon.bounds toView:host];
-        CGPoint center = CGPointMake(CGRectGetMidX(iconFrame), CGRectGetMidY(iconFrame));
-        // Telegram sizes the oval off the whole tab item (icon + label row), not the bare glyph:
-        // width = itemHeight * 1.2, height = itemHeight, then inset 4pt each side (TabBarComponent.swift
-        // selectionFrame, LiquidLensView's inset: 4.0). We only have the glyph's own frame here, which
-        // is much smaller than Spotify's real tab item, so the same 1.2x ratio on it alone would draw a
-        // pill barely bigger than the icon; scaled up to read as a proper touch-target-sized oval instead.
-        CGFloat pillHeight = iconFrame.size.height * 1.9;
-        CGFloat pillWidth = pillHeight * 1.2;
-        CGRect pillFrame = CGRectMake(center.x - pillWidth / 2, center.y - pillHeight / 2, pillWidth, pillHeight);
-        selPill.layer.cornerRadius = pillHeight / 2;
+        // One level up from the glyph: the real per-item button, icon and label together, the same
+        // container UIKit itself treats as "the tab" for hit-testing -- so the highlight now covers
+        // the whole item Telegram's own oval covers, not just the icon sitting inside it.
+        UIView *itemContainer = sgTabItemContainer(selIcon);
+        CGRect pillFrame = [itemContainer convertRect:itemContainer.bounds toView:host];
+        selPill.layer.cornerRadius = pillFrame.size.height / 2;
         selPill.hidden = NO;
         if (!CGRectEqualToRect(selPill.frame, pillFrame)) selPill.frame = pillFrame;
     } else {
