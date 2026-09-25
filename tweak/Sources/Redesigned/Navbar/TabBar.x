@@ -17,7 +17,9 @@
 #import "Headers/SPTEncoreIconView.h"
 #import <objc/message.h>
 
-static char kBarKey, kHostKey, kNavGlassKey;
+static char kBarKey, kHostKey, kNavGlassKey, kNavTintKey;
+static const CGFloat kNavGlassMargin = 16;   // side gap, so the bar floats instead of touching the edges
+static const CGFloat kNavGlassRadius = 28;   // matches PlayerControls.x's controls-row pill
 static __weak UIView *sg_stockBar;
 static CGFloat sg_room, sg_glassHeight;   // see "room for the glass bar"
 
@@ -429,11 +431,29 @@ static void syncBar(UIView *stockBar) {
 
     // A glass pane behind the bar, the same way NowPlayingBar.x backs the mini player: real
     // UIGlassEffect on iOS 26+ (on top of what UITabBar already draws itself), the legacy
-    // approximation below it when that switch is on (Core/SGGlass.m).
+    // approximation below it when that switch is on (Core/SGGlass.m). Inset from the sides and
+    // rounded so it floats like the real thing, instead of a flat edge-to-edge strip.
     UIView *navGlass = SGGlassFor(host, &kNavGlassKey);
     navGlass.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
-    if (!CGRectEqualToRect(navGlass.frame, host.bounds)) navGlass.frame = host.bounds;
-    SGShapeGlass(navGlass, 0, NO);
+    CGRect glassFrame = CGRectInset(host.bounds, kNavGlassMargin, 0);
+    if (!CGRectEqualToRect(navGlass.frame, glassFrame)) navGlass.frame = glassFrame;
+    SGShapeGlass(navGlass, MIN(kNavGlassRadius, glassFrame.size.height / 2), NO);
+
+    // A faint white film over the glass, the same trick SGRGlass.m uses for prominent capsules:
+    // real Liquid Glass gets a touch of it too, and it's what keeps the bar from vanishing into
+    // Spotify's near-black chrome below iOS 26.
+    UIView *navTint = objc_getAssociatedObject(host, &kNavTintKey);
+    if (!navTint) {
+        navTint = [UIView new];
+        navTint.backgroundColor = [UIColor colorWithWhite:1 alpha:0.08];
+        navTint.userInteractionEnabled = NO;
+        navTint.layer.cornerCurve = kCACornerCurveContinuous;
+        navTint.layer.masksToBounds = YES;
+        objc_setAssociatedObject(host, &kNavTintKey, navTint, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    if (navTint.superview != host) [host insertSubview:navTint aboveSubview:navGlass];
+    if (!CGRectEqualToRect(navTint.frame, glassFrame)) navTint.frame = glassFrame;
+    navTint.layer.cornerRadius = MIN(kNavGlassRadius, glassFrame.size.height / 2);
 
     if (host.superview != stockBar) [stockBar addSubview:host];
     else if (stockBar.subviews.lastObject != host) [stockBar bringSubviewToFront:host];
