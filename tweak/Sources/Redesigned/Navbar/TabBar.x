@@ -17,7 +17,7 @@
 #import "Headers/SPTEncoreIconView.h"
 #import <objc/message.h>
 
-static char kBarKey, kHostKey;
+static char kBarKey, kHostKey, kNavGlassKey;
 static __weak UIView *sg_stockBar;
 static CGFloat sg_room, sg_glassHeight;   // see "room for the glass bar"
 
@@ -412,6 +412,15 @@ static void syncBar(UIView *stockBar) {
     CGRect frame = CGRectMake(0, CGRectGetMaxY(bounds) - height, width, height);
     if (!CGRectEqualToRect(host.frame, frame)) host.frame = frame;
     if (!CGRectEqualToRect(bar.frame, host.bounds)) bar.frame = host.bounds;
+
+    // A glass pane behind the bar, the same way NowPlayingBar.x backs the mini player: real
+    // UIGlassEffect on iOS 26+ (on top of what UITabBar already draws itself), the legacy
+    // approximation below it when that switch is on (Core/SGGlass.m).
+    UIView *navGlass = SGGlassFor(host, &kNavGlassKey);
+    navGlass.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
+    if (!CGRectEqualToRect(navGlass.frame, host.bounds)) navGlass.frame = host.bounds;
+    SGShapeGlass(navGlass, 0, NO);
+
     if (host.superview != stockBar) [stockBar addSubview:host];
     else if (stockBar.subviews.lastObject != host) [stockBar bringSubviewToFront:host];
     logBarOnce(bar);

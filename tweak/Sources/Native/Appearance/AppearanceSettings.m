@@ -21,33 +21,12 @@ static void chooseAccent(void) {
     [top presentViewController:sheet animated:YES completion:nil];
 }
 
-// Below a capable device the row is a switch for the navbar's and the round buttons' glass
-// (Core/SGGlass.m); above it, or off a device that cannot do it, it reads out why there is nothing
-// to switch (SGLegacyGlassAvailable(), Core/SGLegacyGlass.h).
-static SGModRow *legacyGlassRow(void) {
-    if (SGLegacyGlassAvailable()) {
-        SGModRow *row = SGOptionRow(@"Legacy Liquid Glass", @"An approximation of iOS 26's glass for the navbar and round buttons, on this iOS.", SGKeyLegacyGlass);
-        return SGWithSymbol(row, @"cube.transparent");
-    }
-    BOOL modern = NO;
-    if (@available(iOS 26.0, *)) modern = YES;
-    NSString *status = modern ? @"Not needed" : @"Unavailable";
-    NSString *reason = modern
-        ? @"Not needed here: this phone already draws real Liquid Glass."
-        : [NSString stringWithFormat:@"This phone (iOS %@) doesn't have the private APIs it leans on, so glass panes stay a plain blur.", UIDevice.currentDevice.systemVersion];
-    SGModRow *row = SGStatActionRow(@"Legacy Liquid Glass", nil, ^NSString *{ return status; }, ^{
-        UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Legacy Liquid Glass" message:reason preferredStyle:UIAlertControllerStyleAlert];
-        [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleCancel handler:nil]];
-        [SGTopController() presentViewController:alert animated:YES completion:nil];
-    });
-    return SGWithSymbol(row, @"cube.transparent");
-}
-
-// The native look's rows of the Appearance card (App/Pages.m).
+// The native look's rows of the Appearance card (App/Pages.m). Legacy Liquid Glass lives with the
+// redesign's rows now (Redesigned/Kit/SGRAppearanceSettings.m): it approximates glass for the
+// redesign's navbar and round buttons below iOS 26, and has nothing to do with the native look.
 NSArray<SGModRow *> *SGNativeAppearanceRows(void) {
     return @[
         SGWithSymbol(SGOptionRow(@"AMOLED background", nil, SGKeyAmoled), @"moon"),
         SGWithSymbol(SGStatActionRow(@"Accent colour", nil, ^NSString *{ return SGAccentLabel(); }, ^{ chooseAccent(); }), @"paintpalette"),
-        legacyGlassRow(),
     ];
 }
