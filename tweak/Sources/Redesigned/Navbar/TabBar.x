@@ -98,14 +98,15 @@ static CGFloat sg_room, sg_glassHeight;   // see "room for the glass bar"
 @property (nonatomic, weak) UILongPressGestureRecognizer *hold;
 @property (nonatomic, weak) UIGestureRecognizer *drag;
 @property (nonatomic) BOOL holding;
-// While YES, dragged: owns selPill.frame exclusively -- syncBar (fired by every TabBarView layout
-// pass, including ones the drag itself triggers via self.selectedItem) must not also animate it, or
-// the two fight over the same frame on every touchesMoved.
-@property (nonatomic) BOOL dragging;
 // The last tab actually navigated to. Create is never this -- see isCreateSource -- so tapping/dragging
 // onto Create can always snap the bar's selection (and the pill) straight back to this instead of
 // resting on, or passing through, a "tab" that never really opened.
 @property (nonatomic, weak) UITabBarItem *lastRealItem;
+// Whichever tab was already selected when the current touch began. Tells dragged: on release whether
+// the gesture actually crossed onto a different tab (a real switch, already animated live as it
+// happened) or landed back on the one it started on (a tap, or a there-and-back drag) -- which gets an
+// icon bump instead of ever moving the pill, because the pill has nothing to move for.
+@property (nonatomic, weak) UITabBarItem *gestureStartItem;
 @end
 
 static void syncBar(UIView *stockBar);
@@ -268,6 +269,26 @@ static void forwardTap(UIView *item) {
     }
 }
 
+// A tap (or a there-and-back drag) that ends back on the tab that was already open never moves the
+// pill -- selectedItem never changed, there's nothing for it to move to -- but it should still feel
+// like the tap registered. A small scale pulse on the icon itself stands in for that.
+static void bumpIcon(UITabBar *bar, UITabBarItem *item) {
+    if (!item) return;
+    __block UIView *iconView = nil;
+    SGForEachView(bar, ^(UIView *v) {
+        if (iconView || ![v isKindOfClass:UIImageView.class]) return;
+        UIImage *image = ((UIImageView *)v).image;
+        if (image && (image == item.image || image == item.selectedImage)) iconView = v;
+    });
+    if (!iconView) return;
+    [UIView animateWithDuration:0.1 delay:0 options:UIViewAnimationOptionCurveEaseOut animations:^{
+        iconView.transform = CGAffineTransformMakeScale(1.18, 1.18);
+    } completion:^(BOOL finished) {
+        [UIView animateWithDuration:0.2 delay:0 usingSpringWithDamping:0.5 initialSpringVelocity:0
+            options:0 animations:^{ iconView.transform = CGAffineTransformIdentity; } completion:nil];
+    }];
+}
+
 #pragma mark - the system bar
 
 @implementation SGRSystemTabBar
@@ -315,6 +336,30 @@ static void forwardTap(UIView *item) {
     return nearest;
 }
 
+// The item's true on-screen x-center -- reading the actual rendered icon/label frame, the same way
+// itemAt: matches a touch point to an item, just run in reverse (item known, frame wanted). Used
+// instead of an assumed kNavItemWidth/kNavItemSpacing formula: UIKit's own centered fixed-width layout
+// doesn't line up with that formula pt for pt, and the gap compounds with every index -- why the pill
+// used to drift further right the further right the tab was, and rode straight past the last one.
+// NAN when the item's own views aren't in the hierarchy yet (still loading, or a stale item).
+- (CGFloat)renderedCenterXForItem:(UITabBarItem *)item {
+    if (!item) return NAN;
+    __block CGRect unionFrame = CGRectNull;
+    SGForEachView(self, ^(UIView *v) {
+        BOOL label = [v isKindOfClass:UILabel.class], glyph = [v isKindOfClass:UIImageView.class];
+        if ((!label && !glyph) || v.bounds.size.width < 1) return;
+        if (glyph) {
+            UIImage *image = ((UIImageView *)v).image;
+            if (!image || (image != item.image && image != item.selectedImage)) return;
+        } else if (!item.title.length || ![((UILabel *)v).text isEqualToString:item.title]) {
+            return;
+        }
+        CGRect frame = [v convertRect:v.bounds toView:self];
+        unionFrame = CGRectIsNull(unionFrame) ? frame : CGRectUnion(unionFrame, frame);
+    });
+    return CGRectIsNull(unionFrame) ? NAN : CGRectGetMidX(unionFrame);
+}
+
 // UIView asks itself this for its own recognizers too, so only the hold is answered here.
 - (BOOL)gestureRecognizerShouldBegin:(UIGestureRecognizer *)recognizer {
     if (recognizer != self.hold) return [super gestureRecognizerShouldBegin:recognizer];
@@ -346,43 +391,35 @@ static void forwardTap(UIView *item) {
 // handling (which already fires that same delegate call on its own), so a plain tap never double-fires.
 - (void)dragged:(SGTabDragRecognizer *)g {
     UIView *stockBar = self.stockBar;
-    UIView *host = stockBar ? objc_getAssociatedObject(stockBar, &kHostKey) : nil;
-    UIView *selPill = host ? objc_getAssociatedObject(host, &kSelPillKey) : nil;
     UITabBarItem *item = [self itemAt:g.currentLocation];
     NSUInteger itemIndex = item ? [self.items indexOfObject:item] : NSNotFound;
     BOOL itemIsCreate = itemIndex != NSNotFound && itemIndex < self.sources.count && isCreateSource(self.sources[itemIndex]);
 
+    if (g.state == UIGestureRecognizerStateBegan) {
+        self.gestureStartItem = self.selectedItem;
+    }
+
     if (g.state == UIGestureRecognizerStateBegan || g.state == UIGestureRecognizerStateChanged) {
-        self.dragging = YES;
-        // Never latches the bar's real selection onto Create while passing over it (see isCreateSource) --
-        // the pill below still follows the finger there like any other tab, only the persisted
-        // selectedItem, and the icon-glyph swap that rides on it, does not.
+        // Always resolves to whichever tab is nearest, never a position in between: crossing into a new
+        // tab's territory sets selectedItem and lets the ordinary selectedItem -> syncBar path (see
+        // SGRComposeTabBar below) animate the pill there in one smooth spring. No raw finger-tracking
+        // step to correct afterwards -- and a tap or a drag that never leaves the tab it started on
+        // never touches selectedItem at all, so the pill has nothing to move for.
         if (item && !itemIsCreate && item != self.selectedItem) self.selectedItem = item;
-        if (!host || !selPill) return;
-        CGFloat pillWidth = selPill.frame.size.width > 0 ? selPill.frame.size.width : kNavItemWidth - kSelPillInset * 2;
-        CGFloat minX = self.frame.origin.x;
-        CGFloat maxX = CGRectGetMaxX(self.frame) - pillWidth;
-        CGFloat hostX = [self convertPoint:g.currentLocation toView:host].x - pillWidth / 2;
-        hostX = MAX(minX, MIN(maxX, hostX));
-        selPill.hidden = NO;
-        selPill.frame = CGRectMake(hostX, selPill.frame.origin.y, pillWidth, selPill.frame.size.height);
     } else if (g.state == UIGestureRecognizerStateEnded) {
-        self.dragging = NO;
-        // Commits unconditionally, exactly like Telegram's own TabBarComponent does on .ended/.cancelled
-        // (item.action(false) fires whenever an item was found, drag or plain tap alike). `item` here
-        // comes from touchesBegan's own currentLocation even for a stationary touch, so a tap that never
-        // moved still switches tabs. tabBar:didSelectItem: itself now special-cases Create, so this stays
-        // a single unconditional call either way.
         if (item) {
             if (!itemIsCreate) self.selectedItem = item;
             [self tabBar:self didSelectItem:item];
+            // Ended on the same tab the touch started on -- give the icon a bump instead, since the
+            // pill genuinely never moved (selectedItem never changed).
+            if (item == self.gestureStartItem) bumpIcon(self, item);
         } else if (stockBar) {
-            // Released off any item: snap the pill back to wherever the real selection already is.
             syncBar(stockBar);
         }
+        self.gestureStartItem = nil;
     } else if (g.state == UIGestureRecognizerStateCancelled) {
-        self.dragging = NO;
         if (stockBar) syncBar(stockBar);
+        self.gestureStartItem = nil;
     }
 }
 
@@ -658,42 +695,34 @@ static void syncBar(UIView *stockBar) {
         objc_setAssociatedObject(host, &kSelPillKey, selPill, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
     if (selPill.superview != host) [host insertSubview:selPill aboveSubview:navTint];
-    // A finger is already down: dragged: is writing selPill.frame directly on every touchesMoved, with
-    // no animation. TabBarView relayouts constantly during that same gesture (it's what self.selectedItem
-    // changing there triggers), and each of those calls used to reach this block too, kicking off its own
-    // 0.25s spring toward the slot frame *while* dragged: kept overwriting the same frame immediately
-    // after -- two writers fighting over one frame every touch move, which is what read as heavy lag.
-    // Leaving the pill alone here while dragging is in progress hands it back exclusively to dragged:;
-    // syncBar resumes the instant the gesture ends and settles it the rest of the way into its slot.
-    if (!bar.dragging) {
-        // bar.selectedItem updates the instant UIKit processes a real tap (or our own drag handler sets
-        // it), well before Spotify repaints the label isActive polls below -- keying the pill off that
-        // polled state was the ~1s lag between tapping a tab and the pill actually moving there.
-        NSUInteger selIndex = [bar.items indexOfObject:bar.selectedItem];
-        if (selIndex != NSNotFound && selIndex < sources.count) {
-            // Computed straight from the same geometry the items are actually laid out with -- bar.frame,
-            // kNavItemWidth, kNavItemSpacing -- instead of hunting UIKit's private per-item views for
-            // their real frame. That hunt is what made the pill land unevenly: private view hierarchies
-            // are not guaranteed to be one tidy rectangle. bar.frame is exactly kNavItemWidth * count +
-            // kNavItemSpacing * (count - 1) wide (see platterFrame above), so slot i is exact, every time.
-            CGFloat slotX = bar.frame.origin.x + selIndex * (kNavItemWidth + kNavItemSpacing) + kSelPillInset;
-            CGRect pillFrame = CGRectMake(slotX, bar.frame.origin.y + kSelPillInset, kNavItemWidth - kSelPillInset * 2, bar.frame.size.height - kSelPillInset * 2);
-            selPill.layer.cornerRadius = pillFrame.size.height / 2;
-            BOOL wasVisible = !selPill.hidden;
-            selPill.hidden = NO;
-            if (!CGRectEqualToRect(selPill.frame, pillFrame)) {
-                if (wasVisible && !CGRectIsEmpty(selPill.frame)) {
-                    // Slides to the new slot instead of jumping, the same live-follow feel as Telegram's
-                    // own selection when dragging or tapping a neighbouring tab.
-                    [UIView animateWithDuration:0.25 delay:0 usingSpringWithDamping:0.85 initialSpringVelocity:0
-                        options:UIViewAnimationOptionBeginFromCurrentState animations:^{ selPill.frame = pillFrame; } completion:nil];
-                } else {
-                    selPill.frame = pillFrame;
-                }
+    // bar.selectedItem updates the instant UIKit processes a real tap (or our own drag handler sets
+    // it), well before Spotify repaints the label isActive polls below -- keying the pill off that
+    // polled state was the ~1s lag between tapping a tab and the pill actually moving there. syncBar is
+    // now the pill's only writer -- dragged: no longer touches its frame directly -- so there is exactly
+    // one animation per selection change, never two fighting over the same frame.
+    NSUInteger selIndex = [bar.items indexOfObject:bar.selectedItem];
+    if (selIndex != NSNotFound && selIndex < sources.count) {
+        CGFloat pillWidth = kNavItemWidth - kSelPillInset * 2;
+        CGFloat centerX = [bar renderedCenterXForItem:bar.selectedItem];
+        CGFloat slotX = isnan(centerX)
+            ? bar.frame.origin.x + selIndex * (kNavItemWidth + kNavItemSpacing) + kSelPillInset
+            : bar.frame.origin.x + centerX - pillWidth / 2;
+        CGRect pillFrame = CGRectMake(slotX, bar.frame.origin.y + kSelPillInset, pillWidth, bar.frame.size.height - kSelPillInset * 2);
+        selPill.layer.cornerRadius = pillFrame.size.height / 2;
+        BOOL wasVisible = !selPill.hidden;
+        selPill.hidden = NO;
+        if (!CGRectEqualToRect(selPill.frame, pillFrame)) {
+            if (wasVisible && !CGRectIsEmpty(selPill.frame)) {
+                // Slides to the new slot instead of jumping -- the pill's one and only animation now,
+                // on a tap or a drag alike, with no raw finger-tracking step before it.
+                [UIView animateWithDuration:0.25 delay:0 usingSpringWithDamping:0.85 initialSpringVelocity:0
+                    options:UIViewAnimationOptionBeginFromCurrentState animations:^{ selPill.frame = pillFrame; } completion:nil];
+            } else {
+                selPill.frame = pillFrame;
             }
-        } else {
-            selPill.hidden = YES;
         }
+    } else {
+        selPill.hidden = YES;
     }
 
     if (host.superview != stockBar) [stockBar addSubview:host];
