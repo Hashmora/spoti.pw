@@ -27,18 +27,71 @@ static const CGFloat kNavGlassBottomMargin = 8;  // gap under the bar, so it flo
 // capsule -- never a fixed corner radius that stops matching once the height changes.
 static const CGFloat kNavPlatterHeight = 64;
 static const CGFloat kNavItemSpacing = 4;    // tighter gaps between icons, like the real iOS 26+ pill
-static const CGFloat kNavItemWidth = 84;     // fixed per-tab width so the pill hugs its items and self-sizes
+static const CGFloat kSelPillInset = 6;      // small gap between the selection pill and the platter's own
+                                              // top/bottom edge, so it reads as a shape floating inside the
+                                              // bar rather than a slab reaching its full height
+static const CGFloat kNavItemWidth = 96;     // fixed per-tab width so the pill hugs its items and self-sizes
                                               // instead of stretching them across whatever width it's given --
                                               // wider than before, closer to the room a label like "Your
                                               // Library" actually needs, per the reference screenshot
 static __weak UIView *sg_stockBar;
 static CGFloat sg_room, sg_glassHeight;   // see "room for the glass bar"
 
+// Components/TabSelectionRecognizer/Sources/TabSelectionRecognizer.swift, ported as-is: state goes to
+// Began the instant a finger touches down (no distance or duration threshold the way a pan or a long
+// press has), and Changed on every move after that, so a caller can follow the finger from frame one.
+@interface SGTabDragRecognizer : UIGestureRecognizer
+@property (nonatomic) CGPoint currentLocation;
+@property (nonatomic) BOOL moved;
+@end
+
+@implementation SGTabDragRecognizer
+
+- (instancetype)initWithTarget:(id)target action:(SEL)action {
+    self = [super initWithTarget:target action:action];
+    if (self) {
+        self.delaysTouchesBegan = NO;
+        self.delaysTouchesEnded = NO;
+    }
+    return self;
+}
+
+- (void)reset {
+    [super reset];
+    self.moved = NO;
+}
+
+- (void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+    [super touchesBegan:touches withEvent:event];
+    self.currentLocation = [touches.anyObject locationInView:self.view];
+    self.state = UIGestureRecognizerStateBegan;
+}
+
+- (void)touchesMoved:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+    [super touchesMoved:touches withEvent:event];
+    self.currentLocation = [touches.anyObject locationInView:self.view];
+    self.moved = YES;
+    self.state = UIGestureRecognizerStateChanged;
+}
+
+- (void)touchesEnded:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+    [super touchesEnded:touches withEvent:event];
+    self.currentLocation = [touches.anyObject locationInView:self.view];
+    self.state = UIGestureRecognizerStateEnded;
+}
+
+- (void)touchesCancelled:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+    [super touchesCancelled:touches withEvent:event];
+    self.state = UIGestureRecognizerStateCancelled;
+}
+
+@end
+
 @interface SGRSystemTabBar : UITabBar <UITabBarDelegate, UIGestureRecognizerDelegate>
 @property (nonatomic, weak) UIView *stockBar;
 @property (nonatomic, copy) NSArray<UIView *> *sources;
 @property (nonatomic, weak) UILongPressGestureRecognizer *hold;
-@property (nonatomic, weak) UIPanGestureRecognizer *drag;
+@property (nonatomic, weak) UIGestureRecognizer *drag;
 @property (nonatomic) BOOL holding;
 @end
 
@@ -252,19 +305,38 @@ static void forwardTap(UIView *item) {
     }
 }
 
-// Follows the finger across the bar the way Telegram's own tab row does: the selection (and its pill)
-// tracks live while dragging, purely visual -- syncBar just redraws the pill in its new slot, no real
-// navigation yet -- and only actually switches Spotify's content once, on release, the same call a tap
-// would have made through the delegate method.
-- (void)dragged:(UIPanGestureRecognizer *)pan {
-    UITabBarItem *item = [self itemAt:[pan locationInView:self]];
-    if (!item || item == self.selectedItem) return;
-    self.selectedItem = item;
-    if (pan.state == UIGestureRecognizerStateEnded) {
-        [self tabBar:self didSelectItem:item];
-    } else if (pan.state == UIGestureRecognizerStateBegan || pan.state == UIGestureRecognizerStateChanged) {
-        UIView *stockBar = self.stockBar;
-        if (stockBar) syncBar(stockBar);
+// Follows the finger across the bar the way Telegram's own tab row does: while the finger is down the
+// pill sits exactly under it (not snapped to a slot), and only the release decides which tab it lands
+// on and actually switches Spotify's content -- the same call a plain tap would have made through the
+// delegate method. A quick tap with no real movement is left entirely to UIKit's own native tap
+// handling (which already fires that same delegate call on its own), so a plain tap never double-fires.
+- (void)dragged:(SGTabDragRecognizer *)g {
+    UIView *stockBar = self.stockBar;
+    UIView *host = stockBar ? objc_getAssociatedObject(stockBar, &kHostKey) : nil;
+    UIView *selPill = host ? objc_getAssociatedObject(host, &kSelPillKey) : nil;
+    UITabBarItem *item = [self itemAt:g.currentLocation];
+
+    if (g.state == UIGestureRecognizerStateBegan || g.state == UIGestureRecognizerStateChanged) {
+        if (!host || !selPill) return;
+        CGFloat pillWidth = selPill.frame.size.width > 0 ? selPill.frame.size.width : kNavItemWidth - kSelPillInset * 2;
+        CGFloat minX = self.frame.origin.x;
+        CGFloat maxX = CGRectGetMaxX(self.frame) - pillWidth;
+        CGFloat hostX = [self convertPoint:g.currentLocation toView:host].x - pillWidth / 2;
+        hostX = MAX(minX, MIN(maxX, hostX));
+        selPill.hidden = NO;
+        selPill.frame = CGRectMake(hostX, selPill.frame.origin.y, pillWidth, selPill.frame.size.height);
+        if (item && item != self.selectedItem) self.selectedItem = item;
+    } else if (g.state == UIGestureRecognizerStateEnded) {
+        if (g.moved && item) {
+            self.selectedItem = item;
+            [self tabBar:self didSelectItem:item];
+        } else if (stockBar) {
+            // Released off the bar, or never actually moved (a tap -- left to UIKit's own handling):
+            // snap the pill back to wherever the real selection already is.
+            syncBar(stockBar);
+        }
+    } else if (g.state == UIGestureRecognizerStateCancelled && stockBar) {
+        syncBar(stockBar);
     }
 }
 
@@ -397,14 +469,10 @@ static void syncBar(UIView *stockBar) {
         hold.delegate = bar;
         [bar addGestureRecognizer:hold];
         bar.hold = hold;
-        // Telegram's TabSelectionRecognizer (Components/TabSelectionRecognizer) tracks the finger from
-        // the moment it touches down and switches tabs live as it crosses them; a plain UIPanGestureRecognizer
-        // is UIKit's built-in equivalent (a few pt of initial travel before it fires, instead of Telegram's
-        // custom zero-threshold touchesBegan/Moved override, which would need its own UIGestureRecognizer
-        // subclass to port exactly -- this is the safe, supported-API approximation of the same idea).
-        UIPanGestureRecognizer *drag = [[UIPanGestureRecognizer alloc] initWithTarget:bar action:@selector(dragged:)];
+        // Telegram's own drag-to-switch, not an approximation of it anymore: SGTabDragRecognizer above
+        // is TabSelectionRecognizer.swift ported directly.
+        SGTabDragRecognizer *drag = [[SGTabDragRecognizer alloc] initWithTarget:bar action:@selector(dragged:)];
         drag.delegate = bar;
-        drag.maximumNumberOfTouches = 1;
         [bar addGestureRecognizer:drag];
         bar.drag = drag;
         objc_setAssociatedObject(stockBar, &kBarKey, bar, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
@@ -544,15 +612,18 @@ static void syncBar(UIView *stockBar) {
         objc_setAssociatedObject(host, &kSelPillKey, selPill, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
     if (selPill.superview != host) [host insertSubview:selPill aboveSubview:navTint];
-    NSUInteger selIndex = [bar.items indexOfObject:selected ?: bar.selectedItem];
+    // bar.selectedItem updates the instant UIKit processes a real tap (or our own drag handler sets
+    // it), well before Spotify repaints the label isActive polls below -- keying the pill off that
+    // polled state was the ~1s lag between tapping a tab and the pill actually moving there.
+    NSUInteger selIndex = [bar.items indexOfObject:bar.selectedItem];
     if (selIndex != NSNotFound && selIndex < sources.count) {
         // Computed straight from the same geometry the items are actually laid out with -- bar.frame,
         // kNavItemWidth, kNavItemSpacing -- instead of hunting UIKit's private per-item views for their
         // real frame. That hunt is what made the pill land unevenly: private view hierarchies are not
         // guaranteed to be one tidy rectangle. bar.frame is exactly kNavItemWidth * count +
         // kNavItemSpacing * (count - 1) wide (see platterFrame above), so slot i is exact, every time.
-        CGFloat slotX = bar.frame.origin.x + selIndex * (kNavItemWidth + kNavItemSpacing);
-        CGRect pillFrame = CGRectMake(slotX, bar.frame.origin.y, kNavItemWidth, bar.frame.size.height);
+        CGFloat slotX = bar.frame.origin.x + selIndex * (kNavItemWidth + kNavItemSpacing) + kSelPillInset;
+        CGRect pillFrame = CGRectMake(slotX, bar.frame.origin.y + kSelPillInset, kNavItemWidth - kSelPillInset * 2, bar.frame.size.height - kSelPillInset * 2);
         selPill.layer.cornerRadius = pillFrame.size.height / 2;
         BOOL wasVisible = !selPill.hidden;
         selPill.hidden = NO;
