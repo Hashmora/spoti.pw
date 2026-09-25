@@ -27,8 +27,10 @@ static const CGFloat kNavGlassBottomMargin = 8;  // gap under the bar, so it flo
 // capsule -- never a fixed corner radius that stops matching once the height changes.
 static const CGFloat kNavPlatterHeight = 64;
 static const CGFloat kNavItemSpacing = 4;    // tighter gaps between icons, like the real iOS 26+ pill
-static const CGFloat kNavItemWidth = 64;     // fixed per-tab width so the pill hugs its items and self-sizes
-                                              // instead of stretching them across whatever width it's given
+static const CGFloat kNavItemWidth = 84;     // fixed per-tab width so the pill hugs its items and self-sizes
+                                              // instead of stretching them across whatever width it's given --
+                                              // wider than before, closer to the room a label like "Your
+                                              // Library" actually needs, per the reference screenshot
 static __weak UIView *sg_stockBar;
 static CGFloat sg_room, sg_glassHeight;   // see "room for the glass bar"
 
@@ -36,6 +38,7 @@ static CGFloat sg_room, sg_glassHeight;   // see "room for the glass bar"
 @property (nonatomic, weak) UIView *stockBar;
 @property (nonatomic, copy) NSArray<UIView *> *sources;
 @property (nonatomic, weak) UILongPressGestureRecognizer *hold;
+@property (nonatomic, weak) UIPanGestureRecognizer *drag;
 @property (nonatomic) BOOL holding;
 @end
 
@@ -249,6 +252,22 @@ static void forwardTap(UIView *item) {
     }
 }
 
+// Follows the finger across the bar the way Telegram's own tab row does: the selection (and its pill)
+// tracks live while dragging, purely visual -- syncBar just redraws the pill in its new slot, no real
+// navigation yet -- and only actually switches Spotify's content once, on release, the same call a tap
+// would have made through the delegate method.
+- (void)dragged:(UIPanGestureRecognizer *)pan {
+    UITabBarItem *item = [self itemAt:[pan locationInView:self]];
+    if (!item || item == self.selectedItem) return;
+    self.selectedItem = item;
+    if (pan.state == UIGestureRecognizerStateEnded) {
+        [self tabBar:self didSelectItem:item];
+    } else if (pan.state == UIGestureRecognizerStateBegan || pan.state == UIGestureRecognizerStateChanged) {
+        UIView *stockBar = self.stockBar;
+        if (stockBar) syncBar(stockBar);
+    }
+}
+
 @end
 
 // The system bar's own view in Spotify's bar. UIKit measures the system bar and lays it out by the safe
@@ -347,30 +366,6 @@ static void makeRoom(UIViewController *container) {
     SGLog(@"tab bar: %.0f pt of room made under Spotify's bar for the glass bar's %.0f, over an inset of %.0f", room, height, inset);
 }
 
-// The whole per-item button UITabBar built (icon + label together), starting from its icon and
-// climbing past any wrapper no bigger than the icon itself, so the selection oval below can be sized
-// to the real tab -- text included -- one level up from the glyph, not just the glyph alone.
-static UIView *sgTabItemContainer(UIView *icon) {
-    UIView *v = icon.superview ?: icon;
-    while (v.superview && v.bounds.size.width <= icon.bounds.size.width + 1 && v.bounds.size.height <= icon.bounds.size.height + 1) {
-        v = v.superview;
-    }
-    return v;
-}
-
-// The private UIImageView UITabBar built for one item, found by the image it was handed (glyphOf's
-// output), the same way itemAt: matches a touch back to an item.
-static UIImageView *sgIconView(UITabBar *bar, UITabBarItem *item) {
-    if (!item) return nil;
-    __block UIImageView *found = nil;
-    SGForEachView(bar, ^(UIView *v) {
-        if (found || ![v isKindOfClass:UIImageView.class]) return;
-        UIImage *image = ((UIImageView *)v).image;
-        if (image && (image == item.image || image == item.selectedImage)) found = (UIImageView *)v;
-    });
-    return found;
-}
-
 static void syncBar(UIView *stockBar) {
     sg_stockBar = stockBar;
 
@@ -402,12 +397,27 @@ static void syncBar(UIView *stockBar) {
         hold.delegate = bar;
         [bar addGestureRecognizer:hold];
         bar.hold = hold;
+        // Telegram's TabSelectionRecognizer (Components/TabSelectionRecognizer) tracks the finger from
+        // the moment it touches down and switches tabs live as it crosses them; a plain UIPanGestureRecognizer
+        // is UIKit's built-in equivalent (a few pt of initial travel before it fires, instead of Telegram's
+        // custom zero-threshold touchesBegan/Moved override, which would need its own UIGestureRecognizer
+        // subclass to port exactly -- this is the safe, supported-API approximation of the same idea).
+        UIPanGestureRecognizer *drag = [[UIPanGestureRecognizer alloc] initWithTarget:bar action:@selector(dragged:)];
+        drag.delegate = bar;
+        drag.maximumNumberOfTouches = 1;
+        [bar addGestureRecognizer:drag];
+        bar.drag = drag;
         objc_setAssociatedObject(stockBar, &kBarKey, bar, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         SGRTabBarHost *host = [SGRTabBarHost new];
         [host addSubview:bar];
         objc_setAssociatedObject(stockBar, &kHostKey, host, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
     bar.tintColor = SGRAccent();
+    // UIKit's own default unselected tint (a mid grey in dark mode) is what made the three inactive
+    // icons read as grey instead of white, next to the reference screenshot's fully white inactive
+    // icons. glyphOf renders every icon as an always-template image, so tint color is the only thing
+    // that decides what color they actually draw in.
+    bar.unselectedItemTintColor = UIColor.whiteColor;
     // Centered + a fixed narrow itemWidth, not .automatic's fill-the-frame stretch: three tabs used to
     // spread edge to edge across whatever width the bar was given, which is the "solid navbar" layout
     // this pill was never meant to inherit. With a fixed width UIKit centers the group instead of
@@ -524,26 +534,38 @@ static void syncBar(UIView *stockBar) {
     if (!selPill) {
         selPill = [UIView new];
         selPill.userInteractionEnabled = NO;
-        // Telegram's own legacy (no hardware lens) selection fill, read straight off
-        // LiquidLensView.swift: UIColor(white: isDark ? 1.0 : 0.0, alpha: isDark ? 0.1 : 0.075).
-        // The bar is forced dark a few lines up, so this is always the dark-mode value: a faint
-        // white glow, not a dark blob -- opposite of what a black 32%-alpha fill reads as.
-        selPill.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.1];
+        // A real black, not the faint white glow Telegram's own *legacy* fallback formula gives
+        // (LiquidLensView.swift's alpha:0.1 white -- tuned for a lens sitting over already-bright chat
+        // content, not this). selPill sits over navTint's white 16% film, so anything much under ~50%
+        // alpha read as washed-out grey rather than black once composited -- not what the reference
+        // screenshot's clean, solid black capsule looks like.
+        selPill.backgroundColor = [UIColor colorWithWhite:0 alpha:0.55];
         selPill.layer.cornerCurve = kCACornerCurveContinuous;
         objc_setAssociatedObject(host, &kSelPillKey, selPill, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
     if (selPill.superview != host) [host insertSubview:selPill aboveSubview:navTint];
-    [bar layoutIfNeeded];
-    UIImageView *selIcon = sgIconView(bar, selected ?: bar.selectedItem);
-    if (selIcon) {
-        // One level up from the glyph: the real per-item button, icon and label together, the same
-        // container UIKit itself treats as "the tab" for hit-testing -- so the highlight now covers
-        // the whole item Telegram's own oval covers, not just the icon sitting inside it.
-        UIView *itemContainer = sgTabItemContainer(selIcon);
-        CGRect pillFrame = [itemContainer convertRect:itemContainer.bounds toView:host];
+    NSUInteger selIndex = [bar.items indexOfObject:selected ?: bar.selectedItem];
+    if (selIndex != NSNotFound && selIndex < sources.count) {
+        // Computed straight from the same geometry the items are actually laid out with -- bar.frame,
+        // kNavItemWidth, kNavItemSpacing -- instead of hunting UIKit's private per-item views for their
+        // real frame. That hunt is what made the pill land unevenly: private view hierarchies are not
+        // guaranteed to be one tidy rectangle. bar.frame is exactly kNavItemWidth * count +
+        // kNavItemSpacing * (count - 1) wide (see platterFrame above), so slot i is exact, every time.
+        CGFloat slotX = bar.frame.origin.x + selIndex * (kNavItemWidth + kNavItemSpacing);
+        CGRect pillFrame = CGRectMake(slotX, bar.frame.origin.y, kNavItemWidth, bar.frame.size.height);
         selPill.layer.cornerRadius = pillFrame.size.height / 2;
+        BOOL wasVisible = !selPill.hidden;
         selPill.hidden = NO;
-        if (!CGRectEqualToRect(selPill.frame, pillFrame)) selPill.frame = pillFrame;
+        if (!CGRectEqualToRect(selPill.frame, pillFrame)) {
+            if (wasVisible && !CGRectIsEmpty(selPill.frame)) {
+                // Slides to the new slot instead of jumping, the same live-follow feel as Telegram's own
+                // selection when dragging or tapping a neighbouring tab.
+                [UIView animateWithDuration:0.25 delay:0 usingSpringWithDamping:0.85 initialSpringVelocity:0
+                    options:UIViewAnimationOptionBeginFromCurrentState animations:^{ selPill.frame = pillFrame; } completion:nil];
+            } else {
+                selPill.frame = pillFrame;
+            }
+        }
     } else {
         selPill.hidden = YES;
     }
