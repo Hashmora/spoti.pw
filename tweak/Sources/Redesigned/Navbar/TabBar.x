@@ -17,9 +17,12 @@
 #import "Headers/SPTEncoreIconView.h"
 #import <objc/message.h>
 
-static char kBarKey, kHostKey, kNavGlassKey, kNavTintKey;
-static const CGFloat kNavGlassMargin = 16;   // side gap, so the bar floats instead of touching the edges
+static char kBarKey, kHostKey, kNavGlassKey, kNavTintKey, kSelPillKey;
+static const CGFloat kNavGlassMargin = 16;       // side gap, so the bar floats instead of touching the edges
+static const CGFloat kNavGlassBottomMargin = 8;  // gap under the bar, so it floats above the edge like iOS 26+
 static const CGFloat kNavGlassRadius = 28;   // matches PlayerControls.x's controls-row pill
+static const CGFloat kNavItemSpacing = 4;    // tighter gaps between icons, like the real iOS 26+ pill
+static const CGSize kSelPillSize = {44, 32}; // dark capsule behind the active icon, iOS 26+'s "selection bubble"
 static __weak UIView *sg_stockBar;
 static CGFloat sg_room, sg_glassHeight;   // see "room for the glass bar"
 
@@ -252,7 +255,11 @@ static void forwardTap(UIView *item) {
 @implementation SGRTabBarHost
 - (UIEdgeInsets)safeAreaInsets {
     UIEdgeInsets insets = [super safeAreaInsets];
-    insets.bottom = MAX(0, insets.bottom - sg_room);
+    // The host's own frame now stands kNavGlassBottomMargin above the screen's real safe area, which
+    // hands it that much *extra* raw inset on its own. Left alone, UITabBar would read that as more
+    // home-indicator padding to reserve and push the icon/label stack up, off-centre in the pill.
+    // Canceling it out here keeps the bar's internal vertical centering exactly as it was undocked.
+    insets.bottom = MAX(0, insets.bottom - sg_room - kNavGlassBottomMargin);
     return insets;
 }
 @end
@@ -334,6 +341,19 @@ static void makeRoom(UIViewController *container) {
     SGLog(@"tab bar: %.0f pt of room made under Spotify's bar for the glass bar's %.0f, over an inset of %.0f", room, height, inset);
 }
 
+// The private UIImageView UITabBar built for one item, found by the image it was handed (glyphOf's
+// output), the same way itemAt: matches a touch back to an item.
+static UIImageView *sgIconView(UITabBar *bar, UITabBarItem *item) {
+    if (!item) return nil;
+    __block UIImageView *found = nil;
+    SGForEachView(bar, ^(UIView *v) {
+        if (found || ![v isKindOfClass:UIImageView.class]) return;
+        UIImage *image = ((UIImageView *)v).image;
+        if (image && (image == item.image || image == item.selectedImage)) found = (UIImageView *)v;
+    });
+    return found;
+}
+
 static void syncBar(UIView *stockBar) {
     sg_stockBar = stockBar;
 
@@ -371,6 +391,7 @@ static void syncBar(UIView *stockBar) {
         objc_setAssociatedObject(stockBar, &kHostKey, host, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
     bar.tintColor = SGRAccent();
+    bar.itemSpacing = kNavItemSpacing;
     UIView *host = objc_getAssociatedObject(stockBar, &kHostKey);
 
     for (UIView *sub in stockBar.subviews) {
@@ -425,7 +446,9 @@ static void syncBar(UIView *stockBar) {
     CGRect bounds = stockBar.bounds;
     CGFloat width = bounds.size.width;
     CGFloat height = MAX(bounds.size.height, glassHeight(bar, stockBar));
-    CGRect frame = CGRectMake(0, CGRectGetMaxY(bounds) - height, width, height);
+    // Lifted off the very bottom edge by kNavGlassBottomMargin, so the pill floats the way real
+    // Liquid Glass does on iOS 26+, instead of the legacy approximation's edge-to-edge slab.
+    CGRect frame = CGRectMake(0, CGRectGetMaxY(bounds) - height - kNavGlassBottomMargin, width, height);
     if (!CGRectEqualToRect(host.frame, frame)) host.frame = frame;
     if (!CGRectEqualToRect(bar.frame, host.bounds)) bar.frame = host.bounds;
 
@@ -445,7 +468,7 @@ static void syncBar(UIView *stockBar) {
     UIView *navTint = objc_getAssociatedObject(host, &kNavTintKey);
     if (!navTint) {
         navTint = [UIView new];
-        navTint.backgroundColor = [UIColor colorWithWhite:1 alpha:0.08];
+        navTint.backgroundColor = [UIColor colorWithWhite:1 alpha:0.16];
         navTint.userInteractionEnabled = NO;
         navTint.layer.cornerCurve = kCACornerCurveContinuous;
         navTint.layer.masksToBounds = YES;
@@ -454,6 +477,31 @@ static void syncBar(UIView *stockBar) {
     if (navTint.superview != host) [host insertSubview:navTint aboveSubview:navGlass];
     if (!CGRectEqualToRect(navTint.frame, glassFrame)) navTint.frame = glassFrame;
     navTint.layer.cornerRadius = MIN(kNavGlassRadius, glassFrame.size.height / 2);
+
+    // A dark capsule behind the selected icon only - the closest legacy stand-in for iOS 26+'s glass
+    // "selection bubble". Sits above the tint so it reads as a shadow in the material, below the
+    // (transparent) bar itself so the icon still draws on top of it.
+    UIView *selPill = objc_getAssociatedObject(host, &kSelPillKey);
+    if (!selPill) {
+        selPill = [UIView new];
+        selPill.userInteractionEnabled = NO;
+        selPill.backgroundColor = [UIColor colorWithWhite:0 alpha:0.32];
+        selPill.layer.cornerCurve = kCACornerCurveContinuous;
+        selPill.layer.cornerRadius = kSelPillSize.height / 2;
+        objc_setAssociatedObject(host, &kSelPillKey, selPill, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    if (selPill.superview != host) [host insertSubview:selPill aboveSubview:navTint];
+    [bar layoutIfNeeded];
+    UIImageView *selIcon = sgIconView(bar, selected ?: bar.selectedItem);
+    if (selIcon) {
+        CGRect iconFrame = [selIcon convertRect:selIcon.bounds toView:host];
+        CGPoint center = CGPointMake(CGRectGetMidX(iconFrame), CGRectGetMidY(iconFrame));
+        CGRect pillFrame = CGRectMake(center.x - kSelPillSize.width / 2, center.y - kSelPillSize.height / 2, kSelPillSize.width, kSelPillSize.height);
+        selPill.hidden = NO;
+        if (!CGRectEqualToRect(selPill.frame, pillFrame)) selPill.frame = pillFrame;
+    } else {
+        selPill.hidden = YES;
+    }
 
     if (host.superview != stockBar) [stockBar addSubview:host];
     else if (stockBar.subviews.lastObject != host) [stockBar bringSubviewToFront:host];
