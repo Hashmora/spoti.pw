@@ -110,6 +110,14 @@ static CGFloat sg_room, sg_glassHeight;   // see "room for the glass bar"
 @end
 
 static void syncBar(UIView *stockBar);
+// Called only when Spotify's own navigation genuinely changed the selected controller from outside our
+// bar (a link, the side drawer) -- see the TabBarContainerImpl hook below. Every other caller goes
+// through plain syncBar, which trusts whatever tab our own tap/drag handling last confirmed
+// (SGRSystemTabBar.lastRealItem) over Spotify's isActive/label-color heuristic. That heuristic never
+// clears for a tab the mod added itself: Spotify's own navigation stack never touched it, so the
+// previously active *real* tab's label just stays white forever, and re-scanning it on every layout
+// pass kept snapping the selection (and the pill) back to that old tab.
+static void syncBarExternalChange(UIView *stockBar);
 
 #pragma mark - reading Spotify's items
 
@@ -281,12 +289,18 @@ static void bumpIcon(UITabBar *bar, UITabBarItem *item) {
         if (image && (image == item.image || image == item.selectedImage)) iconView = v;
     });
     if (!iconView) return;
-    [UIView animateWithDuration:0.1 delay:0 options:UIViewAnimationOptionCurveEaseOut animations:^{
-        iconView.transform = CGAffineTransformMakeScale(1.18, 1.18);
-    } completion:^(BOOL finished) {
-        [UIView animateWithDuration:0.2 delay:0 usingSpringWithDamping:0.5 initialSpringVelocity:0
-            options:0 animations:^{ iconView.transform = CGAffineTransformIdentity; } completion:nil];
-    }];
+    // One continuous keyframe timeline, not two animateWithDuration calls chained through a completion
+    // handler: the ease-out scale-up and the separate spring scale-down have different velocity at the
+    // instant they hand off, and that mismatch is what read as a jerk. A single keyframe animation has
+    // no such seam.
+    [UIView animateKeyframesWithDuration:0.26 delay:0 options:UIViewKeyframeAnimationOptionCalculationModeCubic animations:^{
+        [UIView addKeyframeWithRelativeStartTime:0 relativeDuration:0.4 animations:^{
+            iconView.transform = CGAffineTransformMakeScale(1.12, 1.12);
+        }];
+        [UIView addKeyframeWithRelativeStartTime:0.4 relativeDuration:0.6 animations:^{
+            iconView.transform = CGAffineTransformIdentity;
+        }];
+    } completion:nil];
 }
 
 #pragma mark - the system bar
@@ -384,11 +398,10 @@ static void bumpIcon(UITabBar *bar, UITabBarItem *item) {
     }
 }
 
-// Follows the finger across the bar the way Telegram's own tab row does: while the finger is down the
-// pill sits exactly under it (not snapped to a slot), and only the release decides which tab it lands
-// on and actually switches Spotify's content -- the same call a plain tap would have made through the
-// delegate method. A quick tap with no real movement is left entirely to UIKit's own native tap
-// handling (which already fires that same delegate call on its own), so a plain tap never double-fires.
+// Resolves to whichever tab is nearest at every touch update, never a position in between: crossing
+// into a new tab's territory snaps the pill there immediately with one smooth animation, and release
+// decides which tab it lands on and actually switches Spotify's content -- the same call a plain tap
+// would have made through the delegate method.
 - (void)dragged:(SGTabDragRecognizer *)g {
     UIView *stockBar = self.stockBar;
     UITabBarItem *item = [self itemAt:g.currentLocation];
@@ -400,15 +413,22 @@ static void bumpIcon(UITabBar *bar, UITabBarItem *item) {
     }
 
     if (g.state == UIGestureRecognizerStateBegan || g.state == UIGestureRecognizerStateChanged) {
-        // Always resolves to whichever tab is nearest, never a position in between: crossing into a new
-        // tab's territory sets selectedItem and lets the ordinary selectedItem -> syncBar path (see
-        // SGRComposeTabBar below) animate the pill there in one smooth spring. No raw finger-tracking
-        // step to correct afterwards -- and a tap or a drag that never leaves the tab it started on
-        // never touches selectedItem at all, so the pill has nothing to move for.
-        if (item && !itemIsCreate && item != self.selectedItem) self.selectedItem = item;
+        // Setting selectedItem alone does not make our own overlay bar relay out -- nothing hooks that
+        // property -- so without calling syncBar right here, the pill only actually moved once some
+        // unrelated Spotify UI event happened to trigger it later (typically only after the real
+        // navigation completed on release), which read as the pill starting its slide late, once the new
+        // tab's content was already on screen. Calling syncBar directly here moves it the instant WE
+        // decide the selection changed.
+        if (item && !itemIsCreate && item != self.selectedItem) {
+            self.selectedItem = item;
+            if (stockBar) syncBar(stockBar);
+        }
     } else if (g.state == UIGestureRecognizerStateEnded) {
         if (item) {
-            if (!itemIsCreate) self.selectedItem = item;
+            if (!itemIsCreate && item != self.selectedItem) {
+                self.selectedItem = item;
+                if (stockBar) syncBar(stockBar);
+            }
             [self tabBar:self didSelectItem:item];
             // Ended on the same tab the touch started on -- give the icon a bump instead, since the
             // pill genuinely never moved (selectedItem never changed).
@@ -522,6 +542,14 @@ static void makeRoom(UIViewController *container) {
 }
 
 static void syncBar(UIView *stockBar) {
+    syncBarCore(stockBar, NO);
+}
+
+static void syncBarExternalChange(UIView *stockBar) {
+    syncBarCore(stockBar, YES);
+}
+
+static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
     sg_stockBar = stockBar;
 
     SGRSystemTabBar *bar = objc_getAssociatedObject(stockBar, &kBarKey);
@@ -618,7 +646,16 @@ static void syncBar(UIView *stockBar) {
         if (hideLabels ? item.title != nil : title.length && ![title isEqualToString:item.title]) item.title = title;
         if (!selected && isActive(sources[i]) && !isCreateSource(sources[i])) selected = item;
     }
-    if (selected && bar.selectedItem != selected) bar.selectedItem = selected;
+    // Everywhere except a genuine external navigation change (rescanSelection == YES, see
+    // syncBarExternalChange), our own lastRealItem -- set the moment our tap/drag flow actually commits
+    // to a tab -- is trusted over this isActive scan. A tab the mod added itself never turns any
+    // source's label white the way Spotify's own tabs do, so without this, the previous *real* tab
+    // (still reading isActive here, since Spotify's own stack never left it) kept winning this scan and
+    // dragging the selection straight back to it on the very next layout pass.
+    if (rescanSelection || !bar.lastRealItem) {
+        if (selected && bar.selectedItem != selected) bar.selectedItem = selected;
+        if (selected) bar.lastRealItem = selected;
+    }
     // An icon view Spotify has not built yet is looked for again shortly, not on the next touch.
     static NSUInteger retries;
     if (missing && retries++ < 40) {
@@ -649,7 +686,14 @@ static void syncBar(UIView *stockBar) {
     // directly with no breathing room between the two floating pieces.
     CGFloat platterY = MIN(kNavGlassBottomMargin, MAX(0, height - platterHeight));
     CGRect platterFrame = CGRectMake(floor((width - contentWidth) / 2), platterY, contentWidth, platterHeight);
-    if (!CGRectEqualToRect(bar.frame, platterFrame)) bar.frame = platterFrame;
+    BOOL frameChanged = !CGRectEqualToRect(bar.frame, platterFrame);
+    if (frameChanged) bar.frame = platterFrame;
+    // UIKit lays its private per-item buttons out lazily on the next runloop pass, not synchronously the
+    // instant frame (or items) changes -- so reading their rendered positions (renderedCenterXForItem,
+    // below) right after resizing the bar, e.g. when a tab was just added or removed, would still see
+    // yesterday's layout. Forcing it here is what a tab-count change was missing: the pill used to land
+    // exactly where the old item count put it, not where the new one actually renders.
+    if (frameChanged) [bar layoutIfNeeded];
 
     // A glass pane behind the bar, the same way NowPlayingBar.x backs the mini player: real
     // UIGlassEffect on iOS 26+ (on top of what UITabBar already draws itself), the legacy
@@ -782,7 +826,7 @@ static void itemDidLayOut(UIView *item) {
     %orig;
     dispatch_async(dispatch_get_main_queue(), ^{
         UIView *bar = sg_stockBar;
-        if (bar) syncBar(bar);
+        if (bar) syncBarExternalChange(bar);
     });
 }
 // The message bar coming or going changes the view's safe area before Spotify lays the bar out for it,
