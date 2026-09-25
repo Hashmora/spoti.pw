@@ -98,6 +98,14 @@ static CGFloat sg_room, sg_glassHeight;   // see "room for the glass bar"
 @property (nonatomic, weak) UILongPressGestureRecognizer *hold;
 @property (nonatomic, weak) UIGestureRecognizer *drag;
 @property (nonatomic) BOOL holding;
+// While YES, dragged: owns selPill.frame exclusively -- syncBar (fired by every TabBarView layout
+// pass, including ones the drag itself triggers via self.selectedItem) must not also animate it, or
+// the two fight over the same frame on every touchesMoved.
+@property (nonatomic) BOOL dragging;
+// The last tab actually navigated to. Create is never this -- see isCreateSource -- so tapping/dragging
+// onto Create can always snap the bar's selection (and the pill) straight back to this instead of
+// resting on, or passing through, a "tab" that never really opened.
+@property (nonatomic, weak) UITabBarItem *lastRealItem;
 @end
 
 static void syncBar(UIView *stockBar);
@@ -118,6 +126,17 @@ static NSArray<UIView *> *tabItems(UIView *tabBar) {
 // Navbar.x never reorders Spotify's row and appends the mod's own tabs after it, so Home stays first.
 static BOOL isHome(UIView *item, UIView *tabBar) {
     return item && item == SGRowIn(tabBar).arrangedSubviews.firstObject;
+}
+
+// Create never pushes a screen -- tapping it only pops CreateMenu's own option list open over whatever
+// is already on screen, and tapping anywhere dismisses that list again with nothing having navigated.
+// So it must never become the bar's real "selected" tab: the pill parking on it, or drifting toward
+// its slot, would be showing a screen that was never actually opened.
+static BOOL isCreateSource(UIView *source) {
+    static Class createClass;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ createClass = NSClassFromString(@"_TtC25CreateMenu_TabBarItemImpl24CreateMenuTabBarItemView"); });
+    return createClass && [source isKindOfClass:createClass];
 }
 
 static UILabel *labelIn(UIView *item) {
@@ -256,8 +275,18 @@ static void forwardTap(UIView *item) {
 - (void)tabBar:(UITabBar *)tabBar didSelectItem:(UITabBarItem *)item {
     NSUInteger index = [self.items indexOfObject:item];
     if (index == NSNotFound || index >= self.sources.count) return;
+    UIView *source = self.sources[index];
+    if (isCreateSource(source)) {
+        // Just pops the menu open -- never a real navigation -- so the bar's selection (and the pill
+        // with it) snaps straight back to whatever tab was actually open a moment ago, instead of
+        // resting on Create or on wherever Create's own slot happens to sit.
+        forwardTap(source);
+        if (self.lastRealItem) self.selectedItem = self.lastRealItem;
+        return;
+    }
+    self.lastRealItem = item;
     // Home tapped while on Home pops Spotify's stack, which would take Mod Settings straight off it.
-    if (!self.holding) forwardTap(self.sources[index]);
+    if (!self.holding) forwardTap(source);
     // Spotify repaints its labels a moment later; a tap it did not take snaps the selection back.
     UIView *stockBar = self.stockBar;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.25 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
@@ -320,9 +349,15 @@ static void forwardTap(UIView *item) {
     UIView *host = stockBar ? objc_getAssociatedObject(stockBar, &kHostKey) : nil;
     UIView *selPill = host ? objc_getAssociatedObject(host, &kSelPillKey) : nil;
     UITabBarItem *item = [self itemAt:g.currentLocation];
+    NSUInteger itemIndex = item ? [self.items indexOfObject:item] : NSNotFound;
+    BOOL itemIsCreate = itemIndex != NSNotFound && itemIndex < self.sources.count && isCreateSource(self.sources[itemIndex]);
 
     if (g.state == UIGestureRecognizerStateBegan || g.state == UIGestureRecognizerStateChanged) {
-        if (item && item != self.selectedItem) self.selectedItem = item;
+        self.dragging = YES;
+        // Never latches the bar's real selection onto Create while passing over it (see isCreateSource) --
+        // the pill below still follows the finger there like any other tab, only the persisted
+        // selectedItem, and the icon-glyph swap that rides on it, does not.
+        if (item && !itemIsCreate && item != self.selectedItem) self.selectedItem = item;
         if (!host || !selPill) return;
         CGFloat pillWidth = selPill.frame.size.width > 0 ? selPill.frame.size.width : kNavItemWidth - kSelPillInset * 2;
         CGFloat minX = self.frame.origin.x;
@@ -332,19 +367,22 @@ static void forwardTap(UIView *item) {
         selPill.hidden = NO;
         selPill.frame = CGRectMake(hostX, selPill.frame.origin.y, pillWidth, selPill.frame.size.height);
     } else if (g.state == UIGestureRecognizerStateEnded) {
+        self.dragging = NO;
         // Commits unconditionally, exactly like Telegram's own TabBarComponent does on .ended/.cancelled
         // (item.action(false) fires whenever an item was found, drag or plain tap alike). `item` here
         // comes from touchesBegan's own currentLocation even for a stationary touch, so a tap that never
-        // moved still switches tabs.
+        // moved still switches tabs. tabBar:didSelectItem: itself now special-cases Create, so this stays
+        // a single unconditional call either way.
         if (item) {
-            self.selectedItem = item;
+            if (!itemIsCreate) self.selectedItem = item;
             [self tabBar:self didSelectItem:item];
         } else if (stockBar) {
             // Released off any item: snap the pill back to wherever the real selection already is.
             syncBar(stockBar);
         }
-    } else if (g.state == UIGestureRecognizerStateCancelled && stockBar) {
-        syncBar(stockBar);
+    } else if (g.state == UIGestureRecognizerStateCancelled) {
+        self.dragging = NO;
+        if (stockBar) syncBar(stockBar);
     }
 }
 
@@ -541,7 +579,7 @@ static void syncBar(UIView *stockBar) {
         missing |= !item.image || !item.selectedImage;
         NSString *title = hideLabels ? nil : labelIn(sources[i]).text;
         if (hideLabels ? item.title != nil : title.length && ![title isEqualToString:item.title]) item.title = title;
-        if (!selected && isActive(sources[i])) selected = item;
+        if (!selected && isActive(sources[i]) && !isCreateSource(sources[i])) selected = item;
     }
     if (selected && bar.selectedItem != selected) bar.selectedItem = selected;
     // An icon view Spotify has not built yet is looked for again shortly, not on the next touch.
@@ -620,33 +658,42 @@ static void syncBar(UIView *stockBar) {
         objc_setAssociatedObject(host, &kSelPillKey, selPill, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
     if (selPill.superview != host) [host insertSubview:selPill aboveSubview:navTint];
-    // bar.selectedItem updates the instant UIKit processes a real tap (or our own drag handler sets
-    // it), well before Spotify repaints the label isActive polls below -- keying the pill off that
-    // polled state was the ~1s lag between tapping a tab and the pill actually moving there.
-    NSUInteger selIndex = [bar.items indexOfObject:bar.selectedItem];
-    if (selIndex != NSNotFound && selIndex < sources.count) {
-        // Computed straight from the same geometry the items are actually laid out with -- bar.frame,
-        // kNavItemWidth, kNavItemSpacing -- instead of hunting UIKit's private per-item views for their
-        // real frame. That hunt is what made the pill land unevenly: private view hierarchies are not
-        // guaranteed to be one tidy rectangle. bar.frame is exactly kNavItemWidth * count +
-        // kNavItemSpacing * (count - 1) wide (see platterFrame above), so slot i is exact, every time.
-        CGFloat slotX = bar.frame.origin.x + selIndex * (kNavItemWidth + kNavItemSpacing) + kSelPillInset;
-        CGRect pillFrame = CGRectMake(slotX, bar.frame.origin.y + kSelPillInset, kNavItemWidth - kSelPillInset * 2, bar.frame.size.height - kSelPillInset * 2);
-        selPill.layer.cornerRadius = pillFrame.size.height / 2;
-        BOOL wasVisible = !selPill.hidden;
-        selPill.hidden = NO;
-        if (!CGRectEqualToRect(selPill.frame, pillFrame)) {
-            if (wasVisible && !CGRectIsEmpty(selPill.frame)) {
-                // Slides to the new slot instead of jumping, the same live-follow feel as Telegram's own
-                // selection when dragging or tapping a neighbouring tab.
-                [UIView animateWithDuration:0.25 delay:0 usingSpringWithDamping:0.85 initialSpringVelocity:0
-                    options:UIViewAnimationOptionBeginFromCurrentState animations:^{ selPill.frame = pillFrame; } completion:nil];
-            } else {
-                selPill.frame = pillFrame;
+    // A finger is already down: dragged: is writing selPill.frame directly on every touchesMoved, with
+    // no animation. TabBarView relayouts constantly during that same gesture (it's what self.selectedItem
+    // changing there triggers), and each of those calls used to reach this block too, kicking off its own
+    // 0.25s spring toward the slot frame *while* dragged: kept overwriting the same frame immediately
+    // after -- two writers fighting over one frame every touch move, which is what read as heavy lag.
+    // Leaving the pill alone here while dragging is in progress hands it back exclusively to dragged:;
+    // syncBar resumes the instant the gesture ends and settles it the rest of the way into its slot.
+    if (!bar.dragging) {
+        // bar.selectedItem updates the instant UIKit processes a real tap (or our own drag handler sets
+        // it), well before Spotify repaints the label isActive polls below -- keying the pill off that
+        // polled state was the ~1s lag between tapping a tab and the pill actually moving there.
+        NSUInteger selIndex = [bar.items indexOfObject:bar.selectedItem];
+        if (selIndex != NSNotFound && selIndex < sources.count) {
+            // Computed straight from the same geometry the items are actually laid out with -- bar.frame,
+            // kNavItemWidth, kNavItemSpacing -- instead of hunting UIKit's private per-item views for
+            // their real frame. That hunt is what made the pill land unevenly: private view hierarchies
+            // are not guaranteed to be one tidy rectangle. bar.frame is exactly kNavItemWidth * count +
+            // kNavItemSpacing * (count - 1) wide (see platterFrame above), so slot i is exact, every time.
+            CGFloat slotX = bar.frame.origin.x + selIndex * (kNavItemWidth + kNavItemSpacing) + kSelPillInset;
+            CGRect pillFrame = CGRectMake(slotX, bar.frame.origin.y + kSelPillInset, kNavItemWidth - kSelPillInset * 2, bar.frame.size.height - kSelPillInset * 2);
+            selPill.layer.cornerRadius = pillFrame.size.height / 2;
+            BOOL wasVisible = !selPill.hidden;
+            selPill.hidden = NO;
+            if (!CGRectEqualToRect(selPill.frame, pillFrame)) {
+                if (wasVisible && !CGRectIsEmpty(selPill.frame)) {
+                    // Slides to the new slot instead of jumping, the same live-follow feel as Telegram's
+                    // own selection when dragging or tapping a neighbouring tab.
+                    [UIView animateWithDuration:0.25 delay:0 usingSpringWithDamping:0.85 initialSpringVelocity:0
+                        options:UIViewAnimationOptionBeginFromCurrentState animations:^{ selPill.frame = pillFrame; } completion:nil];
+                } else {
+                    selPill.frame = pillFrame;
+                }
             }
+        } else {
+            selPill.hidden = YES;
         }
-    } else {
-        selPill.hidden = YES;
     }
 
     if (host.superview != stockBar) [stockBar addSubview:host];
