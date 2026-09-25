@@ -20,13 +20,9 @@
 static char kBarKey, kHostKey, kNavGlassKey, kNavTintKey, kSelPillKey;
 static const CGFloat kNavGlassMargin = 16;       // side gap, so the bar floats instead of touching the edges
 static const CGFloat kNavGlassBottomMargin = 8;  // gap under the bar, so it floats above the edge like iOS 26+
-// The pill itself, never the safe-area room under it: glassHeight() below can be as tall as 83pt on
-// a Face ID phone (harness/tabbar/README.md) because that includes the reserved home-indicator strip,
-// which is not glass. 64pt matches Telegram's own tab bar pill exactly (TabBarComponent.swift: a
-// 56pt item row plus 4pt of inner inset top and bottom). Radius is always half of this -- a true
-// capsule -- never a fixed corner radius that stops matching once the height changes.
-static const CGFloat kNavPlatterHeight = 64;
+static const CGFloat kNavGlassRadius = 28;   // matches PlayerControls.x's controls-row pill
 static const CGFloat kNavItemSpacing = 4;    // tighter gaps between icons, like the real iOS 26+ pill
+static const CGSize kSelPillSize = {44, 32}; // dark capsule behind the active icon, iOS 26+'s "selection bubble"
 static __weak UIView *sg_stockBar;
 static CGFloat sg_room, sg_glassHeight;   // see "room for the glass bar"
 
@@ -372,17 +368,17 @@ static void syncBar(UIView *stockBar) {
         // Below iOS 26 UITabBar paints its own translucent chrome, which sits in front of navGlass
         // (below) and hides it completely. iOS 26+ is left alone: UIKit already draws real Liquid
         // Glass there on its own, and a transparent appearance would fight that.
-        // Always transparent: navGlass below is the only real glass pane now, shaped and sized as
-        // one true capsule. Leaving UIKit's iOS 26+ auto-glass on here stacked a second, edge-to-edge
-        // material behind ours at a different height, which is what looked off next to a proper pill.
-        bar.translucent = YES;
-        bar.backgroundImage = [UIImage new];
-        bar.shadowImage = [UIImage new];
-        bar.backgroundColor = UIColor.clearColor;
-        UITabBarAppearance *appearance = [UITabBarAppearance new];
-        [appearance configureWithTransparentBackground];
-        bar.standardAppearance = appearance;
-        if (@available(iOS 15.0, *)) bar.scrollEdgeAppearance = appearance;
+        if (@available(iOS 26.0, *)) {
+        } else {
+            bar.translucent = YES;
+            bar.backgroundImage = [UIImage new];
+            bar.shadowImage = [UIImage new];
+            bar.backgroundColor = UIColor.clearColor;
+            UITabBarAppearance *appearance = [UITabBarAppearance new];
+            [appearance configureWithTransparentBackground];
+            bar.standardAppearance = appearance;
+            if (@available(iOS 15.0, *)) bar.scrollEdgeAppearance = appearance;
+        }
         bar.delegate = bar;
         bar.stockBar = stockBar;
         UILongPressGestureRecognizer *hold = [[UILongPressGestureRecognizer alloc] initWithTarget:bar action:@selector(held:)];
@@ -449,32 +445,22 @@ static void syncBar(UIView *stockBar) {
 
     CGRect bounds = stockBar.bounds;
     CGFloat width = bounds.size.width;
-    // height is the *room*, not the pill: UIKit's own tab bar can ask for as much as 83pt here
-    // (harness/tabbar/README.md), most of which is the reserved home-indicator strip below the
-    // platter, not glass. host stays that tall so the room-making math elsewhere is untouched; only
-    // the visible pieces (bar, navGlass, navTint) are pinned to the fixed platter height below.
     CGFloat height = MAX(bounds.size.height, glassHeight(bar, stockBar));
     // Lifted off the very bottom edge by kNavGlassBottomMargin, so the pill floats the way real
     // Liquid Glass does on iOS 26+, instead of the legacy approximation's edge-to-edge slab.
     CGRect frame = CGRectMake(0, CGRectGetMaxY(bounds) - height - kNavGlassBottomMargin, width, height);
     if (!CGRectEqualToRect(host.frame, frame)) host.frame = frame;
-
-    // Top-aligned in host, exactly kNavPlatterHeight tall -- the actual floating capsule, same
-    // proportions as Telegram's own pill. Everything below it in host is the transparent
-    // home-indicator room, never shaped as glass.
-    CGRect platterFrame = CGRectMake(kNavGlassMargin, 0, width - kNavGlassMargin * 2, MIN(kNavPlatterHeight, height));
-    if (!CGRectEqualToRect(bar.frame, platterFrame)) bar.frame = platterFrame;
+    if (!CGRectEqualToRect(bar.frame, host.bounds)) bar.frame = host.bounds;
 
     // A glass pane behind the bar, the same way NowPlayingBar.x backs the mini player: real
     // UIGlassEffect on iOS 26+ (on top of what UITabBar already draws itself), the legacy
-    // approximation below it when that switch is on (Core/SGGlass.m). Same capsule as the bar
-    // itself, radius always exactly half its height -- like Telegram's own
-    // backgroundSize.height * 0.5 -- so it reads as a pill, not a rounded slab.
+    // approximation below it when that switch is on (Core/SGGlass.m). Inset from the sides and
+    // rounded so it floats like the real thing, instead of a flat edge-to-edge strip.
     UIView *navGlass = SGGlassFor(host, &kNavGlassKey);
     navGlass.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
-    CGRect glassFrame = platterFrame;
+    CGRect glassFrame = CGRectInset(host.bounds, kNavGlassMargin, 0);
     if (!CGRectEqualToRect(navGlass.frame, glassFrame)) navGlass.frame = glassFrame;
-    SGShapeGlass(navGlass, glassFrame.size.height / 2, NO);
+    SGShapeGlass(navGlass, MIN(kNavGlassRadius, glassFrame.size.height / 2), NO);
 
     // A faint white film over the glass, the same trick SGRGlass.m uses for prominent capsules:
     // real Liquid Glass gets a touch of it too, and it's what keeps the bar from vanishing into
@@ -490,7 +476,7 @@ static void syncBar(UIView *stockBar) {
     }
     if (navTint.superview != host) [host insertSubview:navTint aboveSubview:navGlass];
     if (!CGRectEqualToRect(navTint.frame, glassFrame)) navTint.frame = glassFrame;
-    navTint.layer.cornerRadius = glassFrame.size.height / 2;
+    navTint.layer.cornerRadius = MIN(kNavGlassRadius, glassFrame.size.height / 2);
 
     // A dark capsule behind the selected icon only - the closest legacy stand-in for iOS 26+'s glass
     // "selection bubble". Sits above the tint so it reads as a shadow in the material, below the
@@ -499,12 +485,9 @@ static void syncBar(UIView *stockBar) {
     if (!selPill) {
         selPill = [UIView new];
         selPill.userInteractionEnabled = NO;
-        // Telegram's own legacy (no hardware lens) selection fill, read straight off
-        // LiquidLensView.swift: UIColor(white: isDark ? 1.0 : 0.0, alpha: isDark ? 0.1 : 0.075).
-        // The bar is forced dark a few lines up, so this is always the dark-mode value: a faint
-        // white glow, not a dark blob -- opposite of what a black 32%-alpha fill reads as.
-        selPill.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.1];
+        selPill.backgroundColor = [UIColor colorWithWhite:0 alpha:0.32];
         selPill.layer.cornerCurve = kCACornerCurveContinuous;
+        selPill.layer.cornerRadius = kSelPillSize.height / 2;
         objc_setAssociatedObject(host, &kSelPillKey, selPill, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
     if (selPill.superview != host) [host insertSubview:selPill aboveSubview:navTint];
@@ -513,15 +496,7 @@ static void syncBar(UIView *stockBar) {
     if (selIcon) {
         CGRect iconFrame = [selIcon convertRect:selIcon.bounds toView:host];
         CGPoint center = CGPointMake(CGRectGetMidX(iconFrame), CGRectGetMidY(iconFrame));
-        // Telegram sizes the oval off the whole tab item (icon + label row), not the bare glyph:
-        // width = itemHeight * 1.2, height = itemHeight, then inset 4pt each side (TabBarComponent.swift
-        // selectionFrame, LiquidLensView's inset: 4.0). We only have the glyph's own frame here, which
-        // is much smaller than Spotify's real tab item, so the same 1.2x ratio on it alone would draw a
-        // pill barely bigger than the icon; scaled up to read as a proper touch-target-sized oval instead.
-        CGFloat pillHeight = iconFrame.size.height * 1.9;
-        CGFloat pillWidth = pillHeight * 1.2;
-        CGRect pillFrame = CGRectMake(center.x - pillWidth / 2, center.y - pillHeight / 2, pillWidth, pillHeight);
-        selPill.layer.cornerRadius = pillHeight / 2;
+        CGRect pillFrame = CGRectMake(center.x - kSelPillSize.width / 2, center.y - kSelPillSize.height / 2, kSelPillSize.width, kSelPillSize.height);
         selPill.hidden = NO;
         if (!CGRectEqualToRect(selPill.frame, pillFrame)) selPill.frame = pillFrame;
     } else {
