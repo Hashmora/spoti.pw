@@ -4,13 +4,18 @@
 
 typedef NS_ENUM(NSInteger, SGRGlassMode) {
     SGRGlassModeGlass,
+    SGRGlassModeLegacy,
     SGRGlassModeBlur,
     SGRGlassModeSolid,
 };
 
+// Below iOS 26 a plain system blur reads as almost nothing over Spotify's near-black chrome, so the
+// same "Legacy Liquid Glass" switch that backs NowPlayingBar and the navbar (Core/SGGlass.m) is used
+// here too, for the header's round buttons and the rest of the Kit's capsules.
 static SGRGlassMode glassMode(void) {
     if (SGRReduceTransparency()) return SGRGlassModeSolid;
     if (@available(iOS 26.0, *)) return SGRGlassModeGlass;
+    if (SGFlag(SGKeyLegacyGlass, NO) && SGLegacyGlassAvailable()) return SGRGlassModeLegacy;
     return SGRGlassModeBlur;
 }
 
@@ -19,6 +24,9 @@ static UIView *newShape(SGRGlassMode mode) {
     switch (mode) {
         case SGRGlassModeGlass:
             shape = [[UIVisualEffectView alloc] initWithEffect:SGGlassEffect()];
+            break;
+        case SGRGlassModeLegacy:
+            shape = [[SGLegacyGlassView alloc] initWithFrame:CGRectZero];
             break;
         case SGRGlassModeBlur:
             shape = [[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemThinMaterialDark]];
@@ -48,7 +56,9 @@ static void keepFilm(UIView *shape, BOOL prominent, SGRGlassMode mode) {
         film.hidden = YES;
         return;
     }
-    UIView *content = [shape isKindOfClass:UIVisualEffectView.class] ? ((UIVisualEffectView *)shape).contentView : shape;
+    UIView *content = [shape isKindOfClass:UIVisualEffectView.class] ? ((UIVisualEffectView *)shape).contentView
+                     : [shape isKindOfClass:SGLegacyGlassView.class] ? ((SGLegacyGlassView *)shape).contentView
+                     : shape;
     if (!film) {
         film = [UIView new];
         film.backgroundColor = [UIColor colorWithWhite:1 alpha:0.14];

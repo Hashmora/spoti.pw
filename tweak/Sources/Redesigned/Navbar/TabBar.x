@@ -343,6 +343,20 @@ static void syncBar(UIView *stockBar) {
         // isEnabled]), so a phone in light mode had it light over Spotify's black. Spotify is dark whatever
         // the system is, and so is the bar.
         bar.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
+        // Below iOS 26 UITabBar paints its own translucent chrome, which sits in front of navGlass
+        // (below) and hides it completely. iOS 26+ is left alone: UIKit already draws real Liquid
+        // Glass there on its own, and a transparent appearance would fight that.
+        if (@available(iOS 26.0, *)) {
+        } else {
+            bar.translucent = YES;
+            bar.backgroundImage = [UIImage new];
+            bar.shadowImage = [UIImage new];
+            bar.backgroundColor = UIColor.clearColor;
+            UITabBarAppearance *appearance = [UITabBarAppearance new];
+            [appearance configureWithTransparentBackground];
+            bar.standardAppearance = appearance;
+            if (@available(iOS 15.0, *)) bar.scrollEdgeAppearance = appearance;
+        }
         bar.delegate = bar;
         bar.stockBar = stockBar;
         UILongPressGestureRecognizer *hold = [[UILongPressGestureRecognizer alloc] initWithTarget:bar action:@selector(held:)];
