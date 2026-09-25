@@ -27,10 +27,10 @@ static const CGFloat kNavGlassBottomMargin = 8;  // gap under the bar, so it flo
 // capsule -- never a fixed corner radius that stops matching once the height changes.
 static const CGFloat kNavPlatterHeight = 64;
 static const CGFloat kNavItemSpacing = 4;    // tighter gaps between icons, like the real iOS 26+ pill
-static const CGFloat kSelPillInset = 6;      // small gap between the selection pill and the platter's own
+static const CGFloat kSelPillInset = 3;      // small gap between the selection pill and the platter's own
                                               // top/bottom edge, so it reads as a shape floating inside the
                                               // bar rather than a slab reaching its full height
-static const CGFloat kNavItemWidth = 96;     // fixed per-tab width so the pill hugs its items and self-sizes
+static const CGFloat kNavItemWidth = 90;     // fixed per-tab width so the pill hugs its items and self-sizes
                                               // instead of stretching them across whatever width it's given --
                                               // wider than before, closer to the room a label like "Your
                                               // Library" actually needs, per the reference screenshot
@@ -52,6 +52,11 @@ static CGFloat sg_room, sg_glassHeight;   // see "room for the glass bar"
     if (self) {
         self.delaysTouchesBegan = NO;
         self.delaysTouchesEnded = NO;
+        // Explicit even though YES is the default: UITabBar has its own internal touch handling for
+        // tapping items, and without this our recognizer and that internal handling can both react to
+        // the same touch, racing each other -- that race is what made the drag/tap register only
+        // sometimes.
+        self.cancelsTouchesInView = YES;
     }
     return self;
 }
@@ -317,6 +322,7 @@ static void forwardTap(UIView *item) {
     UITabBarItem *item = [self itemAt:g.currentLocation];
 
     if (g.state == UIGestureRecognizerStateBegan || g.state == UIGestureRecognizerStateChanged) {
+        if (item && item != self.selectedItem) self.selectedItem = item;
         if (!host || !selPill) return;
         CGFloat pillWidth = selPill.frame.size.width > 0 ? selPill.frame.size.width : kNavItemWidth - kSelPillInset * 2;
         CGFloat minX = self.frame.origin.x;
@@ -325,14 +331,16 @@ static void forwardTap(UIView *item) {
         hostX = MAX(minX, MIN(maxX, hostX));
         selPill.hidden = NO;
         selPill.frame = CGRectMake(hostX, selPill.frame.origin.y, pillWidth, selPill.frame.size.height);
-        if (item && item != self.selectedItem) self.selectedItem = item;
     } else if (g.state == UIGestureRecognizerStateEnded) {
-        if (g.moved && item) {
+        // Commits unconditionally, exactly like Telegram's own TabBarComponent does on .ended/.cancelled
+        // (item.action(false) fires whenever an item was found, drag or plain tap alike). `item` here
+        // comes from touchesBegan's own currentLocation even for a stationary touch, so a tap that never
+        // moved still switches tabs.
+        if (item) {
             self.selectedItem = item;
             [self tabBar:self didSelectItem:item];
         } else if (stockBar) {
-            // Released off the bar, or never actually moved (a tap -- left to UIKit's own handling):
-            // snap the pill back to wherever the real selection already is.
+            // Released off any item: snap the pill back to wherever the real selection already is.
             syncBar(stockBar);
         }
     } else if (g.state == UIGestureRecognizerStateCancelled && stockBar) {
