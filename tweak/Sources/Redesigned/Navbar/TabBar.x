@@ -118,6 +118,7 @@ static void syncBar(UIView *stockBar);
 // previously active *real* tab's label just stays white forever, and re-scanning it on every layout
 // pass kept snapping the selection (and the pill) back to that old tab.
 static void syncBarExternalChange(UIView *stockBar);
+static void syncBarCore(UIView *stockBar, BOOL rescanSelection);
 
 #pragma mark - reading Spotify's items
 
