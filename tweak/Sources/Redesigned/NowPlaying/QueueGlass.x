@@ -38,7 +38,7 @@ static void glassChip(UIView *root, NSString *buttonIdentifier) {
 %hook _TtC14Queue_ViewImpl19QueueViewController
 - (void)viewDidLayoutSubviews {
     %orig;
-    UIView *root = self.viewIfLoaded;
+    UIView *root = ((UIViewController *)self).viewIfLoaded;
     if (!root) return;
     glassPills(root);
     glassChip(root, @"queue-edit-toolbar-move-up");
