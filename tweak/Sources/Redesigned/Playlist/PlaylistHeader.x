@@ -412,11 +412,12 @@ static void glassUp(UIView *box, const void *key) {
 }
 
 static void applyToolbar(UIView *headerRoot) {
-    static char kFieldKey, kSortBoxKey, kFieldGlassKey, kSortGlassKey, kBackKey, kBackGlassKey;
-    // The back button in the ⋯ sheet's own header row: round, 48pt, nothing behind it
-    // (trees/continuous/16.txt 2026-09-26).
-    UIView *back = SGRFindByIdentifier(headerRoot, @"Components.Header.UI.BackButton", &kBackKey);
-    if (back) SGRGlassInside(back, &kBackGlassKey, 32);
+    static char kFieldKey, kSortBoxKey, kFieldGlassKey, kSortGlassKey;
+    // Resized and glassed the one way every header's back button is now (SGRGlassHeaderBack): the 32pt
+    // glass this used to put on the button itself left Spotify's own 32pt background box, offset a few
+    // points from it, showing on top -- two circles instead of one, and both smaller than the 44pt more
+    // button beside it (trees/continuous/24.txt 2026-09-26).
+    SGRGlassHeaderBack(headerRoot);
     UIView *toolbar = SGRFindByIdentifier(headerRoot, @"Components.Header.UI.Toolbar.Content", &kToolbarKey);
     if (!toolbar) return;
     UIView *field = SGRFindByIdentifier(toolbar, @"Components.Header.UI.Toolbar.SearchField", &kFieldKey);

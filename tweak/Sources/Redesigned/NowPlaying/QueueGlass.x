@@ -1,7 +1,12 @@
-// Now playing redesign: glass for the queue sheet's own controls. Clear and Edit (QueueHeaderView's
-// PillButton) and the edit-mode toolbar's Move up / Remove / Clear selection are plain 10%-white
-// capsules with nothing behind them (trees/continuous/8.txt 2026-09-26) -- the same flat chrome the
-// playlist's sort/find toolbar had before PlaylistHeader.x glassed it.
+// Now playing redesign: glass for the queue sheet's own controls, and for the sheet itself. Clear and
+// Edit (QueueHeaderView's PillButton) and the edit-mode toolbar's Move up / Remove / Clear selection are
+// plain 10%-white capsules with nothing behind them (trees/continuous/8.txt 2026-09-26) -- the same flat
+// chrome the playlist's sort/find toolbar had before PlaylistHeader.x glassed it.
+//
+// The sheet's own chrome (id=sheet-view, same as the ⋯ context menu's) never had a pane at all: nothing
+// here hooked the queue's view controller for it the way Playlist/PlaylistMenu.x hooked the context
+// menu's (trees/continuous/26.txt 2026-09-26, an opaque #1F1F1F all the way down and no glass view
+// anywhere in it). SGRGlassSheetChrome (Redesigned/Kit/SGRGlass.h) is the same call the menu makes.
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
 
@@ -40,6 +45,7 @@ static void glassChip(UIView *root, NSString *buttonIdentifier) {
     %orig;
     UIView *root = ((UIViewController *)self).viewIfLoaded;
     if (!root) return;
+    SGRGlassSheetChrome(root);
     glassPills(root);
     glassChip(root, @"queue-edit-toolbar-move-up");
     glassChip(root, @"queue-edit-toolbar-remove");

@@ -23,3 +23,23 @@ UIView *SGRGlassInside(UIView *control, const void *key, CGFloat side);
 // leads (the playlist header's Play). `prominent` lays a white film inside the shape, so that control
 // reads a step brighter than the circles beside it without leaving the same material.
 UIView *SGRGlassCapsuleInside(UIView *control, const void *key, CGSize size, BOOL prominent);
+
+// The back button in a header's own navigation bar (Components.Header.UI.BackButton, every template
+// alike). Spotify draws it 32pt across inside a 48pt-wide box with a background of its own and no glass
+// at all -- smaller besides than the 44pt circle every other round control on a header gets (the pinned
+// more button, SGRActionRow.h's mirror buttons). Glassing the button itself rather than Spotify's own
+// background box left the two showing as separate circles a few points apart; this finds the box, resizes
+// it to 44pt kept centred where Spotify already put it, and glasses that. One call, so every header's
+// back reads the one way (Album/AlbumHeader.x found the box-not-the-button half of this first, on the
+// device 2026-09-26; Playlist/PlaylistHeader.x still glassed the button only until it took this too).
+UIView *SGRGlassHeaderBack(UIView *page);
+
+// The chrome of a bottom sheet Spotify draws around an opaque "sheet-view" pane -- the ⋯ context menu's
+// and the queue's alike, both this identifier (trees/continuous/24.txt, 26.txt 2026-09-26). A glass pane
+// goes behind the pane's own paint, and the one or two plain views Spotify wraps around its own content
+// between the pane and the sheet's first scrolling list are stripped of their background by hand: they
+// are the same #1F1F1F card grey SGIsBaseSurface deliberately leaves alone everywhere else (SGRRepaint.x,
+// where it is a placeholder or a real card), but here it is the sheet's own outer chrome, not a card
+// inside it, and left standing it covered the glass whole bar a sliver at the very top. Stops at the
+// first scroll view or table it meets and leaves that alone, rows and all.
+UIView *SGRGlassSheetChrome(UIView *content);
