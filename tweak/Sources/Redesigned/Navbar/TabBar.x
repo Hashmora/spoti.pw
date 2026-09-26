@@ -17,7 +17,7 @@
 #import "Headers/SPTEncoreIconView.h"
 #import <objc/message.h>
 
-static char kBarKey, kHostKey, kNavGlassKey, kNavTintKey, kSelPillKey;
+static char kBarKey, kHostKey, kNavGlassKey, kNavTintKey, kSelPillKey, kRetriesKey;
 static const CGFloat kNavGlassMargin = 16;       // side gap, so the bar floats instead of touching the edges
 static const CGFloat kNavGlassBottomMargin = 8;  // gap under the bar, so it floats above the edge like iOS 26+
 // The pill itself, never the safe-area room under it: glassHeight() below can be as tall as 83pt on
@@ -636,7 +636,12 @@ static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
     // An item with no title is drawn by UIKit as its glyph alone, centred, on a bar of the same height.
     BOOL hideLabels = SGHidden(SGRKeyNavbarHideLabels);
 
+    // Set once we actually rebuild bar.items below (add, remove, or pure reorder) -- read
+    // further down to decide whether the pill's geometry needs a fresh settled layout pass, not
+    // just when the platter's own frame size changed.
+    BOOL itemsRebuilt = NO;
     if (![sources isEqualToArray:bar.sources]) {
+        itemsRebuilt = YES;
         // Which source view the current selection and lastRealItem point at, not which index -- a
         // tab removed earlier in the list would shift every later index by one, and an index-based
         // remap would hand the pill to the wrong tab.
@@ -704,11 +709,24 @@ static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
         if (selected) bar.lastRealItem = selected;
     }
     // An icon view Spotify has not built yet is looked for again shortly, not on the next touch.
-    static NSUInteger retries;
-    if (missing && retries++ < 40) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.25 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            syncBar(stockBar);
-        });
+    // Kept on stockBar itself, not one counter shared by every bar for the whole life of the
+    // process -- that shared counter let a source that took a few tries early on spend the entire
+    // budget, leaving a *different*, later source (a tab added afterwards, say) with no image and
+    // no active/filled variant to swap to on selection, and nothing left to retry it with for the
+    // rest of the session.
+    NSNumber *retriesBox = objc_getAssociatedObject(stockBar, &kRetriesKey);
+    NSUInteger retries = retriesBox.unsignedIntegerValue;
+    if (missing) {
+        if (retries < 40) {
+            objc_setAssociatedObject(stockBar, &kRetriesKey, @(retries + 1), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.25 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                syncBar(stockBar);
+            });
+        }
+    } else if (retriesBox) {
+        // Every icon is in; the next source that comes up short gets its own fresh 40 tries
+        // instead of whatever this run happened to leave over.
+        objc_setAssociatedObject(stockBar, &kRetriesKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
 
     CGRect bounds = stockBar.bounds;
@@ -749,7 +767,12 @@ static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
     // below) right after resizing the bar, e.g. when a tab was just added or removed, would still see
     // yesterday's layout. Forcing it here is what a tab-count change was missing: the pill used to land
     // exactly where the old item count put it, not where the new one actually renders.
-    if (frameChanged) [bar layoutIfNeeded];
+    // A pure reorder (same count, so the platter itself is the same size) still moved every
+    // button to a new slot in bar.items -- frameChanged alone missed that case, and
+    // renderedCenterXForItem below kept reading whichever stale button positions were still
+    // settled from before the reorder, which is what let the pill drift off to the side of the
+    // icon it was supposed to sit under.
+    if (frameChanged || itemsRebuilt) [bar layoutIfNeeded];
 
     // A glass pane behind the bar, the same way NowPlayingBar.x backs the mini player: real
     // UIGlassEffect on iOS 26+ (on top of what UITabBar already draws itself), the legacy
