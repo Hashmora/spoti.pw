@@ -450,8 +450,40 @@ static void glassToolbarShape(UIView *box, const void *key) {
     SGRGlassCapsuleInside(box, key, size, NO);
 }
 
+// The back button in the navigation bar (device, trees/continuous/2.txt 2026-09-26): Spotify draws it
+// with a round background 32pt across inside its 48pt-wide box, no glass at all -- unlike the playlist
+// template, which glasses it at 32pt in PlaylistHeader.x's applyToolbar -- and smaller besides than the
+// 44pt circle every other round control here gets (the pinned more button, SGRActionRow.h's mirror
+// buttons), which read as undersized beside it. Resized to the same 44pt, kept centred where Spotify
+// already put it, and given the same glass.
+static const CGFloat kBackCircle = 44;
+
+static UIView *backgroundBoxIn(UIView *back) {
+    __block UIView *found = nil;
+    SGForEachView(back, ^(UIView *v) {
+        if (!found && [NSStringFromClass(v.class) containsString:@"HeaderToolbarActionBackgroundView"]) found = v;
+    });
+    return found;
+}
+
+static void glassAlbumBack(UIView *page) {
+    static char kBackKey, kBackGlassKey;
+    UIView *back = SGRFindByIdentifier(page, @"Components.Header.UI.BackButton", &kBackKey);
+    if (!back) return;
+    UIView *box = backgroundBoxIn(back);
+    if (box && fabs(box.bounds.size.width - kBackCircle) > 0.5) {
+        CGPoint center = box.center;
+        box.bounds = CGRectMake(0, 0, kBackCircle, kBackCircle);
+        box.center = center;
+        box.layer.cornerRadius = kBackCircle / 2;
+        box.layer.cornerCurve = kCACornerCurveContinuous;
+    }
+    SGRGlassInside(box ?: back, &kBackGlassKey, kBackCircle);
+}
+
 static void glassAlbumToolbar(UIView *page) {
     static char kToolbarKey, kFieldKey, kSortBoxKey, kFieldGlassKey, kSortGlassKey;
+    glassAlbumBack(page);
     UIView *toolbar = SGRFindByIdentifier(page, @"Components.Header.UI.Toolbar.Content", &kToolbarKey);
     if (!toolbar) return;
     glassToolbarShape(SGRFindByIdentifier(toolbar, @"Components.Header.UI.Toolbar.SearchField", &kFieldKey), &kFieldGlassKey);

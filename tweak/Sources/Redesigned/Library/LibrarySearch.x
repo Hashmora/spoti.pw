@@ -9,6 +9,15 @@
 // They become capsules, which is the shape the Search tab's field has (Redesigned/Navbar/SearchField.x), and
 // the scrim goes the way it goes on every other redesigned page.
 //
+// Both shapes also paint their own solid fill (bg=#FFFFFF@0.14 on the field, the same on the button
+// container) underneath whatever Spotify's own LiquidGlass.SearchBarView draws; on a build without
+// UIGlassEffect that inner pane never appears, so without clearing that fill the capsule just reads as a
+// flat tint rather than glass (issue reported: "solid fill instead of Glass"). So the fill is cleared the
+// same way every other redesigned capsule's is (Album/AlbumHeader.x, Playlist/PlaylistHeader.x) before the
+// Kit's own pane goes behind it, and both shapes clip to their rounded bounds so neither the fill nor the
+// glass pane can read past the capsule's edge into the row beside it (the button's label crowding the edge,
+// reported as the row looking "shifted").
+//
 // The header is 142pt and holds no filter chips, so there is nothing here to close up: LibraryHeader.x shrinks
 // a header only where chips leave a band behind.
 #import "Core/SGCore.h"
@@ -31,6 +40,9 @@ static void capsule(UIView *shape) {
     if (layer.cornerRadius != height / 2) layer.cornerRadius = height / 2;
     if (layer.cornerCurve != kCACornerCurveContinuous) layer.cornerCurve = kCACornerCurveContinuous;
     if (!layer.masksToBounds) layer.masksToBounds = YES;
+    // Spotify's own solid tint behind the shape: cleared so the capsule reads as glass rather than a flat
+    // fill, the same clearing every other redesigned capsule gets (glassUp in AlbumHeader.x/PlaylistHeader.x).
+    if (shape.backgroundColor != UIColor.clearColor) shape.backgroundColor = UIColor.clearColor;
 }
 
 // Both shapes assumed Spotify's own LiquidGlass.SearchBarView paints itself inside them (see the file

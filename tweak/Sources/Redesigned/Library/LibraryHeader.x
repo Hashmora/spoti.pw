@@ -56,6 +56,7 @@ static char kTitleKey, kRowWatchedKey;
 static char kRecentsKey, kSearchKey, kPlusKey, kHeaderTitleKey;
 static char kRoundGlassKey;
 static char kBackKey, kMenuKey, kFolderPlusKey, kPlayKey, kPauseKey, kFolderTitleKey;
+static char kChipsKey, kChipGlassKey;
 
 static void vanish(UIView *view) {
     if (!view) return;
@@ -223,11 +224,42 @@ static NSArray<UIView *> *placeFolder(UIView *header) {
     return placed;
 }
 
+// True for the flat, translucent tint Spotify paints an unselected filter chip with
+// (bg=#FFFFFF@0.10, trees/continuous/26.txt 2026-09-26); a selected chip turns a solid colour of its
+// own to say so, and that fill is left exactly as Spotify draws it -- only the neutral one is glassed.
+static BOOL isNeutralChipFill(UIView *fill) {
+    CGFloat white = 0, alpha = 0;
+    if (![fill.backgroundColor getWhite:&white alpha:&alpha]) return NO;
+    return white > 0.9 && alpha > 0.01 && alpha < 0.3;
+}
+
+static void glassChip(UIView *chip) {
+    UIView *fill = chip.subviews.firstObject;
+    CGSize size = chip.bounds.size;
+    if (!fill || size.width < 1 || size.height < 1 || !isNeutralChipFill(fill)) return;
+    if (fill.backgroundColor != UIColor.clearColor) fill.backgroundColor = UIColor.clearColor;
+    if (fill.layer.cornerRadius != size.height / 2) fill.layer.cornerRadius = size.height / 2;
+    SGRGlassCapsuleInside(fill, &kChipGlassKey, fill.bounds.size, NO);
+}
+
+// Playlists / Podcasts / Albums / Artists, left as Spotify's own row (see the file header above): each
+// chip is Components.UI.FilterChips' own FilterChipView, a flat capsule unselected, unlike every other
+// capsule the redesign gives a row of controls. Walked rather than hooked -- the class is a Swift one
+// with no mangled name in the tree to hook by -- and only the neutral fill is touched.
+static void glassChips(UIView *header) {
+    UIView *chips = SGRFindByIdentifier(header, @"Components.UI.FilterChips", &kChipsKey);
+    if (!chips) return;
+    SGForEachView(chips, ^(UIView *v) {
+        if ([NSStringFromClass(v.class) isEqualToString:@"EncoreConsumerMobile_BaseKit.FilterChipView"]) glassChip(v);
+    });
+}
+
 static void layoutRoot(UIView *page) {
     UIView *header = childNamed(page, @"YourLibraryHeaderView");
     if (!header) return;
     [header layoutIfNeeded];
     SGRLibraryClearScrim(header);
+    glassChips(header);
 
     NSArray<UIView *> *trailing = placeRoot(header);
     if (!trailing.count) return;
@@ -257,6 +289,7 @@ static void layoutFolder(UIView *page) {
     if (!header) return;
     [header layoutIfNeeded];
     SGRLibraryClearScrim(header);
+    glassChips(header);
 
     NSArray<UIView *> *placed = placeFolder(header);
     if (!placed.count) return;
