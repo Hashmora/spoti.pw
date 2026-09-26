@@ -147,7 +147,12 @@ BOOL SGRIsSheetChromeFill(CGColorRef color) {
 static void stripSheetChrome(UIView *view, UIView *skip, int depth) {
     if (!view || view == skip || depth > 6) return;
     if ([view isKindOfClass:UIScrollView.class]) return;
-    if (!SGKeepsColor(view) && SGRIsSheetChromeFill(view.layer.backgroundColor)) view.layer.backgroundColor = NULL;
+    // Any opaque fill here, not just an exact #1F1F1F match: before the first list nothing in this
+    // chrome is a real card, whatever grey Spotify happens to paint it with on a given pass (device
+    // 2026-09-27, the plain wrapper between sheet-view and the queue's table still came back solid
+    // even with SGRIsSheetChromeFill's own check passing on it -- narrowing to that one shade is what
+    // let a slightly different opaque fill through).
+    if (!SGKeepsColor(view) && SGIsVisibleColor(view.layer.backgroundColor)) view.layer.backgroundColor = NULL;
     for (UIView *sub in view.subviews) stripSheetChrome(sub, skip, depth + 1);
 }
 
