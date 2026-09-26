@@ -6,6 +6,12 @@
 // switch off, it is a plain dark chrome blur, exactly as spoti.pw always drew it.
 #import <UIKit/UIKit.h>
 
+// Whether the Legacy Glass approximation should be used right now: below iOS 26 (UIGlassEffect
+// covers 26 and up on its own), with the person's switch on, and with SGLegacyGlassAvailable()
+// finding the private API it leans on. The one place this is decided -- Redesigned/Kit/SGRGlass.m
+// calls this instead of re-deriving the same answer from the flag and @available itself.
+BOOL SGUseLegacyGlass(void);
+
 // UIGlassEffect made the only way that resolves its material, or a dark chrome blur as the fallback.
 UIVisualEffect *SGGlassEffect(void);
 // A UIVisualEffectView, or an SGLegacyGlassView standing in for one. Callers only ever set its frame

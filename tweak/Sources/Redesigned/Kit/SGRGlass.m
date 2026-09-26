@@ -11,12 +11,14 @@ typedef NS_ENUM(NSInteger, SGRGlassMode) {
 };
 
 // Below iOS 26 a plain system blur reads as almost nothing over Spotify's near-black chrome, so the
-// same "Legacy Liquid Glass" switch that backs NowPlayingBar and the navbar (Core/SGGlass.m) is used
-// here too, for the header's round buttons and the rest of the Kit's capsules.
+// same "Legacy Liquid Glass" switch that backs NowPlayingBar and the navbar is used here too, for
+// the header's round buttons and the rest of the Kit's capsules. SGUseLegacyGlass() (Core/SGGlass.m)
+// is the one place that answer is decided -- asked here instead of re-checking the flag and
+// @available ourselves, so the two can no longer drift apart.
 static SGRGlassMode glassMode(void) {
     if (SGRReduceTransparency()) return SGRGlassModeSolid;
     if (@available(iOS 26.0, *)) return SGRGlassModeGlass;
-    if (SGFlag(SGKeyLegacyGlass, NO) && SGLegacyGlassAvailable()) return SGRGlassModeLegacy;
+    if (SGUseLegacyGlass()) return SGRGlassModeLegacy;
     return SGRGlassModeBlur;
 }
 

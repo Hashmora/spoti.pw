@@ -14,14 +14,15 @@ UIVisualEffect *SGGlassEffect(void) {
 
 // The legacy view stands in only below iOS 26 (UIGlassEffect covers that and up on its own), only
 // with the switch on, and only where SGLegacyGlassAvailable() finds the private API it leans on.
-static BOOL useLegacyGlass(void) {
+// Exported (see SGGlass.h) so SGRGlass.m asks this instead of re-deriving its own answer.
+BOOL SGUseLegacyGlass(void) {
     if (@available(iOS 26.0, *)) return NO;
     return SGFlag(SGKeyLegacyGlass, NO) && SGLegacyGlassAvailable();
 }
 
 static UIView *newPane(void) {
     UIView *glass;
-    if (useLegacyGlass()) {
+    if (SGUseLegacyGlass()) {
         glass = [[SGLegacyGlassView alloc] initWithFrame:CGRectZero];
     } else {
         glass = [[UIVisualEffectView alloc] initWithEffect:SGGlassEffect()];
