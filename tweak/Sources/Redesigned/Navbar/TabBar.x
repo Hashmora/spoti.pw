@@ -26,6 +26,13 @@ static const CGFloat kNavGlassBottomMargin = 8;  // gap under the bar, so it flo
 // 56pt item row plus 4pt of inner inset top and bottom). Radius is always half of this -- a true
 // capsule -- never a fixed corner radius that stops matching once the height changes.
 static const CGFloat kNavPlatterHeight = 64;
+// Icons-only is a squarer pill, not the same 64pt built to hold a label underneath too -- tall and
+// mostly empty otherwise, with the icon floating off-centre in it (UIKit still lays the icon out as
+// if a label sat below it, even once the title itself is nil). kNavIconOnlyImageShift below is a
+// starting guess at how far that leaves the icon short of true centre in the shorter pill -- tune
+// both together against a real device, this wasn't checked on screen.
+static const CGFloat kNavPlatterHeightIconOnly = 52;
+static const CGFloat kNavIconOnlyImageShift = 6;
 static const CGFloat kNavItemSpacing = 4;    // tighter gaps between icons, like the real iOS 26+ pill
 static const CGFloat kSelPillInset = 3;      // small gap between the selection pill and the platter's own
                                               // top/bottom edge, so it reads as a shape floating inside the
@@ -630,6 +637,13 @@ static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
     BOOL hideLabels = SGHidden(SGRKeyNavbarHideLabels);
 
     if (![sources isEqualToArray:bar.sources]) {
+        // Which source view the current selection and lastRealItem point at, not which index -- a
+        // tab removed earlier in the list would shift every later index by one, and an index-based
+        // remap would hand the pill to the wrong tab.
+        NSUInteger oldSelIndex = [bar.items indexOfObject:bar.selectedItem];
+        UIView *oldSelSource = (oldSelIndex != NSNotFound && oldSelIndex < bar.sources.count) ? bar.sources[oldSelIndex] : nil;
+        NSUInteger oldLastIndex = [bar.items indexOfObject:bar.lastRealItem];
+        UIView *oldLastSource = (oldLastIndex != NSNotFound && oldLastIndex < bar.sources.count) ? bar.sources[oldLastIndex] : nil;
         NSMutableArray<UITabBarItem *> *items = [NSMutableArray array];
         for (UIView *source in sources) [items addObject:[[UITabBarItem alloc] initWithTitle:hideLabels ? nil : labelIn(source).text image:nil tag:items.count]];
         bar.sources = sources;
@@ -641,6 +655,15 @@ static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
         // positions until later in this same call, but on a tab *removal* specifically it is what kept
         // the pill sitting over a slot that no longer has an icon in it.
         [bar layoutIfNeeded];
+        // Re-thread the selection through the rebuild by the view it belonged to, found above.
+        if (oldSelSource) {
+            NSUInteger newSelIndex = [sources indexOfObject:oldSelSource];
+            if (newSelIndex != NSNotFound) bar.selectedItem = items[newSelIndex];
+        }
+        if (oldLastSource) {
+            NSUInteger newLastIndex = [sources indexOfObject:oldLastSource];
+            if (newLastIndex != NSNotFound) bar.lastRealItem = items[newLastIndex];
+        }
         NSMutableString *out = [NSMutableString stringWithString:@"tab bar icons"];
         for (UIView *source in sources) {
             UIView *live = iconIn(source);
@@ -662,6 +685,12 @@ static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
         missing |= !item.image || !item.selectedImage;
         NSString *title = hideLabels ? nil : labelIn(sources[i]).text;
         if (hideLabels ? item.title != nil : title.length && ![title isEqualToString:item.title]) item.title = title;
+        // UIKit still positions the icon as if a label sat under it even once the title is nil, so with
+        // labels hidden it reads high in the now-shorter pill (kNavPlatterHeightIconOnly below) instead
+        // of truly centred. Nudging it down by imageInsets makes up the difference; zero once labels
+        // come back, so the icon returns to UIKit's own icon+label centring untouched.
+        UIEdgeInsets wantInsets = hideLabels ? UIEdgeInsetsMake(kNavIconOnlyImageShift, 0, -kNavIconOnlyImageShift, 0) : UIEdgeInsetsZero;
+        if (!UIEdgeInsetsEqualToEdgeInsets(item.imageInsets, wantInsets)) item.imageInsets = wantInsets;
         if (!selected && isActive(sources[i]) && !isCreateSource(sources[i])) selected = item;
     }
     // Everywhere except a genuine external navigation change (rescanSelection == YES, see
@@ -707,7 +736,7 @@ static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
         : kNavItemWidth;
     if (bar.itemWidth != itemWidth) bar.itemWidth = itemWidth;
     CGFloat contentWidth = MIN(availableWidth, naturalWidth);
-    CGFloat platterHeight = MIN(kNavPlatterHeight, height);
+    CGFloat platterHeight = MIN(hideLabels ? kNavPlatterHeightIconOnly : kNavPlatterHeight, height);
     // A small gap off host's top too, not just its bottom (kNavGlassBottomMargin): host's top edge sits
     // right where the now-playing card's bottom edge is, so a platter pinned at y=0 touched the card
     // directly with no breathing room between the two floating pieces.
@@ -786,8 +815,9 @@ static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
             if (wasVisible && !CGRectIsEmpty(selPill.frame)) {
                 // Slides to the new slot instead of jumping -- the pill's one and only animation now,
                 // on a tap or a drag alike, with no raw finger-tracking step before it.
-                [UIView animateWithDuration:0.25 delay:0 usingSpringWithDamping:0.85 initialSpringVelocity:0
-                    options:UIViewAnimationOptionBeginFromCurrentState animations:^{ selPill.frame = pillFrame; } completion:nil];
+                [UIView animateWithDuration:0.25 delay:0
+                    options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionCurveEaseInEaseOut
+                    animations:^{ selPill.frame = pillFrame; } completion:nil];
             } else {
                 selPill.frame = pillFrame;
             }
