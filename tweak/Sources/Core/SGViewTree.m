@@ -1,4 +1,14 @@
 #import "SGViewTree.h"
+#import <objc/runtime.h>
+UIView *SGLazyChild(UIView *host, const void *key, UIView *(^make)(void)) {
+    UIView *v = objc_getAssociatedObject(host, key);
+    if (!v) {
+        v = make();
+        objc_setAssociatedObject(host, key, v, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    return v;
+}
+
 
 void SGForEachView(UIView *view, void (^fn)(UIView *)) {
     fn(view);

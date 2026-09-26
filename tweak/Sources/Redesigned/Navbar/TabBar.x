@@ -803,15 +803,14 @@ static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
     // A faint white film over the glass, the same trick SGRGlass.m uses for prominent capsules:
     // real Liquid Glass gets a touch of it too, and it's what keeps the bar from vanishing into
     // Spotify's near-black chrome below iOS 26.
-    UIView *navTint = objc_getAssociatedObject(host, &kNavTintKey);
-    if (!navTint) {
-        navTint = [UIView new];
-        navTint.backgroundColor = [UIColor colorWithWhite:1 alpha:0.16];
-        navTint.userInteractionEnabled = NO;
-        navTint.layer.cornerCurve = kCACornerCurveContinuous;
-        navTint.layer.masksToBounds = YES;
-        objc_setAssociatedObject(host, &kNavTintKey, navTint, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    }
+    UIView *navTint = SGLazyChild(host, &kNavTintKey, ^UIView *{
+        UIView *v = [UIView new];
+        v.backgroundColor = [UIColor colorWithWhite:1 alpha:0.16];
+        v.userInteractionEnabled = NO;
+        v.layer.cornerCurve = kCACornerCurveContinuous;
+        v.layer.masksToBounds = YES;
+        return v;
+    });
     if (navTint.superview != host) [host insertSubview:navTint aboveSubview:navGlass];
     if (!CGRectEqualToRect(navTint.frame, glassFrame)) navTint.frame = glassFrame;
     navTint.layer.cornerRadius = glassFrame.size.height / 2;
@@ -819,19 +818,15 @@ static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
     // A dark capsule behind the selected icon only - the closest legacy stand-in for iOS 26+'s glass
     // "selection bubble". Sits above the tint so it reads as a shadow in the material, below the
     // (transparent) bar itself so the icon still draws on top of it.
-    UIView *selPill = objc_getAssociatedObject(host, &kSelPillKey);
-    if (!selPill) {
-        selPill = [UIView new];
-        selPill.userInteractionEnabled = NO;
-        // A real black, not the faint white glow Telegram's own *legacy* fallback formula gives
-        // (LiquidLensView.swift's alpha:0.1 white -- tuned for a lens sitting over already-bright chat
-        // content, not this). selPill sits over navTint's white 16% film, so anything much under ~50%
-        // alpha read as washed-out grey rather than black once composited -- not what the reference
-        // screenshot's clean, solid black capsule looks like.
-        selPill.backgroundColor = [UIColor colorWithWhite:0 alpha:0.55];
-        selPill.layer.cornerCurve = kCACornerCurveContinuous;
-        objc_setAssociatedObject(host, &kSelPillKey, selPill, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    }
+    // Solid black (not Telegram's ~10% white lens glow): over navTint's 16% white film,
+    // anything under ~50% alpha reads as washed-out grey instead of a clean black capsule.
+    UIView *selPill = SGLazyChild(host, &kSelPillKey, ^UIView *{
+        UIView *v = [UIView new];
+        v.userInteractionEnabled = NO;
+        v.backgroundColor = [UIColor colorWithWhite:0 alpha:0.55];
+        v.layer.cornerCurve = kCACornerCurveContinuous;
+        return v;
+    });
     if (selPill.superview != host) [host insertSubview:selPill aboveSubview:navTint];
     // bar.selectedItem updates the instant UIKit processes a real tap (or our own drag handler sets
     // it), well before Spotify repaints the label isActive polls below -- keying the pill off that

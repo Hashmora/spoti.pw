@@ -2,6 +2,10 @@
 #import <UIKit/UIKit.h>
 
 void SGForEachView(UIView *view, void (^fn)(UIView *));
+// Lazily creates and caches a child view on `host` keyed by `key`, calling `make` only once.
+// Replaces the repeated "objc_getAssociatedObject / if (!x) { x = ...; objc_setAssociatedObject }"
+// pattern that shows up anywhere a hook attaches a persistent overlay view to a host.
+UIView *SGLazyChild(UIView *host, const void *key, UIView *(^make)(void));
 CGRect SGFrameIn(UIView *view, UIView *target);
 // Whether `view` sits under `root`, stopping at a visual effect view on the way up.
 BOOL SGIsInside(UIView *view, UIView *root);
