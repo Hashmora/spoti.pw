@@ -30,6 +30,7 @@
 // is held from the page, so they are still there to fire once the list has scrolled past them.
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
+#import "Core/SGGlass.h"
 #import "Playlist.h"
 
 NSString *const SGRPlaylistCurationIdentifier = @"PlaylistCuration.Row.CurationActionsToolbar";
@@ -373,9 +374,25 @@ static void install(UIViewController *menu) {
     }
 }
 
+// The sheet's own chrome: a plain #1F1F1F view an ancestor of every context menu's content, found by
+// the identifier Spotify gives it ("sheet-view") rather than by class, since the presentation
+// controller that owns it belongs to UIKit, not to this table's own view controller.
+static char kSheetGlassKey;
+static void glassSheetChrome(UIView *content) {
+    for (UIView *v = content; v; v = v.superview) {
+        if (![v.accessibilityIdentifier isEqualToString:@"sheet-view"]) continue;
+        UIView *glass = SGGlassFor(v, &kSheetGlassKey);
+        glass.frame = v.bounds;
+        glass.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+        SGShapeGlass(glass, v.layer.cornerRadius, NO);
+        return;
+    }
+}
+
 %hook _TtC24ContextMenu_InternalImpl25ContextMenuViewController
 - (void)viewDidLayoutSubviews {
     %orig;
+    glassSheetChrome(self.viewIfLoaded);
     install((UIViewController *)self);
 }
 %end

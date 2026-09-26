@@ -412,7 +412,11 @@ static void glassUp(UIView *box, const void *key) {
 }
 
 static void applyToolbar(UIView *headerRoot) {
-    static char kFieldKey, kSortBoxKey, kFieldGlassKey, kSortGlassKey;
+    static char kFieldKey, kSortBoxKey, kFieldGlassKey, kSortGlassKey, kBackKey, kBackGlassKey;
+    // The back button in the ⋯ sheet's own header row: round, 48pt, nothing behind it
+    // (trees/continuous/16.txt 2026-09-26).
+    UIView *back = SGRFindByIdentifier(headerRoot, @"Components.Header.UI.BackButton", &kBackKey);
+    if (back) SGRGlassInside(back, &kBackGlassKey, 32);
     UIView *toolbar = SGRFindByIdentifier(headerRoot, @"Components.Header.UI.Toolbar.Content", &kToolbarKey);
     if (!toolbar) return;
     UIView *field = SGRFindByIdentifier(toolbar, @"Components.Header.UI.Toolbar.SearchField", &kFieldKey);

@@ -438,10 +438,31 @@ static void applyHeader(UIView *header, UIView *page) {
     if (cover) applyHero(header, cover, bottom);
 }
 
+// Find on this page sits above the cover the same way it does on a playlist, but nothing here ever
+// glassed it (device 2026-09-26, trees/continuous/14.txt: Your Episodes) -- PlaylistHeader.x's glassUp,
+// copied for this template, which a podcast episode and Your Episodes share with an album (AlbumField.x).
+static void glassToolbarShape(UIView *box, const void *key) {
+    if (!box) return;
+    CGSize size = box.bounds.size;
+    if (size.width < 1 || size.height < 1) return;
+    if (box.backgroundColor != UIColor.clearColor) box.backgroundColor = UIColor.clearColor;
+    if (box.layer.cornerRadius != size.height / 2) box.layer.cornerRadius = size.height / 2;
+    SGRGlassCapsuleInside(box, key, size, NO);
+}
+
+static void glassAlbumToolbar(UIView *page) {
+    static char kToolbarKey, kFieldKey, kSortBoxKey, kFieldGlassKey, kSortGlassKey;
+    UIView *toolbar = SGRFindByIdentifier(page, @"Components.Header.UI.Toolbar.Content", &kToolbarKey);
+    if (!toolbar) return;
+    glassToolbarShape(SGRFindByIdentifier(toolbar, @"Components.Header.UI.Toolbar.SearchField", &kFieldKey), &kFieldGlassKey);
+    glassToolbarShape(SGRFindByIdentifier(toolbar, @"Components.Header.UI.Toolbar.ButtonContainer", &kSortBoxKey), &kSortGlassKey);
+}
+
 static void applyPage(UIView *page) {
     UIView *header = SGRFindByIdentifier(page, @"CreativeWorkPlatform.Components.UI.CreativeWorkHeader", &kHeaderKey);
     if (!header) return;
     applyHeader(header, page);
+    glassAlbumToolbar(page);
     // The header lays itself out again whenever its cover, its artist or its buttons arrive, which the
     // page's own pass does not hear about. It is a plain UIView, so its pass can be watched.
     watch(header, &kHeaderWatchedKey, ^(UIView *view) {

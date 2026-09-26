@@ -54,6 +54,7 @@ NSString *const SGRLibraryListIdentifier = @"YourLibraryContent.collectionView";
 static const CGFloat kRowInset = 8;
 static char kTitleKey, kRowWatchedKey;
 static char kRecentsKey, kSearchKey, kPlusKey, kHeaderTitleKey;
+static char kRoundGlassKey;
 static char kBackKey, kMenuKey, kFolderPlusKey, kPlayKey, kPauseKey, kFolderTitleKey;
 
 static void vanish(UIView *view) {
@@ -230,6 +231,14 @@ static void layoutRoot(UIView *page) {
 
     NSArray<UIView *> *trailing = placeRoot(header);
     if (!trailing.count) return;
+
+    // Search and + are plain 48pt icon buttons with nothing behind them (trees/continuous/10.txt
+    // 2026-09-26); the avatar is skipped, its image already fills the circle so glass behind it would
+    // never show.
+    for (UIView *control in trailing) {
+        if (isFace(control)) continue;
+        SGRGlassInside(control, &kRoundGlassKey, 44);
+    }
 
     // The first pass that laid the header out, not the first pass at all: a page appearing lays out before
     // its controls have a size, and a line off that pass would say the header was left as Spotify's.

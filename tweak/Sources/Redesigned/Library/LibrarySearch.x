@@ -15,7 +15,7 @@
 #import "Redesigned/Kit/SGRKit.h"
 #import "Library.h"
 
-static char kFieldKey, kCancelKey;
+static char kFieldKey, kCancelKey, kFieldGlassKey, kCancelGlassKey;
 
 static UIView *childNamed(UIView *host, NSString *marker) {
     for (UIView *sub in host.subviews) {
@@ -33,6 +33,16 @@ static void capsule(UIView *shape) {
     if (!layer.masksToBounds) layer.masksToBounds = YES;
 }
 
+// Both shapes assumed Spotify's own LiquidGlass.SearchBarView paints itself inside them (see the file
+// header above); on a build without UIGlassEffect that never happens, so they stay plain. Behind them
+// too, then -- the same pane every other redesigned capsule gets.
+static void glassCapsule(UIView *shape, const void *key) {
+    if (!shape) return;
+    CGSize size = shape.bounds.size;
+    if (size.width < 1 || size.height < 1) return;
+    SGRGlassCapsuleInside(shape, key, size, NO);
+}
+
 %hook _TtC28YourLibrary_YourLibraryXImpl21YourLibrarySearchView
 - (void)layoutSubviews {
     %orig;
@@ -43,6 +53,8 @@ static void capsule(UIView *shape) {
     UIView *cancel = SGRFindByIdentifier(header, @"Components.Header.UI.Toolbar.ButtonContainer", &kCancelKey);
     capsule(field);
     capsule(cancel);
+    glassCapsule(field, &kFieldGlassKey);
+    glassCapsule(cancel, &kCancelGlassKey);
 
     // The first pass the field had a size on: before that there is no shape to report.
     static BOOL logged;
