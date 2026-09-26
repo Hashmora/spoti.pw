@@ -28,7 +28,7 @@ __weak UIView *sgr_sheetChromeRoot = nil;
                 color = NULL;
             } else if (SGIsBaseSurface(color) && (SGIsInside(view, sgr_playlistRoot) || SGIsInside(view, sgr_albumRoot) || SGIsInside(view, sgr_artistRoot))) {
                 color = NULL;
-            } else if (SGRIsSheetChromeFill(color) && SGIsInside(view, sgr_sheetChromeRoot)) {
+            } else if (SGIsVisibleColor(color) && SGRIsSheetChromeArea(view, sgr_sheetChromeRoot)) {
                 color = NULL;
             }
         }

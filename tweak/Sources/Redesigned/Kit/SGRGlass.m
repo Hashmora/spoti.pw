@@ -139,6 +139,22 @@ BOOL SGRIsSheetChromeFill(CGColorRef color) {
     return c[0] <= 0.14 && fabs(c[0] - c[1]) < 0.02 && fabs(c[1] - c[2]) < 0.02;
 }
 
+// Whether `view` sits in sheet chrome that should stay glass, as opposed to a row or card inside the
+// sheet's own list: walks up from `view` to `root` (sgr_sheetChromeRoot), refusing anything with a
+// UIScrollView/UITableView ancestor along the way. Mirrors stripSheetChrome's own scroll-view stop, so
+// the continuous repaint hook (SGRRepaint.x) strips exactly the same footprint on a later pass that it
+// stripped on the first one -- the queue's own footer (SessionModifiersView) is built after that first
+// pass and repaints its #1F1F1F back in on its own (device 2026-09-27), so without this the hook's own
+// exact-shade check (SGRIsSheetChromeFill) was the only thing standing between it and staying opaque.
+BOOL SGRIsSheetChromeArea(UIView *view, UIView *root) {
+    if (!root) return NO;
+    for (UIView *v = view; v; v = v.superview) {
+        if ([v isKindOfClass:UIScrollView.class]) return NO;
+        if (v == root) return YES;
+    }
+    return NO;
+}
+
 // Walked from the pane outward rather than by identifier: the ⋯ sheet wraps its content two levels deep
 // (context-menu-view, context-menu-main-view) and the queue's one (its own LayoutOnlyView's child), and
 // nothing says a third sheet wraps it the same number of times. Stops at the first scroll view or table,

@@ -45,3 +45,8 @@ UIView *SGRGlassSheetChrome(UIView *content);
 // SGIsBaseSurface's), exposed so SGRRepaint.x's continuous hook can recognise and clear it wherever it
 // gets repainted inside sgr_sheetChromeRoot.
 BOOL SGRIsSheetChromeFill(CGColorRef color);
+
+// Whether `view` is chrome of the sheet rooted at `root` (sgr_sheetChromeRoot) rather than a row or card
+// inside the sheet's own list -- same scroll-view boundary stripSheetChrome itself stops at. Exposed so
+// SGRRepaint.x's continuous hook clears any opaque fill repainted there, not just the one exact shade.
+BOOL SGRIsSheetChromeArea(UIView *view, UIView *root);
