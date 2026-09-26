@@ -392,7 +392,7 @@ static void glassSheetChrome(UIView *content) {
 %hook _TtC24ContextMenu_InternalImpl25ContextMenuViewController
 - (void)viewDidLayoutSubviews {
     %orig;
-    glassSheetChrome(self.viewIfLoaded);
+    glassSheetChrome(((UIViewController *)self).viewIfLoaded);
     install((UIViewController *)self);
 }
 %end
