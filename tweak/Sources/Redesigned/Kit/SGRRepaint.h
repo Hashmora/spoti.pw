@@ -13,3 +13,8 @@ extern __weak UIView *sgr_playlistRoot;
 extern __weak UIView *sgr_albumRoot;
 // Redesigned/Artist/ArtistField.x, the artist page, kept clear the same way and for the same reason.
 extern __weak UIView *sgr_artistRoot;
+// Kit/SGRGlass.h's SGRGlassSheetChrome: the "sheet-view" pane it glassed (the ⋯ context menu, the queue,
+// and the now-playing bar's pop-art track info, one component under all three). Its own #1F1F1F chrome
+// grey (SGRIsSheetChromeFill) is cleared here on every repaint, not just the pass that first found it --
+// Spotify draws it back in on its own later (device 2026-09-26).
+extern __weak UIView *sgr_sheetChromeRoot;

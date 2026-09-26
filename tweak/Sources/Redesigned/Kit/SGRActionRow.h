@@ -76,3 +76,18 @@ static const NSTimeInterval SGRPinnedMoreWindow = 3;
 // The page whose pinned ⋯ was tapped within that window, or nil: for a screen that puts rows of its own on
 // Spotify's context menu sheet and has to know which page the sheet belongs to.
 UIView *SGRPinnedMoreRecentPage(void);
+
+// The mirror of SGRPinnedMore, on the other side: one glass circle, the same SGRGlassCircleSize as the
+// pinned ⋯ and the same kCornerSide inset, but from the leading edge and level with the safe area the same
+// way. Every header used to resize and glass Spotify's own back box in place instead (Kit/SGRGlass.h's now
+// -removed SGRGlassHeaderBack) -- fighting the header's own collapse animation on every scroll, which is
+// what made it lag, clip at the top of a scroll and sit off-centre from the row `more` pins on the other
+// side (device 2026-09-26, issue reports "back button lags/clips/off-centre"). This instead hides
+// Spotify's own back button outright (mask, no interaction, no accessibility, same as SGRPinnedMore leaves
+// the ⋯ it mirrors) and pins an independent button in its place, so a page has exactly the same back
+// button as every other -- Album, Playlist and Artist alike -- rather than its own resized copy.
+//
+// `source` is Spotify's own back button (Components.Header.UI.BackButton), wherever the page keeps it;
+// nil hides the pinned button until one is found. Kept on `page` under `key` and cheap to call again on
+// every pass.
+SGRMirrorButton *SGRPinnedBack(UIView *page, const void *key, UIView *source);

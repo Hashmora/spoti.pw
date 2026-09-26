@@ -450,10 +450,12 @@ static void glassToolbarShape(UIView *box, const void *key) {
     SGRGlassCapsuleInside(box, key, size, NO);
 }
 
-// The back button in the navigation bar: resized and glassed the one way every header does now
-// (Redesigned/Kit/SGRGlass.h's SGRGlassHeaderBack, which this found first, on the device 2026-09-26).
+// The back button in the navigation bar: pinned the one way every header's back button is now
+// (Redesigned/Kit/SGRActionRow.h's SGRPinnedBack, which this found first, on the device 2026-09-26).
 static void glassAlbumBack(UIView *page) {
-    SGRGlassHeaderBack(page);
+    static char kBackKey, kPinnedBackKey;
+    UIView *back = SGRFindByIdentifier(page, @"Components.Header.UI.BackButton", &kBackKey);
+    SGRPinnedBack(page, &kPinnedBackKey, back);
 }
 
 static void glassAlbumToolbar(UIView *page) {

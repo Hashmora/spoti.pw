@@ -2,6 +2,7 @@
 // is the now playing bar's card from the album-colour paint.
 #import "Core/SGCore.h"
 #import "SGRRepaint.h"
+#import "SGRGlass.h"
 
 __weak UIView *sgr_nowPlayingRoot = nil;
 __weak UIView *sgr_nowPlayingCard = nil;
@@ -9,10 +10,11 @@ __weak UIView *sgr_lyricsPageRoot = nil;
 __weak UIView *sgr_playlistRoot = nil;
 __weak UIView *sgr_albumRoot = nil;
 __weak UIView *sgr_artistRoot = nil;
+__weak UIView *sgr_sheetChromeRoot = nil;
 
 %hook CALayer
 - (void)setBackgroundColor:(CGColorRef)color {
-    if (color && (sgr_nowPlayingRoot || sgr_lyricsPageRoot || sgr_playlistRoot || sgr_albumRoot || sgr_artistRoot)) {
+    if (color && (sgr_nowPlayingRoot || sgr_lyricsPageRoot || sgr_playlistRoot || sgr_albumRoot || sgr_artistRoot || sgr_sheetChromeRoot)) {
         UIView *view = (UIView *)self.delegate;
         if ([view isKindOfClass:UIView.class] && view.layer == self && !SGKeepsColor(view)) {
             if (SGIsInside(view, sgr_nowPlayingRoot)) {
@@ -25,6 +27,8 @@ __weak UIView *sgr_artistRoot = nil;
             } else if (SGIsInside(view, sgr_lyricsPageRoot)) {
                 color = NULL;
             } else if (SGIsBaseSurface(color) && (SGIsInside(view, sgr_playlistRoot) || SGIsInside(view, sgr_albumRoot) || SGIsInside(view, sgr_artistRoot))) {
+                color = NULL;
+            } else if (SGRIsSheetChromeFill(color) && SGIsInside(view, sgr_sheetChromeRoot)) {
                 color = NULL;
             }
         }

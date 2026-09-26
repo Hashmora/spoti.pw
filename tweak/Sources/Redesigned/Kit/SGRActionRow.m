@@ -477,3 +477,47 @@ SGRMirrorButton *SGRPinnedMore(UIView *page, const void *key, UIView *source) {
     if (!CGRectIsEmpty(frame) && !CGRectEqualToRect(button.frame, frame)) button.frame = frame;
     return button;
 }
+
+#pragma mark - the page's pinned back button
+
+// Hides Spotify's own back button once it is mirrored: a mask (survives Spotify showing it again the way
+// -[UIView setHidden:] does not, the same trick AlbumHeader.x/ArtistHeader.x's own `conceal` plays on the
+// floating play/shuffle buttons) plus no interaction and no accessibility, so only the pinned mirror is
+// seen or fired.
+static void concealBack(UIView *source) {
+    if (!source) return;
+    if (!source.layer.hidden) source.layer.hidden = YES;
+    if (!source.layer.mask) source.layer.mask = [CALayer layer];
+    if (source.userInteractionEnabled) source.userInteractionEnabled = NO;
+    source.accessibilityElementsHidden = YES;
+}
+
+SGRMirrorButton *SGRPinnedBack(UIView *page, const void *key, UIView *source) {
+    if (!page) return nil;
+    SGRMirrorButton *button = objc_getAssociatedObject(page, key);
+    if (!button) {
+        button = [[SGRMirrorButton alloc] initWithFrame:CGRectZero];
+        button.fallbackGlyph = [UIImage systemImageNamed:@"chevron.left"];
+        button.glyphColor = SGRPrimary();
+        button.accessibilityLabel = source.accessibilityLabel ?: @"Back";
+        objc_setAssociatedObject(page, key, button, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    if (button.superview != page) [page addSubview:button];
+    else if (page.subviews.lastObject != button) [page bringSubviewToFront:button];
+    concealBack(source);
+    if (source) [button feedFrom:source];
+    if (button.hidden != (source == nil)) button.hidden = source == nil;
+
+    // The same window-relative measurement SGRPinnedMore uses, mirrored to the leading edge instead.
+    UIWindow *window = page.window;
+    CGFloat side = SGRGlassCircleSize;
+    CGRect frame;
+    if (window) {
+        CGRect inWindow = CGRectMake(kCornerSide, window.safeAreaInsets.top, side, side);
+        frame = [page convertRect:inWindow fromView:nil];
+    } else {
+        frame = CGRectMake(kCornerSide, page.safeAreaInsets.top, side, side);
+    }
+    if (!CGRectIsEmpty(frame) && !CGRectEqualToRect(button.frame, frame)) button.frame = frame;
+    return button;
+}

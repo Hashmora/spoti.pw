@@ -2,6 +2,7 @@
 #import "SGRGlass.h"
 #import "SGRTokens.h"
 #import "SGRRestyle.h"
+#import "SGRRepaint.h"
 
 typedef NS_ENUM(NSInteger, SGRGlassMode) {
     SGRGlassModeGlass,
@@ -125,41 +126,12 @@ UIView *SGRGlassCapsuleInside(UIView *control, const void *key, CGSize size, BOO
     return glassInside(control, key, size, YES, prominent);
 }
 
-#pragma mark - a header's back button
-
-static const CGFloat kHeaderBackCircle = 44;
-
-static UIView *headerBackBoxIn(UIView *back) {
-    __block UIView *found = nil;
-    SGForEachView(back, ^(UIView *v) {
-        if (!found && [NSStringFromClass(v.class) containsString:@"HeaderToolbarActionBackgroundView"]) found = v;
-    });
-    return found;
-}
-
-UIView *SGRGlassHeaderBack(UIView *page) {
-    static char kBackKey, kBackGlassKey;
-    UIView *back = SGRFindByIdentifier(page, @"Components.Header.UI.BackButton", &kBackKey);
-    if (!back) return nil;
-    UIView *box = headerBackBoxIn(back);
-    if (box && fabs(box.bounds.size.width - kHeaderBackCircle) > 0.5) {
-        CGPoint center = box.center;
-        box.bounds = CGRectMake(0, 0, kHeaderBackCircle, kHeaderBackCircle);
-        box.center = center;
-        box.layer.cornerRadius = kHeaderBackCircle / 2;
-        box.layer.cornerCurve = kCACornerCurveContinuous;
-    }
-    // Spotify's own box if there is one, glassed in the box's own place rather than the wider button's;
-    // the button otherwise, for a build that ever changes how it draws the button and stops giving it one.
-    return SGRGlassInside(box ?: back, &kBackGlassKey, kHeaderBackCircle);
-}
-
 #pragma mark - a sheet's own chrome
 
 // Spotify's #1F1F1F sheet grey, one tick above SGIsBaseSurface's own 0.10 -- which keeps this exact grey
 // wherever it draws a placeholder or a real card (SGRRepaint.x) -- since a sheet is its own closed box,
 // not a field the rest of the page reads a card against.
-static BOOL isSheetChromeFill(CGColorRef color) {
+BOOL SGRIsSheetChromeFill(CGColorRef color) {
     if (!color || CFGetTypeID(color) != CGColorGetTypeID() || CGColorGetAlpha(color) < 0.95) return NO;
     const CGFloat *c = CGColorGetComponents(color);
     size_t n = CGColorGetNumberOfComponents(color);
@@ -175,7 +147,7 @@ static BOOL isSheetChromeFill(CGColorRef color) {
 static void stripSheetChrome(UIView *view, UIView *skip, int depth) {
     if (!view || view == skip || depth > 6) return;
     if ([view isKindOfClass:UIScrollView.class]) return;
-    if (!SGKeepsColor(view) && isSheetChromeFill(view.layer.backgroundColor)) view.layer.backgroundColor = NULL;
+    if (!SGKeepsColor(view) && SGRIsSheetChromeFill(view.layer.backgroundColor)) view.layer.backgroundColor = NULL;
     for (UIView *sub in view.subviews) stripSheetChrome(sub, skip, depth + 1);
 }
 
@@ -189,6 +161,10 @@ UIView *SGRGlassSheetChrome(UIView *content) {
         SGShapeGlass(glass, v.layer.cornerRadius, NO);
         if (v.layer.backgroundColor) v.layer.backgroundColor = NULL;
         for (UIView *sub in v.subviews) stripSheetChrome(sub, glass, 0);
+        // Recorded so SGRRepaint.x's continuous hook keeps stripping the grey Spotify repaints back in on
+        // its own later passes (Queue and the pop-art now-playing sheet both re-paint after this first
+        // strip, device 2026-09-26) rather than only catching it once here.
+        if (sgr_sheetChromeRoot != v) sgr_sheetChromeRoot = v;
         return glass;
     }
     return nil;

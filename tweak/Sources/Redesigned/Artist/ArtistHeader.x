@@ -40,6 +40,7 @@ static const CGFloat kBar = 100, kFade = 150;
 
 static char kInfoKey, kHeroKey, kHeroHeightKey, kContainerHeightKey, kRowWatchedKey;
 static char kTitleKey, kMetaKey, kShuffleKey, kPlayKey, kFollowKey, kArtworkKey, kBarKey, kMoreKey, kMoreButtonKey;
+static char kBackKey, kPinnedBackKey;
 
 #pragma mark - Spotify's views
 
@@ -284,7 +285,15 @@ static void applyHeader(UIView *header) {
     // with the photo: pinned there it is the same button in the same place on the album and the playlist,
     // and the page keeps it however far down the list one is (issue #57).
     UIView *more = SGRFindByIdentifier(header, @"Components.UI.ContextMenuButton*", &kMoreKey);
-    SGRPinnedMore(SGRArtistPageOf(container), &kMoreButtonKey, more);
+    UIView *page = SGRArtistPageOf(container);
+    SGRPinnedMore(page, &kMoreButtonKey, more);
+
+    // Back, in the top leading corner: this template was the one of the three whose header never wired
+    // SGRGlassHeaderBack (nor now SGRPinnedBack) up at all, so the button here was still Spotify's own
+    // undersized 32pt box (device 2026-09-26, screen 1: smaller than -- and not level with -- the pinned
+    // more button opposite it).
+    UIView *back = SGRFindByIdentifier(header, @"Components.Header.UI.BackButton", &kBackKey);
+    SGRPinnedBack(page, &kPinnedBackKey, back);
 
     // Collapsing, the text would pass over Spotify's bar with the name in it: it goes over the last kFade of
     // the collapse, from the header's own height, which this pass runs on every step of. More stays: it is

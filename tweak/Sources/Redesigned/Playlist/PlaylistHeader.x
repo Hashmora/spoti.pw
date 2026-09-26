@@ -412,12 +412,13 @@ static void glassUp(UIView *box, const void *key) {
 }
 
 static void applyToolbar(UIView *headerRoot) {
-    static char kFieldKey, kSortBoxKey, kFieldGlassKey, kSortGlassKey;
-    // Resized and glassed the one way every header's back button is now (SGRGlassHeaderBack): the 32pt
-    // glass this used to put on the button itself left Spotify's own 32pt background box, offset a few
-    // points from it, showing on top -- two circles instead of one, and both smaller than the 44pt more
-    // button beside it (trees/continuous/24.txt 2026-09-26).
-    SGRGlassHeaderBack(headerRoot);
+    static char kFieldKey, kSortBoxKey, kFieldGlassKey, kSortGlassKey, kBackKey, kPinnedBackKey;
+    // Pinned the same way every header's back button now is (SGRActionRow.h's SGRPinnedBack): resizing
+    // and glassing Spotify's own box in place used to leave two circles a few points apart, both smaller
+    // than the 44pt more button beside it, and fought the header's own collapse animation on scroll
+    // (trees/continuous/24.txt 2026-09-26, issue "back button lags/clips/off-centre").
+    UIView *back = SGRFindByIdentifier(headerRoot, @"Components.Header.UI.BackButton", &kBackKey);
+    SGRPinnedBack(SGRPlaylistPageOf(headerRoot), &kPinnedBackKey, back);
     UIView *toolbar = SGRFindByIdentifier(headerRoot, @"Components.Header.UI.Toolbar.Content", &kToolbarKey);
     if (!toolbar) return;
     UIView *field = SGRFindByIdentifier(toolbar, @"Components.Header.UI.Toolbar.SearchField", &kFieldKey);
