@@ -708,6 +708,21 @@ static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
         if (selected && bar.selectedItem != selected) bar.selectedItem = selected;
         if (selected) bar.lastRealItem = selected;
     }
+    // UITabBar's own per-item button did not reliably redraw its glyph from a bare `selectedItem`
+    // change alone -- only a genuine setItems: pass reliably swapped an icon between its outline and
+    // filled image (the tell: hiding then re-showing a tab in Mod Settings, which runs the
+    // sources-changed rebuild above, always fixed a stuck icon; a plain tap through this same
+    // function never did, however many times you tapped). Re-setting the very same items array
+    // forces that rebuild -- same objects, same images already on them -- without the cost or churn
+    // of building fresh UITabBarItems the way the sources-changed branch above does.
+    static char kLastIconRefreshKey;
+    if (objc_getAssociatedObject(bar, &kLastIconRefreshKey) != bar.selectedItem) {
+        objc_setAssociatedObject(bar, &kLastIconRefreshKey, bar.selectedItem, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        UITabBarItem *keepSelected = bar.selectedItem;
+        if (bar.items.count) [bar setItems:bar.items animated:NO];
+        if (keepSelected) bar.selectedItem = keepSelected;
+        itemsRebuilt = YES;
+    }
     // An icon view Spotify has not built yet is looked for again shortly, not on the next touch.
     // Kept on stockBar itself, not one counter shared by every bar for the whole life of the
     // process -- that shared counter let a source that took a few tries early on spend the entire
