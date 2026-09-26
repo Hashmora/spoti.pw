@@ -318,6 +318,14 @@ static void bumpIcon(UITabBar *bar, UITabBarItem *item) {
         // resting on Create or on wherever Create's own slot happens to sit.
         forwardTap(source);
         if (self.lastRealItem) self.selectedItem = self.lastRealItem;
+        // Create never gets a real screen, so nothing subsequently navigates and nothing else would
+        // prompt a resync once its popover closes -- unlike a real tab below, where Spotify's own
+        // navigation event does that later on its own. Force it here too, on the same delay, so the
+        // pill is guaranteed to still be sitting over lastRealItem once the popover is gone.
+        UIView *stockBar = self.stockBar;
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.25 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            if (stockBar) syncBar(stockBar);
+        });
         return;
     }
     self.lastRealItem = item;
@@ -603,7 +611,9 @@ static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
     // this pill was never meant to inherit. With a fixed width UIKit centers the group instead of
     // stretching it, and the visible capsule below is sized to match that group, not the screen.
     bar.itemPositioning = UITabBarItemPositioningCentered;
-    bar.itemWidth = kNavItemWidth;
+    // itemWidth is set below, once sources.count is known -- with few tabs it stays the full
+    // kNavItemWidth; past however many would overflow the platter's own max width, each slot narrows
+    // just enough for all of them to still fit at that same width.
     bar.itemSpacing = kNavItemSpacing;
     UIView *host = objc_getAssociatedObject(stockBar, &kHostKey);
 
@@ -624,6 +634,13 @@ static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
         for (UIView *source in sources) [items addObject:[[UITabBarItem alloc] initWithTitle:hideLabels ? nil : labelIn(source).text image:nil tag:items.count]];
         bar.sources = sources;
         [bar setItems:items animated:NO];
+        // setItems: tears down and rebuilds every private per-item view, not just the ones that
+        // actually changed -- so without forcing that rebuild to finish synchronously right here,
+        // renderedCenterXForItem below (which the selection pill's position comes from) can still see
+        // yesterday's layout, stale views included. Harmless on most passes since nothing reads
+        // positions until later in this same call, but on a tab *removal* specifically it is what kept
+        // the pill sitting over a slot that no longer has an icon in it.
+        [bar layoutIfNeeded];
         NSMutableString *out = [NSMutableString stringWithString:@"tab bar icons"];
         for (UIView *source in sources) {
             UIView *live = iconIn(source);
@@ -680,7 +697,16 @@ static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
     // The pill's own width, not the bar's: with itemWidth/itemPositioning centered above, sources.count
     // tabs take up exactly this much room, so the capsule hugs them and grows/shrinks with the tab
     // count instead of always spanning edge to edge like the old solid navbar did.
-    CGFloat contentWidth = MIN(width - kNavGlassMargin * 2, kNavItemWidth * sources.count + kNavItemSpacing * (sources.count - 1));
+    // Past however many tabs kNavItemWidth's fixed 90pt would overflow the platter's own max width
+    // for, each slot narrows just enough for all of them to still fit at that same width -- not the
+    // width itself growing past what kNavGlassMargin leaves it. Below that count nothing changes.
+    CGFloat availableWidth = width - kNavGlassMargin * 2;
+    CGFloat naturalWidth = kNavItemWidth * sources.count + kNavItemSpacing * (sources.count - 1);
+    CGFloat itemWidth = naturalWidth > availableWidth
+        ? MAX(1, (availableWidth - kNavItemSpacing * (sources.count - 1)) / sources.count)
+        : kNavItemWidth;
+    if (bar.itemWidth != itemWidth) bar.itemWidth = itemWidth;
+    CGFloat contentWidth = MIN(availableWidth, naturalWidth);
     CGFloat platterHeight = MIN(kNavPlatterHeight, height);
     // A small gap off host's top too, not just its bottom (kNavGlassBottomMargin): host's top edge sits
     // right where the now-playing card's bottom edge is, so a platter pinned at y=0 touched the card
@@ -747,10 +773,10 @@ static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
     // one animation per selection change, never two fighting over the same frame.
     NSUInteger selIndex = [bar.items indexOfObject:bar.selectedItem];
     if (selIndex != NSNotFound && selIndex < sources.count) {
-        CGFloat pillWidth = kNavItemWidth - kSelPillInset * 2;
+        CGFloat pillWidth = itemWidth - kSelPillInset * 2;
         CGFloat centerX = [bar renderedCenterXForItem:bar.selectedItem];
         CGFloat slotX = isnan(centerX)
-            ? bar.frame.origin.x + selIndex * (kNavItemWidth + kNavItemSpacing) + kSelPillInset
+            ? bar.frame.origin.x + selIndex * (itemWidth + kNavItemSpacing) + kSelPillInset
             : bar.frame.origin.x + centerX - pillWidth / 2;
         CGRect pillFrame = CGRectMake(slotX, bar.frame.origin.y + kSelPillInset, pillWidth, bar.frame.size.height - kSelPillInset * 2);
         selPill.layer.cornerRadius = pillFrame.size.height / 2;
