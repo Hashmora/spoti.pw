@@ -816,7 +816,7 @@ static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
                 // Slides to the new slot instead of jumping -- the pill's one and only animation now,
                 // on a tap or a drag alike, with no raw finger-tracking step before it.
                 [UIView animateWithDuration:0.25 delay:0
-                    options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionCurveEaseInEaseOut
+                    options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionCurveEaseInOut
                     animations:^{ selPill.frame = pillFrame; } completion:nil];
             } else {
                 selPill.frame = pillFrame;
