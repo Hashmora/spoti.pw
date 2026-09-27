@@ -2,6 +2,7 @@
 #import "Settings/SGPageStyle.h"
 #import "MeaningSheet.h"
 #import "Redesigned/Kit/SGRTokens.h"
+#import "Core/SGGlass.h"
 
 static const CGFloat kSide = 24, kTop = 28, kGap = 12;
 
@@ -72,7 +73,12 @@ static NSString *authorSymbol(SGLyricsMeaningAuthor author) {
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    self.view.backgroundColor = UIColor.systemBackgroundColor;
+    self.view.backgroundColor = UIColor.clearColor;
+    static char kMeaningGlassKey;
+    UIView *glass = SGGlassFor(self.view, &kMeaningGlassKey);
+    glass.frame = self.view.bounds;
+    glass.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    SGShapeGlass(glass, 0, NO);
     _scroll = [[UIScrollView alloc] initWithFrame:self.view.bounds];
     _scroll.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     _scroll.alwaysBounceVertical = YES;

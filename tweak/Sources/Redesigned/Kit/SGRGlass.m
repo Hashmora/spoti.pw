@@ -162,7 +162,14 @@ BOOL SGRIsSheetChromeArea(UIView *view, UIView *root) {
 // a few levels down rather than walking into a sheet this has never seen.
 static void stripSheetChrome(UIView *view, UIView *skip, int depth) {
     if (!view || view == skip || depth > 6) return;
-    if ([view isKindOfClass:UIScrollView.class]) return;
+    if ([view isKindOfClass:UIScrollView.class]) {
+        // clear its own fill before stopping: the scroll/table view is still sheet chrome, not a row --
+        // its rows are its subviews, which this intentionally never walks into. Device dump 2026-09-27
+        // showed the queue's UITableView itself still bg=#1F1F1F after the first strip and every repaint
+        // pass, because the old early return left before ever touching the table's own background.
+        if (!SGKeepsColor(view) && SGIsVisibleColor(view.layer.backgroundColor)) view.layer.backgroundColor = NULL;
+        return;
+    }
     // Any opaque fill here, not just an exact #1F1F1F match: before the first list nothing in this
     // chrome is a real card, whatever grey Spotify happens to paint it with on a given pass (device
     // 2026-09-27, the plain wrapper between sheet-view and the queue's table still came back solid
