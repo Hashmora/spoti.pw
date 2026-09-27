@@ -3,7 +3,7 @@
 #import "SGPrefs.h"
 
 BOOL SGRedesignAvailable(void) {
-    return YES; // forced by force-redesign-available.sh, was: if (@available(iOS 26.0, *)) return YES;
+    if (@available(iOS 26.0, *)) return YES;
     return NO;
 }
 
