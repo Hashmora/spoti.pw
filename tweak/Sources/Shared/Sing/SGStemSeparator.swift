@@ -45,8 +45,12 @@ actor SGStemSeparator {
         try Task.checkCancellation()
         let shape = SGStemShape.spectrum.map(NSNumber.init(value:))
         let description = cpu.modelDescription
-        guard description.stateDescriptionsByName.isEmpty,
-              description.inputDescriptionsByName.count == 1, description.outputDescriptionsByName.count == 1,
+        // stateDescriptionsByName needs iOS 18; this model has no state anyway (model.json has none),
+        // so below iOS 18 the check is skipped rather than requiring iOS 18 for the whole separator.
+        if #available(iOS 18.0, *) {
+            guard description.stateDescriptionsByName.isEmpty else { throw SGStemError.invalidModel }
+        }
+        guard description.inputDescriptionsByName.count == 1, description.outputDescriptionsByName.count == 1,
               let input = description.inputDescriptionsByName["spectrum"]?.multiArrayConstraint,
               let output = description.outputDescriptionsByName["vocals_spectrum"]?.multiArrayConstraint,
               input.shape == shape, output.shape == shape,
