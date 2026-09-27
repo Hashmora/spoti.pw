@@ -5,7 +5,7 @@
 import Accelerate
 import Foundation
 
-@available(iOS 16.0, macOS 13.0, *)
+@available(iOS 27.0, macOS 27.0, *)
 final class SGStemSpectralDSP {
     static let samples = SGStemShape.windowFrames
     private let size = SGStemShape.fftSize, hop = SGStemShape.stftHop, frames = SGStemShape.stftFrames
