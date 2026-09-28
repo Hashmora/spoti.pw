@@ -122,6 +122,7 @@ static CGFloat sg_room, sg_glassHeight;   // see "room for the glass bar"
 @end
 
 static void syncBar(UIView *stockBar);
+static void forceGlyphs(UIView *source, UITabBarItem *item, UIView *live);
 // Called only when Spotify's own navigation genuinely changed the selected controller from outside our
 // bar (a link, the side drawer) -- see the TabBarContainerImpl hook below. Every other caller goes
 // through plain syncBar, which trusts whatever tab our own tap/drag handling last confirmed
