@@ -17,7 +17,7 @@
 #import "Headers/SPTEncoreIconView.h"
 #import <objc/message.h>
 
-static char kBarKey, kHostKey, kNavGlassKey, kNavTintKey, kSelPillKey, kRetriesKey, kGlyphOverlayKey, kGlyphLoggedKey, kOutlineLiveKey, kFilledLiveKey, kCreateDiscKey;
+static char kBarKey, kHostKey, kNavGlassKey, kNavTintKey, kSelPillKey, kRetriesKey, kGlyphOverlayKey, kGlyphLoggedKey, kOutlineLiveKey, kFilledLiveKey, kCreateDiscKey, kStandInLoggedKey;
 static const CGFloat kNavGlassMargin = 16;       // side gap, so the bar floats instead of touching the edges
 static const CGFloat kNavGlassBottomMargin = 8;  // gap under the bar, so it floats above the edge like iOS 26+
 // The pill itself, never the safe-area room under it: glassHeight() below can be as tall as 83pt on
@@ -248,7 +248,19 @@ static UIImage *glyphOf(UIView *item, BOOL active) {
         NSString *key = [NSString stringWithFormat:@"%@ %d %@", [icon respondsToSelector:@selector(name)] ? [icon name] : icon, active, NSStringFromCGSize(size)];
         UIImage *cached = [cache objectForKey:key];
         if (cached) return cached;
-        SPTEncoreIconView *view = [[viewClass alloc] initWithIcon:icon];
+        // The filled picture is the icon's own active variant when it has one; setIsActive: alone gave
+        // the outline again, so a tab's fill only appeared once Spotify's live view turned active (~1 s
+        // after the first tap). Only an object-returning `active` is called.
+        id shown = icon;
+        SEL activeSel = NSSelectorFromString(@"active");
+        if (active && [icon respondsToSelector:activeSel]) {
+            NSMethodSignature *signature = [icon methodSignatureForSelector:activeSel];
+            if (signature.methodReturnType[0] == '@') {
+                id variant = ((id (*)(id, SEL))objc_msgSend)(icon, activeSel);
+                if (variant) shown = variant;
+            }
+        }
+        SPTEncoreIconView *view = [[viewClass alloc] initWithIcon:shown];
         view.frame = (CGRect){CGPointZero, size};
         [view setForegroundColor:UIColor.whiteColor];
         if ([view respondsToSelector:@selector(setActiveForegroundColor:)]) [view setActiveForegroundColor:UIColor.whiteColor];
@@ -271,6 +283,11 @@ static UIImage *glyphOf(UIView *item, BOOL active) {
 static void learnGlyphs(UIView *source, UITabBarItem *item) {
     if (!item.image) item.image = glyphOf(source, NO);
     if (!item.selectedImage) item.selectedImage = glyphOf(source, YES);
+    if (item.image && item.selectedImage && !objc_getAssociatedObject(item, &kStandInLoggedKey)) {
+        objc_setAssociatedObject(item, &kStandInLoggedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        SGLog(@"tab bar stand-in glyphs %@: filled differs from outline %d", labelIn(source).text,
+              ![UIImagePNGRepresentation(item.image) isEqualToData:UIImagePNGRepresentation(item.selectedImage)]);
+    }
     UIView *live = iconIn(source);
     if (!live || live.bounds.size.width < 2) return;
     BOOL active = [live respondsToSelector:@selector(isActive)] ? [(SPTEncoreIconView *)live isActive] : isActive(source);
@@ -365,6 +382,22 @@ static void bumpIcon(UITabBar *bar, UITabBarItem *item) {
 // selectedImage (filled) on the selected item and image (outline) on the rest, and UIKit's own is
 // hidden. Buttons are matched to items by their order across the bar. Run from the bar's layout pass
 // and from the selection setter, so it follows both a resize and a tap or drag.
+// setItems: can leave a UITabBarButton behind for an item that is gone (seen as a second, unplaced
+// "Your Library" at the left of the bar after the tab list was rebuilt twice during launch). Every live
+// item owns exactly one button -- UITabBarItem's "view" -- so any other UITabBarButton is a leftover.
+// Only acts once every item has its button, so a bar still being built is never stripped.
+static void pruneStrayButtons(UITabBar *bar) {
+    NSMutableSet<UIView *> *owned = [NSMutableSet set];
+    for (UITabBarItem *item in bar.items) {
+        UIView *view = [item valueForKey:@"view"];
+        if (view) [owned addObject:view];
+    }
+    if (!bar.items.count || owned.count != bar.items.count) return;
+    for (UIView *v in [bar.subviews copy]) {
+        if ([NSStringFromClass(v.class) isEqualToString:@"UITabBarButton"] && ![owned containsObject:v]) [v removeFromSuperview];
+    }
+}
+
 static void paintGlyphs(UITabBar *bar) {
     NSArray<UITabBarItem *> *items = bar.items;
     NSMutableArray<UIView *> *buttons = [NSMutableArray array];
@@ -437,6 +470,12 @@ static void setCreateOpen(SGRSystemTabBar *bar, BOOL open) {
         objc_setAssociatedObject(button, &kCreateDiscKey, disc, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
     if (disc.superview != button) [button insertSubview:disc belowSubview:overlay];
+    // Sized from the icon it sits behind (a third bigger), so it stays inside the pill with or without labels.
+    CGFloat discSize = round(overlay.bounds.size.height * 4.0 / 3.0);
+    if (fabs(disc.bounds.size.width - discSize) > 0.5) {
+        disc.bounds = CGRectMake(0, 0, discSize, discSize);
+        disc.layer.cornerRadius = discSize / 2;
+    }
     disc.center = overlay.center;
     if ((disc.alpha > 0.5) == open && (open || CGAffineTransformIsIdentity(overlay.transform))) return;
     if (open) disc.transform = CGAffineTransformMakeScale(0.4, 0.4);
@@ -455,6 +494,7 @@ static void setCreateOpen(SGRSystemTabBar *bar, BOOL open) {
 
 - (void)layoutSubviews {
     [super layoutSubviews];
+    pruneStrayButtons(self);
     paintGlyphs(self);
     // On the first taps after launch the pill was placed while the buttons were not yet where UIKit
     // finally puts them, and nothing placed it again. Every layout pass re-checks it against the buttons.
