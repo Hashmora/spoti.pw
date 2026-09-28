@@ -17,7 +17,7 @@
 #import "Headers/SPTEncoreIconView.h"
 #import <objc/message.h>
 
-static char kBarKey, kHostKey, kNavGlassKey, kNavTintKey, kSelPillKey, kRetriesKey, kGlyphOverlayKey, kGlyphLoggedKey, kOutlineLiveKey, kFilledLiveKey, kCreateDiscKey, kStandInLoggedKey;
+static char kBarKey, kHostKey, kNavGlassKey, kNavTintKey, kSelPillKey, kRetriesKey, kGlyphOverlayKey, kGlyphLoggedKey, kOutlineLiveKey, kFilledLiveKey, kCreateDiscKey, kStandInLoggedKey, kIconKindLoggedKey;
 static const CGFloat kNavGlassMargin = 16;       // side gap, so the bar floats instead of touching the edges
 static const CGFloat kNavGlassBottomMargin = 8;  // gap under the bar, so it floats above the edge like iOS 26+
 // The pill itself, never the safe-area room under it: glassHeight() below can be as tall as 83pt on
@@ -273,7 +273,29 @@ static UIImage *glyphOf(UIView *item, BOOL active) {
         }
     }
     // Tabs of the mod's own draw a UIImageView, or an icon Encore would not draw off screen.
+    // A plain UIImageView may carry its filled picture as highlightedImage; use it for the filled state.
+    if (active && [live isKindOfClass:UIImageView.class]) {
+        UIImage *filled = ((UIImageView *)live).highlightedImage;
+        if (filled) return [filled imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+    }
     return size.width >= 2 ? renderLayer(live.layer, size) : nil;
+}
+
+// One-off diagnosis of what a tab's live icon really is, since encoreIconOf finds nothing for it.
+static void logIconKind(UIView *source, UIView *live) {
+    NSMutableString *out = [NSMutableString stringWithFormat:@"tab bar icon kind %@: live %@ encore-icon %@", labelIn(source).text, NSStringFromClass(live.class), encoreIconOf(live) ? @"found" : @"nil"];
+    if ([live isKindOfClass:UIImageView.class]) {
+        UIImageView *iv = (UIImageView *)live;
+        [out appendFormat:@" image %@ highlighted %@ symbol %d", iv.image ? @"yes" : @"no", iv.highlightedImage ? @"yes" : @"no", (int)iv.image.isSymbolImage];
+    }
+    unsigned int count = 0;
+    Ivar *ivars = class_copyIvarList(live.class, &count);
+    [out appendString:@" ivars:"];
+    for (unsigned int i = 0; i < count && i < 12; i++) [out appendFormat:@" %s", ivar_getName(ivars[i])];
+    free(ivars);
+    Class sup = class_getSuperclass(live.class);
+    [out appendFormat:@" super %@", NSStringFromClass(sup)];
+    SGLog(@"%@", out);
 }
 
 // The picture Spotify's own icon view is drawing right now. The off-screen glyphOf above gave the same
@@ -290,6 +312,10 @@ static void learnGlyphs(UIView *source, UITabBarItem *item) {
     }
     UIView *live = iconIn(source);
     if (!live || live.bounds.size.width < 2) return;
+    if (!objc_getAssociatedObject(item, &kIconKindLoggedKey)) {
+        objc_setAssociatedObject(item, &kIconKindLoggedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        logIconKind(source, live);
+    }
     BOOL active = [live respondsToSelector:@selector(isActive)] ? [(SPTEncoreIconView *)live isActive] : isActive(source);
     const void *key = active ? &kFilledLiveKey : &kOutlineLiveKey;
     if (objc_getAssociatedObject(item, key)) return;
