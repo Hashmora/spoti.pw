@@ -17,7 +17,7 @@
 #import "Headers/SPTEncoreIconView.h"
 #import <objc/message.h>
 
-static char kBarKey, kHostKey, kNavGlassKey, kNavTintKey, kSelPillKey, kRetriesKey;
+static char kBarKey, kHostKey, kNavGlassKey, kNavTintKey, kSelPillKey, kRetriesKey, kOutlineKey, kFilledKey, kGlyphLoggedKey;
 static const CGFloat kNavGlassMargin = 16;       // side gap, so the bar floats instead of touching the edges
 static const CGFloat kNavGlassBottomMargin = 8;  // gap under the bar, so it floats above the edge like iOS 26+
 // The pill itself, never the safe-area room under it: glassHeight() below can be as tall as 83pt on
@@ -114,6 +114,11 @@ static CGFloat sg_room, sg_glassHeight;   // see "room for the glass bar"
 // happened) or landed back on the one it started on (a tap, or a there-and-back drag) -- which gets an
 // icon bump instead of ever moving the pill, because the pill has nothing to move for.
 @property (nonatomic, weak) UITabBarItem *gestureStartItem;
+// Which of Spotify's own tabs (the one whose label is painted white) was open when Create was tapped,
+// and whether Create's popover is still to be seen off. Once it is gone, that tab against the one
+// Spotify has open then says whether the menu took the user to another tab.
+@property (nonatomic, weak) UIView *sourceBeforeCreate;
+@property (nonatomic) BOOL awaitingCreateClose;
 @end
 
 static void syncBar(UIView *stockBar);
@@ -126,6 +131,7 @@ static void syncBar(UIView *stockBar);
 // pass kept snapping the selection (and the pill) back to that old tab.
 static void syncBarExternalChange(UIView *stockBar);
 static void syncBarCore(UIView *stockBar, BOOL rescanSelection);
+static void followCreateClose(UIView *stockBar);
 
 #pragma mark - reading Spotify's items
 
@@ -179,6 +185,15 @@ static BOOL isActive(UIView *item) {
     CGFloat white = 0, alpha = 0, r, g, b;
     if (![color getWhite:&white alpha:&alpha] && [color getRed:&r green:&g blue:&b alpha:&alpha]) white = MIN(r, MIN(g, b));
     return white > 0.95;
+}
+
+// The tab of Spotify's own whose page is really open: the one whose label is painted white, Create
+// never counting. Nil when that tab is hidden from the bar.
+static UIView *activeStockSource(UIView *stockBar) {
+    for (UIView *item in tabItems(stockBar)) {
+        if (!isCreateSource(item) && isActive(item)) return item;
+    }
+    return nil;
 }
 
 static BOOL hasInk(UIImage *image) {
@@ -240,6 +255,22 @@ static UIImage *glyphOf(UIView *item, BOOL active) {
     return size.width >= 2 ? renderLayer(live.layer, size) : nil;
 }
 
+// Each item keeps its own outline and filled glyph (kOutlineKey, kFilledKey) as instances of its own,
+// not the shared cached ones, so a view showing one can be told from another item's even when two tabs
+// use the same icon.
+static UIImage *ownCopy(UIImage *image) {
+    if (!image.CGImage) return image;
+    UIImage *copy = [UIImage imageWithCGImage:image.CGImage scale:image.scale orientation:image.imageOrientation];
+    return [copy imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+}
+
+// Whether `image` is any of the pictures this item is drawn with.
+static BOOL itemShowsImage(UITabBarItem *item, UIImage *image) {
+    if (!image) return NO;
+    return image == item.image || image == item.selectedImage
+        || image == objc_getAssociatedObject(item, &kOutlineKey) || image == objc_getAssociatedObject(item, &kFilledKey);
+}
+
 #pragma mark - passing a tap on
 
 // NavigationUI_TabBarImpl's TabBarItemElementUI answers a tap recognizer (-handleTap), so the tap is
@@ -294,7 +325,7 @@ static void bumpIcon(UITabBar *bar, UITabBarItem *item) {
     SGForEachView(bar, ^(UIView *v) {
         if (iconView || ![v isKindOfClass:UIImageView.class]) return;
         UIImage *image = ((UIImageView *)v).image;
-        if (image && (image == item.image || image == item.selectedImage)) iconView = v;
+        if (itemShowsImage(item, image)) iconView = v;
     });
     if (!iconView) return;
     // One continuous keyframe timeline, not two animateWithDuration calls chained through a completion
@@ -323,16 +354,15 @@ static void bumpIcon(UITabBar *bar, UITabBarItem *item) {
         // Just pops the menu open -- never a real navigation -- so the bar's selection (and the pill
         // with it) snaps straight back to whatever tab was actually open a moment ago, instead of
         // resting on Create or on wherever Create's own slot happens to sit.
+        UIView *stockBar = self.stockBar;
+        // Which of Spotify's tabs is open right now, to tell afterwards whether the menu moved it.
+        self.sourceBeforeCreate = stockBar ? activeStockSource(stockBar) : nil;
         forwardTap(source);
         if (self.lastRealItem) self.selectedItem = self.lastRealItem;
-        // Create never gets a real screen, so nothing subsequently navigates and nothing else would
-        // prompt a resync once its popover closes -- unlike a real tab below, where Spotify's own
-        // navigation event does that later on its own. Force it here too, on the same delay, so the
-        // pill is guaranteed to still be sitting over lastRealItem once the popover is gone.
-        UIView *stockBar = self.stockBar;
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.25 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            if (stockBar) syncBar(stockBar);
-        });
+        // Create never gets a real screen, so nothing navigates when its popover closes and nothing
+        // would prompt a resync -- and one made 0.25 s after the tap ran with the popover still up.
+        // followCreateClose waits for the popover to go and settles the selection then.
+        if (stockBar) followCreateClose(stockBar);
         return;
     }
     self.lastRealItem = item;
@@ -357,7 +387,7 @@ static void bumpIcon(UITabBar *bar, UITabBarItem *item) {
         if (distance >= best) return;
         for (UITabBarItem *item in self.items) {
             UIImage *image = glyph ? ((UIImageView *)v).image : nil;
-            if (label ? ![((UILabel *)v).text isEqualToString:item.title] : !image || (image != item.image && image != item.selectedImage)) continue;
+            if (label ? ![((UILabel *)v).text isEqualToString:item.title] : !itemShowsImage(item, image)) continue;
             best = distance;
             nearest = item;
             break;
@@ -380,7 +410,7 @@ static void bumpIcon(UITabBar *bar, UITabBarItem *item) {
         if ((!label && !glyph) || v.bounds.size.width < 1) return;
         if (glyph) {
             UIImage *image = ((UIImageView *)v).image;
-            if (!image || (image != item.image && image != item.selectedImage)) return;
+            if (!itemShowsImage(item, image)) return;
         } else if (!item.title.length || ![((UILabel *)v).text isEqualToString:item.title]) {
             return;
         }
@@ -557,6 +587,77 @@ static void makeRoom(UIViewController *container) {
     SGLog(@"tab bar: %.0f pt of room made under Spotify's bar for the glass bar's %.0f, over an inset of %.0f", room, height, inset);
 }
 
+// Paints every item's glyph itself: the filled one on the selected item, the outline on the rest. The
+// bar's own swap between image and selectedImage does not repaint on a selection change here (only a
+// rebuild after hiding or moving a tab did), so nothing is left to that swap: the item gets the
+// right picture as its `image`, selectedImage stays empty, and the view UIKit draws it in is set to it
+// as well, in case UIKit has not repainted that yet.
+static void paintGlyphs(SGRSystemTabBar *bar) {
+    for (UITabBarItem *item in bar.items) {
+        UIImage *outline = objc_getAssociatedObject(item, &kOutlineKey);
+        UIImage *filled = objc_getAssociatedObject(item, &kFilledKey);
+        if (!outline || !filled) continue;
+        UIImage *want = item == bar.selectedItem ? filled : outline;
+        if (item.image != want) item.image = want;
+        if (item.selectedImage) item.selectedImage = nil;
+        SGForEachView(bar, ^(UIView *v) {
+            if (![v isKindOfClass:UIImageView.class]) return;
+            UIImageView *view = (UIImageView *)v;
+            if ((view.image == outline || view.image == filled) && view.image != want) view.image = want;
+        });
+    }
+}
+
+// Create's popover closing is not announced to the bar. This polls for it to be gone (nothing
+// presented over the container), then puts the selection where the page really open says it belongs:
+//  - Spotify itself went to another tab while the menu was up (something picked in it opened a page
+//    there): the bar follows Spotify, as for a link.
+//  - Otherwise nothing moved, and the selection goes back to the tab the user was on, which may be a
+//    tab of the mod's own that Spotify's labels know nothing about.
+// A second look follows shortly after, since Spotify repaints its labels a moment after the change.
+static BOOL createMenuIsUp(UIView *stockBar) {
+    return containerOf(stockBar).presentedViewController != nil;
+}
+
+static void settleAfterCreate(UIView *stockBar) {
+    SGRSystemTabBar *bar = objc_getAssociatedObject(stockBar, &kBarKey);
+    if (!bar) return;
+    UIView *open = activeStockSource(stockBar);
+    if (open && open != bar.sourceBeforeCreate) {
+        syncBarExternalChange(stockBar);
+        return;
+    }
+    if (bar.lastRealItem && bar.selectedItem != bar.lastRealItem) bar.selectedItem = bar.lastRealItem;
+    syncBar(stockBar);
+}
+
+static void pollCreateClose(UIView *stockBar, NSUInteger attempt) {
+    __weak UIView *weakStock = stockBar;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.4 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        UIView *stock = weakStock;
+        SGRSystemTabBar *bar = stock ? objc_getAssociatedObject(stock, &kBarKey) : nil;
+        if (!bar || !bar.awaitingCreateClose) return;
+        // 100 looks is 40 s; a menu still up after that is settled anyway rather than watched forever.
+        if (attempt < 100 && createMenuIsUp(stock)) {
+            pollCreateClose(stock, attempt + 1);
+            return;
+        }
+        bar.awaitingCreateClose = NO;
+        settleAfterCreate(stock);
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.35 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            UIView *again = weakStock;
+            if (again) settleAfterCreate(again);
+        });
+    });
+}
+
+static void followCreateClose(UIView *stockBar) {
+    SGRSystemTabBar *bar = objc_getAssociatedObject(stockBar, &kBarKey);
+    if (!bar || bar.awaitingCreateClose) return;
+    bar.awaitingCreateClose = YES;
+    pollCreateClose(stockBar, 0);
+}
+
 static void syncBar(UIView *stockBar) {
     syncBarCore(stockBar, NO);
 }
@@ -588,6 +689,14 @@ static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
         bar.backgroundColor = UIColor.clearColor;
         UITabBarAppearance *appearance = [UITabBarAppearance new];
         [appearance configureWithTransparentBackground];
+        // White icons and titles in every state, on the appearance itself: once a bar has one, its
+        // per-state colours are what UIKit paints with, and tintColor alone would not decide them.
+        for (UITabBarItemAppearance *layout in @[appearance.stackedLayoutAppearance, appearance.inlineLayoutAppearance, appearance.compactInlineLayoutAppearance]) {
+            for (UITabBarItemStateAppearance *state in @[layout.normal, layout.selected]) {
+                state.iconColor = UIColor.whiteColor;
+                state.titleTextAttributes = @{NSForegroundColorAttributeName: UIColor.whiteColor};
+            }
+        }
         bar.standardAppearance = appearance;
         if (@available(iOS 15.0, *)) bar.scrollEdgeAppearance = appearance;
         bar.delegate = bar;
@@ -607,7 +716,8 @@ static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
         [host addSubview:bar];
         objc_setAssociatedObject(stockBar, &kHostKey, host, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
-    bar.tintColor = SGRAccent();
+    // The active tab is told apart by its filled glyph and the selection pill, not by the accent colour.
+    bar.tintColor = UIColor.whiteColor;
     // UIKit's own default unselected tint (a mid grey in dark mode) is what made the three inactive
     // icons read as grey instead of white, next to the reference screenshot's fully white inactive
     // icons. glyphOf renders every icon as an always-template image, so tint color is the only thing
@@ -685,9 +795,22 @@ static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
     BOOL missing = NO;
     for (NSUInteger i = 0; i < sources.count; i++) {
         UITabBarItem *item = bar.items[i];
-        if (!item.image) item.image = glyphOf(sources[i], NO);
-        if (!item.selectedImage || item.selectedImage == item.image) item.selectedImage = glyphOf(sources[i], YES);
-        missing |= !item.image || !item.selectedImage;
+        UIImage *outline = objc_getAssociatedObject(item, &kOutlineKey);
+        UIImage *filled = objc_getAssociatedObject(item, &kFilledKey);
+        if (!outline) {
+            outline = ownCopy(glyphOf(sources[i], NO));
+            objc_setAssociatedObject(item, &kOutlineKey, outline, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        }
+        if (!filled) {
+            filled = ownCopy(glyphOf(sources[i], YES));
+            objc_setAssociatedObject(item, &kFilledKey, filled, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        }
+        if (outline && filled && !objc_getAssociatedObject(item, &kGlyphLoggedKey)) {
+            objc_setAssociatedObject(item, &kGlyphLoggedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            SGLog(@"tab bar glyphs %@: filled differs from outline %d", labelIn(sources[i]).text,
+                  ![UIImagePNGRepresentation(outline) isEqualToData:UIImagePNGRepresentation(filled)]);
+        }
+        missing |= !outline || !filled;
         NSString *title = hideLabels ? nil : labelIn(sources[i]).text;
         if (hideLabels ? item.title != nil : title.length && ![title isEqualToString:item.title]) item.title = title;
         // UIKit still positions the icon as if a label sat under it even once the title is nil, so with
@@ -708,21 +831,8 @@ static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
         if (selected && bar.selectedItem != selected) bar.selectedItem = selected;
         if (selected) bar.lastRealItem = selected;
     }
-    // UITabBar's own per-item button did not reliably redraw its glyph from a bare `selectedItem`
-    // change alone -- only a genuine setItems: pass reliably swapped an icon between its outline and
-    // filled image (the tell: hiding then re-showing a tab in Mod Settings, which runs the
-    // sources-changed rebuild above, always fixed a stuck icon; a plain tap through this same
-    // function never did, however many times you tapped). Re-setting the very same items array
-    // forces that rebuild -- same objects, same images already on them -- without the cost or churn
-    // of building fresh UITabBarItems the way the sources-changed branch above does.
-    static char kLastIconRefreshKey;
-    if (objc_getAssociatedObject(bar, &kLastIconRefreshKey) != bar.selectedItem) {
-        objc_setAssociatedObject(bar, &kLastIconRefreshKey, bar.selectedItem, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        UITabBarItem *keepSelected = bar.selectedItem;
-        if (bar.items.count) [bar setItems:bar.items animated:NO];
-        if (keepSelected) bar.selectedItem = keepSelected;
-        itemsRebuilt = YES;
-    }
+    // After the selection above is settled, every glyph is put in its outline or filled state.
+    paintGlyphs(bar);
     // An icon view Spotify has not built yet is looked for again shortly, not on the next touch.
     // Kept on stockBar itself, not one counter shared by every bar for the whole life of the
     // process -- that shared counter let a source that took a few tries early on spend the entire
@@ -914,7 +1024,13 @@ static void itemDidLayOut(UIView *item) {
 %hook _TtC23NavigationUI_TabBarImpl19TabBarContainerImpl
 - (void)setSelectedViewController:(UIViewController *)controller {
     %orig;
+    // Spotify repaints its labels a moment after the controller changes, so the first look can still
+    // find the old tab painted white; the second, once it has.
     dispatch_async(dispatch_get_main_queue(), ^{
+        UIView *bar = sg_stockBar;
+        if (bar) syncBarExternalChange(bar);
+    });
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.25 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         UIView *bar = sg_stockBar;
         if (bar) syncBarExternalChange(bar);
     });
