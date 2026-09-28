@@ -17,7 +17,7 @@
 #import "Headers/SPTEncoreIconView.h"
 #import <objc/message.h>
 
-static char kBarKey, kHostKey, kNavGlassKey, kNavTintKey, kSelPillKey, kRetriesKey, kGlyphOverlayKey, kGlyphLoggedKey, kOutlineLiveKey, kFilledLiveKey;
+static char kBarKey, kHostKey, kNavGlassKey, kNavTintKey, kSelPillKey, kRetriesKey, kGlyphOverlayKey, kGlyphLoggedKey, kOutlineLiveKey, kFilledLiveKey, kCreateDiscKey;
 static const CGFloat kNavGlassMargin = 16;       // side gap, so the bar floats instead of touching the edges
 static const CGFloat kNavGlassBottomMargin = 8;  // gap under the bar, so it floats above the edge like iOS 26+
 // The pill itself, never the safe-area room under it: glassHeight() below can be as tall as 83pt on
@@ -396,11 +396,57 @@ static void paintGlyphs(UITabBar *bar) {
             objc_setAssociatedObject(button, &kGlyphOverlayKey, overlay, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         }
         if (overlay.superview != button) [button addSubview:overlay];
-        if (!CGRectEqualToRect(overlay.frame, native.frame)) overlay.frame = native.frame;
+        // bounds + center, not frame: the overlay of Create is rotated while its menu is up, and assigning
+        // a frame to a transformed view scrambles it.
+        CGRect nativeFrame = native.frame;
+        CGPoint nativeCenter = CGPointMake(CGRectGetMidX(nativeFrame), CGRectGetMidY(nativeFrame));
+        if (!CGSizeEqualToSize(overlay.bounds.size, nativeFrame.size)) overlay.bounds = (CGRect){CGPointZero, nativeFrame.size};
+        if (!CGPointEqualToPoint(overlay.center, nativeCenter)) overlay.center = nativeCenter;
         if (overlay.image != want) overlay.image = want;
         overlay.hidden = NO;
         native.hidden = YES;
     }
+}
+
+// Spotify's own Create item turns its plus 45 degrees and puts a white disc behind it while the menu is
+// open. That runs on the hidden stock view, so the glass bar has to do the same on its own Create button.
+static void setCreateOpen(SGRSystemTabBar *bar, BOOL open) {
+    NSUInteger index = NSNotFound;
+    for (NSUInteger i = 0; i < bar.sources.count; i++) {
+        if (isCreateSource(bar.sources[i])) { index = i; break; }
+    }
+    if (index == NSNotFound || index >= bar.items.count) return;
+    NSMutableArray<UIView *> *buttons = [NSMutableArray array];
+    for (UIView *v in bar.subviews) {
+        if ([NSStringFromClass(v.class) isEqualToString:@"UITabBarButton"]) [buttons addObject:v];
+    }
+    if (buttons.count != bar.items.count) return;
+    [buttons sortUsingComparator:^NSComparisonResult(UIView *a, UIView *b) {
+        return [@(a.frame.origin.x) compare:@(b.frame.origin.x)];
+    }];
+    UIView *button = buttons[index];
+    UIImageView *overlay = objc_getAssociatedObject(button, &kGlyphOverlayKey);
+    if (!overlay) return;
+    UIView *disc = objc_getAssociatedObject(button, &kCreateDiscKey);
+    if (!disc) {
+        disc = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 40, 40)];
+        disc.userInteractionEnabled = NO;
+        disc.backgroundColor = UIColor.whiteColor;
+        disc.layer.cornerRadius = 20;
+        disc.alpha = 0;
+        objc_setAssociatedObject(button, &kCreateDiscKey, disc, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    if (disc.superview != button) [button insertSubview:disc belowSubview:overlay];
+    disc.center = overlay.center;
+    if ((disc.alpha > 0.5) == open && (open || CGAffineTransformIsIdentity(overlay.transform))) return;
+    if (open) disc.transform = CGAffineTransformMakeScale(0.4, 0.4);
+    [UIView animateWithDuration:0.32 delay:0 usingSpringWithDamping:0.8 initialSpringVelocity:0
+        options:UIViewAnimationOptionBeginFromCurrentState animations:^{
+        disc.alpha = open ? 1 : 0;
+        disc.transform = open ? CGAffineTransformIdentity : CGAffineTransformMakeScale(0.4, 0.4);
+        overlay.transform = open ? CGAffineTransformMakeRotation(M_PI_4) : CGAffineTransformIdentity;
+        overlay.tintColor = open ? UIColor.blackColor : UIColor.whiteColor;
+    } completion:nil];
 }
 
 #pragma mark - the system bar
@@ -410,6 +456,20 @@ static void paintGlyphs(UITabBar *bar) {
 - (void)layoutSubviews {
     [super layoutSubviews];
     paintGlyphs(self);
+    // On the first taps after launch the pill was placed while the buttons were not yet where UIKit
+    // finally puts them, and nothing placed it again. Every layout pass re-checks it against the buttons.
+    UIView *stock = self.stockBar;
+    UIView *host = stock ? objc_getAssociatedObject(stock, &kHostKey) : nil;
+    UIView *pill = host ? objc_getAssociatedObject(host, &kSelPillKey) : nil;
+    CGFloat centerX = pill && !pill.hidden ? [self renderedCenterXForItem:self.selectedItem] : NAN;
+    if (!isnan(centerX) && pill.frame.size.width > 0) {
+        CGFloat wantX = self.frame.origin.x + centerX - pill.frame.size.width / 2;
+        if (fabs(pill.frame.origin.x - wantX) > 0.5) {
+            [UIView animateWithDuration:0.25 delay:0
+                options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionCurveEaseInOut
+                animations:^{ CGRect f = pill.frame; f.origin.x = wantX; pill.frame = f; } completion:nil];
+        }
+    }
 }
 
 - (void)setSelectedItem:(UITabBarItem *)item {
@@ -430,6 +490,7 @@ static void paintGlyphs(UITabBar *bar) {
         SGLog(@"navbar: Create tapped, sourceBeforeCreate=%@ selectedItem-before=%@", labelIn(self.sourceBeforeCreate).text, self.selectedItem.title);
         forwardTap(source);
         self.selectedItem = item;
+        setCreateOpen(self, YES);
         if (stockBar) {
             syncBar(stockBar);
             followCreateClose(stockBar);
@@ -491,6 +552,17 @@ static void paintGlyphs(UITabBar *bar) {
 // NAN when the item's own views aren't in the hierarchy yet (still loading, or a stale item).
 - (CGFloat)renderedCenterXForItem:(UITabBarItem *)item {
     if (!item) return NAN;
+    NSUInteger index = [self.items indexOfObject:item];
+    NSMutableArray<UIView *> *buttons = [NSMutableArray array];
+    for (UIView *v in self.subviews) {
+        if ([NSStringFromClass(v.class) isEqualToString:@"UITabBarButton"]) [buttons addObject:v];
+    }
+    if (index != NSNotFound && buttons.count == self.items.count && buttons.count) {
+        [buttons sortUsingComparator:^NSComparisonResult(UIView *a, UIView *b) {
+            return [@(a.frame.origin.x) compare:@(b.frame.origin.x)];
+        }];
+        if (buttons[index].bounds.size.width > 1) return CGRectGetMidX(buttons[index].frame);
+    }
     __block CGRect unionFrame = CGRectNull;
     SGForEachView(self, ^(UIView *v) {
         BOOL label = [v isKindOfClass:UILabel.class], glyph = [v isKindOfClass:UIImageView.class];
@@ -702,6 +774,7 @@ static BOOL createMenuIsUp(UIView *stockBar) {
 static void settleAfterCreate(UIView *stockBar) {
     SGRSystemTabBar *bar = objc_getAssociatedObject(stockBar, &kBarKey);
     if (!bar) return;
+    setCreateOpen(bar, NO);
     UIView *open = activeStockSource(stockBar);
     SGLog(@"navbar: settleAfterCreate open=%@ sourceBeforeCreate=%@ lastRealItem=%@", labelIn(open).text, labelIn(bar.sourceBeforeCreate).text, bar.lastRealItem.title);
     if (open && open != bar.sourceBeforeCreate) {
@@ -713,23 +786,27 @@ static void settleAfterCreate(UIView *stockBar) {
 }
 
 // `seen`: the menu has been up at least once. The first look can come before it has appeared, so it
-// is waited for a little (four looks) before the menu is taken to be gone; once seen, 150 looks
-// (45 s) at most, then it is settled anyway rather than watched forever.
+// is waited for a little (ten looks, ~0.8 s) before the menu is taken to be gone; once seen, 560 looks
+// (~45 s) at most, then it is settled anyway rather than watched forever.
+// Polled every 0.08 s (was 0.3 s): the visible lag between the popover actually closing and the pill
+// coming back is bounded by this interval plus the settle-again delay below, and 0.3 s of it read as a
+// sluggish return on a real device. 0.08 s is fast enough to feel immediate without spamming the main
+// thread noticeably -- createMenuIsUp is a view-tree walk, not a layout pass.
 static void pollCreateClose(UIView *stockBar, NSUInteger attempt, BOOL seen) {
     __weak UIView *weakStock = stockBar;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.08 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         UIView *stock = weakStock;
         SGRSystemTabBar *bar = stock ? objc_getAssociatedObject(stock, &kBarKey) : nil;
         if (!bar || !bar.awaitingCreateClose) return;
         BOOL up = createMenuIsUp(stock);
         SGLog(@"navbar: pollCreateClose attempt=%lu up=%d seen=%d", (unsigned long)attempt, up, seen);
-        if (up ? attempt < 150 : (!seen && attempt < 4)) {
+        if (up ? attempt < 560 : (!seen && attempt < 10)) {
             pollCreateClose(stock, attempt + 1, seen || up);
             return;
         }
         bar.awaitingCreateClose = NO;
         settleAfterCreate(stock);
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.35 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.15 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
             UIView *again = weakStock;
             if (again) settleAfterCreate(again);
         });
