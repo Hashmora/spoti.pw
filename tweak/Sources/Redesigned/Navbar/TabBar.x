@@ -17,7 +17,7 @@
 #import "Headers/SPTEncoreIconView.h"
 #import <objc/message.h>
 
-static char kBarKey, kHostKey, kNavGlassKey, kNavTintKey, kSelPillKey, kRetriesKey, kGlyphOverlayKey, kGlyphLoggedKey, kOutlineLiveKey, kFilledLiveKey, kCreateDiscKey, kStandInLoggedKey, kIconKindLoggedKey;
+static char kBarKey, kHostKey, kNavGlassKey, kNavTintKey, kSelPillKey, kRetriesKey, kGlyphOverlayKey, kGlyphLoggedKey, kOutlineLiveKey, kFilledLiveKey, kCreateDiscKey, kStandInLoggedKey, kIconKindLoggedKey, kForcedGlyphsKey;
 static const CGFloat kNavGlassMargin = 16;       // side gap, so the bar floats instead of touching the edges
 static const CGFloat kNavGlassBottomMargin = 8;  // gap under the bar, so it floats above the edge like iOS 26+
 // The pill itself, never the safe-area room under it: glassHeight() below can be as tall as 83pt on
@@ -316,6 +316,10 @@ static void learnGlyphs(UIView *source, UITabBarItem *item) {
         objc_setAssociatedObject(item, &kIconKindLoggedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         logIconKind(source, live);
     }
+    if (!objc_getAssociatedObject(item, &kForcedGlyphsKey)) {
+        objc_setAssociatedObject(item, &kForcedGlyphsKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        forceGlyphs(source, item, live);
+    }
     BOOL active = [live respondsToSelector:@selector(isActive)] ? [(SPTEncoreIconView *)live isActive] : isActive(source);
     const void *key = active ? &kFilledLiveKey : &kOutlineLiveKey;
     if (objc_getAssociatedObject(item, key)) return;
@@ -328,6 +332,33 @@ static void learnGlyphs(UIView *source, UITabBarItem *item) {
         SGLog(@"tab bar glyphs %@: filled differs from outline %d", labelIn(source).text,
               ![UIImagePNGRepresentation(item.image) isEqualToData:UIImagePNGRepresentation(item.selectedImage)]);
     }
+}
+
+// Both states of a tab's picture from Spotify's own icon view, before any tap: flip isActive, draw,
+// flip it back, all in one runloop turn so nothing reaches the screen. Used only when the two
+// pictures really differ; otherwise nothing is changed and the log says so.
+static void forceGlyphs(UIView *source, UITabBarItem *item, UIView *live) {
+    if (![live respondsToSelector:@selector(isActive)] || ![live respondsToSelector:@selector(setIsActive:)]) {
+        SGLog(@"tab bar forced glyphs %@: icon view has no isActive setter", labelIn(source).text);
+        return;
+    }
+    SPTEncoreIconView *view = (SPTEncoreIconView *)live;
+    CGSize size = live.bounds.size;
+    BOOL was = [view isActive];
+    UIImage *now = renderLayer(live.layer, size);
+    [view setIsActive:!was];
+    [view layoutIfNeeded];
+    [live.layer displayIfNeeded];
+    UIImage *other = renderLayer(live.layer, size);
+    [view setIsActive:was];
+    [view layoutIfNeeded];
+    BOOL differs = now && other && ![UIImagePNGRepresentation(now) isEqualToData:UIImagePNGRepresentation(other)];
+    SGLog(@"tab bar forced glyphs %@: was active %d, other state differs %d", labelIn(source).text, was, differs);
+    if (!differs) return;
+    item.image = was ? other : now;
+    item.selectedImage = was ? now : other;
+    objc_setAssociatedObject(item, &kFilledLiveKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    objc_setAssociatedObject(item, &kOutlineLiveKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 }
 
 #pragma mark - passing a tap on
