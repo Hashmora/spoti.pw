@@ -427,12 +427,29 @@ static void paintGlyphs(UITabBar *bar) {
         // that was open once the menu is gone.
         UIView *stockBar = self.stockBar;
         self.sourceBeforeCreate = stockBar ? activeStockSource(stockBar) : nil;
+        SGLog(@"navbar: Create tapped, sourceBeforeCreate=%@ selectedItem-before=%@", labelIn(self.sourceBeforeCreate).text, self.selectedItem.title);
         forwardTap(source);
-        if (self.selectedItem != item) self.selectedItem = item;
+        self.selectedItem = item;
         if (stockBar) {
             syncBar(stockBar);
             followCreateClose(stockBar);
         }
+        // UIKit's own internal touch handling can still win a race and snap selectedItem back to
+        // whatever it had before, on the very next runloop turn, if our gesture recognizer's
+        // cancelsTouchesInView didn't fully suppress it in time -- re-assert once more a beat later,
+        // after that would have already happened, so the pill doesn't silently lose the tug of war.
+        __weak typeof(self) weakSelf = self;
+        __weak UIView *weakStock = stockBar;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            typeof(self) strongSelf = weakSelf;
+            UIView *stock = weakStock;
+            if (!strongSelf || !stock) return;
+            SGLog(@"navbar: Create re-check next runloop turn, selectedItem=%@ (want %@)", strongSelf.selectedItem.title, item.title);
+            if (strongSelf.selectedItem != item) {
+                strongSelf.selectedItem = item;
+                syncBar(stock);
+            }
+        });
         return;
     }
     self.lastRealItem = item;
@@ -665,11 +682,20 @@ static void makeRoom(UIViewController *container) {
 //  - Otherwise nothing moved, and the selection goes back to the tab the user was on, which may be a
 //    tab of the mod's own that Spotify's labels know nothing about.
 // A second look follows shortly after, since Spotify repaints its labels a moment after the change.
+// Matched loosely (contains, not exact-equal, and checked by class name too) on purpose: the sheet's
+// accessibilityIdentifier is read off a live view captured once by hand (trees/continuous/4.txt) and a
+// future Spotify build, an A/B flag, or a slightly different presentation path (from Search's "+" or a
+// long-press instead of the tab) could dress the same menu up under a different id, or leave it unset
+// altogether. Falling through to the class name and to "is anything at all presented over us" keeps
+// this from silently never firing again the way one exact string compare would.
 static BOOL createMenuIsUp(UIView *stockBar) {
     __block BOOL up = NO;
     SGForEachView(stockBar.window ?: stockBar, ^(UIView *v) {
-        if (!up && [v.accessibilityIdentifier isEqualToString:@"CreateMenu"]) up = YES;
+        if (up) return;
+        if ([v.accessibilityIdentifier isEqualToString:@"CreateMenu"]) up = YES;
+        else if ([NSStringFromClass(v.class) containsString:@"CreateMenuView"]) up = YES;
     });
+    if (!up) up = containerOf(stockBar).presentedViewController != nil;
     return up;
 }
 
@@ -677,6 +703,7 @@ static void settleAfterCreate(UIView *stockBar) {
     SGRSystemTabBar *bar = objc_getAssociatedObject(stockBar, &kBarKey);
     if (!bar) return;
     UIView *open = activeStockSource(stockBar);
+    SGLog(@"navbar: settleAfterCreate open=%@ sourceBeforeCreate=%@ lastRealItem=%@", labelIn(open).text, labelIn(bar.sourceBeforeCreate).text, bar.lastRealItem.title);
     if (open && open != bar.sourceBeforeCreate) {
         syncBarExternalChange(stockBar);
         return;
@@ -695,6 +722,7 @@ static void pollCreateClose(UIView *stockBar, NSUInteger attempt, BOOL seen) {
         SGRSystemTabBar *bar = stock ? objc_getAssociatedObject(stock, &kBarKey) : nil;
         if (!bar || !bar.awaitingCreateClose) return;
         BOOL up = createMenuIsUp(stock);
+        SGLog(@"navbar: pollCreateClose attempt=%lu up=%d seen=%d", (unsigned long)attempt, up, seen);
         if (up ? attempt < 150 : (!seen && attempt < 4)) {
             pollCreateClose(stock, attempt + 1, seen || up);
             return;
