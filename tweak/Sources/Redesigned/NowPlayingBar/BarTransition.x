@@ -116,11 +116,41 @@ static CGRect scaledFrame(UIView *pane, UIView *source, CGSize to) {
 // Alive while the display link is: it retains its target, and stop breaks that.
 static NSMutableSet<SGStandInGlass *> *sg_followers;
 
+// Who has hidden which real view, and how many stand-ins are holding it hidden. Two stand-ins can overlap
+// (letting go of a drag makes Spotify's transition hand over a fresh one while the first is still being
+// taken down). With a plain hidden flag the second found the view already hidden and took no part in
+// it, and the first one's restore then showed the real bar under the second stand-in.
+static NSMapTable<UIView *, NSNumber *> *sg_hiddenCounts;
+
+static BOOL hiddenByUs(UIView *view) {
+    return [sg_hiddenCounts objectForKey:view] != nil;
+}
+
+static void hideCounted(UIView *view) {
+    if (!sg_hiddenCounts) sg_hiddenCounts = [NSMapTable weakToStrongObjectsMapTable];
+    NSUInteger count = [sg_hiddenCounts objectForKey:view].unsignedIntegerValue;
+    [sg_hiddenCounts setObject:@(count + 1) forKey:view];
+    view.hidden = YES;
+}
+
+static void showCounted(UIView *view) {
+    NSUInteger count = [sg_hiddenCounts objectForKey:view].unsignedIntegerValue;
+    if (count > 1) {
+        [sg_hiddenCounts setObject:@(count - 1) forKey:view];
+        return;
+    }
+    [sg_hiddenCounts removeObjectForKey:view];
+    view.hidden = NO;
+}
+
+static void startWatch(void);
+
 @implementation SGStandInGlass
 
 - (void)start {
     if (!sg_followers) sg_followers = [NSMutableSet set];
     [sg_followers addObject:self];
+    startWatch();
     self.born = CACurrentMediaTime();
     if (self.hideRealBar) [self hideReal];
     self.link = [CADisplayLink displayLinkWithTarget:self selector:@selector(tick:)];
@@ -129,11 +159,27 @@ static NSMutableSet<SGStandInGlass *> *sg_followers;
 }
 
 - (void)stop {
+    NSUInteger restored = self.hidden.count;
     [self.link invalidate];
     self.link = nil;
     [self.holder removeFromSuperview];
     [self restoreReal];
     [sg_followers removeObject:self];
+    static NSUInteger logged;
+    if (self.hideRealBar && logged++ < 12) {
+        SGLog(@"player transition: tab bar stand-in over after %.2fs (snapshot %@, in window %d), %lu real views given back, %lu stand-ins still up",
+              CACurrentMediaTime() - self.born, self.snapshot ? @"alive" : @"gone", self.snapshot.window != nil,
+              (unsigned long)restored, (unsigned long)sg_followers.count);
+    }
+}
+
+// The stand-in has been on screen and is not any more. Also called from the pre-commit watch below, so
+// it must not depend on the display link having ticked.
+- (BOOL)gone {
+    UIView *snapshot = self.snapshot;
+    if (!snapshot) return YES;
+    if (snapshot.window) self.seen = YES;
+    return self.seen && !snapshot.window;
 }
 
 // The superview of each real glass pane holds the rest of that bar (icons, film, selection bubble), so
@@ -142,16 +188,20 @@ static NSMutableSet<SGStandInGlass *> *sg_followers;
     NSMutableArray<UIView *> *hid = [NSMutableArray array];
     for (UIView *pane in self.panes) {
         UIView *host = pane.superview;
-        if (!host || host.hidden || [hid containsObject:host]) continue;
-        host.hidden = YES;
+        if (!host || [hid containsObject:host]) continue;
+        // Hidden by someone else (Spotify): not ours to bring back. Hidden by another stand-in of ours:
+        // join it, so the view stays hidden until the last of them is gone.
+        if (host.hidden && !hiddenByUs(host)) continue;
+        hideCounted(host);
         [hid addObject:host];
     }
     self.hidden = hid;
 }
 
 - (void)restoreReal {
-    for (UIView *v in self.hidden) v.hidden = NO;
+    NSArray<UIView *> *hid = self.hidden;
     self.hidden = nil;
+    for (UIView *v in hid) showCounted(v);
 }
 
 - (void)attachTo:(UIView *)parent below:(UIView *)snapshot {
@@ -197,10 +247,36 @@ static NSMutableSet<SGStandInGlass *> *sg_followers;
 
 @end
 
+// Runs at the end of every run loop turn, before Core Animation commits (its observer is at order 2000000).
+// The stand-in is taken down by Spotify in some turn; the real bar has to be shown again in that same
+// turn, or one frame goes out with neither (the display link only ticks at the next vsync).
+static CFRunLoopObserverRef sg_watch;
+
+static void startWatch(void) {
+    if (sg_watch) return;
+    sg_watch = CFRunLoopObserverCreateWithHandler(kCFAllocatorDefault, kCFRunLoopBeforeWaiting | kCFRunLoopExit, YES, 1000000,
+        ^(CFRunLoopObserverRef observer, CFRunLoopActivity activity) {
+            if (!sg_followers.count) return;
+            for (SGStandInGlass *follower in [sg_followers allObjects]) {
+                if ([follower gone]) [follower stop];
+            }
+        });
+    CFRunLoopAddObserver(CFRunLoopGetMain(), sg_watch, kCFRunLoopCommonModes);
+}
+
 static void backWithGlass(UIView *snapshot, UIView *source, NSString *what, BOOL hideRealBar) {
     if (!snapshot || !source) return;
     NSMutableArray<UIView *> *panes = [NSMutableArray array];
     collectPanes(source, panes);
+    if (hideRealBar) {
+        static NSUInteger paneLogged;
+        if (paneLogged++ < 6) {
+            NSMutableString *list = [NSMutableString string];
+            for (UIView *pane in panes) [list appendFormat:@" %@%@", NSStringFromClass(pane.class), NSStringFromCGRect([pane.superview convertRect:pane.frame toView:source])];
+            SGLog(@"player transition: tab bar stand-in %@ %@, source %@ hidden=%d, %lu panes:%@",
+                  snapshot.class, NSStringFromCGRect(snapshot.frame), NSStringFromCGRect(source.frame), source.hidden, (unsigned long)panes.count, list);
+        }
+    }
     if (!panes.count) return;
 
     static NSUInteger logged;
