@@ -111,6 +111,7 @@ static CGRect scaledFrame(UIView *pane, UIView *source, CGSize to) {
 @property (nonatomic) BOOL watchOnly;                     // the glass already sits inside the stand-in
 @property (nonatomic) BOOL seen;                          // the stand-in has been in a window
 @property (nonatomic) NSUInteger waited;
+@property (nonatomic, copy) NSArray<UIView *> *bridgeViews;   // glass copies + picture taken out of the stand-in
 @property (nonatomic) CFTimeInterval born;
 @end
 
@@ -175,7 +176,11 @@ static void startWatch(void);
     [self.link invalidate];
     self.link = nil;
     [self.holder removeFromSuperview];
+    UIView *realHost = self.hidden.firstObject;
     [self restoreReal];
+    // Only the last stand-in hands over (an earlier one leaves the real bar hidden for the next).
+    if (self.hideRealBar && self.seen && self.bridgeViews.count && realHost && !hiddenByUs(realHost)) [self bridgeOver];
+    self.bridgeViews = nil;
     [sg_followers removeObject:self];
     static NSUInteger logged;
     if (self.hideRealBar && logged++ < 12) {
@@ -214,6 +219,31 @@ static void startWatch(void);
     NSArray<UIView *> *hid = self.hidden;
     self.hidden = nil;
     for (UIView *v in hid) showCounted(v);
+}
+
+// The stand-in's glass has been live on screen the whole way; the real bar's glass has been dimmed or
+// off screen and can take a frame or two to draw again once it is back, which was the blink. So the
+// stand-in's own panes (kept in bridgeViews, still live) are put straight over the real bar in this same
+// run loop turn, before Core Animation commits, and left there until the real glass has drawn.
+// Not faded: glass under a partly transparent ancestor stops drawing, which would be a blink of its own.
+- (void)bridgeOver {
+    UIView *real = self.source;
+    UIView *parent = real.superview;
+    NSArray<UIView *> *views = self.bridgeViews;
+    if (!real || !parent || !real.window || !views.count) return;
+    UIView *bridge = [[UIView alloc] initWithFrame:real.frame];
+    bridge.userInteractionEnabled = NO;
+    bridge.backgroundColor = UIColor.clearColor;
+    for (UIView *view in views) {
+        [view removeFromSuperview];
+        [bridge addSubview:view];
+    }
+    [parent insertSubview:bridge aboveSubview:real];
+    static NSUInteger logged;
+    if (logged++ < 6) SGLog(@"player transition: tab bar bridge over %@ with %lu views", NSStringFromCGRect(real.frame), (unsigned long)views.count);
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.12 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        [bridge removeFromSuperview];
+    });
 }
 
 - (void)attachTo:(UIView *)parent below:(UIView *)snapshot {
@@ -310,8 +340,11 @@ static void backWithGlass(UIView *snapshot, UIView *source, NSString *what, BOOL
 
     UIImageView *image = (UIImageView *)snapshot;
     if (!image.image || image.subviews.count) return;
+    NSMutableArray<UIView *> *kept = [NSMutableArray array];
     for (UIView *pane in panes) {
-        [image addSubview:copyGlass(pane, scaledFrame(pane, source, image.bounds.size))];
+        UIView *copy = copyGlass(pane, scaledFrame(pane, source, image.bounds.size));
+        [image addSubview:copy];
+        [kept addObject:copy];
     }
     UIImageView *content = [[UIImageView alloc] initWithImage:image.image];
     content.frame = image.bounds;
@@ -319,6 +352,7 @@ static void backWithGlass(UIView *snapshot, UIView *source, NSString *what, BOOL
     content.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     image.image = nil;
     [image addSubview:content];
+    [kept addObject:content];
 
     // The glass is inside the stand-in now; all that is left is keeping the real bar out from under it.
     if (hideRealBar) {
@@ -328,6 +362,7 @@ static void backWithGlass(UIView *snapshot, UIView *source, NSString *what, BOOL
         watch.panes = panes;
         watch.hideRealBar = YES;
         watch.watchOnly = YES;
+        watch.bridgeViews = kept;
         [watch start];
     }
 
