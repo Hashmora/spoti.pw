@@ -123,12 +123,6 @@ static NSMutableSet<SGStandInGlass *> *sg_followers;
 // it, and the first one's restore then showed the real bar under the second stand-in.
 static NSMapTable<UIView *, NSNumber *> *sg_hiddenCounts;
 
-// Held views are dimmed, not hidden. A hidden UIVisualEffectView leaves the render tree, and the glass
-// of the real tab bar needs a frame or two to come up again once it is shown, which was the blink
-// right when the stand-in left. At this alpha it is still drawn (invisible under the stand-in), so
-// it is already live when it is handed back.
-static const CGFloat kHeldAlpha = 0.02;
-
 static BOOL hiddenByUs(UIView *view) {
     return [sg_hiddenCounts objectForKey:view] != nil;
 }
@@ -137,7 +131,7 @@ static void hideCounted(UIView *view) {
     if (!sg_hiddenCounts) sg_hiddenCounts = [NSMapTable weakToStrongObjectsMapTable];
     NSUInteger count = [sg_hiddenCounts objectForKey:view].unsignedIntegerValue;
     [sg_hiddenCounts setObject:@(count + 1) forKey:view];
-    view.alpha = kHeldAlpha;
+    view.hidden = YES;
 }
 
 static void showCounted(UIView *view) {
@@ -147,12 +141,12 @@ static void showCounted(UIView *view) {
         return;
     }
     [sg_hiddenCounts removeObjectForKey:view];
-    view.alpha = 1;
+    view.hidden = NO;
 }
 
 // Shows or hides again every real view we are holding hidden, without touching the counts.
 static void setHeldHidden(BOOL hidden) {
-    for (UIView *view in [sg_hiddenCounts.keyEnumerator allObjects]) view.alpha = hidden ? kHeldAlpha : 1;
+    for (UIView *view in [sg_hiddenCounts.keyEnumerator allObjects]) view.hidden = hidden;
 }
 
 static void startWatch(void);
@@ -203,7 +197,7 @@ static void startWatch(void);
         if (!host || [hid containsObject:host]) continue;
         // Hidden by someone else (Spotify): not ours to bring back. Hidden by another stand-in of ours:
         // join it, so the view stays hidden until the last of them is gone.
-        if ((host.hidden || host.alpha < 0.01) && !hiddenByUs(host)) continue;
+        if (host.hidden && !hiddenByUs(host)) continue;
         hideCounted(host);
         [hid addObject:host];
     }
