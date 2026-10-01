@@ -12,8 +12,34 @@ __weak UIView *sgr_albumRoot = nil;
 __weak UIView *sgr_artistRoot = nil;
 __weak UIView *sgr_sheetChromeRoot = nil;
 
+// The flat, translucent white Spotify tints an unselected filter chip with (bg=#FFFFFF@0.10, trees/continuous/26.txt
+// 2026-09-26). A selected chip is painted a solid colour of its own, which is never this.
+static BOOL isNeutralTint(CGColorRef color) {
+    if (!color || CFGetTypeID(color) != CGColorGetTypeID()) return NO;
+    CGFloat alpha = CGColorGetAlpha(color);
+    if (alpha < 0.01 || alpha > 0.3) return NO;
+    const CGFloat *c = CGColorGetComponents(color);
+    size_t n = CGColorGetNumberOfComponents(color);
+    for (size_t i = 0; i + 1 < n; i++) if (c[i] < 0.9) return NO;
+    return n >= 2;
+}
+
+// The fill of a library filter chip: the plain view FilterChipView lays under its label. Spotify paints
+// it again on its own passes (a chip pressed, selected or let go, a cell coming back from reuse), none
+// of which lays the library page out, so clearing it once from the page's pass left the grey back under
+// the glass every time. Told apart by the class of its parent, not by a root: the root library and a
+// folder can both be alive, and each has chips.
+static BOOL isChipFill(UIView *view) {
+    if (view.superview == nil || ![view isMemberOfClass:UIView.class]) return NO;
+    return [NSStringFromClass(view.superview.class) isEqualToString:@"EncoreConsumerMobile_BaseKit.FilterChipView"];
+}
+
 %hook CALayer
 - (void)setBackgroundColor:(CGColorRef)color {
+    if (isNeutralTint(color)) {
+        UIView *fill = (UIView *)self.delegate;
+        if ([fill isKindOfClass:UIView.class] && fill.layer == self && isChipFill(fill)) color = NULL;
+    }
     if (color && (sgr_nowPlayingRoot || sgr_lyricsPageRoot || sgr_playlistRoot || sgr_albumRoot || sgr_artistRoot || sgr_sheetChromeRoot)) {
         UIView *view = (UIView *)self.delegate;
         if ([view isKindOfClass:UIView.class] && view.layer == self && !SGKeepsColor(view)) {

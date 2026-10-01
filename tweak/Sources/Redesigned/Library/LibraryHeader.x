@@ -3,12 +3,12 @@
 // that opens the side drawer at the trailing edge, and the scrim Spotify lays behind the header gone, the soft
 // scroll edge (Kit/SGREdgeEffect.x) being what keeps the header clear of the list scrolling under it.
 //
-// The filter chips under the row stay Spotify's, untouched. They were taken out when the redesign was first
-// built and the header closed up by the 49pt they left, and sorting a library turned out to be something the
-// page cannot do without (issue #20). Spotify already draws them on the system's own glass
-// (Reprise_LiquidGlassKit.LiquidGlass.ChipGlassView, trees/clean/library/03.txt:1210), so they belong here as
-// they are; with them back the header keeps the height Spotify gives it and the list keeps Spotify's own inset,
-// and there is nothing here to resize or to hold.
+// The filter chips under the row stay Spotify's own views and controls. They were taken out when the redesign
+// was first built and the header closed up by the 49pt they left, and sorting a library turned out to be
+// something the page cannot do without (issue #20); with them back the header keeps the height Spotify gives
+// it and the list keeps Spotify's own inset, and there is nothing here to resize or to hold. Only the paint
+// changes: an unselected chip's flat grey fill goes (SGRRepaint.x holds it clear when Spotify paints it back)
+// and a glass capsule stands behind it, like the header's round buttons; a selected chip keeps its own colour.
 //
 // Tree (trees/clean/library/03.txt:1159-1247): YourLibraryView holds YourLibraryContentView, the size of the
 // page, and after it -- so over it -- YourLibraryHeaderView 402x159.33: LiquidGlass.GradientView (the scrim), a
@@ -224,28 +224,45 @@ static NSArray<UIView *> *placeFolder(UIView *header) {
     return placed;
 }
 
-// True for the flat, translucent tint Spotify paints an unselected filter chip with
-// (bg=#FFFFFF@0.10, trees/continuous/26.txt 2026-09-26); a selected chip turns a solid colour of its
-// own to say so, and that fill is left exactly as Spotify draws it -- only the neutral one is glassed.
-static BOOL isNeutralChipFill(UIView *fill) {
-    CGFloat white = 0, alpha = 0;
-    if (![fill.backgroundColor getWhite:&white alpha:&alpha]) return NO;
-    return white > 0.9 && alpha > 0.01 && alpha < 0.3;
+// The plain view FilterChipView draws its capsule fill with, under the label and the border: the first
+// subview that is neither our glass nor one of Spotify's classes (trees/continuous/1.txt:824-830).
+static UIView *chipFill(UIView *chip, UIView *glass) {
+    for (UIView *sub in chip.subviews) {
+        if (sub != glass && [sub isMemberOfClass:UIView.class]) return sub;
+    }
+    return nil;
 }
 
+// A selected chip is painted a solid colour of its own to say so; an unselected one a translucent white
+// (bg=#FFFFFF@0.10, trees/continuous/26.txt 2026-09-26) that SGRRepaint.x now keeps from ever landing.
+static BOOL chipIsSelected(UIView *fill) {
+    CGColorRef color = fill.layer.backgroundColor;
+    return color && CGColorGetAlpha(color) > 0.5;
+}
+
+// The glass goes in the chip itself, first among its subviews and under the fill, the way every round
+// control of the header gets its own: a selected chip's solid colour then covers it by order, with no pass
+// needed to take it away, and an unselected one's fill is clear, so what is seen through it is glass.
+// (Glass inside the fill was above the fill's own paint, so the grey Spotify painted back showed through
+// it, and a selected chip had the glass laid over its colour.)
 static void glassChip(UIView *chip) {
-    UIView *fill = chip.subviews.firstObject;
     CGSize size = chip.bounds.size;
-    if (!fill || size.width < 1 || size.height < 1 || !isNeutralChipFill(fill)) return;
-    if (fill.backgroundColor != UIColor.clearColor) fill.backgroundColor = UIColor.clearColor;
-    if (fill.layer.cornerRadius != size.height / 2) fill.layer.cornerRadius = size.height / 2;
-    SGRGlassCapsuleInside(fill, &kChipGlassKey, fill.bounds.size, NO);
+    if (size.width < 1 || size.height < 1) return;
+    UIView *glass = objc_getAssociatedObject(chip, &kChipGlassKey);
+    UIView *fill = chipFill(chip, glass);
+    if (fill && chipIsSelected(fill)) {
+        // Under the colour already; hidden as well, so no rim of it shows round the capsule's edge.
+        if (glass && !glass.hidden) glass.hidden = YES;
+        return;
+    }
+    if (fill && fill.layer.backgroundColor) fill.layer.backgroundColor = NULL;
+    SGRGlassCapsuleInside(chip, &kChipGlassKey, size, NO);
 }
 
-// Playlists / Podcasts / Albums / Artists, left as Spotify's own row (see the file header above): each
-// chip is Components.UI.FilterChips' own FilterChipView, a flat capsule unselected, unlike every other
-// capsule the redesign gives a row of controls. Walked rather than hooked -- the class is a Swift one
-// with no mangled name in the tree to hook by -- and only the neutral fill is touched.
+// Playlists / Podcasts / Albums / Artists: each chip is Components.UI.FilterChips' own FilterChipView, a flat
+// capsule unselected, unlike every other capsule the redesign gives a row of controls. Walked rather than
+// hooked -- the class is a Swift one with no mangled name in the tree to hook by. The fill's repaint is
+// held clear by SGRRepaint.x's hook, so this pass only has to make sure the glass is there.
 static void glassChips(UIView *header) {
     UIView *chips = SGRFindByIdentifier(header, @"Components.UI.FilterChips", &kChipsKey);
     if (!chips) return;
