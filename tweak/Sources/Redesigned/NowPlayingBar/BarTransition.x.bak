@@ -34,7 +34,6 @@
 @interface SPTBarOverlayPresentationTransition : NSObject
 - (UIView *)bottomBarView;
 - (UIView *)tabBarView;
-- (void)setupTransitioningContext:(id)context;
 @end
 
 // The panes to copy: glass views, our legacy glass below iOS 26, and UIKit's tab bar platters, whose
@@ -142,11 +141,6 @@ static void showCounted(UIView *view) {
     }
     [sg_hiddenCounts removeObjectForKey:view];
     view.hidden = NO;
-}
-
-// Shows or hides again every real view we are holding hidden, without touching the counts.
-static void setHeldHidden(BOOL hidden) {
-    for (UIView *view in [sg_hiddenCounts.keyEnumerator allObjects]) view.hidden = hidden;
 }
 
 static void startWatch(void);
@@ -275,11 +269,6 @@ static void backWithGlass(UIView *snapshot, UIView *source, NSString *what, BOOL
     NSMutableArray<UIView *> *panes = [NSMutableArray array];
     collectPanes(source, panes);
     if (hideRealBar) {
-        static NSUInteger diagLogged;
-        if (diagLogged++ < 12) {
-            SGLog(@"player transition: tab bar stand-in source hidden=%d, pane host hidden=%d, followers up=%lu",
-                  source.hidden, panes.firstObject.superview.hidden, (unsigned long)sg_followers.count);
-        }
         static NSUInteger paneLogged;
         if (paneLogged++ < 6) {
             NSMutableString *list = [NSMutableString string];
@@ -348,18 +337,6 @@ static void logSource(UIView *source, UIView *stand, NSString *what) {
     logSource([self tabBarView], view, @"tab bar");
     backWithGlass(view, [self tabBarView], @"tab bar", YES);
     %orig;
-}
-%end
-
-// A new transition (letting go of a drag hands over a fresh one) takes its stand-ins from the real bars.
-// If an earlier stand-in of ours still holds the real tab bar hidden, the snapshot / renderInContext: is
-// taken of a hidden view and comes out empty. So the bars are shown for the duration of the setup and
-// hidden again before the run loop turn ends, so no frame with the real bar goes out.
-%hook SPTBarOverlayPresentationTransition
-- (void)setupTransitioningContext:(id)context {
-    setHeldHidden(NO);
-    %orig;
-    setHeldHidden(YES);
 }
 %end
 
