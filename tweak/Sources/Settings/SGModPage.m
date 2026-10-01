@@ -406,6 +406,38 @@ static const CGFloat kSliderTop = 12, kSliderLine = 18, kSliderSubtitle = 14, kS
 
 @end
 
+#pragma mark - the progress bar
+
+static const NSInteger kProgressTag = 0x5347;
+
+// A row's progress as a thin bar along the bottom of its cell, on the card's own side margins; a cell
+// reused for a row without one loses it.
+static void showProgress(UITableViewCell *cell, SGModRow *row, BOOL animated) {
+    UIProgressView *bar = (UIProgressView *)[cell viewWithTag:kProgressTag];
+    double progress = row.progress ? row.progress() : -1;
+    if (progress < 0) {
+        [bar removeFromSuperview];
+        return;
+    }
+    if (!bar) {
+        bar = [[UIProgressView alloc] initWithProgressViewStyle:UIProgressViewStyleDefault];
+        bar.tag = kProgressTag;
+        bar.progressTintColor = SGGreen();
+        bar.trackTintColor = [UIColor colorWithWhite:1 alpha:0.12];
+        bar.userInteractionEnabled = NO;
+        bar.isAccessibilityElement = NO;   // the row's value says the same
+        bar.translatesAutoresizingMaskIntoConstraints = NO;
+        [cell addSubview:bar];
+        [NSLayoutConstraint activateConstraints:@[
+            [bar.leadingAnchor constraintEqualToAnchor:cell.leadingAnchor constant:16],
+            [bar.trailingAnchor constraintEqualToAnchor:cell.trailingAnchor constant:-16],
+            [bar.bottomAnchor constraintEqualToAnchor:cell.bottomAnchor constant:-5],
+        ]];
+        animated = NO;
+    }
+    [bar setProgress:(float)MIN(1, progress) animated:animated];
+}
+
 #pragma mark - the page
 
 @implementation SGModPage {
@@ -415,6 +447,7 @@ static const CGFloat kSliderTop = 12, kSliderLine = 18, kSliderSubtitle = 14, kS
     UIView *_footer;
     NSTimer *_ticker;
     BOOL _live;
+    NSSet<NSNotificationName> *_refreshOn;
 }
 
 - (instancetype)initWithTitle:(NSString *)title intro:(NSString *)intro sections:(NSArray<SGModSection *> *)sections footer:(NSString *)footer {
@@ -426,7 +459,12 @@ static const CGFloat kSliderTop = 12, kSliderLine = 18, kSliderSubtitle = 14, kS
     _footer = footer ? SGNote(footer) : nil;
     // A page row reads its value out when the page appears rather than on the ticker, so only the
     // rows whose numbers climb on their own keep one running.
-    for (SGModSection *s in sections) for (SGModRow *row in s.rows) _live |= row.value && !row.page;
+    NSMutableSet<NSNotificationName> *refreshOn = [NSMutableSet set];
+    for (SGModSection *s in sections) for (SGModRow *row in s.rows) {
+        _live |= row.value && !row.page;
+        if (row.refreshOn) [refreshOn addObject:row.refreshOn];
+    }
+    _refreshOn = refreshOn;
     return self;
 }
 
@@ -505,6 +543,10 @@ static const CGFloat kSliderTop = 12, kSliderLine = 18, kSliderSubtitle = 14, kS
     // page it opened, which is gone by the time this one comes back, and may bring rows or take them.
     _shown = [self rowsToShow];
     [self.tableView reloadData];
+    for (NSNotificationName name in _refreshOn) {
+        [NSNotificationCenter.defaultCenter removeObserver:self name:name object:nil];
+        [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(readValues) name:name object:nil];
+    }
     if (!_live) return;
     // The counters climb while the page is open; the labels are written straight into the cells so
     // that a reload never lands under a switch being dragged. A cancelled back swipe appears the
@@ -517,11 +559,17 @@ static const CGFloat kSliderTop = 12, kSliderLine = 18, kSliderSubtitle = 14, kS
     [super viewDidDisappear:animated];
     [_ticker invalidate];
     _ticker = nil;
+    for (NSNotificationName name in _refreshOn) [NSNotificationCenter.defaultCenter removeObserver:self name:name object:nil];
 }
 
+// Rows that come and go on their own (a download finishing brings its Remove row) follow here too.
 - (void)readValues {
+    [self showRowsThen:nil];
     for (UITableViewCell *cell in self.tableView.visibleCells) {
-        SGModRow *row = [self rowAt:[self.tableView indexPathForCell:cell]];
+        NSIndexPath *path = [self.tableView indexPathForCell:cell];
+        if (!path) continue;   // on its way out
+        SGModRow *row = [self rowAt:path];
+        if (row.progress) showProgress(cell, row, YES);
         UILabel *label = (UILabel *)cell.accessoryView;
         if (!row.value || row.page || ![label isKindOfClass:UILabel.class]) continue;
         label.text = row.value();
@@ -583,6 +631,7 @@ static const CGFloat kSliderTop = 12, kSliderLine = 18, kSliderSubtitle = 14, kS
     if (tile) content.image = SGTileImage(row.symbol);
     cell.contentConfiguration = content;
     cell.separatorInset = UIEdgeInsetsMake(0, row.symbol ? (tile ? 58 : 48) : 16, 0, 0);
+    showProgress(cell, row, NO);
 
     if (row.key) {
         BOOL locked = flagRowLocked(row);

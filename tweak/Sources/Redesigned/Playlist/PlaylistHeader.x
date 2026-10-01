@@ -178,6 +178,7 @@ static UIView *firstOfClass(UIView *root, Class wanted) {
     _picture.image = image;
     // The page's field takes its colour from the same picture.
     SGRPlaylistSetArtwork(self, image);
+    SGRRevealMark(SGRPlaylistPageOf(self), SGRRevealPicture);
     static BOOL logged;
     if (late && !logged) {
         logged = YES;
@@ -340,6 +341,8 @@ static void showPlaylist(SGRHeaderInfo *info, UIView *block, UIView *root, id mo
     UIView *page = SGRPlaylistPageOf(root);
     SGRPinnedMore(page, &kPinnedMoreKey, SGRFindByIdentifier(block, @"Components.UI.ContextMenuButton*", &kMoreKey));
     SGRPlaylistTakeSort(page, SGRFindByIdentifier(root, @"Components.Header.UI.Toolbar.Button", &kSortKey));
+    // The name and Play are what the header waits for; the row's other buttons fade in on their own when late.
+    if (title && play) SGRRevealMark(page, SGRRevealHeader);
 
     static BOOL logged;
     if (!logged && info.window && (title || play)) {

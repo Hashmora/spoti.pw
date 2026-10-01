@@ -59,21 +59,25 @@ void SGArtworkCancelFetch(void) {
 
 void SGArtworkFetch(NSString *identifier, NSString *address, void (^done)(NSURL *file, NSString *note)) {
     SGArtworkCancelFetch();
+    sg_task = (NSURLSessionDownloadTask *)SGArtworkFetchAside(identifier, address, done);
+}
+
+NSURLSessionTask *SGArtworkFetchAside(NSString *identifier, NSString *address, void (^done)(NSURL *file, NSString *note)) {
     NSURL *remote = address.length ? [NSURL URLWithString:address] : nil;
     if (!remote) {
         done(nil, @"no address");
-        return;
+        return nil;
     }
     NSURL *local = fileFor([identifier stringByAppendingPathExtension:@"mp4"]);
     if ([NSFileManager.defaultManager fileExistsAtPath:local.path]) {
         dispatch_async(queue(), ^{ touch(local); });
         done(local, @"cached");
-        return;
+        return nil;
     }
     NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:remote];
     // Low Data Mode marks the path constrained; the download then fails rather than spending the data.
     request.allowsConstrainedNetworkAccess = NO;
-    sg_task = [NSURLSession.sharedSession downloadTaskWithRequest:request completionHandler:^(NSURL *temporary, NSURLResponse *response, NSError *error) {
+    NSURLSessionDownloadTask *task = [NSURLSession.sharedSession downloadTaskWithRequest:request completionHandler:^(NSURL *temporary, NSURLResponse *response, NSError *error) {
         if (!temporary) {
             done(nil, [NSString stringWithFormat:@"download failed: %@", error.localizedDescription]);
             return;
@@ -88,7 +92,8 @@ void SGArtworkFetch(NSString *identifier, NSString *address, void (^done)(NSURL 
                                             : [NSString stringWithFormat:@"not kept: %@", move.localizedDescription]);
         });
     }];
-    [sg_task resume];
+    [task resume];
+    return task;
 }
 
 // The size the clip is played at, its rotation applied, and the transform that puts its top left at

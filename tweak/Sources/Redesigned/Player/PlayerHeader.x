@@ -1,4 +1,5 @@
-// Player redesign: glass circles behind the header's close and more buttons.
+// Player redesign: glass circles behind the header's close and more buttons, and the more button handed to
+// the menus that open from it (Speed and pitch's, and the Music app style menu of PlayerMenu.x).
 //
 // Glass is the control layer floating over the field, so it goes behind the round buttons only: the
 // playlist name between them stays a label, and the row of playback controls stays bare glyphs
@@ -39,7 +40,10 @@ static void glassInside(UIViewController *unit, NSArray<NSString *> *identifiers
             continue;
         }
         SGRGlassInside(button, &kGlassKey, SGRGlassCircleSize);
-        if ([identifiers[i] isEqualToString:@"Context menu"]) SGPlayerMenuWatchMoreButton(button);
+        if ([identifiers[i] isEqualToString:@"Context menu"]) {
+            SGPlayerMenuWatchMoreButton(button);
+            SGRPlayerMenuWatchMoreButton(button);
+        }
         found++;
     }
 

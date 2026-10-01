@@ -112,7 +112,8 @@ static UIView *connectGlyphIn(UIView *holder) {
 
 // Moved down, the row is drawn partly below the bottom stack it is arranged in, and UIKit does not look
 // into a view for a touch outside its bounds. This band over the part that hangs out hands such a touch
-// to the row itself, and lets every other one through.
+// to the row itself, and lets every other one through. It asks nothing of a row that cannot be seen, the
+// stack it is in faded out included (the lines alone, PlayerLyrics.x).
 @interface SGRFooterReach : UIView
 @property (nonatomic, weak) UIView *row;
 @end
@@ -120,7 +121,10 @@ static UIView *connectGlyphIn(UIView *holder) {
 @implementation SGRFooterReach
 - (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
     UIView *row = self.row;
-    if (!row.window || row.alpha < 0.01 || row.hidden) return nil;
+    if (!row.window) return nil;
+    for (UIView *view = row; view && view != self.superview; view = view.superview) {
+        if (view.alpha < 0.01 || view.hidden) return nil;
+    }
     UIView *hit = [row hitTest:[row convertPoint:point fromView:self] withEvent:event];
     return hit == row ? nil : hit;
 }

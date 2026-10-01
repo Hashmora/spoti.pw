@@ -651,10 +651,47 @@ static void setCreateOpen(SGRSystemTabBar *bar, BOOL open) {
 // area of the view it stands in, and the room made under Spotify's bar is not the phone's: on a phone
 // with a home button it went under the platter as well, squeezing it to 49 pt. So this view hands the
 // bar the safe area without the room.
+//
+// It also draws the fade over the pages behind the bars. Spotify darkens whatever scrolls under its bar
+// with a TabBarGradientView reaching 112 pt above the bar's top (trees/continuous/5.txt:2200), but that
+// sits in the compact view hidden above, so it went with it: only the field behind a page (Kit/SGRField.h)
+// faded to black, and the rows, covers and text over it ran on bright under the now playing bar and the
+// glass. The fade stands under the glass bar, so it moves and goes away with the bar.
+static const CGFloat kFadeRise = 112;
+static const NSUInteger kFadeStops = 7;
+
 @interface SGRTabBarHost : UIView
 @end
 
-@implementation SGRTabBarHost
+@implementation SGRTabBarHost {
+    CAGradientLayer *_fade;
+}
+
+- (instancetype)initWithFrame:(CGRect)frame {
+    if (!(self = [super initWithFrame:frame])) return nil;
+    _fade = [CAGradientLayer layer];
+    NSNull *off = NSNull.null;
+    _fade.actions = @{@"bounds": off, @"position": off, @"frame": off};
+    // Clear to black on a smoothstep, so there is no edge where it starts.
+    NSMutableArray *colors = [NSMutableArray array], *locations = [NSMutableArray array];
+    for (NSUInteger i = 0; i < kFadeStops; i++) {
+        CGFloat t = (CGFloat)i / (kFadeStops - 1);
+        [colors addObject:(id)[UIColor colorWithWhite:0 alpha:t * t * (3 - 2 * t)].CGColor];
+        [locations addObject:@(t)];
+    }
+    _fade.colors = colors;
+    _fade.locations = locations;
+    [self.layer insertSublayer:_fade atIndex:0];
+    return self;
+}
+
+- (void)layoutSubviews {
+    [super layoutSubviews];
+    CGRect bounds = self.bounds;
+    CGRect fade = CGRectMake(0, -kFadeRise, bounds.size.width, bounds.size.height + kFadeRise);
+    if (!CGRectEqualToRect(_fade.frame, fade)) _fade.frame = fade;
+}
+
 - (UIEdgeInsets)safeAreaInsets {
     UIEdgeInsets insets = [super safeAreaInsets];
     // The host's own frame now stands kNavGlassBottomMargin above the screen's real safe area, which
@@ -865,26 +902,15 @@ static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
     }
     // The active tab is told apart by its filled glyph and the selection pill, not by the accent colour.
     bar.tintColor = UIColor.whiteColor;
-    // UIKit's own default unselected tint (a mid grey in dark mode) is what made the three inactive
-    // icons read as grey instead of white, next to the reference screenshot's fully white inactive
-    // icons. renderLayer makes every icon an always-template image, so tint color is the only thing
-    // that decides what color they actually draw in.
     bar.unselectedItemTintColor = UIColor.whiteColor;
-    // Centered + a fixed narrow itemWidth, not .automatic's fill-the-frame stretch: three tabs used to
-    // spread edge to edge across whatever width the bar was given, which is the "solid navbar" layout
-    // this pill was never meant to inherit. With a fixed width UIKit centers the group instead of
-    // stretching it, and the visible capsule below is sized to match that group, not the screen.
     bar.itemPositioning = UITabBarItemPositioningCentered;
-    // itemWidth is set below, once sources.count is known -- with few tabs it stays the full
-    // kNavItemWidth; past however many would overflow the platter's own max width, each slot narrows
-    // just enough for all of them to still fit at that same width.
     bar.itemSpacing = kNavItemSpacing;
     UIView *host = objc_getAssociatedObject(stockBar, &kHostKey);
 
     for (UIView *sub in stockBar.subviews) {
         if (sub == host) continue;
-        sub.alpha = 0;
-        sub.userInteractionEnabled = NO;
+        if (sub.alpha != 0) sub.alpha = 0;
+        if (sub.userInteractionEnabled) sub.userInteractionEnabled = NO;
     }
     stockBar.superview.layer.backgroundColor = NULL;
 
@@ -1106,13 +1132,20 @@ static UIView *tabBarOf(UIView *item) {
     return nil;
 }
 
+// Set while the bar lays its items out itself, so each item's pass leaves the work to the bar's one.
+static BOOL sg_barPass, sg_itemsLaidOut;
+
 %hook _TtC23NavigationUI_TabBarImpl10TabBarView
 - (void)layoutSubviews {
     %orig;
     SGRComposeTabBar((UIView *)self);
+    sg_barPass = YES;
+    sg_itemsLaidOut = NO;
     for (UIView *sub in ((UIView *)self).subviews) {
         if (![sub isKindOfClass:SGRTabBarHost.class]) [sub layoutIfNeeded];
     }
+    sg_barPass = NO;
+    if (sg_itemsLaidOut) SGRComposeTabBar((UIView *)self);
     holdHome((UIView *)self);
     syncBar((UIView *)self);
 }
@@ -1120,6 +1153,10 @@ static UIView *tabBarOf(UIView *item) {
 
 // The bar's own pass runs before Spotify has filled the row; the items lay out as they arrive.
 static void itemDidLayOut(UIView *item) {
+    if (sg_barPass) {
+        sg_itemsLaidOut = YES;
+        return;
+    }
     UIView *bar = tabBarOf(item);
     if (!bar) return;
     SGRComposeTabBar(bar);

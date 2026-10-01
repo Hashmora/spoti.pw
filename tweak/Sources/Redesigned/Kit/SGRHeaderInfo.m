@@ -132,10 +132,16 @@ static BOOL setText(UILabel *label, NSString *text) {
     NSArray<UIView *> *buttons = @[_shuffle, _play, _trailing];
     NSArray<NSNumber *> *shown = @[@(shuffle != nil), @(play != nil), @(trailing != nil)];
     for (NSUInteger i = 0; i < buttons.count; i++) {
+        UIView *button = buttons[i];
         BOOL hide = !shown[i].boolValue;
-        if (buttons[i].hidden != hide) {
-            buttons[i].hidden = hide;
-            changed = YES;
+        if (button.hidden == hide) continue;
+        button.hidden = hide;
+        changed = YES;
+        // One of Spotify's buttons that turns up after the page is on screen (save, on a playlist opened for
+        // the first time) fades in beside the others rather than popping in.
+        if (!hide && self.window) {
+            button.alpha = 0;
+            SGRAnimate(SGRMotionFade, ^{ button.alpha = 1; }, nil);
         }
     }
     if (changed) [self setNeedsLayout];

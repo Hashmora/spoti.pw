@@ -1,4 +1,4 @@
-// The artwork field: one continuous colour taken from the artwork's bottom edge (SGRPalette.h) behind
+// The artwork field: one continuous colour taken from the artwork's main colour (SGRPalette.h) behind
 // a whole redesigned page, with no card and no seam anywhere. The player's field also carries the
 // artwork itself at the top, blurred and dimmed and dissolving into the colour (showsBackdrop).
 //
@@ -36,13 +36,16 @@ extern NSNotificationName const SGRFieldColorDidChangeNotification;
 // A colour Spotify already has for the page (the player's background colour), made fit to be a field
 // and shown until the first artwork has been read; ignored after that.
 - (void)setProvisionalColor:(UIColor *)color;
-// A colour the page already picked for itself (Spotify's own for an album), made fit to be a field; it wins
-// over the one read from the artwork's bottom edge, which on a scanned cover is the scanner's grey border
-// rather than the picture. nil keeps what is set.
+// A colour the page already picked for itself, made fit to be a field; it wins over the one read from the
+// artwork. nil keeps what is set.
 - (void)setPreferredColor:(UIColor *)color;
 // Reads the artwork off the main thread and crossfades the result in (without animation when
 // `animated` is NO or the field is not in a window). The same image, or the same non-nil identity,
 // as the last call is a no-op, and a result that lands after a newer call is dropped. nil keeps
 // what the field shows.
 - (void)setArtwork:(UIImage *)image identity:(NSString *)identity animated:(BOOL)animated;
+// `colored` once, as soon as the field shows a colour of the page's own -- read from the artwork, or the
+// page's preferred one -- rather than the neutral it starts with; at once if it already does. For a page
+// that waits to be shown until it has its colour (SGRReveal.h).
+- (void)whenColored:(void (^)(void))colored;
 @end

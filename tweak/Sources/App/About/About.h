@@ -64,4 +64,7 @@ void SGShowSigningFixIfPending(void);   // the sheet the tour held back, if any
 void SGExportSettings(void);
 void SGImportSettings(void);
 
+// AppIcon.m: the row that opens the list of app icons, nil in a build without them (scripts/app-icons.sh).
+SGModRow *SGAppIconRow(void);
+
 UIViewController *SGAboutPage(void);   // the Mod page

@@ -1,6 +1,7 @@
 // Settings: a Mod Settings row at the end of Spotify's settings list opens the mod's own page: the
-// Appearance card with Redesigned UI, then a page per part of Spotify, each holding what that part
-// offers in the stored look (App/Pages.m: Navbar, Player, and Home & Library for the native look), Audio
+// Appearance card with Redesigned UI, Karaoke in the redesign (Sing, Redesigned/Lyrics/SingSettings.m), then a
+// page per part of Spotify, each holding what that part offers in the stored look (App/Pages.m: Navbar,
+// Player, Lyrics, Home & Library for the native look, Albums for the redesign), Audio
 // effects (Shared/AudioEffects, in either look and applying straight away), Privacy & clutter
 // and Labs, All flags, a searchable list of every flag with an override per flag, and Mod, the
 // build, its updates and links. The same row leads the side drawer's list (trees/test6.txt), above
@@ -18,6 +19,10 @@
 #import "Settings/SGModPage.h"
 #import "Native/Home/Home.h"
 #import "Shared/AdBlock/AdBlock.h"
+#import "Redesigned/Album/Album.h"
+#import "Redesigned/Lyrics/Sing.h"
+#import "Shared/Sing/SGSingModel.h"
+#import "Shared/Privacy/Privacy.h"
 #import "Shared/Flags/Flags.h"
 #import "Shared/AudioEffects/AudioEffectsPage.h"
 #import "Shared/LiveActivity/LiveActivity.h"
@@ -48,11 +53,12 @@ static UIViewController *modSettingsPage(void) {
     // The audio effects work on the sound, so both looks have them, with what they are doing beside the chevron.
     SGModRow *audioEffects = pageRow(@"Audio effects", @"slider.vertical.3", ^UIViewController *{ return SGDSPSettingsPage(); });
     audioEffects.value = ^NSString *{ return SGDSPSummary(); };
-    // Home & Library holds only the native look's switches, so the redesign has no such page; the
-    // Live Activity works under both, and only where ActivityKit's card does.
+    // Home & Library holds only the native look's switches, and Albums only the redesign's; the Live
+    // Activity works under both, and only where ActivityKit's card does.
     NSMutableArray<SGModRow *> *parts = [NSMutableArray arrayWithArray:@[
         pageRow(@"Navbar", @"dock.rectangle", ^UIViewController *{ return SGNavbarPage(); }),
         pageRow(@"Player", @"play.circle", ^UIViewController *{ return SGPlayerSettingsPage(); }),
+        pageRow(@"Lyrics", @"quote.bubble", ^UIViewController *{ return SGLyricsSettingsPage(); }),
         audioEffects,
     ]];
     if (@available(iOS 17.0, *)) {
@@ -60,9 +66,17 @@ static UIViewController *modSettingsPage(void) {
         liveActivity.value = ^NSString *{ return SGLiveActivitySummary(); };
         [parts addObject:liveActivity];
     }
-    if (!SGRedesignedUIStored()) [parts addObject:pageRow(@"Home & Library", @"house", ^UIViewController *{ return SGHomeSettingsPage(); })];
+    if (SGRedesignedUIStored()) [parts addObject:pageRow(@"Albums", @"square.stack", ^UIViewController *{ return SGRAlbumSettingsPage(); })];
+    else [parts addObject:pageRow(@"Home & Library", @"house", ^UIViewController *{ return SGHomeSettingsPage(); })];
+    [sections addObject:SGAppearanceSection()];
+    // Sing's microphone is the redesigned player's, so Karaoke is the redesign's; its row follows a download.
+    if (SGRedesignedUIStored()) {
+        SGModRow *karaoke = pageRow(@"Karaoke", @"music.mic", ^UIViewController *{ return SGRKaraokeSettingsPage(); });
+        karaoke.value = ^NSString *{ return SGRKaraokeSummary(); };
+        karaoke.refreshOn = SGSingModelDidChangeNotification;
+        [sections addObject:SGSection(nil, @[karaoke])];
+    }
     [sections addObjectsFromArray:@[
-        SGAppearanceSection(),
         SGSection(nil, parts),
         SGSection(nil, @[
             pageRow(@"Premium, ads & privacy", @"crown", ^UIViewController *{ return SGAdsSettingsPage(); }),
@@ -222,16 +236,24 @@ static BOOL isSettingsRoot(UIViewController *list) {
 
 // The drawer's list (trees/test6.txt: SideDrawerListCollectionView under the profile header, Your
 // plan its first cell) is one of several collection views on the page, so it is found by name.
+static SGModSettingsRow *ensureDrawerRow(UICollectionView *list) {
+    SGModSettingsRow *row = objc_getAssociatedObject(list, &kRowKey);
+    if (!row) {
+        row = [[SGModSettingsRow alloc] initWithFrame:CGRectZero];
+        row.drawer = YES;
+        objc_setAssociatedObject(list, &kRowKey, row, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    // Spotify can rebuild the collection view's children while keeping the collection view itself.
+    if (row.superview != list) [list addSubview:row];
+    return row;
+}
+
 %hook _TtC23SideDrawer_ListPageImpl18ListViewController
 - (void)viewDidLayoutSubviews {
     %orig;
     SGForEachView(((UIViewController *)self).view, ^(UIView *v) {
         if (![v isKindOfClass:UICollectionView.class] || ![NSStringFromClass(v.class) containsString:@"SideDrawerListCollectionView"]) return;
-        if (objc_getAssociatedObject(v, &kRowKey)) return;
-        SGModSettingsRow *row = [[SGModSettingsRow alloc] initWithFrame:CGRectZero];
-        row.drawer = YES;
-        objc_setAssociatedObject(v, &kRowKey, row, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        [v addSubview:row];
+        ensureDrawerRow((UICollectionView *)v);
     });
 }
 %end
@@ -241,6 +263,11 @@ static BOOL isSettingsRoot(UIViewController *list) {
 - (void)layoutSubviews {
     %orig;
     SGModSettingsRow *row = objc_getAssociatedObject(self, &kRowKey);
+    // The drawer sometimes populates its list after its controller's layout callback.
+    if (!row && [NSStringFromClass(self.class) containsString:@"SideDrawerListCollectionView"])
+        row = ensureDrawerRow(self);
+    else if (row && row.superview != self)
+        [self addSubview:row];
     if (row) placeRow(self, row);
 }
 %end

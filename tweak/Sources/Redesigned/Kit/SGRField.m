@@ -42,6 +42,8 @@ static NSDictionary *noActions(void) {
     NSString *_identity;
     NSUInteger _generation;
     BOOL _read;
+    BOOL _colored;   // a colour of the page's own is showing
+    NSMutableArray<void (^)(void)> *_whenColored;
 }
 
 - (instancetype)initWithFrame:(CGRect)frame {
@@ -188,6 +190,24 @@ static NSDictionary *noActions(void) {
     [NSNotificationCenter.defaultCenter postNotificationName:SGRFieldColorDidChangeNotification object:self userInfo:@{@"color": color}];
 }
 
+- (void)whenColored:(void (^)(void))colored {
+    if (!colored) return;
+    if (_colored) {
+        colored();
+        return;
+    }
+    if (!_whenColored) _whenColored = [NSMutableArray array];
+    [_whenColored addObject:[colored copy]];
+}
+
+- (void)didColor {
+    if (_colored) return;
+    _colored = YES;
+    NSArray<void (^)(void)> *pending = _whenColored;
+    _whenColored = nil;
+    for (void (^colored)(void) in pending) colored();
+}
+
 - (void)setProvisionalColor:(UIColor *)color {
     if (_read || !color) return;
     [self applyColor:SGRFieldColorFor(color) animated:self.window != nil];
@@ -199,6 +219,7 @@ static NSDictionary *noActions(void) {
     if (_preferred && CGColorEqualToColor(fit.CGColor, _preferred.CGColor)) return;
     _preferred = fit;
     [self applyColor:fit animated:self.window != nil];
+    [self didColor];
 }
 
 - (void)setArtwork:(UIImage *)image identity:(NSString *)identity animated:(BOOL)animated {
@@ -224,6 +245,7 @@ static NSDictionary *noActions(void) {
         [self updateMotion];
         // Past the moving field's edges (the pull that dismisses the player) the colour under it goes on.
         [self applyColor:_preferred ?: _flow.baseColor animated:animated];
+        [self didColor];
         return;
     }
     if (_showsBackdrop && !_flows && palette.backdrop) {
@@ -240,6 +262,7 @@ static NSDictionary *noActions(void) {
         [CATransaction commit];
     }
     [self applyColor:_preferred ?: palette.fieldColor animated:animated];
+    [self didColor];
 }
 
 @end

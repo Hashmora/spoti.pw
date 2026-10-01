@@ -68,3 +68,11 @@ Rules:
   transitions down with it. Glass takes the appearance it inherits, and outside Spotify's navigation
   stacks (the tab bar, the now playing bar, the player) that is the system's: set every pane of the
   mod's to `overrideUserInterfaceStyle = UIUserInterfaceStyleDark`, or it goes light in light mode.
+
+## Ending a task
+
+The owner runs about ten sessions at once, each on a different task, and reads each final message with
+no context. End every task with what they have to do next to verify it, as the last thing in the
+message: one sentence, or a short list when there are several steps. Make it stand on its own: the
+command to run (`make install`, a restart), which look and iOS version, which screen to open, and what
+should look or behave differently. When nothing needs checking on their side, say so in one line.

@@ -316,6 +316,64 @@ void SGRRefreshTabBar(void) {
     [sg_navbarRoot setNeedsLayout];
 }
 
+// What the row settled on, logged whenever it changes: `make log` then says whether the items fit,
+// what is holding their width, and in what order the bar ended up.
+void SGRLogTabBarRow(UIView *tabBar) {
+    UIStackView *stack = SGRowIn(tabBar);
+    if (!stack) return;
+    // It runs on every pass of the bar, so the description is only built when the frames moved.
+    NSMutableData *frames = [NSMutableData data];
+    CGRect own[] = {tabBar.frame, stack.frame};
+    [frames appendBytes:own length:sizeof(own)];
+    for (UIView *item in stack.arrangedSubviews) {
+        CGRect frame = item.hidden ? CGRectNull : item.frame;
+        [frames appendBytes:&frame length:sizeof(frame)];
+    }
+    static NSData *lastFrames;
+    if ([frames isEqualToData:lastFrames]) return;
+    lastFrames = frames;
+    NSMutableString *out = [NSMutableString stringWithFormat:@"row in %@ %@, icon %@ label %@, stack %@ axis %ld dist %ld align %ld spacing %.1f autolayout %d",
+                            NSStringFromClass(tabBar.class), NSStringFromCGRect(tabBar.frame),
+                            NSStringFromCGRect(sg_iconBox), NSStringFromCGRect(sg_labelBox), NSStringFromCGRect(stack.frame),
+                            (long)stack.axis, (long)stack.distribution, (long)stack.alignment, stack.spacing,
+                            !stack.translatesAutoresizingMaskIntoConstraints];
+    NSUInteger index = 0;
+    for (UIView *item in stack.arrangedSubviews) {
+        [out appendFormat:@"\n  %lu %@ %@%@ autolayout %d", (unsigned long)index++, NSStringFromClass(item.class),
+             NSStringFromCGRect(item.frame), item.hidden ? @" hidden" : @"",
+             !item.translatesAutoresizingMaskIntoConstraints];
+        for (NSLayoutConstraint *c in item.constraints) {
+            if (c.firstAttribute == NSLayoutAttributeWidth || c.secondAttribute == NSLayoutAttributeWidth) [out appendFormat:@"\n    %@", c];
+        }
+    }
+    for (NSLayoutConstraint *c in stack.constraints) [out appendFormat:@"\n  own %@", c];
+    for (NSLayoutConstraint *c in stack.superview.constraints] {
+        if (c.firstItem == stack || c.secondItem == stack) [out appendFormat:@"\n  held %@", c];
+    }
+    static NSString *last;
+    if ([out isEqualToString:last]) return;
+    last = [out copy];
+    SGLogLong(@"navbar", out);
+}
+
+// Whether Spotify reads its own item list through this ObjC bridge decides whether the bar can be
+// composed at the model level, where the order, the taps and the widths would all follow by
+// themselves, instead of by moving views about. Silence in the log says it cannot.
+%hook _TtC28NavigationUI_TabBarItemsImpl29TabBarItemsNavigationListImpl
+- (NSArray *)items {
+    NSArray *items = %orig;
+    NSMutableString *out = [NSMutableString stringWithFormat:@"list read, %lu items", (unsigned long)items.count];
+    for (id item in items) [out appendFormat:@"\n  %@ · %@", [item valueForKey:@"title"], [item valueForKey:@"viewURI"]];
+    static NSString *last;
+    if (![out isEqualToString:last]) {
+        last = [out copy];
+        SGLogLong(@"navbar", out);
+    }
+    return items;
+}
+%end
+
+
 %ctor {
     if (!SGRedesignedUI()) return;
     %init;

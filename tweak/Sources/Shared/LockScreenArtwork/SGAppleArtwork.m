@@ -190,9 +190,14 @@ static void readToken(void (^done)(NSString *token, NSString *note)) {
             return;
         }
         get([NSURL URLWithString:script relativeToURL:[NSURL URLWithString:kWebPlayer]], nil, ^(NSString *code, NSInteger scriptStatus) {
-            NSString *token = SGAppleTokenIn(code);
-            done(token, token ? [NSString stringWithFormat:@"read, good until %@", SGAppleTokenExpiry(token)]
-                              : [NSString stringWithFormat:@"not in %@ (%ld)", script, (long)scriptStatus]);
+            // The script runs to megabytes, too long to search on the main queue.
+            dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+                NSString *token = SGAppleTokenIn(code);
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    done(token, token ? [NSString stringWithFormat:@"read, good until %@", SGAppleTokenExpiry(token)]
+                                      : [NSString stringWithFormat:@"not in %@ (%ld)", script, (long)scriptStatus]);
+                });
+            });
         });
     });
 }

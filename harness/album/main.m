@@ -244,7 +244,11 @@ static NSString *trailingLabel(UIView *root) {
     UIView *coverElement = box(artRow, UIView.class, CGRectMake(round((W - 248) / 2), 0, 248, 248), nil);
     UIView *cover = box(coverElement, UIView.class, coverElement.bounds, @"CreativeWorkPlatform.Components.UI.ArtWorkElement.WithCoverArt");
     UIImageView *coverPicture = [[UIImageView alloc] initWithFrame:cover.bounds];
-    coverPicture.image = artwork();
+    // `apple` on the launch line: a real album, looked up at Apple Music for its animated cover, with the cover
+    // read from SG_HARNESS_COVER (SIMCTL_CHILD_SG_HARNESS_COVER=<path> before simctl launch).
+    BOOL apple = [NSProcessInfo.processInfo.arguments containsObject:@"apple"];
+    NSString *coverPath = NSProcessInfo.processInfo.environment[@"SG_HARNESS_COVER"];
+    coverPicture.image = (apple && coverPath ? [UIImage imageWithContentsOfFile:coverPath] : nil) ?: artwork();
     coverPicture.contentMode = UIViewContentModeScaleAspectFill;
     coverPicture.clipsToBounds = YES;
     coverPicture.accessibilityIdentifier = @"Encore.ImageView";
@@ -254,15 +258,16 @@ static NSString *trailingLabel(UIView *root) {
     _titleBlock = box(groupStack, UIView.class, CGRectMake(0, 264, 215.33, 57.33), nil);
     _titleStack = box(_titleBlock, UIStackView.class, CGRectMake(16, 0, 183.33, 57.33), nil);
     label(_titleStack, CGRectZero, @"", 17, UIColor.whiteColor, @"CreativeWorkPlatform.Components.UI.PreTitleRow");
-    label(_titleStack, CGRectMake(0, 0, 183.33, 25.33), @"Hurry Up Tomorrow", 21, UIColor.whiteColor,
+    NSString *album = apple ? @"Graduation" : @"Hurry Up Tomorrow", *artist = apple ? @"Kanye West" : @"The Weeknd";
+    label(_titleStack, CGRectMake(0, 0, 183.33, 25.33), album, 21, UIColor.whiteColor,
           @"CreativeWorkPlatform.Components.UI.TitleRow");
     UIView *parentElement = box(_titleStack, UIView.class, CGRectMake(0, 33.33, 96, 24), nil);
     UIView *parentRow = box(parentElement, MockEncoreButton.class, parentElement.bounds, @"CreativeWorkPlatform.Components.UI.ParentRow");
-    parentRow.accessibilityLabel = @"The Weeknd";
+    parentRow.accessibilityLabel = artist;
     UIView *avatar = box(parentRow, UIView.class, CGRectMake(0, 0, 24, 24), @"Encore.ImageView");
     avatar.backgroundColor = [UIColor colorWithWhite:0.8 alpha:1];
     avatar.layer.cornerRadius = 12;
-    label(parentRow, CGRectMake(32, 4.33, 72, 15.33), @"The Weeknd", 11, UIColor.whiteColor, @"Encore.Label");
+    label(parentRow, CGRectMake(32, 4.33, 72, 15.33), artist, 11, UIColor.whiteColor, @"Encore.Label");
 
     UIView *bottomGroup = box(outer, UIView.class, CGRectMake(0, 329.33, W, 71.33), nil);
     UIStackView *bottomStack = (UIStackView *)box(bottomGroup, UIStackView.class, bottomGroup.bounds, nil);

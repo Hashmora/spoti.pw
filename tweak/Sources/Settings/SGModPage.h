@@ -39,6 +39,11 @@
 @property (nonatomic, copy) double (^number)(void);
 @property (nonatomic, copy) void (^setNumber)(double value);
 @property (nonatomic, copy) NSString *(^format)(double value);
+// A row whose value moves along with something going on (a download): a thin bar along its bottom shows
+// `progress` while it answers 0...1 and goes while it answers less, and whenever `refreshOn` is posted
+// the page reads its rows out again and asks which of them show, rather than waiting for its next tick.
+@property (nonatomic, copy) double (^progress)(void);
+@property (nonatomic, copy) NSNotificationName refreshOn;
 @end
 
 @interface SGModSection : NSObject

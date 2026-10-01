@@ -110,16 +110,38 @@ Shared:
                   shape the key wants (Apple's 3:4 cover needs none) and kept under a 120 MB cap. Checked on
                   the Mac against harness/lockart/
     Navigation/   the page transition fix (PageTransition.x) and opening a spotify: link (Links.x)
+    ConnectDiscovery/  Bonjour resolves local Spotify Connect receivers. When Spotify's own mDNS send
+                  fails without the multicast entitlement, a bounded round sends its query by IPv4/IPv6
+                  unicast to all resolved receivers and replays validated replies to Spotify's socket.
+                  A short wait also catches receivers still resolving. Connected sockets are left alone.
+                  The IPA declares Connect and Google Cast Bonjour service types; pipeline.sh keeps the
+                  IPA's existing types. This bridge handles Connect only; Cast is Bonjour-declared but
+                  has no equivalent packet bridge here.
+    Audio/        the mixer connection and RemoteIO render notify owned once (SGAudioPipeline.x): fixed processor slots
+                  run speed and pitch, audio effects, then music haptics. Graph changes and disposal exclude active pulls;
+                  the render thread never waits for them. Unsupported formats retain Spotify's connection. The PCM
+                  packet queue is bounded and generation-stamped. Sing's source read-ahead reads guarded queue metadata
+                  for the verified Spotify binary; PCM still comes through its AudioUnit. Boundary tests are in harness/audio/ and harness/sing/
+    Sing/         the local Core ML separator, source-domain audio adapter, worker and player lifecycle, from iOS 27. Core ML
+                  uses the GPU in the foreground and its warm CPU model in the background. The audible
+                  clock follows emitted source samples while delayed audio drains. Model loading overlaps source capture;
+                  verified continuous next-track PCM keeps its worker and reserve across a natural transition.
+                  Redesigned/Lyrics owns the Now Playing microphone control and Mod Settings' Karaoke page. The voice
+                  model (about 470 MB) is not in the IPA: SGSingModel.m downloads its files from the model host in a
+                  background URL session, checks each against a size and a SHA-256 pinned in the code, and moves
+                  them into Application Support/spoti.pw/Sing only when all are right (SingModel.x reconnects at
+                  launch). Tested against harness/sing/ (the download against a local server, model_test.py)
     Player/       the player's open and close announced (PlayerEvents.x), what the player is doing read through
                   one hook for every feature that wants it (PlayerState.x), the lock screen widget's flags, and in the
                   more button's menu Speed and pitch: both done to Spotify's audio by Apple's time and pitch unit, put
-                  between its mixer and its RemoteIO unit by taking over the connection Spotify makes between them
-                  (SpeedPitchMenu.x, SpeedPitch.x, SGTimePitch.m). The block goes into Spotify's own context menu sheet
+                  between its mixer and its RemoteIO unit through Audio/SGAudioPipeline's connection
+                  (SpeedPitchMenu.x, SpeedPitch.x, SGTimePitch.m). With Pitch follows speed on (the default, stored) the pitch
+                  slider folds away and Apple's varispeed takes the unit's place: the song resampled like a record, no
+                  time stretch to smear it. The block goes into Spotify's own context menu sheet
                   and is drawn from its own measures, not the Kit's, so it sits there under either look. Tested on the
                   Mac against harness/pitch/ and in the simulator against harness/speed/ and harness/menu/
-    AudioEffects/ the audio effects on Spotify's sound (AudioEffects.h has the keys and the page's calls): Spotify's
-                  import of AudioOutputUnitStart is rebound, as Music Haptics does, and a render notify on its RemoteIO
-                  unit runs each finished buffer through the mod's own engine, re-blocked to 1024 frames one block late,
+    AudioEffects/ the audio effects on Spotify's sound (AudioEffects.h has the keys and the page's calls): Audio/SGAudioPipeline's
+                  ordered output processor runs each finished buffer through the mod's own engine, re-blocked to 1024 frames one block late,
                   in place (AudioEffects.x, SGDSPEngine.m). The buffers are in the unit's output format, the
                   hardware's, not the client format Spotify sets. The effects are the SGDSP*.m files, on Accelerate,
                   Apple's Reverb2 unit, libbs2b and EEL2 (vendor/audio). Settings apply as they change, on a queue of
@@ -129,8 +151,8 @@ Shared:
     Haptics/      Vibrations (Haptics.h lists its files): a tap of UIKit's feedback generators for the player's and the now
                   playing bar's controls, the scrubber's tenths and ends, cover swipes, gestures and the lyrics page's tap to
                   seek, at the strength set for them (ControlHaptics.x, SGFeedback.m); and Music Haptics, Core Haptics
-                  playing along with the song: Spotify's import of AudioOutputUnitStart is rebound so its RemoteIO output
-                  unit gets a render notify, the samples, in the unit's output format (the hardware's), go through a drum
+                  playing along with the song: Audio/SGAudioPipeline supplies final samples after speed, pitch and audio effects;
+                  in the unit's output format (the hardware's), they go through a drum
                   and bass analyzer on the render thread (SGMusicAnalyzer.m, plain C), and a thread of its own schedules
                   the taps and the rumble for when the sound is heard, at their strength and leaving out what Follows
                   leaves out (MusicHaptics.x). Everything applies at once; nothing plays while Spotify is not the active
@@ -162,17 +184,42 @@ Redesigned:
 
     Kit/          what the redesign builds on (SGRKit.h lists it), the flags it forces (SGRedesign.h, SGRGlassDesign.x for
                   Spotify's own glass design), its repaint hook (SGRRepaint.x), soft top edge, AMOLED black (always on,
-                  SGRAmoled.x) and its own accent colour (SGRAccent.x, stored apart from the native look's)
-    Navbar/       the glass tab bar (TabBar.x) over its own composition (Navbar.x, NavbarLayout.m) and editor, the glass search field.
+                  SGRAmoled.x) and its own accent colour (SGRAccent.x, stored apart from the native look's); and
+                  the curtain the playlist, album and artist pages come in behind (SGRReveal.h): black over the
+                  whole page from its first pass until the picture, the field's colour, the header with Play and
+                  the first track with its text are all in, and then the page fades in from behind it in one
+                  go -- the field brightening into the page's colour, the rest fading in where it is, nothing
+                  moving -- so it no longer arrives a piece at a time; after 1.2 s it shows whatever is missing, and
+                  the back button, being the system's navigation bar, is there throughout
+    Navbar/       the glass tab bar (TabBar.x) over its own composition (Navbar.x, NavbarLayout.m) and editor, with the fade to
+                  black over the pages behind the bars that Spotify's bar drew; the glass search field.
                   Spotify is made to leave the glass bar its height where its own bar is shorter (a phone with a home button,
                   Offline or Private Session under the bar), so the now playing bar and the pages move up with it. Laid out on
                   the Mac against harness/tabbar/
     NowPlayingBar/ the glass now playing bar (NowPlayingBar.x), with Spotify's device button on it hidden on request
                   (BarConnect.x, its own key and its own Now playing page, apart from the native look's)
-    Player/       the redesigned full screen player (Player.h lists its files); its more button is handed to
-                  Shared/Player's Speed and pitch, which draws in the menu it opens
+    Player/       the redesigned full screen player (Player.h lists its files); its ⋯ opens a menu the way the
+                  Music app draws one (PlayerMenu.x, SGRPlayerMenu.m): a pane of glass grown out of the button,
+                  Add to playlist, Add to Queue and Share as three tiles across its top, groups of rows under
+                  them, Speed and pitch opening onto Shared/Player's sliders in place, everything else Spotify
+                  offers under More, and Remove from this playlist last in red. What is in it and what each row
+                  does stay Spotify's: its own sheet still opens, out of sight, and the menu is read off its
+                  table, each row placed by the number Spotify's ListRow carries as its identifier and fired
+                  through that ListRow; a page Spotify pushes onto the sheet (Share's destinations) shows the
+                  sheet, and a sheet with no rows within 4 s is shown as it is. It opens on the rows the last
+                  menu had, kept across launches, and moves to Spotify's as they come in, a tap meanwhile held
+                  until they do. Always on in the redesign. Tested in the simulator against harness/playermenu/
+                  With Sing on and its voice model downloaded (Mod Settings > Karaoke, Redesigned/Lyrics/SingSettings.m,
+                  both applying at once), its microphone (Redesigned/Lyrics/SGRSingControl.m) sits in the
+                  lyrics' bottom trailing corner, opposite their glass button, and goes down with the lines when the
+                  controls go; while it is open, preparing or explaining itself the controls stay, and a touch on it
+                  does not bring them back. What Sing is doing shows on the button, not in words: a ring turning
+                  round the microphone while it prepares or recovers, a white fill up to the vocal level while it is
+                  on, glass when it is off and a dimmed microphone when it has stopped
     Lyrics/       the full screen lyrics page on glass with Apple Music style lyrics over it, always on (SGRKaraokeView,
-                  which the player shows in itself too, Player/PlayerLyrics.x): lines sung over each other lit together,
+                  which the player shows in itself too, Player/PlayerLyrics.x, where after four seconds untouched while
+                  the song plays the controls fade out and the lines take the whole player, until a touch or a pause
+                  brings the controls back; the tap that does so seeks nowhere): lines sung over each other lit together,
                   the stack moving on once the first is sung out; an instrumental break of 7 s or more held by three dots
                   that breathe and fill over its length on a Core Animation timeline laid against the song's clock; and
                   a line's pronunciation (under the words it spells) and translation, switched on from a glass button in
@@ -254,14 +301,17 @@ look AMOLED (the redesign is always black); Spotify's green is offered from the 
 is set. Redesigned UI is the one switch between the two looks (see Layers): it glows
 (Settings/SGGlowSwitch), its ⓘ says what it changes, and flipping it offers to restart Spotify.
 The pages show only what the stored look has: a page opened after flipping the switch already shows
-what the restart will bring. Then a card of parts. Navbar: the tab editor of the stored look, each with
-its own list of tabs. Player: Gestures, Lyrics (the ordered list of lyrics sources, lyrics for every track,
+what the restart will bring. In the redesign Karaoke comes next, on a card of its own: Sing's switch and its
+voice model's download (Redesigned/Lyrics/SingSettings.m), with Off, On, No model or the download's percentage
+beside the row, "Needs iOS 27" below iOS 27. Then a card of parts. Navbar: the tab editor of the stored look,
+each with its own list of tabs. Lyrics, beside Player: the ordered list of lyrics sources, lyrics for every track,
 naming the source in the redesign, the lock screen, and glass lyrics in the native look; in the redesign also
-which of the lyrics, their pronunciation and their translation is set largest, and the translation's language), Blocked artists (with the count on the row) and Lock screen widget (its controls and, under Artwork, Animated lock screen, the track's Canvas or the album's Apple Music cover played behind the lock screen's controls, on until switched off, with a Sources page for their order, and a "Needs iOS 26" row below that), which work with either look;
+which of the lyrics, their pronunciation and their translation is set largest, and the translation's language.
+Player: Gestures, Blocked artists (with the count on the row) and Lock screen widget (its controls and, under Artwork, Animated lock screen, the track's Canvas or the album's Apple Music cover played behind the lock screen's controls, on until switched off, with a Sources page for their order, and a "Needs iOS 26" row below that), which work with either look;
 in the native look also Now playing bar (its device button and its flags), Queue & devices, and
 Spotify's own player screen (artwork background, glass header buttons, Disable Canvas and the sheet,
 header, slider and sticky header flags, the cards under the player and the lyrics preview and player
-buttons to hide); in the redesign instead Now playing (its device button). Then Vibrations under either look, a card for
+buttons to hide); in the redesign instead Now playing (its device button and the moving background). Then Vibrations under either look, a card for
 Controls (on until switched off) and one for Music Haptics (off until switched on, with an ⓘ saying it
 follows the sound this iPhone plays while Spotify is open), each opening out while its switch is on:
 Controls into its Strength (10 to 100%, a tap at the new strength with each step), Music Haptics into its
