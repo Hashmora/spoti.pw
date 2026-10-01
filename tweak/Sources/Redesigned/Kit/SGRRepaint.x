@@ -34,8 +34,22 @@ static BOOL isChipFill(UIView *view) {
     return [NSStringFromClass(view.superview.class) isEqualToString:@"EncoreConsumerMobile_BaseKit.FilterChipView"];
 }
 
+// The opaque backing Spotify paints the library's pinned header with (#121212, black under the AMOLED hook,
+// trees/continuous/1.txt 2026-10-02). Library/LibraryHeader.x puts a black plate behind the title row alone
+// so the filter chips can be glass over the list; this keeps Spotify's own paint from covering them again
+// on its passes. Size first, name second: this runs for every colour any layer is given.
+static BOOL isLibraryHeader(UIView *view) {
+    CGSize size = view.bounds.size;
+    if (size.width < 300 || size.height < 100 || size.height > 260) return NO;
+    return [NSStringFromClass(view.class) hasSuffix:@"YourLibraryHeaderView"];
+}
+
 %hook CALayer
 - (void)setBackgroundColor:(CGColorRef)color {
+    if (color && CGColorGetAlpha(color) > 0.5) {
+        UIView *header = (UIView *)self.delegate;
+        if ([header isKindOfClass:UIView.class] && header.layer == self && isLibraryHeader(header)) color = NULL;
+    }
     if (isNeutralTint(color)) {
         UIView *fill = (UIView *)self.delegate;
         if ([fill isKindOfClass:UIView.class] && fill.layer == self && isChipFill(fill)) color = NULL;

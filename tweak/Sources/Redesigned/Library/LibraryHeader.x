@@ -9,6 +9,8 @@
 // it and the list keeps Spotify's own inset, and there is nothing here to resize or to hold. Only the paint
 // changes: an unselected chip's flat grey fill goes (SGRRepaint.x holds it clear when Spotify paints it back)
 // and a glass capsule stands behind it, like the header's round buttons; a selected chip keeps its own colour.
+// The header's own backing ends under the title row and the list runs up under the chips (plateRow, raiseList),
+// so the glass has the rows to show; the root library only, a folder's header is left as Spotify's.
 //
 // Tree (trees/clean/library/03.txt:1159-1247): YourLibraryView holds YourLibraryContentView, the size of the
 // page, and after it -- so over it -- YourLibraryHeaderView 402x159.33: LiquidGlass.GradientView (the scrim), a
@@ -57,6 +59,7 @@ static char kRecentsKey, kSearchKey, kPlusKey, kHeaderTitleKey;
 static char kRoundGlassKey;
 static char kBackKey, kMenuKey, kFolderPlusKey, kPlayKey, kPauseKey, kFolderTitleKey;
 static char kChipsKey, kChipGlassKey;
+static char kPlateKey, kContentKey, kListKey, kInsetKey;
 
 static void vanish(UIView *view) {
     if (!view) return;
@@ -271,12 +274,71 @@ static void glassChips(UIView *header) {
     });
 }
 
+#pragma mark - the backing behind the title row only
+
+// Spotify backs the whole header, chips row included, with an opaque surface, and lays the list out below
+// it, so the chips' glass had nothing but black behind it. The header's own paint goes (SGRRepaint.x holds it
+// clear), a black plate stands behind the title row alone, and the list is stretched up under the chips row
+// with an inset of the same height, so its first row still starts below the chips and the rest scroll under
+// the glass. The chips row is YourLibraryHeaderContentFiltersView {0, 95} 390x52 of the 390x147 header.
+static void plateRow(UIView *header, UIView *filters) {
+    CGFloat edge = CGRectGetMinY(filters.frame);
+    if (edge < 1) return;
+    if (header.layer.backgroundColor) header.layer.backgroundColor = NULL;
+    UIView *plate = objc_getAssociatedObject(header, &kPlateKey);
+    if (!plate) {
+        plate = [UIView new];
+        plate.backgroundColor = UIColor.blackColor;
+        plate.userInteractionEnabled = NO;
+        plate.accessibilityElementsHidden = YES;
+        objc_setAssociatedObject(header, &kPlateKey, plate, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    if (header.subviews.firstObject != plate) [header insertSubview:plate atIndex:0];
+    CGRect frame = CGRectMake(0, 0, header.bounds.size.width, edge);
+    if (!CGRectEqualToRect(plate.frame, frame)) plate.frame = frame;
+}
+
+// The list's page view moved up to the chips row and made taller by as much, and the list's top inset
+// raised by the same: Spotify's own is read off the list and kept, and put back on whenever Spotify sets
+// the inset again (told by the value not being the one written here). A list at its top stays at its top.
+static void raiseList(UIView *page, UIView *header, UIView *filters) {
+    CGFloat edge = CGRectGetMinY(filters.frame);
+    CGFloat extra = header.bounds.size.height - edge;
+    if (edge < 1 || extra < 1) return;
+    UIView *content = SGRFindByIdentifier(page, @"YourLibraryContent.collectionView", &kContentKey).superview;
+    if (!content || ![NSStringFromClass(content.class) hasSuffix:@"YourLibraryContentView"]) return;
+
+    CGRect frame = CGRectMake(0, edge, page.bounds.size.width, page.bounds.size.height - edge);
+    if (!CGRectEqualToRect(content.frame, frame)) content.frame = frame;
+
+    UIView *found = SGRFindByIdentifier(content, SGRLibraryListIdentifier, &kListKey);
+    if (![found isKindOfClass:UIScrollView.class]) return;
+    UIScrollView *list = (UIScrollView *)found;
+    NSNumber *written = objc_getAssociatedObject(list, &kInsetKey);
+    UIEdgeInsets inset = list.contentInset;
+    if (written && fabs(inset.top - written.doubleValue) < 0.5) return;
+
+    BOOL atTop = list.contentOffset.y <= -list.adjustedContentInset.top + 1;
+    inset.top += extra;
+    list.contentInset = inset;
+    UIEdgeInsets bar = list.verticalScrollIndicatorInsets;
+    if (bar.top < extra) { bar.top += extra; list.verticalScrollIndicatorInsets = bar; }
+    if (atTop) list.contentOffset = CGPointMake(list.contentOffset.x, -list.adjustedContentInset.top);
+    objc_setAssociatedObject(list, &kInsetKey, @(inset.top), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    SGLog(@"redesign library: list raised under the chips by %.0fpt, top inset %.1f", extra, inset.top);
+}
+
 static void layoutRoot(UIView *page) {
     UIView *header = childNamed(page, @"YourLibraryHeaderView");
     if (!header) return;
     [header layoutIfNeeded];
     SGRLibraryClearScrim(header);
     glassChips(header);
+    UIView *filters = childNamed(header, @"YourLibraryHeaderContentFiltersView");
+    if (filters && header.bounds.size.height > 1) {
+        plateRow(header, filters);
+        raiseList(page, header, filters);
+    }
 
     NSArray<UIView *> *trailing = placeRoot(header);
     if (!trailing.count) return;
