@@ -347,7 +347,7 @@ void SGRLogTabBarRow(UIView *tabBar) {
         }
     }
     for (NSLayoutConstraint *c in stack.constraints) [out appendFormat:@"\n  own %@", c];
-    for (NSLayoutConstraint *c in stack.superview.constraints] {
+    for (NSLayoutConstraint *c in stack.superview.constraints) {
         if (c.firstItem == stack || c.secondItem == stack) [out appendFormat:@"\n  held %@", c];
     }
     static NSString *last;
