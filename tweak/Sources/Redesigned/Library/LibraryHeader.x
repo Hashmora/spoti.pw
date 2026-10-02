@@ -58,7 +58,7 @@ static char kTitleKey, kRowWatchedKey;
 static char kRecentsKey, kSearchKey, kPlusKey, kHeaderTitleKey;
 static char kRoundGlassKey;
 static char kBackKey, kMenuKey, kFolderPlusKey, kPlayKey, kPauseKey, kFolderTitleKey;
-static char kChipsKey, kChipGlassKey;
+static char kChipsKey, kChipGlassKey, kChipWatchedKey;
 static char kPlateKey, kContentKey, kListKey, kInsetKey;
 
 static void vanish(UIView *view) {
@@ -262,6 +262,18 @@ static void glassChip(UIView *chip) {
     SGRGlassCapsuleInside(chip, &kChipGlassKey, size, NO);
 }
 
+// Picking a filter makes the chips' collection lay them out again at new widths (the selected one grows, the
+// others move or are reused), which reaches neither the header nor the page, so the glass kept the width it was
+// given on the last page pass: a capsule too narrow or too wide for its chip, cut by the cell's clip, until the
+// next tap laid the page out again. The chip is watched for its own layout and its glass is sized again on every
+// pass of it (the legacy glass builds its mesh for a size, so autoresizing alone would not follow).
+static void watchChip(UIView *chip) {
+    if (objc_getAssociatedObject(chip, &kChipWatchedKey)) return;
+    if (SGRObserveLayout(chip, ^(UIView *view) { glassChip(view); })) {
+        objc_setAssociatedObject(chip, &kChipWatchedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+}
+
 // Playlists / Podcasts / Albums / Artists: each chip is Components.UI.FilterChips' own FilterChipView, a flat
 // capsule unselected, unlike every other capsule the redesign gives a row of controls. Walked rather than
 // hooked -- the class is a Swift one with no mangled name in the tree to hook by. The fill's repaint is
@@ -270,7 +282,9 @@ static void glassChips(UIView *header) {
     UIView *chips = SGRFindByIdentifier(header, @"Components.UI.FilterChips", &kChipsKey);
     if (!chips) return;
     SGForEachView(chips, ^(UIView *v) {
-        if ([NSStringFromClass(v.class) isEqualToString:@"EncoreConsumerMobile_BaseKit.FilterChipView"]) glassChip(v);
+        if (![NSStringFromClass(v.class) isEqualToString:@"EncoreConsumerMobile_BaseKit.FilterChipView"]) return;
+        glassChip(v);
+        watchChip(v);
     });
 }
 
