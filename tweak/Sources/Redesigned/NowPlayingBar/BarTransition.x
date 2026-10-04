@@ -26,12 +26,9 @@
 // not. It comes back when the stand-in leaves its window, or after a failsafe. The player bar's real
 // view is left alone: Spotify hides that one itself.
 //
-// On the close the real tab bar is shown again before the stand-in leaves, not when it does: a view that has
-// been hidden has to capture its backdrop afresh, so a bar shown only in the turn the stand-in goes took a
-// frame to draw its glass, and the bar was seen to blink out and back. The stand-in settles onto the real bar's
-// place at the end of the close, so the real one is shown under it once it is back within a few points of it
-// (having been away first, so the open, which starts there, does not count), and has its glass drawn by the
-// time the stand-in is taken down.
+// The real tab bar is kept at an alpha of 0.02, not hidden: a view that has been hidden has to capture its
+// backdrop afresh when it comes back, and on the close that took a frame, so the bar blinked out and back
+// when the stand-in left. At that alpha it is not seen under the stand-in's glass and keeps drawing its own.
 //
 // MainUI_TabBarUIImpl.CompactOverlayTransition is a Swift animator with the same stand-ins
 // (npbSnapshotView, tabBarSnapshotView); which of the two 9.1.78 runs is not known, so both are hooked
@@ -115,7 +112,6 @@ static CGRect scaledFrame(UIView *pane, UIView *source, CGSize to) {
 @property (nonatomic) BOOL hideRealBar;                  // the real bar must not show under the stand-in
 @property (nonatomic) BOOL watchOnly;                     // the glass already sits inside the stand-in
 @property (nonatomic) BOOL seen;                          // the stand-in has been in a window
-@property (nonatomic) BOOL departed;                     // the stand-in has been away from the real bar's place
 @property (nonatomic) NSUInteger waited;
 @property (nonatomic) CFTimeInterval born;
 @end
@@ -127,17 +123,25 @@ static NSMutableSet<SGStandInGlass *> *sg_followers;
 // (letting go of a drag makes Spotify's transition hand over a fresh one while the first is still being
 // taken down). With a plain hidden flag the second found the view already hidden and took no part in
 // it, and the first one's restore then showed the real bar under the second stand-in.
+// "Hidden" is an alpha of kHiddenAlpha, so the view's glass keeps drawing; the alpha it had comes back.
+static const CGFloat kHiddenAlpha = 0.02;
 static NSMapTable<UIView *, NSNumber *> *sg_hiddenCounts;
+static NSMapTable<UIView *, NSNumber *> *sg_savedAlpha;
 
 static BOOL hiddenByUs(UIView *view) {
     return [sg_hiddenCounts objectForKey:view] != nil;
 }
 
 static void hideCounted(UIView *view) {
-    if (!sg_hiddenCounts) sg_hiddenCounts = [NSMapTable weakToStrongObjectsMapTable];
+    if (!sg_hiddenCounts) {
+        sg_hiddenCounts = [NSMapTable weakToStrongObjectsMapTable];
+        sg_savedAlpha = [NSMapTable weakToStrongObjectsMapTable];
+    }
     NSUInteger count = [sg_hiddenCounts objectForKey:view].unsignedIntegerValue;
     [sg_hiddenCounts setObject:@(count + 1) forKey:view];
-    view.hidden = YES;
+    if (count) return;
+    [sg_savedAlpha setObject:@(view.alpha) forKey:view];
+    [UIView performWithoutAnimation:^{ view.alpha = kHiddenAlpha; }];
 }
 
 static void showCounted(UIView *view) {
@@ -146,8 +150,10 @@ static void showCounted(UIView *view) {
         [sg_hiddenCounts setObject:@(count - 1) forKey:view];
         return;
     }
+    CGFloat alpha = [sg_savedAlpha objectForKey:view] ? [sg_savedAlpha objectForKey:view].doubleValue : 1;
     [sg_hiddenCounts removeObjectForKey:view];
-    view.hidden = NO;
+    [sg_savedAlpha removeObjectForKey:view];
+    [UIView performWithoutAnimation:^{ view.alpha = alpha; }];
 }
 
 static void startWatch(void);
@@ -206,22 +212,6 @@ static void startWatch(void);
     for (UIView *v in hid) showCounted(v);
 }
 
-// The real bar goes back on screen under the stand-in once the stand-in has come home to it (see the top).
-- (void)showRealWhenBack:(UIView *)snapshot in:(UIView *)parent {
-    UIView *source = self.source;
-    if (!source.superview) return;
-    CGRect shown = (snapshot.layer.presentationLayer ?: snapshot.layer).frame;
-    CGRect real = [source.superview convertRect:source.frame toView:parent];
-    if (fabs(CGRectGetMidX(shown) - CGRectGetMidX(real)) > 3 || fabs(CGRectGetMidY(shown) - CGRectGetMidY(real)) > 3) {
-        self.departed = YES;
-        return;
-    }
-    if (!self.departed) return;
-    [self restoreReal];
-    static NSUInteger logged;
-    if (logged++ < 4) SGLog(@"player transition: real tab bar shown under its stand-in as it settled");
-}
-
 - (void)attachTo:(UIView *)parent below:(UIView *)snapshot {
     UIView *source = self.source;
     if (!self.holder) {
@@ -247,7 +237,6 @@ static void startWatch(void);
         if (self.seen || ++self.waited > 30) [self stop];
         return;
     }
-    if (self.hideRealBar && self.hidden.count) [self showRealWhenBack:snapshot in:parent];
     if (self.watchOnly) return;
     if (self.holder.superview != parent) [self attachTo:parent below:snapshot];
     // The presentation layer is where the stand-in is drawn right now, mid-animation included.
