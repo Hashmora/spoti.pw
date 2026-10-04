@@ -56,3 +56,8 @@ void SGRClearSheetCellPaint(UIView *cell, UIView *root);
 // Whether `view` is a card the sheet draws on purpose (a SwiftUI shape, or a narrower rounded fill) rather than
 // the grey of a wrapper: SGRGlassSheetChrome and the repaint hook leave these alone.
 BOOL SGRIsSheetCard(UIView *view);
+
+// The translucent white a SwiftUI card of a sheet (the device picker's, #292929 opaque) is painted instead,
+// and whether `view` is such a card.
+CGColorRef SGRSheetCardFill(void);
+BOOL SGRIsSwiftUICard(UIView *view);

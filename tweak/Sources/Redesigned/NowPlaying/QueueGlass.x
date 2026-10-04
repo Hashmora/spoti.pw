@@ -49,6 +49,11 @@ static void chrome(UIViewController *controller) {
     chrome((UIViewController *)self);
 }
 
+- (void)viewWillAppear:(BOOL)animated {
+    %orig;
+    chrome((UIViewController *)self);
+}
+
 - (void)viewDidAppear:(BOOL)animated {
     %orig;
     __weak UIViewController *weak = (UIViewController *)self;

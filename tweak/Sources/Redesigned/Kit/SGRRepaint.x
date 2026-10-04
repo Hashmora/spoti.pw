@@ -68,6 +68,9 @@ static BOOL isLibraryHeader(UIView *view) {
                 color = NULL;
             } else if (SGIsBaseSurface(color) && (SGIsInside(view, sgr_playlistRoot) || SGIsInside(view, sgr_albumRoot) || SGIsInside(view, sgr_artistRoot))) {
                 color = NULL;
+            } else if (SGRIsSwiftUICard(view) && SGRIsSheetSurface(color) && SGIsInside(view, sgr_sheetChromeRoot)) {
+                // The device picker's cards: translucent rather than an opaque grey on the glass.
+                color = SGRSheetCardFill();
             } else if (SGIsVisibleColor(color) && SGRIsSheetChromeArea(view, sgr_sheetChromeRoot) && !SGRIsSheetCard(view)) {
                 color = NULL;
             } else if (SGRIsSheetSurface(color) && !SGRIsSheetCard(view) && SGIsInside(view, sgr_sheetChromeRoot)
@@ -90,6 +93,32 @@ static BOOL isLibraryHeader(UIView *view) {
     %orig;
     UIView *root = sgr_sheetChromeRoot;
     if (root && SGIsInside((UIView *)self, root)) SGRClearSheetCellPaint((UIView *)self, root);
+}
+%end
+
+// Paint that lands before the layer hook can place it: a view given its grey while it has no parent yet, or
+// through UIKit's own setter, is not inside the sheet when it is painted. That is the grey seen for a moment
+// when the queue opens and cleared a beat later by the next chrome pass. These two catch it as it is set and
+// as it is attached, so it is never drawn. Gated on one pointer, so every other screen pays a load and a test.
+static BOOL isSheetPaint(UIView *view, CGColorRef color) {
+    UIView *root = sgr_sheetChromeRoot;
+    if (!root || root.bounds.size.width < 1 || !SGRIsSheetSurface(color)) return NO;
+    if (SGKeepsColor(view) || SGRIsSheetCard(view) || !SGIsInside(view, root)) return NO;
+    return SGRIsSheetChromeArea(view, root) || view.bounds.size.width >= root.bounds.size.width * 0.75;
+}
+
+%hook UIView
+- (void)setBackgroundColor:(UIColor *)color {
+    if (sgr_sheetChromeRoot && color && isSheetPaint((UIView *)self, color.CGColor)) color = UIColor.clearColor;
+    %orig(color);
+}
+
+- (void)didMoveToSuperview {
+    %orig;
+    if (!sgr_sheetChromeRoot) return;
+    UIView *view = (UIView *)self;
+    CGColorRef paint = view.layer.backgroundColor;
+    if (paint && isSheetPaint(view, paint)) view.backgroundColor = UIColor.clearColor;
 }
 %end
 

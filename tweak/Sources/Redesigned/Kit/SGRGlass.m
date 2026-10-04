@@ -169,7 +169,25 @@ BOOL SGRIsSheetCard(UIView *view) {
     return view.layer.cornerRadius >= 1 && view.bounds.size.height > 4 && view.bounds.size.width < 380;
 }
 
+// The device picker's cards are SwiftUI shapes painted an opaque #292929, which on the glass are the one
+// grey left in the sheet. They become a translucent white, the same family as the Connect button's 10%.
+CGColorRef SGRSheetCardFill(void) {
+    static CGColorRef fill;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ fill = CGColorRetain([UIColor colorWithWhite:1 alpha:0.12].CGColor); });
+    return fill;
+}
+
+BOOL SGRIsSwiftUICard(UIView *view) {
+    return [NSStringFromClass(view.class) hasPrefix:@"SwiftUI"];
+}
+
+static void tintCard(UIView *view) {
+    if (SGRIsSwiftUICard(view) && SGRIsSheetSurface(view.layer.backgroundColor)) view.layer.backgroundColor = SGRSheetCardFill();
+}
+
 static void clearFill(UIView *view) {
+    tintCard(view);
     if (!SGKeepsColor(view) && !SGRIsSheetCard(view) && SGIsVisibleColor(view.layer.backgroundColor)) view.layer.backgroundColor = NULL;
 }
 
@@ -192,6 +210,7 @@ static const CGFloat kSheetBandShare = 0.75;
 
 static void clearListPaint(UIView *view, CGFloat wide, int depth) {
     if (!view || depth > 12 || wide < 1) return;   // wide 0: the sheet is not laid out yet; the next pass does it
+    tintCard(view);
     if (!SGKeepsColor(view) && !SGRIsSheetCard(view) && view.bounds.size.width >= wide && SGRIsSheetSurface(view.layer.backgroundColor)) {
         // Written through the view so its own backgroundColor and the layer say the same thing.
         view.backgroundColor = UIColor.clearColor;
@@ -224,7 +243,7 @@ static void stripSheetChrome(UIView *view, UIView *skip, CGFloat wide, int depth
 // nearly sharp (blur 2) and took the eye off the sheet. So the pane blurs far more and carries a dark body
 // and a hairline edge, which is what tells it from a plain blur -- the rim catching light, over a body dense
 // enough to hold the content. Under Reduce Transparency the body is the solid fill alone.
-static const CGFloat kSheetBlur = 28;
+static const CGFloat kSheetBlur = 20;
 static char kSheetBodyKey, kSheetRimKey;
 
 static void thickenSheetGlass(UIView *glass, UIView *sheet) {
