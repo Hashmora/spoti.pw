@@ -1,7 +1,9 @@
 // Now playing redesign: glass for the queue sheet and its controls. Clear and Edit (QueueHeaderView's
 // PillButton) and the edit-mode toolbar's Move up / Remove / Clear selection are flat 10%-white capsules,
 // like the playlist's sort/find toolbar (trees/continuous/8.txt). The sheet itself (id=sheet-view, as in
-// the ⋯ context menu) gets its pane from SGRGlassSheetChrome, the call Playlist/PlaylistMenu.x makes too.
+// the ⋯ context menu) gets its pane from SGRGlassSheetChrome, the call Playlist/PlaylistMenu.x makes too. That
+// call also clears the grey (#1F1F1F) of the queue's table and rows, and the Kit's repaint hook keeps it
+// clear (trees/continuous 2026-10-05: the list stayed opaque under a glass header and footer).
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
 

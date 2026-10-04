@@ -43,3 +43,12 @@ UIView *SGRGlassSheetChrome(UIView *content);
 // Whether `view` is chrome of the sheet rooted at `root` (sgr_sheetChromeRoot) rather than a row or card
 // inside the sheet's own list.
 BOOL SGRIsSheetChromeArea(UIView *view, UIView *root);
+
+// The opaque dark grey (up to 0.20 bright, grey, alpha >= 0.95) Spotify paints a sheet's rows and wrappers
+// with: #1F1F1F, which SGIsBaseSurface (the page black, up to 0.10) does not take for paint.
+BOOL SGRIsSheetSurface(CGColorRef color);
+
+// Clears the bands a row of the sheet's list paints (the cell, the stacks in it nearly as wide as the sheet
+// `root`). For a cell that comes into the sheet after the chrome was stripped: scrolled in, reused, or
+// dragged. Safe to call on every layout pass.
+void SGRClearSheetCellPaint(UIView *cell, UIView *root);

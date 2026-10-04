@@ -70,10 +70,26 @@ static BOOL isLibraryHeader(UIView *view) {
                 color = NULL;
             } else if (SGIsVisibleColor(color) && SGRIsSheetChromeArea(view, sgr_sheetChromeRoot)) {
                 color = NULL;
+            } else if (SGRIsSheetSurface(color) && SGIsInside(view, sgr_sheetChromeRoot)
+                       && sgr_sheetChromeRoot.bounds.size.width > 1
+                       && view.bounds.size.width >= sgr_sheetChromeRoot.bounds.size.width * 0.75) {
+                // A band in the sheet's own list (the queue's QueueCell and TrackRowQueue.Cell, #1F1F1F).
+                color = NULL;
             }
         }
     }
     %orig(color);
+}
+%end
+
+// A row coming into the sheet after its chrome was stripped (scrolled in, reused, picked up to be dragged)
+// carries its grey with it, and is painted before it is inside the sheet for the hook above to hear of it,
+// so it is cleared from its own layout pass, like SGRClearCellPaint does for the pages.
+%hook UITableViewCell
+- (void)layoutSubviews {
+    %orig;
+    UIView *root = sgr_sheetChromeRoot;
+    if (root && SGIsInside((UIView *)self, root)) SGRClearSheetCellPaint((UIView *)self, root);
 }
 %end
 

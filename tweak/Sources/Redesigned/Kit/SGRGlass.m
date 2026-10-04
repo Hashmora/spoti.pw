@@ -154,7 +154,7 @@ UIView *SGRGlassFilm(UIView *host, const void *key, UIView *glass, CGFloat radiu
 BOOL SGRIsSheetChromeArea(UIView *view, UIView *root) {
     if (!root) return NO;
     for (UIView *v = view; v; v = v.superview) {
-        if ([v isKindOfClass:UIScrollView.class]) return NO;
+        if (v != view && [v isKindOfClass:UIScrollView.class]) return NO;
         if (v == root) return YES;
     }
     return NO;
@@ -164,16 +164,51 @@ static void clearFill(UIView *view) {
     if (!SGKeepsColor(view) && SGIsVisibleColor(view.layer.backgroundColor)) view.layer.backgroundColor = NULL;
 }
 
+// The opaque dark grey Spotify paints a sheet's rows and wrappers with (#1F1F1F, trees/continuous 2026-10-05:
+// the queue's QueueCell, TrackRowQueue.Cell, SessionModifiersView and the ⋯ menu's table). Not SGIsBaseSurface:
+// that stops at 0.10 for the #121212 page black, and this grey is 0.12.
+BOOL SGRIsSheetSurface(CGColorRef color) {
+    if (!color || CFGetTypeID(color) != CGColorGetTypeID() || CGColorGetAlpha(color) < 0.95) return NO;
+    const CGFloat *c = CGColorGetComponents(color);
+    size_t n = CGColorGetNumberOfComponents(color);
+    if (n == 2) return c[0] <= 0.20;
+    if (n < 3) return NO;
+    return c[0] <= 0.20 && fabs(c[0] - c[1]) < 0.02 && fabs(c[1] - c[2]) < 0.02;
+}
+
+// A row of the sheet's own list: every view nearly as wide as the sheet that carries the grey goes clear, the
+// cell itself and the stacks the element framework wraps its content in. Narrow ones stay (an avatar's
+// placeholder square, a badge): they are their own paint, not a band.
+static const CGFloat kSheetBandShare = 0.75;
+
+static void clearListPaint(UIView *view, CGFloat wide, int depth) {
+    if (!view || depth > 12 || wide < 1) return;   // wide 0: the sheet is not laid out yet; the next pass does it
+    if (!SGKeepsColor(view) && view.bounds.size.width >= wide && SGRIsSheetSurface(view.layer.backgroundColor)) {
+        // Written through the view so its own backgroundColor and the layer say the same thing.
+        view.backgroundColor = UIColor.clearColor;
+    }
+    for (UIView *sub in view.subviews) clearListPaint(sub, wide, depth + 1);
+}
+
+void SGRClearSheetCellPaint(UIView *cell, UIView *root) {
+    if (!cell || !root) return;
+    clearListPaint(cell, root.bounds.size.width * kSheetBandShare, 0);
+}
+
 // Walked from the pane outward rather than by identifier, since sheets wrap their content a varying
-// number of levels deep (the ⋯ menu two, the queue one). Any opaque fill goes: before the first list
-// nothing here is a card, whatever grey Spotify paints it with. A scroll view or table is cleared itself
-// and not entered, so its rows stay as every other list in the redesign leaves them (SGRRestyle.h).
-// Gives up a few levels down rather than walk into a sheet this has never seen.
-static void stripSheetChrome(UIView *view, UIView *skip, int depth) {
-    if (!view || view == skip || depth > 6) return;
+// number of levels deep (the queue one, the ⋯ menu seven: its table sat one past the old cap of six and
+// kept its grey). Any opaque fill goes: before the first list nothing here is a card, whatever grey
+// Spotify paints it with. A scroll view or table is cleared itself, and so are the bands its rows paint
+// (clearListPaint); its rows are otherwise left as every other list in the redesign leaves them
+// (SGRRestyle.h). Gives up well down rather than walk into a sheet this has never seen.
+static void stripSheetChrome(UIView *view, UIView *skip, CGFloat wide, int depth) {
+    if (!view || view == skip || depth > 14) return;
     clearFill(view);
-    if ([view isKindOfClass:UIScrollView.class]) return;
-    for (UIView *sub in view.subviews) stripSheetChrome(sub, skip, depth + 1);
+    if ([view isKindOfClass:UIScrollView.class]) {
+        for (UIView *sub in view.subviews) clearListPaint(sub, wide, 0);
+        return;
+    }
+    for (UIView *sub in view.subviews) stripSheetChrome(sub, skip, wide, depth + 1);
 }
 
 UIView *SGRGlassSheetChrome(UIView *content) {
@@ -185,7 +220,8 @@ UIView *SGRGlassSheetChrome(UIView *content) {
         glass.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
         SGShapeGlass(glass, v.layer.cornerRadius, NO);
         if (v.layer.backgroundColor) v.layer.backgroundColor = NULL;
-        for (UIView *sub in v.subviews) stripSheetChrome(sub, glass, 0);
+        CGFloat wide = v.bounds.size.width * kSheetBandShare;
+        for (UIView *sub in v.subviews) stripSheetChrome(sub, glass, wide, 0);
         // Spotify repaints the grey on later passes; SGRRepaint.x keeps clearing it under this root.
         if (sgr_sheetChromeRoot != v) sgr_sheetChromeRoot = v;
         return glass;
