@@ -172,7 +172,6 @@ static void playGlyph(UIView *host) {
     dispatch_once(&once, ^{ SGLog(@"redesign player: play glyph over %@ (disc %@ suppressed), spinner %@", NSStringFromClass(play.class), NSStringFromClass(disc.class), spinnerShowing(button) ? @"showing" : @"hidden"); });
 }
 
-
 %hook _TtC20NowPlaying_ModesImpl28PlaybackControlsElementsUnit
 - (void)viewDidLayoutSubviews {
     %orig;

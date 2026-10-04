@@ -1,27 +1,27 @@
-// The pre-iOS 26 fallback for real glass: a CABackdropLayer, blurred and saturated, displaced by a
-// mesh so its edges refract like UIGlassEffect's. Ported from Telegram-iOS's GlassBackgroundComponent
-// and MeshTransform (GPLv2, submodules/TelegramUI/Components) — geometry and filter values only, no
-// Telegram code retained verbatim. Gated behind the "legacy glass" switch (SGKeyLegacyGlass) and
-// behind SGLegacyGlassAvailable(): both CABackdropLayer and CAMutableMeshTransform are private API
-// that Apple can remove at any point, so every call here fails soft to a plain blur.
+// The pre-iOS 26 stand-in for UIGlassEffect: a CABackdropLayer, blurred and saturated, displaced by a
+// mesh so its edges refract the way real glass does. Geometry and filter values are ported from
+// Telegram-iOS's GlassBackgroundComponent and MeshTransform (GPLv2); no Telegram code is kept verbatim.
+//
+// CABackdropLayer and CAMutableMeshTransform are private API Apple can remove at any point, so the
+// whole thing sits behind SGLegacyGlassAvailable() and the "legacy glass" switch (SGKeyLegacyGlass),
+// and every call fails soft to a plain blur. Callers go through SGUseLegacyGlass() (SGGlass.h), which
+// combines both.
 #import <UIKit/UIKit.h>
 
-#define SGKeyLegacyGlass @"spotifyglass.legacyglass"
-
-// NO on iOS 26+ (UIGlassEffect is used instead), and NO wherever CABackdropLayer or
-// CAMutableMeshTransform turn out not to exist. Cheap after the first call; cache the result if
-// calling it every layout pass.
+// NO on iOS 26+ (UIGlassEffect is used there) and wherever the private classes turn out not to exist.
+// Cached after the first call.
 BOOL SGLegacyGlassAvailable(void);
 
-// One pane per call site, like UIVisualEffectView. `clear` matches Telegram's .clear style (lighter
-// blur, no saturation boost) for panes over already-busy content (album art, a fully-drawn player);
-// leave it NO for the flat chrome under the navigation bar and the player's round controls.
+// One pane per call site, like UIVisualEffectView. It keeps its own backdrop layer and mesh sized to
+// its bounds, so a pane resized by autoresizing or Auto Layout follows with no help from the caller.
 @interface SGLegacyGlassView : UIView
 
-// Where a caller puts its own content, exactly like UIVisualEffectView.contentView: the backdrop
-// layer and the mesh live behind it, unaffected by what's added here.
+// Where a caller puts its own content, like UIVisualEffectView.contentView: the backdrop and the mesh
+// live behind it.
 @property (nonatomic, strong, readonly) UIView *contentView;
 
-- (void)updateWithSize:(CGSize)size cornerRadius:(CGFloat)cornerRadius capsule:(BOOL)capsule clear:(BOOL)clear;
+// Corner radius of the glass. Ignored while `capsule` is set, which rounds to half the shorter side.
+@property (nonatomic) CGFloat cornerRadius;
+@property (nonatomic) BOOL capsule;
 
 @end

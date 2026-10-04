@@ -4,21 +4,17 @@
 #import "SGRRestyle.h"
 #import "SGRRepaint.h"
 
+// The redesign runs below iOS 26 only (SGRedesignAvailable()), so there is no system glass to use: a shape
+// is the legacy approximation when it is on, a thin material blur when it is not, and a solid fill under
+// Reduce Transparency.
 typedef NS_ENUM(NSInteger, SGRGlassMode) {
-    SGRGlassModeGlass,
     SGRGlassModeLegacy,
     SGRGlassModeBlur,
     SGRGlassModeSolid,
 };
 
-// Below iOS 26 a plain system blur reads as almost nothing over Spotify's near-black chrome, so the
-// same "Legacy Liquid Glass" switch that backs NowPlayingBar and the navbar is used here too, for
-// the header's round buttons and the rest of the Kit's capsules. SGUseLegacyGlass() (Core/SGGlass.m)
-// is the one place that answer is decided -- asked here instead of re-checking the flag and
-// @available ourselves, so the two can no longer drift apart.
 static SGRGlassMode glassMode(void) {
     if (SGRReduceTransparency()) return SGRGlassModeSolid;
-    if (@available(iOS 26.0, *)) return SGRGlassModeGlass;
     if (SGUseLegacyGlass()) return SGRGlassModeLegacy;
     return SGRGlassModeBlur;
 }
@@ -26,9 +22,6 @@ static SGRGlassMode glassMode(void) {
 static UIView *newShape(SGRGlassMode mode) {
     UIView *shape;
     switch (mode) {
-        case SGRGlassModeGlass:
-            shape = [[UIVisualEffectView alloc] initWithEffect:SGGlassEffect()];
-            break;
         case SGRGlassModeLegacy:
             shape = [[SGLegacyGlassView alloc] initWithFrame:CGRectZero];
             break;
@@ -126,26 +119,38 @@ UIView *SGRGlassCapsuleInside(UIView *control, const void *key, CGSize size, BOO
     return glassInside(control, key, size, YES, prominent);
 }
 
-#pragma mark - a sheet's own chrome
+#pragma mark - flat boxes and floating films
 
-// Spotify's #1F1F1F sheet grey, one tick above SGIsBaseSurface's own 0.10 -- which keeps this exact grey
-// wherever it draws a placeholder or a real card (SGRRepaint.x) -- since a sheet is its own closed box,
-// not a field the rest of the page reads a card against.
-BOOL SGRIsSheetChromeFill(CGColorRef color) {
-    if (!color || CFGetTypeID(color) != CGColorGetTypeID() || CGColorGetAlpha(color) < 0.95) return NO;
-    const CGFloat *c = CGColorGetComponents(color);
-    size_t n = CGColorGetNumberOfComponents(color);
-    if (n < 3) return NO;
-    return c[0] <= 0.14 && fabs(c[0] - c[1]) < 0.02 && fabs(c[1] - c[2]) < 0.02;
+UIView *SGRGlassFlatBox(UIView *box, const void *key) {
+    CGSize size = box.bounds.size;
+    if (!box || size.width < 1 || size.height < 1) return nil;
+    if (box.backgroundColor != UIColor.clearColor) box.backgroundColor = UIColor.clearColor;
+    if (box.layer.cornerRadius != size.height / 2) box.layer.cornerRadius = size.height / 2;
+    if (box.layer.cornerCurve != kCACornerCurveContinuous) box.layer.cornerCurve = kCACornerCurveContinuous;
+    if (!box.layer.masksToBounds) box.layer.masksToBounds = YES;
+    return SGRGlassCapsuleInside(box, key, size, NO);
 }
 
-// Whether `view` sits in sheet chrome that should stay glass, as opposed to a row or card inside the
-// sheet's own list: walks up from `view` to `root` (sgr_sheetChromeRoot), refusing anything with a
-// UIScrollView/UITableView ancestor along the way. Mirrors stripSheetChrome's own scroll-view stop, so
-// the continuous repaint hook (SGRRepaint.x) strips exactly the same footprint on a later pass that it
-// stripped on the first one -- the queue's own footer (SessionModifiersView) is built after that first
-// pass and repaints its #1F1F1F back in on its own (device 2026-09-27), so without this the hook's own
-// exact-shade check (SGRIsSheetChromeFill) was the only thing standing between it and staying opaque.
+UIView *SGRGlassFilm(UIView *host, const void *key, UIView *glass, CGFloat radius) {
+    UIView *film = SGLazyChild(host, key, ^UIView *{
+        UIView *view = [UIView new];
+        view.backgroundColor = [UIColor colorWithWhite:1 alpha:0.16];
+        view.userInteractionEnabled = NO;
+        view.layer.cornerCurve = kCACornerCurveContinuous;
+        view.layer.masksToBounds = YES;
+        return view;
+    });
+    if (film.superview != host) [host insertSubview:film aboveSubview:glass];
+    if (!CGRectEqualToRect(film.frame, glass.frame)) film.frame = glass.frame;
+    if (film.layer.cornerRadius != radius) film.layer.cornerRadius = radius;
+    return film;
+}
+
+#pragma mark - a sheet's own chrome
+
+// Whether `view` is sheet chrome rather than a row or card in the sheet's own list: it sits under `root`
+// (sgr_sheetChromeRoot) with no scroll view between. The same footprint stripSheetChrome clears, so a
+// view built after the first strip (the queue's footer) is cleared on its own repaint all the same.
 BOOL SGRIsSheetChromeArea(UIView *view, UIView *root) {
     if (!root) return NO;
     for (UIView *v = view; v; v = v.superview) {
@@ -155,27 +160,19 @@ BOOL SGRIsSheetChromeArea(UIView *view, UIView *root) {
     return NO;
 }
 
-// Walked from the pane outward rather than by identifier: the ⋯ sheet wraps its content two levels deep
-// (context-menu-view, context-menu-main-view) and the queue's one (its own LayoutOnlyView's child), and
-// nothing says a third sheet wraps it the same number of times. Stops at the first scroll view or table,
-// leaving its rows exactly as every other list in the redesign leaves theirs (SGRRestyle.h), and gives up
-// a few levels down rather than walking into a sheet this has never seen.
+static void clearFill(UIView *view) {
+    if (!SGKeepsColor(view) && SGIsVisibleColor(view.layer.backgroundColor)) view.layer.backgroundColor = NULL;
+}
+
+// Walked from the pane outward rather than by identifier, since sheets wrap their content a varying
+// number of levels deep (the ⋯ menu two, the queue one). Any opaque fill goes: before the first list
+// nothing here is a card, whatever grey Spotify paints it with. A scroll view or table is cleared itself
+// and not entered, so its rows stay as every other list in the redesign leaves them (SGRRestyle.h).
+// Gives up a few levels down rather than walk into a sheet this has never seen.
 static void stripSheetChrome(UIView *view, UIView *skip, int depth) {
     if (!view || view == skip || depth > 6) return;
-    if ([view isKindOfClass:UIScrollView.class]) {
-        // clear its own fill before stopping: the scroll/table view is still sheet chrome, not a row --
-        // its rows are its subviews, which this intentionally never walks into. Device dump 2026-09-27
-        // showed the queue's UITableView itself still bg=#1F1F1F after the first strip and every repaint
-        // pass, because the old early return left before ever touching the table's own background.
-        if (!SGKeepsColor(view) && SGIsVisibleColor(view.layer.backgroundColor)) view.layer.backgroundColor = NULL;
-        return;
-    }
-    // Any opaque fill here, not just an exact #1F1F1F match: before the first list nothing in this
-    // chrome is a real card, whatever grey Spotify happens to paint it with on a given pass (device
-    // 2026-09-27, the plain wrapper between sheet-view and the queue's table still came back solid
-    // even with SGRIsSheetChromeFill's own check passing on it -- narrowing to that one shade is what
-    // let a slightly different opaque fill through).
-    if (!SGKeepsColor(view) && SGIsVisibleColor(view.layer.backgroundColor)) view.layer.backgroundColor = NULL;
+    clearFill(view);
+    if ([view isKindOfClass:UIScrollView.class]) return;
     for (UIView *sub in view.subviews) stripSheetChrome(sub, skip, depth + 1);
 }
 
@@ -189,9 +186,7 @@ UIView *SGRGlassSheetChrome(UIView *content) {
         SGShapeGlass(glass, v.layer.cornerRadius, NO);
         if (v.layer.backgroundColor) v.layer.backgroundColor = NULL;
         for (UIView *sub in v.subviews) stripSheetChrome(sub, glass, 0);
-        // Recorded so SGRRepaint.x's continuous hook keeps stripping the grey Spotify repaints back in on
-        // its own later passes (Queue and the pop-art now-playing sheet both re-paint after this first
-        // strip, device 2026-09-26) rather than only catching it once here.
+        // Spotify repaints the grey on later passes; SGRRepaint.x keeps clearing it under this root.
         if (sgr_sheetChromeRoot != v) sgr_sheetChromeRoot = v;
         return glass;
     }

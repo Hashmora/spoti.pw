@@ -24,29 +24,22 @@ UIView *SGRGlassInside(UIView *control, const void *key, CGFloat side);
 // reads a step brighter than the circles beside it without leaving the same material.
 UIView *SGRGlassCapsuleInside(UIView *control, const void *key, CGSize size, BOOL prominent);
 
-// The chrome of a bottom sheet Spotify draws around an opaque "sheet-view" pane -- the ⋯ context menu's
-// and the queue's alike, both this identifier (trees/continuous/24.txt, 26.txt 2026-09-26), and the same
-// pane under the now-playing bar's pop-art track info (Shared/Player -- one component, three callers). A
-// glass pane goes behind the pane's own paint, and the one or two plain views Spotify wraps around its own
-// content between the pane and the sheet's first scrolling list are stripped of their background by hand:
-// they are the same #1F1F1F card grey SGIsBaseSurface deliberately leaves alone everywhere else
-// (SGRRepaint.x, where it is a placeholder or a real card), but here it is the sheet's own outer chrome,
-// not a card inside it, and left standing it covered the glass whole bar a sliver at the very top. Stops
-// at the first scroll view or table it meets and leaves that alone, rows and all.
-//
-// One strip on the pass that finds the sheet is not enough: Spotify repaints this same grey back in
-// underneath on its own later passes (device 2026-09-26, Queue and the pop-art sheet both), the same way
-// it repaints the playlist/album/artist fields SGRRepaint.x already guards. So this also records the
-// sheet under sgr_sheetChromeRoot (SGRRepaint.h), whose continuous hook clears the grey every time Spotify
-// repaints it, not just on the first pass.
+// Glass behind a flat box Spotify draws as a grey rounded rect (a search field, a sort button): the box is
+// cleared and made a capsule, and a glass capsule goes inside it. Safe to call on every pass.
+UIView *SGRGlassFlatBox(UIView *box, const void *key);
+
+// The faint white film over a floating bar's glass (the tab bar's platter, the now playing card), without
+// which the bar disappears into Spotify's near-black chrome. Made once under `key`, kept just above `glass`
+// and on its frame, with corners of `radius`.
+UIView *SGRGlassFilm(UIView *host, const void *key, UIView *glass, CGFloat radius);
+
+// The chrome of a bottom sheet Spotify draws around an opaque "sheet-view" pane: the ⋯ context menu, the
+// queue, and the pop-art track info under the now playing bar. A glass pane goes behind the pane's own
+// paint and the plain wrapper views between it and the sheet's first scrolling list lose their fill. Stops
+// at that list and leaves its rows alone. Also records the sheet in sgr_sheetChromeRoot (SGRRepaint.h), whose
+// hook keeps the fill clear when Spotify paints it back.
 UIView *SGRGlassSheetChrome(UIView *content);
 
-// Whether `color` is Spotify's own #1F1F1F sheet-chrome grey (SGRGlassSheetChrome's fill, one tick above
-// SGIsBaseSurface's), exposed so SGRRepaint.x's continuous hook can recognise and clear it wherever it
-// gets repainted inside sgr_sheetChromeRoot.
-BOOL SGRIsSheetChromeFill(CGColorRef color);
-
 // Whether `view` is chrome of the sheet rooted at `root` (sgr_sheetChromeRoot) rather than a row or card
-// inside the sheet's own list -- same scroll-view boundary stripSheetChrome itself stops at. Exposed so
-// SGRRepaint.x's continuous hook clears any opaque fill repainted there, not just the one exact shade.
+// inside the sheet's own list.
 BOOL SGRIsSheetChromeArea(UIView *view, UIView *root);

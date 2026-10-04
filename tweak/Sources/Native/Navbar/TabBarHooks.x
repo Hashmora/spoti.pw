@@ -34,17 +34,13 @@ static UIView *tabBarOf(UIView *item) {
 
 static char kTabBarGlassKey;
 
-// Glass under the whole bar, the way the redesign's system UITabBar gets it for free from UIKit on
-// iOS 26+ (Redesigned/Navbar/TabBar.x): below that, with the legacy switch on, the same
-// backdrop-and-mesh pane Player.x puts behind the round header buttons goes behind the bar instead.
-// Spotify paints the bar as flat chrome, so that fill is cleared first or the pane would never show.
+// Legacy glass under the whole bar, the same pane Player.x puts behind the round header buttons. Spotify
+// paints the bar as flat chrome; that fill is cleared first or the pane would never show.
 static void glassBehindTabBar(UIView *tabBar) {
-    if (@available(iOS 26.0, *)) return;
-    if (!SGFlag(SGKeyLegacyGlass, NO) || !SGLegacyGlassAvailable()) return;
+    if (!SGUseLegacyGlass()) return;
     tabBar.layer.backgroundColor = NULL;
     UIView *glass = SGGlassFor(tabBar, &kTabBarGlassKey);
-    // Dark whatever the system is set to, as the player's header panes are (Player.x): light glass
-    // under the bar's white icon otherwise, on a phone in light mode.
+    // Dark whatever the system is set to, as the player's header panes are (Player.x).
     if (glass.overrideUserInterfaceStyle != UIUserInterfaceStyleDark) glass.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
     glass.frame = tabBar.bounds;
     glass.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;

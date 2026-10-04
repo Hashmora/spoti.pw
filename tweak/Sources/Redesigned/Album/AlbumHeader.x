@@ -438,33 +438,15 @@ static void applyHeader(UIView *header, UIView *page) {
     if (cover) applyHero(header, cover, bottom);
 }
 
-// Find on this page sits above the cover the same way it does on a playlist, but nothing here ever
-// glassed it (device 2026-09-26, trees/continuous/14.txt: Your Episodes) -- PlaylistHeader.x's glassUp,
-// copied for this template, which a podcast episode and Your Episodes share with an album (AlbumField.x).
-static void glassToolbarShape(UIView *box, const void *key) {
-    if (!box) return;
-    CGSize size = box.bounds.size;
-    if (size.width < 1 || size.height < 1) return;
-    if (box.backgroundColor != UIColor.clearColor) box.backgroundColor = UIColor.clearColor;
-    if (box.layer.cornerRadius != size.height / 2) box.layer.cornerRadius = size.height / 2;
-    SGRGlassCapsuleInside(box, key, size, NO);
-}
-
-// The back button in the navigation bar: pinned the one way every header's back button is now
-// (Redesigned/Kit/SGRActionRow.h's SGRPinnedBack, which this found first, on the device 2026-09-26).
-static void glassAlbumBack(UIView *page) {
-    static char kBackKey, kPinnedBackKey;
-    UIView *back = SGRFindByIdentifier(page, @"Components.Header.UI.BackButton", &kBackKey);
-    SGRPinnedBack(page, &kPinnedBackKey, back);
-}
-
+// Find on this page sits above the cover the way it does on a playlist (PlaylistHeader.x), and the
+// template is shared with a podcast episode and Your Episodes (AlbumField.x).
 static void glassAlbumToolbar(UIView *page) {
     static char kToolbarKey, kFieldKey, kSortBoxKey, kFieldGlassKey, kSortGlassKey;
-    glassAlbumBack(page);
+    SGRPinnedBack(page, page);
     UIView *toolbar = SGRFindByIdentifier(page, @"Components.Header.UI.Toolbar.Content", &kToolbarKey);
     if (!toolbar) return;
-    glassToolbarShape(SGRFindByIdentifier(toolbar, @"Components.Header.UI.Toolbar.SearchField", &kFieldKey), &kFieldGlassKey);
-    glassToolbarShape(SGRFindByIdentifier(toolbar, @"Components.Header.UI.Toolbar.ButtonContainer", &kSortBoxKey), &kSortGlassKey);
+    SGRGlassFlatBox(SGRFindByIdentifier(toolbar, @"Components.Header.UI.Toolbar.SearchField", &kFieldKey), &kFieldGlassKey);
+    SGRGlassFlatBox(SGRFindByIdentifier(toolbar, @"Components.Header.UI.Toolbar.ButtonContainer", &kSortBoxKey), &kSortGlassKey);
 }
 
 static void applyPage(UIView *page) {

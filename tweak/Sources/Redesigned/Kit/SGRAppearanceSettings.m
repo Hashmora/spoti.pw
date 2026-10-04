@@ -21,21 +21,15 @@ static void chooseAccent(void) {
     [top presentViewController:sheet animated:YES completion:nil];
 }
 
-// Below a capable device the row is a switch for the redesign's navbar and round buttons' glass
-// (Core/SGGlass.m); above it, or off a device that cannot do it, it reads out why there is nothing
-// to switch (SGLegacyGlassAvailable(), Core/SGLegacyGlass.h).
+// A switch where the device has the private APIs legacy glass leans on (SGLegacyGlassAvailable()); where
+// it has not, a row that says so, and panes stay a plain blur.
 static SGModRow *legacyGlassRow(void) {
     if (SGLegacyGlassAvailable()) {
         SGModRow *row = SGOptionRow(@"Legacy Liquid Glass", @"An approximation of iOS 26's glass for the navbar and round buttons, on this iOS.", SGKeyLegacyGlass);
         return SGWithSymbol(row, @"cube.transparent");
     }
-    BOOL modern = NO;
-    if (@available(iOS 26.0, *)) modern = YES;
-    NSString *status = modern ? @"Not needed" : @"Unavailable";
-    NSString *reason = modern
-        ? @"Not needed here: this phone already draws real Liquid Glass."
-        : [NSString stringWithFormat:@"This phone (iOS %@) doesn't have the private APIs it leans on, so glass panes stay a plain blur.", UIDevice.currentDevice.systemVersion];
-    SGModRow *row = SGStatActionRow(@"Legacy Liquid Glass", nil, ^NSString *{ return status; }, ^{
+    NSString *reason = [NSString stringWithFormat:@"This phone (iOS %@) doesn't have the private APIs it leans on, so glass panes stay a plain blur.", UIDevice.currentDevice.systemVersion];
+    SGModRow *row = SGStatActionRow(@"Legacy Liquid Glass", nil, ^NSString *{ return @"Unavailable"; }, ^{
         UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Legacy Liquid Glass" message:reason preferredStyle:UIAlertControllerStyleAlert];
         [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleCancel handler:nil]];
         [SGTopController() presentViewController:alert animated:YES completion:nil];

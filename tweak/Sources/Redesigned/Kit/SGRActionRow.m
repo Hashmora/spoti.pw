@@ -441,6 +441,26 @@ UIView *SGRPinnedMoreRecentPage(void) {
 }
 @end
 
+// Over the page's list and its header both, and put back on top whenever Spotify adds to the page.
+static void keepOnTop(UIView *page, UIView *button) {
+    if (button.superview != page) [page addSubview:button];
+    else if (page.subviews.lastObject != button) [page bringSubviewToFront:button];
+}
+
+// Level with the window's safe area at the top, kCornerSide in from the leading or trailing edge. Measured
+// in the window and converted back, never from the page's own safe area: a page under a navigation bar
+// counts the bar into its inset, so the playlist's read 116 where the window's reads 62 and the button sat
+// a bar's height below the back button.
+static void placeInCorner(UIView *page, UIView *button, BOOL leading) {
+    UIWindow *window = page.window;
+    UIView *space = window ?: page;
+    CGFloat side = SGRGlassCircleSize;
+    CGFloat x = leading ? kCornerSide : space.bounds.size.width - kCornerSide - side;
+    CGRect frame = CGRectMake(x, space.safeAreaInsets.top, side, side);
+    if (window) frame = [page convertRect:frame fromView:nil];
+    if (!CGRectIsEmpty(frame) && !CGRectEqualToRect(button.frame, frame)) button.frame = frame;
+}
+
 SGRMirrorButton *SGRPinnedMore(UIView *page, const void *key, UIView *source) {
     if (!page) return nil;
     SGRMirrorButton *button = objc_getAssociatedObject(page, key);
@@ -456,34 +476,18 @@ SGRMirrorButton *SGRPinnedMore(UIView *page, const void *key, UIView *source) {
         [button addTarget:recorder action:@selector(sgr_moreTapped:) forControlEvents:UIControlEventTouchDown];
         objc_setAssociatedObject(page, key, button, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
-    // Over the page's list and its header both, and put back on top whenever Spotify adds to the page.
-    if (button.superview != page) [page addSubview:button];
-    else if (page.subviews.lastObject != button) [page bringSubviewToFront:button];
+    keepOnTop(page, button);
     if (source) [button feedFrom:source];
     if (button.hidden != (source == nil)) button.hidden = source == nil;
-
-    // Measured in the window and converted back, never from the page's own safe area: a page under a
-    // navigation bar counts the bar into its inset, so the playlist's read 116 where the window's reads 62
-    // and the button sat a bar's height below the back button (device, trees/continuous/1.txt 2026-09-20).
-    UIWindow *window = page.window;
-    CGFloat side = SGRGlassCircleSize;
-    CGRect frame;
-    if (window) {
-        CGRect inWindow = CGRectMake(window.bounds.size.width - kCornerSide - side, window.safeAreaInsets.top, side, side);
-        frame = [page convertRect:inWindow fromView:nil];
-    } else {
-        frame = CGRectMake(page.bounds.size.width - kCornerSide - side, page.safeAreaInsets.top, side, side);
-    }
-    if (!CGRectIsEmpty(frame) && !CGRectEqualToRect(button.frame, frame)) button.frame = frame;
+    placeInCorner(page, button, NO);
     return button;
 }
 
 #pragma mark - the page's pinned back button
 
-// Hides Spotify's own back button once it is mirrored: a mask (survives Spotify showing it again the way
-// -[UIView setHidden:] does not, the same trick AlbumHeader.x/ArtistHeader.x's own `conceal` plays on the
-// floating play/shuffle buttons) plus no interaction and no accessibility, so only the pinned mirror is
-// seen or fired.
+// Hides Spotify's own back button once it is mirrored: a mask survives Spotify showing it again, which
+// -[UIView setHidden:] does not, and with no interaction and no accessibility only the mirror is seen or
+// fired.
 static void concealBack(UIView *source) {
     if (!source) return;
     if (!source.layer.hidden) source.layer.hidden = YES;
@@ -492,32 +496,22 @@ static void concealBack(UIView *source) {
     source.accessibilityElementsHidden = YES;
 }
 
-SGRMirrorButton *SGRPinnedBack(UIView *page, const void *key, UIView *source) {
+SGRMirrorButton *SGRPinnedBack(UIView *page, UIView *searchRoot) {
+    static char kSourceKey, kButtonKey;
     if (!page) return nil;
-    SGRMirrorButton *button = objc_getAssociatedObject(page, key);
+    UIView *source = SGRFindByIdentifier(searchRoot, @"Components.Header.UI.BackButton", &kSourceKey);
+    SGRMirrorButton *button = objc_getAssociatedObject(page, &kButtonKey);
     if (!button) {
         button = [[SGRMirrorButton alloc] initWithFrame:CGRectZero];
         button.fallbackGlyph = [UIImage systemImageNamed:@"chevron.left"];
         button.glyphColor = SGRPrimary();
         button.accessibilityLabel = source.accessibilityLabel ?: @"Back";
-        objc_setAssociatedObject(page, key, button, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        objc_setAssociatedObject(page, &kButtonKey, button, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
-    if (button.superview != page) [page addSubview:button];
-    else if (page.subviews.lastObject != button) [page bringSubviewToFront:button];
+    keepOnTop(page, button);
     concealBack(source);
     if (source) [button feedFrom:source];
     if (button.hidden != (source == nil)) button.hidden = source == nil;
-
-    // The same window-relative measurement SGRPinnedMore uses, mirrored to the leading edge instead.
-    UIWindow *window = page.window;
-    CGFloat side = SGRGlassCircleSize;
-    CGRect frame;
-    if (window) {
-        CGRect inWindow = CGRectMake(kCornerSide, window.safeAreaInsets.top, side, side);
-        frame = [page convertRect:inWindow fromView:nil];
-    } else {
-        frame = CGRectMake(kCornerSide, page.safeAreaInsets.top, side, side);
-    }
-    if (!CGRectIsEmpty(frame) && !CGRectEqualToRect(button.frame, frame)) button.frame = frame;
+    placeInCorner(page, button, YES);
     return button;
 }

@@ -12,35 +12,27 @@
 //   ElementContentView<TabBarItemElement>, each with an SPTEncoreIconView and an SPTEncoreLabel.
 #import "Core/SGCore.h"
 #import "Navbar.h"
+#import "Redesigned/Kit/SGRGlass.h"
 #import "Redesigned/Kit/SGRTokens.h"
 #import "Settings/SGPage.h"
 #import "Headers/SPTEncoreIconView.h"
 #import <objc/message.h>
 
 static char kBarKey, kHostKey, kNavGlassKey, kNavTintKey, kSelPillKey, kRetriesKey, kGlyphOverlayKey, kOutlineLiveKey, kFilledLiveKey, kCreateDiscKey, kGlyphsTakenKey;
-static const CGFloat kNavGlassMargin = 16;       // side gap, so the bar floats instead of touching the edges
-static const CGFloat kNavGlassBottomMargin = 8;  // gap under the bar, so it floats above the edge like iOS 26+
-// The pill itself, never the safe-area room under it: glassHeight() below can be as tall as 83pt on
-// a Face ID phone (harness/tabbar/README.md) because that includes the reserved home-indicator strip,
-// which is not glass. 64pt matches Telegram's own tab bar pill exactly (TabBarComponent.swift: a
-// 56pt item row plus 4pt of inner inset top and bottom). Radius is always half of this -- a true
-// capsule -- never a fixed corner radius that stops matching once the height changes.
+// The bar is a floating capsule, not a full-width slab.
+static const CGFloat kNavGlassMargin = 16;        // gap at each side
+static const CGFloat kNavGlassBottomMargin = 8;   // gap under it, and over it to the now playing card
+// The capsule itself, never the safe-area room under it: glassHeight() can be 83pt on a Face ID phone
+// (harness/tabbar/README.md) because it includes the home-indicator strip. 64pt is Telegram's pill (a 56pt
+// item row with 4pt inside, TabBarComponent.swift). Without labels it is shorter, and UIKit still lays the
+// icon out as if one sat below it, so the icon is nudged down by kNavIconOnlyImageShift (not yet checked
+// on a device: tune the two together).
 static const CGFloat kNavPlatterHeight = 64;
-// Icons-only is a squarer pill, not the same 64pt built to hold a label underneath too -- tall and
-// mostly empty otherwise, with the icon floating off-centre in it (UIKit still lays the icon out as
-// if a label sat below it, even once the title itself is nil). kNavIconOnlyImageShift below is a
-// starting guess at how far that leaves the icon short of true centre in the shorter pill -- tune
-// both together against a real device, this wasn't checked on screen.
 static const CGFloat kNavPlatterHeightIconOnly = 52;
 static const CGFloat kNavIconOnlyImageShift = 6;
-static const CGFloat kNavItemSpacing = 4;    // tighter gaps between icons, like the real iOS 26+ pill
-static const CGFloat kSelPillInset = 3;      // small gap between the selection pill and the platter's own
-                                              // top/bottom edge, so it reads as a shape floating inside the
-                                              // bar rather than a slab reaching its full height
-static const CGFloat kNavItemWidth = 90;     // fixed per-tab width so the pill hugs its items and self-sizes
-                                              // instead of stretching them across whatever width it's given --
-                                              // wider than before, closer to the room a label like "Your
-                                              // Library" actually needs, per the reference screenshot
+static const CGFloat kNavItemSpacing = 4;
+static const CGFloat kNavItemWidth = 90;    // fixed, so the capsule hugs its items instead of stretching them
+static const CGFloat kSelPillInset = 3;     // gap between the selection pill and the capsule's edge
 static __weak UIView *sg_stockBar;
 static CGFloat sg_room, sg_glassHeight;   // see "room for the glass bar"
 
@@ -824,15 +816,8 @@ static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
         // isEnabled]), so a phone in light mode had it light over Spotify's black. Spotify is dark whatever
         // the system is, and so is the bar.
         bar.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
-        // Below iOS 26 UITabBar paints its own translucent chrome, which sits in front of navGlass
-        // (below) and hides it completely. iOS 26+ is left alone: UIKit already draws real Liquid
-        // Glass there on its own, and a transparent appearance would fight that.
-        // Always transparent: navGlass below is the only real glass pane now, shaped and sized as
-        // one true capsule. Leaving UIKit's iOS 26+ auto-glass on here stacked a second, edge-to-edge
-        // material behind ours at a different height, which is what looked off next to a proper pill.
-        bar.translucent = YES;
-        bar.backgroundImage = [UIImage new];
-        bar.shadowImage = [UIImage new];
+        // UITabBar's own chrome would sit in front of navGlass (below) and hide it: the glass is the bar's
+        // only background.
         bar.backgroundColor = UIColor.clearColor;
         UITabBarAppearance *appearance = [UITabBarAppearance new];
         [appearance configureWithTransparentBackground];
@@ -845,7 +830,7 @@ static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
             }
         }
         bar.standardAppearance = appearance;
-        if (@available(iOS 15.0, *)) bar.scrollEdgeAppearance = appearance;
+        bar.scrollEdgeAppearance = appearance;
         bar.delegate = bar;
         bar.stockBar = stockBar;
         UILongPressGestureRecognizer *hold = [[UILongPressGestureRecognizer alloc] initWithTarget:bar action:@selector(held:)];
@@ -1023,31 +1008,14 @@ static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
     // icon it was supposed to sit under.
     if (frameChanged || itemsRebuilt) [bar layoutIfNeeded];
 
-    // A glass pane behind the bar, the same way NowPlayingBar.x backs the mini player: real
-    // UIGlassEffect on iOS 26+ (on top of what UITabBar already draws itself), the legacy
-    // approximation below it when that switch is on (Core/SGGlass.m). Same capsule as the bar
-    // itself, radius always exactly half its height -- like Telegram's own
-    // backgroundSize.height * 0.5 -- so it reads as a pill, not a rounded slab.
+    // A glass capsule behind the bar, as NowPlayingBar.x backs the mini player; radius half its height.
     UIView *navGlass = SGGlassFor(host, &kNavGlassKey);
     navGlass.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
     CGRect glassFrame = platterFrame;
     if (!CGRectEqualToRect(navGlass.frame, glassFrame)) navGlass.frame = glassFrame;
     SGShapeGlass(navGlass, glassFrame.size.height / 2, NO);
 
-    // A faint white film over the glass, the same trick SGRGlass.m uses for prominent capsules:
-    // real Liquid Glass gets a touch of it too, and it's what keeps the bar from vanishing into
-    // Spotify's near-black chrome below iOS 26.
-    UIView *navTint = SGLazyChild(host, &kNavTintKey, ^UIView *{
-        UIView *v = [UIView new];
-        v.backgroundColor = [UIColor colorWithWhite:1 alpha:0.16];
-        v.userInteractionEnabled = NO;
-        v.layer.cornerCurve = kCACornerCurveContinuous;
-        v.layer.masksToBounds = YES;
-        return v;
-    });
-    if (navTint.superview != host) [host insertSubview:navTint aboveSubview:navGlass];
-    if (!CGRectEqualToRect(navTint.frame, glassFrame)) navTint.frame = glassFrame;
-    navTint.layer.cornerRadius = glassFrame.size.height / 2;
+    UIView *navTint = SGRGlassFilm(host, &kNavTintKey, navGlass, glassFrame.size.height / 2);
 
     // A dark capsule behind the selected icon only - the closest legacy stand-in for iOS 26+'s glass
     // "selection bubble". Sits above the tint so it reads as a shadow in the material, below the

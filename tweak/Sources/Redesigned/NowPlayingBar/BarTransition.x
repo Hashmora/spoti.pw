@@ -71,15 +71,14 @@ static UIVisualEffectView *copyPane(UIView *pane) {
 }
 
 // One copy of a pane at `frame` (already in the stand-in's coordinates). A legacy pane is copied as a
-// legacy pane: its radius is the one updateWithSize: last set on the original, and the mesh is rebuilt
-// for the copy's own size.
+// legacy pane with the original's corner radius; it builds its mesh for the copy's own size.
 static UIView *copyGlass(UIView *pane, CGRect frame) {
     UIView *glass;
     if ([pane isKindOfClass:SGLegacyGlassView.class]) {
         SGLegacyGlassView *legacy = [[SGLegacyGlassView alloc] initWithFrame:frame];
         legacy.userInteractionEnabled = NO;
         legacy.overrideUserInterfaceStyle = pane.traitCollection.userInterfaceStyle;
-        [legacy updateWithSize:frame.size cornerRadius:pane.layer.cornerRadius capsule:NO clear:NO];
+        legacy.cornerRadius = pane.layer.cornerRadius;
         glass = legacy;
     } else {
         glass = copyPane(pane);
@@ -154,23 +153,18 @@ static void startWatch(void);
     self.born = CACurrentMediaTime();
     if (self.hideRealBar) [self hideReal];
     self.link = [CADisplayLink displayLinkWithTarget:self selector:@selector(tick:)];
+    // Uncapped, or the player's 120 Hz transitions are dragged down to 60 with it (AGENTS.md).
+    self.link.preferredFrameRateRange = CAFrameRateRangeMake(80, 120, 120);
     [self.link addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
     [self tick:nil];
 }
 
 - (void)stop {
-    NSUInteger restored = self.hidden.count;
     [self.link invalidate];
     self.link = nil;
     [self.holder removeFromSuperview];
     [self restoreReal];
     [sg_followers removeObject:self];
-    static NSUInteger logged;
-    if (self.hideRealBar && logged++ < 12) {
-        SGLog(@"player transition: tab bar stand-in over after %.2fs (snapshot %@, in window %d), %lu real views given back, %lu stand-ins still up",
-              CACurrentMediaTime() - self.born, self.snapshot ? @"alive" : @"gone", self.snapshot.window != nil,
-              (unsigned long)restored, (unsigned long)sg_followers.count);
-    }
 }
 
 // The stand-in has been on screen and is not any more. Also called from the pre-commit watch below, so
@@ -268,18 +262,8 @@ static void backWithGlass(UIView *snapshot, UIView *source, NSString *what, BOOL
     if (!snapshot || !source) return;
     NSMutableArray<UIView *> *panes = [NSMutableArray array];
     collectPanes(source, panes);
-    if (hideRealBar) {
-        static NSUInteger paneLogged;
-        if (paneLogged++ < 6) {
-            NSMutableString *list = [NSMutableString string];
-            for (UIView *pane in panes) [list appendFormat:@" %@%@", NSStringFromClass(pane.class), NSStringFromCGRect([pane.superview convertRect:pane.frame toView:source])];
-            SGLog(@"player transition: tab bar stand-in %@ %@, source %@ hidden=%d, %lu panes:%@",
-                  snapshot.class, NSStringFromCGRect(snapshot.frame), NSStringFromCGRect(source.frame), source.hidden, (unsigned long)panes.count, list);
-        }
-    }
     if (!panes.count) return;
 
-    static NSUInteger logged;
     if (![snapshot isKindOfClass:UIImageView.class]) {
         SGStandInGlass *follower = [SGStandInGlass new];
         follower.snapshot = snapshot;
@@ -287,7 +271,6 @@ static void backWithGlass(UIView *snapshot, UIView *source, NSString *what, BOOL
         follower.panes = panes;
         follower.hideRealBar = hideRealBar;
         [follower start];
-        if (logged++ < 8) SGLog(@"player transition: %@ stand-in is a %@, %lu glass panes follow it", what, snapshot.class, (unsigned long)panes.count);
         return;
     }
 
@@ -314,27 +297,16 @@ static void backWithGlass(UIView *snapshot, UIView *source, NSString *what, BOOL
         [watch start];
     }
 
-    if (logged++ < 8) SGLog(@"player transition: %@ stand-in got %lu glass panes", what, (unsigned long)panes.count);
-}
-
-// Says whether Spotify hides the real bar's glass during a transition, which decides if a second copy
-// of it is left standing where the bar was.
-static void logSource(UIView *source, UIView *stand, NSString *what) {
     static NSUInteger logged;
-    if (logged++ >= 6 || !source) return;
-    NSMutableString *chain = [NSMutableString string];
-    for (UIView *v = source; v; v = v.superview) [chain appendFormat:@" <- %@(h=%d a=%.2f)", NSStringFromClass(v.class), v.hidden, v.alpha];
-    SGLog(@"player transition: %@ source%@ | stand-in %@ %@", what, chain, stand.class, NSStringFromCGRect(stand.frame));
+    if (logged++ < 4) SGLog(@"player transition: %@ stand-in got %lu glass panes", what, (unsigned long)panes.count);
 }
 
 %hook SPTBarOverlayPresentationTransition
 - (void)setBarSnapshotView:(UIView *)view {
-    logSource([self bottomBarView], view, @"bar");
     backWithGlass(view, [self bottomBarView], @"bar", NO);
     %orig;
 }
 - (void)setTabBarSnapshotView:(UIView *)view {
-    logSource([self tabBarView], view, @"tab bar");
     backWithGlass(view, [self tabBarView], @"tab bar", YES);
     %orig;
 }

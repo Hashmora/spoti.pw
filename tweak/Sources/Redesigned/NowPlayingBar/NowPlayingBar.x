@@ -122,21 +122,7 @@ static void styleNowPlayingBar(UIViewController *container) {
     glass.frame = frame;
     SGShapeGlass(glass, radius, NO);
 
-    // The same faint white film TabBar.x layers over its own glass (navTint, alpha 0.16): without it
-    // this card read as noticeably more transparent than the tab bar right below it -- two different
-    // strengths of "glass" stacked on the same screen.
-    UIView *tint = objc_getAssociatedObject(container.view, &kTintKey);
-    if (!tint) {
-        tint = [UIView new];
-        tint.backgroundColor = [UIColor colorWithWhite:1 alpha:0.16];
-        tint.userInteractionEnabled = NO;
-        tint.layer.cornerCurve = kCACornerCurveContinuous;
-        tint.layer.masksToBounds = YES;
-        objc_setAssociatedObject(container.view, &kTintKey, tint, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    }
-    if (tint.superview != container.view) [container.view insertSubview:tint aboveSubview:glass];
-    tint.frame = frame;
-    tint.layer.cornerRadius = radius;
+    SGRGlassFilm(container.view, &kTintKey, glass, radius);
 
     static dispatch_once_t once;
     dispatch_once(&once, ^{

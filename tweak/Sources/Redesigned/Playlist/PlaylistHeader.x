@@ -403,27 +403,14 @@ static SGRHeaderInfo *applyInfo(UIView *block, UIView *headerRoot, UIViewControl
 
 // Find on this page and Sort sit above the cover, shown as the page is pulled down. They stay Spotify's own
 // controls, so the tap opens Spotify's find page; only the grey box becomes glass.
-static void glassUp(UIView *box, const void *key) {
-    CGSize size = box.bounds.size;
-    if (size.width < 1 || size.height < 1) return;
-    if (box.backgroundColor != UIColor.clearColor) box.backgroundColor = UIColor.clearColor;
-    if (box.layer.cornerRadius != size.height / 2) box.layer.cornerRadius = size.height / 2;
-    SGRGlassCapsuleInside(box, key, size, NO);
-}
-
 static void applyToolbar(UIView *headerRoot) {
-    static char kFieldKey, kSortBoxKey, kFieldGlassKey, kSortGlassKey, kBackKey, kPinnedBackKey;
-    // Pinned the same way every header's back button now is (SGRActionRow.h's SGRPinnedBack): resizing
-    // and glassing Spotify's own box in place used to leave two circles a few points apart, both smaller
-    // than the 44pt more button beside it, and fought the header's own collapse animation on scroll
-    // (trees/continuous/24.txt 2026-09-26, issue "back button lags/clips/off-centre").
-    UIView *back = SGRFindByIdentifier(headerRoot, @"Components.Header.UI.BackButton", &kBackKey);
-    SGRPinnedBack(SGRPlaylistPageOf(headerRoot), &kPinnedBackKey, back);
+    static char kFieldKey, kSortBoxKey, kFieldGlassKey, kSortGlassKey;
+    SGRPinnedBack(SGRPlaylistPageOf(headerRoot), headerRoot);
     UIView *toolbar = SGRFindByIdentifier(headerRoot, @"Components.Header.UI.Toolbar.Content", &kToolbarKey);
     if (!toolbar) return;
     UIView *field = SGRFindByIdentifier(toolbar, @"Components.Header.UI.Toolbar.SearchField", &kFieldKey);
-    glassUp(field, &kFieldGlassKey);
-    glassUp(SGRFindByIdentifier(toolbar, @"Components.Header.UI.Toolbar.ButtonContainer", &kSortBoxKey), &kSortGlassKey);
+    SGRGlassFlatBox(field, &kFieldGlassKey);
+    SGRGlassFlatBox(SGRFindByIdentifier(toolbar, @"Components.Header.UI.Toolbar.ButtonContainer", &kSortBoxKey), &kSortGlassKey);
     static BOOL logged;
     if (!logged && field.window) {
         logged = YES;

@@ -1,5 +1,4 @@
 #import "SGGlass.h"
-#import "SGLegacyGlass.h"
 #import "SGPrefs.h"
 #import "SGRuntime.h"
 
@@ -12,9 +11,6 @@ UIVisualEffect *SGGlassEffect(void) {
     return [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemChromeMaterialDark];
 }
 
-// The legacy view stands in only below iOS 26 (UIGlassEffect covers that and up on its own), only
-// with the switch on, and only where SGLegacyGlassAvailable() finds the private API it leans on.
-// Exported (see SGGlass.h) so SGRGlass.m asks this instead of re-deriving its own answer.
 BOOL SGUseLegacyGlass(void) {
     if (@available(iOS 26.0, *)) return NO;
     return SGFlag(SGKeyLegacyGlass, NO) && SGLegacyGlassAvailable();
@@ -66,8 +62,9 @@ void SGHideGlassFrom(UIView *host, NSUInteger count) {
 
 void SGShapeGlass(UIView *glass, CGFloat radius, BOOL capsule) {
     if ([glass isKindOfClass:SGLegacyGlassView.class]) {
-        // The header's own guidance (SGLegacyGlass.h): NO for flat chrome and round controls alike.
-        [(SGLegacyGlassView *)glass updateWithSize:glass.bounds.size cornerRadius:radius capsule:capsule clear:NO];
+        SGLegacyGlassView *legacy = (SGLegacyGlassView *)glass;
+        legacy.cornerRadius = radius;
+        legacy.capsule = capsule;
         return;
     }
     Class config = NSClassFromString(@"UICornerConfiguration");

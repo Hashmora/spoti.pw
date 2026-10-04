@@ -8,459 +8,382 @@ BOOL SGLegacyGlassAvailable(void) {
     static BOOL available;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
-        if (@available(iOS 26.0, *)) { available = NO; return; }
-        Class backdrop = NSClassFromString(@"CABackdropLayer");
+        if (@available(iOS 26.0, *)) return;
         Class mesh = NSClassFromString(@"CAMutableMeshTransform");
         SEL meshSel = NSSelectorFromString(@"meshTransformWithVertexCount:vertices:faceCount:faces:depthNormalization:");
-        available = backdrop != nil && mesh != nil && [mesh respondsToSelector:meshSel];
+        available = NSClassFromString(@"CABackdropLayer") && [mesh respondsToSelector:meshSel];
     });
     return available;
 }
 
-#pragma mark - private CAFilter helpers
+#pragma mark - backdrop layer and its filters
 
-static CALayer *SGFilterBlur(CGFloat radius) {
+static id SGMakeFilter(NSString *type) {
     Class filterClass = NSClassFromString(@"CAFilter");
     SEL sel = NSSelectorFromString(@"filterWithType:");
-    if (!filterClass || ![filterClass respondsToSelector:sel]) return nil;
-    id (*make)(id, SEL, NSString *) = (id (*)(id, SEL, NSString *))objc_msgSend;
-    id filter = make(filterClass, sel, @"gaussianBlur");
-    if (!filter) return nil;
-    [filter setValue:@(radius) forKey:@"inputRadius"];
-    return filter;
+    if (![filterClass respondsToSelector:sel]) return nil;
+    return ((id (*)(Class, SEL, NSString *))objc_msgSend)(filterClass, sel, type);
 }
 
-static CALayer *SGFilterColorMatrix(void) {
-    Class filterClass = NSClassFromString(@"CAFilter");
-    SEL sel = NSSelectorFromString(@"filterWithType:");
-    if (!filterClass || ![filterClass respondsToSelector:sel]) return nil;
-    id (*make)(id, SEL, NSString *) = (id (*)(id, SEL, NSString *))objc_msgSend;
-    id filter = make(filterClass, sel, @"colorMatrix");
-    if (!filter) return nil;
-    // Saturation + contrast boost, matching what Telegram puts under its normal (non-.clear) glass so
-    // the backdrop doesn't just look like a flat blur.
-    float matrix[20] = {
+// Saturation and contrast boost under the blur, as Telegram does, so the backdrop is not just a flat blur.
+static id SGSaturationFilter(void) {
+    static const float matrix[20] = {
         2.6705f, -1.1087999f, -0.1117f, 0.0f, 0.049999997f,
         -0.3295f, 1.8914f, -0.111899994f, 0.0f, 0.049999997f,
         -0.3297f, -1.1084f, 2.8881f, 0.0f, 0.049999997f,
         0.0f, 0.0f, 0.0f, 1.0f, 0.0f,
     };
-    NSValue *value = [NSValue valueWithBytes:matrix objCType:"{CAColorMatrix=ffffffffffffffffffff}"];
-    [filter setValue:value forKey:@"inputColorMatrix"];
+    id filter = SGMakeFilter(@"colorMatrix");
+    [filter setValue:[NSValue valueWithBytes:matrix objCType:"{CAColorMatrix=ffffffffffffffffffff}"] forKey:@"inputColorMatrix"];
     [filter setValue:@YES forKey:@"inputBackdropAware"];
     return filter;
 }
 
-#pragma mark - backdrop layer
-
-static CALayer *SGMakeBackdropLayer(void) {
-    Class cls = NSClassFromString(@"CABackdropLayer");
-    if (!cls) return nil;
-    CALayer *layer = [[cls alloc] init];
-    SEL setScale = NSSelectorFromString(@"setScale:");
-    if ([layer respondsToSelector:setScale]) {
-        void (*call)(id, SEL, double) = (void (*)(id, SEL, double))objc_msgSend;
-        call(layer, setScale, 1.0);
-    }
-    layer.rasterizationScale = 1.0;
-    return layer;
+static id SGBlurFilter(CGFloat radius) {
+    id filter = SGMakeFilter(@"gaussianBlur");
+    [filter setValue:@(radius) forKey:@"inputRadius"];
+    return filter;
 }
 
-@interface SGBackdropNullActionDelegate : NSObject <CALayerDelegate>
+// Layer actions off, so the backdrop follows its view's resizes without implicit animation.
+@interface SGNoActionsDelegate : NSObject <CALayerDelegate>
 @end
-@implementation SGBackdropNullActionDelegate
+@implementation SGNoActionsDelegate
 - (id<CAAction>)actionForLayer:(CALayer *)layer forKey:(NSString *)event { return (id<CAAction>)[NSNull null]; }
 @end
 
-#pragma mark - mesh transform (CAMutableMeshTransform), built via NSInvocation
+static CALayer *SGMakeBackdropLayer(id<CALayerDelegate> delegate) {
+    CALayer *layer = [[NSClassFromString(@"CABackdropLayer") alloc] init];
+    if (!layer) return nil;
+    SEL setScale = NSSelectorFromString(@"setScale:");
+    if ([layer respondsToSelector:setScale]) ((void (*)(id, SEL, double))objc_msgSend)(layer, setScale, 1.0);
+    layer.rasterizationScale = 1.0;
+    layer.delegate = delegate;
+    NSMutableArray *filters = [NSMutableArray array];
+    for (id filter in @[SGSaturationFilter() ?: NSNull.null, SGBlurFilter(2.0) ?: NSNull.null]) {
+        if (filter != NSNull.null) [filters addObject:filter];
+    }
+    if (filters.count) layer.filters = filters;
+    return layer;
+}
+
+#pragma mark - mesh transform (CAMutableMeshTransform)
 
 typedef struct { CGFloat x, y, z; } SGMeshPoint3D;
 typedef struct { CGPoint from; SGMeshPoint3D to; } SGMeshVertex;
 typedef struct { uint32_t indices[4]; float w[4]; } SGMeshFace;
 
+// The class method takes C arrays, which only NSInvocation can pass without a header for it.
 static id SGMakeMeshTransform(SGMeshVertex *vertices, NSUInteger vertexCount, SGMeshFace *faces, NSUInteger faceCount) {
     Class cls = NSClassFromString(@"CAMutableMeshTransform");
     SEL sel = NSSelectorFromString(@"meshTransformWithVertexCount:vertices:faceCount:faces:depthNormalization:");
-    if (!cls || ![cls respondsToSelector:sel]) return nil;
     NSMethodSignature *sig = [cls methodSignatureForSelector:sel];
     if (!sig) return nil;
     NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
     inv.selector = sel;
-    NSUInteger vc = vertexCount, fc = faceCount;
     NSString *depthNormalization = @"none";
-    [inv setArgument:&vc atIndex:2];
+    [inv setArgument:&vertexCount atIndex:2];
     [inv setArgument:&vertices atIndex:3];
-    [inv setArgument:&fc atIndex:4];
+    [inv setArgument:&faceCount atIndex:4];
     [inv setArgument:&faces atIndex:5];
     [inv setArgument:&depthNormalization atIndex:6];
     [inv invokeWithTarget:cls];
     __unsafe_unretained id raw = nil;
     [inv getReturnValue:&raw];
     id transform = raw;
-    if (transform) {
-        SEL stepsSel = NSSelectorFromString(@"setSubdivisionSteps:");
-        if ([transform respondsToSelector:stepsSel]) {
-            NSInteger steps = 0;
-            NSMethodSignature *ssig = [transform methodSignatureForSelector:stepsSel];
-            NSInvocation *sinv = [NSInvocation invocationWithMethodSignature:ssig];
-            sinv.selector = stepsSel;
-            [sinv setArgument:&steps atIndex:2];
-            [sinv invokeWithTarget:transform];
-        }
-    }
+    if ([transform respondsToSelector:NSSelectorFromString(@"setSubdivisionSteps:")]) [transform setValue:@0 forKey:@"subdivisionSteps"];
     return transform;
 }
 
-#pragma mark - mesh geometry (ported from Telegram's GenerateMesh.swift, template/cached path)
+#pragma mark - displacement field (ported from Telegram's GenerateMesh.swift)
 
-// Cubic-bezier easing, De Casteljau-free Newton solve for t(x), same as Telegram's calcBezier/getTForX.
-static CGFloat SGBezierA(CGFloat a1, CGFloat a2) { return 1.0 - 3.0 * a2 + 3.0 * a1; }
-static CGFloat SGBezierB(CGFloat a1, CGFloat a2) { return 3.0 * a2 - 6.0 * a1; }
-static CGFloat SGBezierC(CGFloat a1) { return 3.0 * a1; }
-static CGFloat SGBezierCalc(CGFloat t, CGFloat a1, CGFloat a2) { return ((SGBezierA(a1, a2) * t + SGBezierB(a1, a2)) * t + SGBezierC(a1)) * t; }
-static CGFloat SGBezierSlope(CGFloat t, CGFloat a1, CGFloat a2) { return 3.0 * SGBezierA(a1, a2) * t * t + 2.0 * SGBezierB(a1, a2) * t + SGBezierC(a1); }
+// Telegram's fixed easing curve for the displacement towards the edge.
+static const CGFloat kBezierX1 = 0.816137566137566, kBezierY1 = 0.20502645502645533;
+static const CGFloat kBezierX2 = 0.5806878306878306, kBezierY2 = 0.873015873015873;
 
-static CGFloat SGBezierTForX(CGFloat x, CGFloat x1, CGFloat x2) {
+static CGFloat SGBezier(CGFloat t, CGFloat a1, CGFloat a2) {
+    return (((1.0 - 3.0 * a2 + 3.0 * a1) * t + (3.0 * a2 - 6.0 * a1)) * t + 3.0 * a1) * t;
+}
+
+static CGFloat SGBezierSlope(CGFloat t, CGFloat a1, CGFloat a2) {
+    return 3.0 * (1.0 - 3.0 * a2 + 3.0 * a1) * t * t + 2.0 * (3.0 * a2 - 6.0 * a1) * t + 3.0 * a1;
+}
+
+// The curve's y at x: Newton's method for the t that gives x, then y at that t.
+static CGFloat SGEase(CGFloat x) {
     CGFloat t = x;
     for (int i = 0; i < 4; i++) {
-        CGFloat slope = SGBezierSlope(t, x1, x2);
-        if (slope == 0.0) return t;
-        CGFloat currentX = SGBezierCalc(t, x1, x2) - x;
-        t -= currentX / slope;
+        CGFloat slope = SGBezierSlope(t, kBezierX1, kBezierX2);
+        if (slope == 0.0) break;
+        t -= (SGBezier(t, kBezierX1, kBezierX2) - x) / slope;
     }
-    return t;
+    CGFloat y = SGBezier(t, kBezierY1, kBezierY2);
+    return y >= 0.997 ? 1.0 : y;
 }
 
-static CGFloat SGBezierPoint(CGFloat x1, CGFloat y1, CGFloat x2, CGFloat y2, CGFloat x) {
-    CGFloat value = SGBezierCalc(SGBezierTForX(x, x1, x2), y1, y2);
-    return value >= 0.997 ? 1.0 : value;
-}
-
-typedef struct { CGFloat x1, y1, x2, y2; } SGDisplacementBezier;
-// Telegram's fixed easing curve for the glass edge displacement.
-static const SGDisplacementBezier kSGGlassBezier = {0.816137566137566, 0.20502645502645533, 0.5806878306878306, 0.873015873015873};
-
-static CGFloat SGRoundedRectSDF(CGFloat x, CGFloat y, CGFloat width, CGFloat height, CGFloat cornerRadius) {
+// Signed distance from (x, y) to a width x height rounded rect at the origin (negative inside), and the
+// outward unit normal there.
+static CGFloat SGRoundedRectSDF(CGFloat x, CGFloat y, CGFloat width, CGFloat height, CGFloat radius, CGFloat *nx, CGFloat *ny) {
     CGFloat px = x - width / 2, py = y - height / 2;
-    CGFloat bx = width / 2, by = height / 2;
-    CGFloat qx = fabs(px) - bx + cornerRadius, qy = fabs(py) - by + cornerRadius;
-    CGFloat outsideDist = hypot(MAX(qx, 0), MAX(qy, 0));
-    CGFloat insideDist = MIN(MAX(qx, qy), 0);
-    return outsideDist + insideDist - cornerRadius;
-}
-
-static void SGRoundedRectGradient(CGFloat x, CGFloat y, CGFloat width, CGFloat height, CGFloat cornerRadius, CGFloat *outNx, CGFloat *outNy) {
-    CGFloat px = x - width / 2, py = y - height / 2;
-    CGFloat bx = width / 2, by = height / 2;
-    CGFloat qx = fabs(px) - bx + cornerRadius, qy = fabs(py) - by + cornerRadius;
-    CGFloat nx = 0, ny = 0;
+    CGFloat qx = fabs(px) - width / 2 + radius, qy = fabs(py) - height / 2 + radius;
+    CGFloat gx = 0, gy = 0;
     if (qx > 0 && qy > 0) {
         CGFloat d = hypot(qx, qy);
-        if (d > 0) { nx = qx / d; ny = qy / d; }
+        if (d > 0) { gx = qx / d; gy = qy / d; }
     } else if (qx > qy) {
-        nx = 1; ny = 0;
+        gx = 1;
     } else {
-        nx = 0; ny = 1;
+        gy = 1;
     }
-    if (px < 0) nx = -nx;
-    if (py < 0) ny = -ny;
-    *outNx = nx; *outNy = ny;
+    *nx = px < 0 ? -gx : gx;
+    *ny = py < 0 ? -gy : gy;
+    return hypot(MAX(qx, 0), MAX(qy, 0)) + MIN(MAX(qx, qy), 0) - radius;
 }
 
-static void SGComputeDisplacement(CGFloat x, CGFloat y, CGFloat width, CGFloat height, CGFloat cornerRadius,
-                                   CGFloat edgeDistance, SGDisplacementBezier bezier,
-                                   CGFloat *outDx, CGFloat *outDy, CGFloat *outSdf) {
-    CGFloat sdf = SGRoundedRectSDF(x, y, width, height, cornerRadius);
+// What a vertex samples from, relative to where it sits: inwards, strongest at the edge, eased.
+static void SGDisplacement(CGFloat x, CGFloat y, CGFloat width, CGFloat height, CGFloat radius, CGFloat edgeDistance,
+                           CGFloat *outDx, CGFloat *outDy, CGFloat *outSdf) {
     CGFloat nx, ny;
-    SGRoundedRectGradient(x, y, width, height, cornerRadius, &nx, &ny);
-    CGFloat inwardX = -nx, inwardY = -ny;
-    CGFloat distFromEdge = -sdf;
-    CGFloat weight = MAX(0, MIN(1, 1.0 - distFromEdge / edgeDistance));
-    CGFloat dx = inwardX * weight, dy = inwardY * weight;
+    CGFloat sdf = SGRoundedRectSDF(x, y, width, height, radius, &nx, &ny);
+    CGFloat weight = MAX(0, MIN(1, 1.0 + sdf / edgeDistance));
+    CGFloat dx = -nx * weight, dy = -ny * weight;
     CGFloat mag = hypot(dx, dy);
     if (mag > 0) {
-        CGFloat newMag = SGBezierPoint(bezier.x1, bezier.y1, bezier.x2, bezier.y2, mag);
-        CGFloat scale = newMag / mag;
+        CGFloat scale = SGEase(mag) / mag;
         dx *= scale; dy *= scale;
     }
     *outDx = dx; *outDy = dy; *outSdf = sdf;
 }
 
-// A vertex in the reference-size template: a size-independent (base, scale) affine position, plus the
-// unitless displacement computed once at template-build time. Instantiating at the real size is then
-// just an affine remap, so the (expensive) SDF work happens once per corner radius, not once per frame.
-typedef struct {
-    CGFloat baseX, scaleX, baseY, scaleY;
-    CGFloat dispX, dispY, depth;
-} SGGlassVertexTemplate;
+#pragma mark - mesh template
 
-@interface SGGlassMeshTemplate : NSObject
-@property (nonatomic) NSMutableData *vertices; // SGGlassVertexTemplate[]
-@property (nonatomic) NSMutableData *faces;    // SGMeshFace[]
+// The mesh is built once per corner radius at a reference size, as vertices of a size-independent
+// (base + scale * size) position plus their unitless displacement. Fitting it to a real size is then one
+// affine remap per vertex, with no distance-field work per layout pass.
+typedef struct { CGFloat radius, refW, refH, edgeDistance, outerEdgeDistance; } SGMeshSpec;
+typedef struct { CGFloat baseX, scaleX, baseY, scaleY, dispX, dispY, depth; } SGTemplateVertex;
+
+static const NSInteger kCornerResolution = 12;
+static const CGFloat kOuterEdgeDistance = 2.0;   // width of the strip at the rim that is refracted harder
+static const CGFloat kDisplacementPoints = 20.0; // how far, at most, a vertex samples from its own position
+static const CGFloat kInsetPoints = -1.0;        // the mesh reaches this far past the view, so its rim is never bare
+
+@interface SGMeshTemplate : NSObject
+@property (nonatomic, readonly) NSMutableData *vertices;   // SGTemplateVertex[]
+@property (nonatomic, readonly) NSMutableData *faces;      // SGMeshFace[]
 @end
-@implementation SGGlassMeshTemplate
+@implementation SGMeshTemplate
+- (instancetype)init {
+    if ((self = [super init])) { _vertices = [NSMutableData data]; _faces = [NSMutableData data]; }
+    return self;
+}
 @end
 
-static NSInteger SGAddVertexTemplate(SGGlassMeshTemplate *t, CGFloat baseX, CGFloat scaleX, CGFloat baseY, CGFloat scaleY,
-                                      CGFloat refW, CGFloat refH, CGFloat cornerRadius, CGFloat edgeDistance,
-                                      CGFloat outerEdgeDistance, CGFloat depth) {
-    CGFloat worldX = baseX + scaleX * refW, worldY = baseY + scaleY * refH;
+static uint32_t SGAddVertex(SGMeshTemplate *t, SGMeshSpec spec, CGFloat baseX, CGFloat scaleX, CGFloat baseY, CGFloat scaleY, CGFloat depth) {
     CGFloat dx, dy, sdf;
-    SGComputeDisplacement(worldX, worldY, refW, refH, cornerRadius, edgeDistance, kSGGlassBezier, &dx, &dy, &sdf);
-    CGFloat distToEdge = MAX(0.0, -sdf);
-    CGFloat edgeBand = MAX(0.0, outerEdgeDistance);
-    CGFloat edgeBoost = 1.0;
-    if (edgeBand > 0) {
-        CGFloat tt = MAX(0.0, MIN(1.0, (edgeBand - distToEdge) / edgeBand));
-        edgeBoost = 1.0 + tt * tt * (3 - 2 * tt) * 0.5;
+    SGDisplacement(baseX + scaleX * spec.refW, baseY + scaleY * spec.refH, spec.refW, spec.refH, spec.radius, spec.edgeDistance, &dx, &dy, &sdf);
+    // A smoothstep boost within the outer strip.
+    CGFloat boost = 1.0;
+    if (spec.outerEdgeDistance > 0) {
+        CGFloat s = MAX(0.0, MIN(1.0, (spec.outerEdgeDistance + sdf) / spec.outerEdgeDistance));
+        boost += s * s * (3 - 2 * s) * 0.5;
     }
-    SGGlassVertexTemplate v = {baseX, scaleX, baseY, scaleY, dx * edgeBoost, dy * edgeBoost, depth};
+    SGTemplateVertex v = {baseX, scaleX, baseY, scaleY, dx * boost, dy * boost, depth};
     [t.vertices appendBytes:&v length:sizeof(v)];
-    return (t.vertices.length / sizeof(SGGlassVertexTemplate)) - 1;
+    return (uint32_t)(t.vertices.length / sizeof(v)) - 1;
 }
 
-static void SGAddQuadFace(SGGlassMeshTemplate *t, uint32_t i0, uint32_t i1, uint32_t i2, uint32_t i3) {
-    SGMeshFace f = {{i0, i1, i2, i3}, {0, 0, 0, 0}};
-    [t.faces appendBytes:&f length:sizeof(f)];
+static void SGAddQuad(SGMeshTemplate *t, uint32_t i0, uint32_t i1, uint32_t i2, uint32_t i3) {
+    SGMeshFace face = {{i0, i1, i2, i3}, {0, 0, 0, 0}};
+    [t.faces appendBytes:&face length:sizeof(face)];
 }
 
-// Builds an evenly-spaced grid over the given (base, scale) coefficient axes and quads it up. Mirrors
-// buildGridTemplate in GenerateMesh.swift.
-static void SGBuildGridTemplate(SGGlassMeshTemplate *t, NSArray<NSValue *> *xCoeffs, NSArray<NSValue *> *yCoeffs,
-                                 CGFloat refW, CGFloat refH, CGFloat cornerRadius, CGFloat edgeDistance, CGFloat outerEdgeDistance) {
-    NSUInteger rows = yCoeffs.count, cols = xCoeffs.count;
-    NSInteger *grid = malloc(sizeof(NSInteger) * rows * cols);
+// A grid over the given (base, scale) axes, quadded up. `axis` entries are CGPoint(base, scale).
+static void SGAddGrid(SGMeshTemplate *t, SGMeshSpec spec, NSArray<NSValue *> *xAxis, NSArray<NSValue *> *yAxis) {
+    NSUInteger cols = xAxis.count, rows = yAxis.count;
+    uint32_t *grid = malloc(sizeof(uint32_t) * rows * cols);
     for (NSUInteger r = 0; r < rows; r++) {
-        CGPoint yc; [yCoeffs[r] getValue:&yc];
         for (NSUInteger c = 0; c < cols; c++) {
-            CGPoint xc; [xCoeffs[c] getValue:&xc];
-            grid[r * cols + c] = SGAddVertexTemplate(t, xc.x, xc.y, yc.x, yc.y, refW, refH, cornerRadius, edgeDistance, outerEdgeDistance, 0);
+            CGPoint x = xAxis[c].CGPointValue, y = yAxis[r].CGPointValue;
+            grid[r * cols + c] = SGAddVertex(t, spec, x.x, x.y, y.x, y.y, 0);
         }
     }
     for (NSUInteger r = 0; r + 1 < rows; r++) {
         for (NSUInteger c = 0; c + 1 < cols; c++) {
-            SGAddQuadFace(t, (uint32_t)grid[r * cols + c], (uint32_t)grid[r * cols + c + 1],
-                          (uint32_t)grid[(r + 1) * cols + c + 1], (uint32_t)grid[(r + 1) * cols + c]);
+            SGAddQuad(t, grid[r * cols + c], grid[r * cols + c + 1], grid[(r + 1) * cols + c + 1], grid[(r + 1) * cols + c]);
         }
     }
     free(grid);
 }
 
-static void SGBuildCornerTemplate(SGGlassMeshTemplate *t, CGFloat centerBaseX, CGFloat centerScaleX, CGFloat centerBaseY, CGFloat centerScaleY,
-                                   CGFloat startAngle, CGFloat endAngle, NSArray<NSNumber *> *outerToInner, NSArray<NSNumber *> *angularFactors,
-                                   CGFloat R, CGFloat refW, CGFloat refH, CGFloat cornerRadius, CGFloat edgeDistance, CGFloat outerEdgeDistance) {
-    NSMutableArray<NSNumber *> *ringRadials = [NSMutableArray array];
-    for (NSNumber *f in outerToInner) if (f.doubleValue > 0) [ringRadials addObject:f];
-    if (ringRadials.count == 0) return;
+// A quarter circle around (centerBase + centerScale * size): rings from the rim inwards, fanned into the
+// centre. `rings` are radii as fractions of the corner radius, outermost first, `angles` fractions of the
+// arc from startAngle to endAngle.
+static void SGAddCorner(SGMeshTemplate *t, SGMeshSpec spec, CGPoint centerX, CGPoint centerY, CGFloat startAngle, CGFloat endAngle,
+                        NSArray<NSNumber *> *rings, NSArray<NSNumber *> *angles) {
+    NSUInteger ringCount = rings.count, angleCount = angles.count;
+    uint32_t *grid = malloc(sizeof(uint32_t) * ringCount * angleCount);
+    for (NSUInteger r = 0; r < ringCount; r++) {
+        CGFloat radius = spec.radius * rings[r].doubleValue;
+        for (NSUInteger a = 0; a < angleCount; a++) {
+            CGFloat angle = startAngle + (endAngle - startAngle) * angles[a].doubleValue;
+            grid[r * angleCount + a] = SGAddVertex(t, spec, centerX.x + radius * cos(angle), centerX.y, centerY.x + radius * sin(angle), centerY.y, 0);
+        }
+    }
+    for (NSUInteger r = 0; r + 1 < ringCount; r++) {
+        for (NSUInteger a = 0; a + 1 < angleCount; a++) {
+            SGAddQuad(t, grid[r * angleCount + a], grid[r * angleCount + a + 1], grid[(r + 1) * angleCount + a + 1], grid[(r + 1) * angleCount + a]);
+        }
+    }
 
-    NSUInteger ringCount = ringRadials.count, angCount = angularFactors.count;
-    NSInteger *grid = malloc(sizeof(NSInteger) * ringCount * angCount);
-    for (NSUInteger ri = 0; ri < ringCount; ri++) {
-        CGFloat r = R * ringRadials[ri].doubleValue;
-        for (NSUInteger ai = 0; ai < angCount; ai++) {
-            CGFloat angle = startAngle + (endAngle - startAngle) * angularFactors[ai].doubleValue;
-            CGFloat offsetX = r * cos(angle), offsetY = r * sin(angle);
-            grid[ri * angCount + ai] = SGAddVertexTemplate(t, centerBaseX + offsetX, centerScaleX, centerBaseY + offsetY, centerScaleY,
-                                                            refW, refH, cornerRadius, edgeDistance, outerEdgeDistance, 0);
-        }
-    }
-    for (NSUInteger ri = 0; ri + 1 < ringCount; ri++) {
-        for (NSUInteger ai = 0; ai + 1 < angCount; ai++) {
-            SGAddQuadFace(t, (uint32_t)grid[ri * angCount + ai], (uint32_t)grid[ri * angCount + ai + 1],
-                          (uint32_t)grid[(ri + 1) * angCount + ai + 1], (uint32_t)grid[(ri + 1) * angCount + ai]);
-        }
-    }
-    NSInteger *innermost = grid + (ringCount - 1) * angCount;
-    NSInteger segments = (NSInteger)angCount - 1;
+    // The innermost ring is fanned into the centre, two segments to a quad.
+    const uint32_t *inner = grid + (ringCount - 1) * angleCount;
+    NSInteger segments = (NSInteger)angleCount - 1;
     if (segments >= 2) {
-        NSInteger center = SGAddVertexTemplate(t, centerBaseX, centerScaleX, centerBaseY, centerScaleY,
-                                                refW, refH, cornerRadius, edgeDistance, outerEdgeDistance, -0.02);
+        uint32_t center = SGAddVertex(t, spec, centerX.x, centerX.y, centerY.x, centerY.y, -0.02);
         NSInteger i = 0;
-        while (i + 2 <= segments) {
-            SGAddQuadFace(t, (uint32_t)center, (uint32_t)innermost[i], (uint32_t)innermost[i + 1], (uint32_t)innermost[i + 2]);
-            i += 2;
-        }
-        if (i < segments) {
-            SGAddQuadFace(t, (uint32_t)center, (uint32_t)innermost[segments - 1], (uint32_t)innermost[segments], (uint32_t)innermost[segments]);
-        }
+        for (; i + 2 <= segments; i += 2) SGAddQuad(t, center, inner[i], inner[i + 1], inner[i + 2]);
+        if (i < segments) SGAddQuad(t, center, inner[segments - 1], inner[segments], inner[segments]);
     }
     free(grid);
 }
 
-// Builds the reference-size template once per (cornerRadius, edgeDistance, cornerResolution,
-// outerEdgeDistance) combination — same shape families as Telegram's generateGlassMeshTemplate.
-static SGGlassMeshTemplate *SGBuildGlassMeshTemplate(CGFloat cornerRadius, CGFloat edgeDistance, NSInteger cornerResolution, CGFloat outerEdgeDistance) {
-    SGGlassMeshTemplate *t = [SGGlassMeshTemplate new];
-    t.vertices = [NSMutableData data];
-    t.faces = [NSMutableData data];
+static NSValue *SGAxisPoint(CGFloat base, CGFloat scale) {
+    return [NSValue valueWithCGPoint:CGPointMake(base, scale)];
+}
 
-    CGFloat R = cornerRadius;
-    CGFloat refW = MAX(4 * R, 100), refH = MAX(4 * R, 100);
+static SGMeshTemplate *SGBuildTemplate(CGFloat radius) {
+    SGMeshSpec spec = {radius, MAX(4 * radius, 100), MAX(4 * radius, 100), MIN(12.0, radius), kOuterEdgeDistance};
+    SGMeshTemplate *t = [SGMeshTemplate new];
+    CGFloat R = radius;
 
-    NSInteger angularStepsBase = MAX(3, cornerResolution);
-    NSInteger angularSteps = (angularStepsBase % 2 == 0) ? angularStepsBase : angularStepsBase + 1;
-    NSInteger radialSteps = MAX(2, cornerResolution);
-    NSInteger horizontalSegments = MAX(2, cornerResolution / 2 + 1);
-    NSInteger verticalSegments = MAX(2, cornerResolution / 2 + 1);
+    NSInteger angularSteps = MAX(3, kCornerResolution);
+    if (angularSteps % 2) angularSteps++;
+    NSInteger radialSteps = MAX(2, kCornerResolution);
+    NSInteger edgeSegments = MAX(2, kCornerResolution / 2 + 1);
 
-    // depthFactorsWithOuterBand: evenly spaced inner rings up to (1 - band), then the outer strip edge, then 1.
-    NSMutableArray<NSNumber *> *depthFactors = [NSMutableArray array];
-    {
-        CGFloat bandNorm = R > 0 ? MAX(0, MIN(1, outerEdgeDistance / R)) : 0;
-        NSInteger innerSegments = MAX(1, radialSteps - 1);
-        CGFloat innerMax = MAX(0, 1 - bandNorm);
-        for (NSInteger i = 0; i <= innerSegments; i++) [depthFactors addObject:@(innerMax * i / (CGFloat)innerSegments)];
-        CGFloat last = depthFactors.lastObject.doubleValue;
-        if (fabs(last - innerMax) >= 1e-4) [depthFactors addObject:@(innerMax)];
-        last = depthFactors.lastObject.doubleValue;
-        if (fabs(last - 1.0) >= 1e-4) [depthFactors addObject:@1.0];
+    // Ring radii: evenly spaced up to (1 - rim strip), then the strip's edge, then the rim itself.
+    NSMutableArray<NSNumber *> *depths = [NSMutableArray array];
+    CGFloat innerMax = MAX(0, 1 - MAX(0, MIN(1, kOuterEdgeDistance / R)));
+    NSInteger innerSegments = MAX(1, radialSteps - 1);
+    for (NSInteger i = 0; i <= innerSegments; i++) [depths addObject:@(innerMax * i / (CGFloat)innerSegments)];
+    if (fabs(depths.lastObject.doubleValue - innerMax) >= 1e-4) [depths addObject:@(innerMax)];
+    if (fabs(depths.lastObject.doubleValue - 1.0) >= 1e-4) [depths addObject:@1.0];
+    NSArray<NSNumber *> *outerToInner = depths.reverseObjectEnumerator.allObjects;
+    NSMutableArray<NSNumber *> *rings = [NSMutableArray array];   // the same without the centre, which the fan covers
+    for (NSNumber *d in outerToInner) if (d.doubleValue > 0) [rings addObject:d];
+
+    NSMutableArray<NSNumber *> *angles = [NSMutableArray array];
+    for (NSInteger i = 0; i <= angularSteps; i++) [angles addObject:@(i / (CGFloat)angularSteps)];
+
+    // Axes of the straight parts: `span` runs from one corner's centre to the other's, `leading` and
+    // `trailing` are the corner bands at each end, thickened towards the rim.
+    NSMutableArray<NSValue *> *span = [NSMutableArray array], *leading = [NSMutableArray array], *trailing = [NSMutableArray array];
+    for (NSInteger i = 0; i <= edgeSegments; i++) {
+        CGFloat u = i / (CGFloat)edgeSegments;
+        [span addObject:SGAxisPoint(R * (1 - 2 * u), u)];
     }
-    NSArray<NSNumber *> *outerToInner = [[depthFactors reverseObjectEnumerator] allObjects];
-    NSMutableArray<NSNumber *> *angularFactors = [NSMutableArray array];
-    for (NSInteger i = 0; i <= angularSteps; i++) [angularFactors addObject:@(i / (CGFloat)angularSteps)];
+    for (NSNumber *d in outerToInner) [leading addObject:SGAxisPoint(R * (1 - d.doubleValue), 0)];
+    for (NSNumber *d in depths) [trailing addObject:SGAxisPoint(-R * (1 - d.doubleValue), 1)];
 
-    NSMutableArray<NSValue *> *topXCoeffs = [NSMutableArray array];
-    for (NSInteger i = 0; i <= horizontalSegments; i++) {
-        CGFloat tt = i / (CGFloat)horizontalSegments;
-        [topXCoeffs addObject:[NSValue valueWithCGPoint:CGPointMake(R * (1 - 2 * tt), tt)]];
-    }
-    NSMutableArray<NSValue *> *sideYCoeffs = [NSMutableArray array];
-    for (NSInteger j = 0; j <= verticalSegments; j++) {
-        CGFloat tt = j / (CGFloat)verticalSegments;
-        [sideYCoeffs addObject:[NSValue valueWithCGPoint:CGPointMake(R * (1 - 2 * tt), tt)]];
-    }
-    NSMutableArray<NSValue *> *topYCoeffs = [NSMutableArray array];
-    for (NSNumber *f in outerToInner) [topYCoeffs addObject:[NSValue valueWithCGPoint:CGPointMake(R * (1 - f.doubleValue), 0)]];
-    NSMutableArray<NSValue *> *bottomYCoeffs = [NSMutableArray array];
-    for (NSNumber *f in depthFactors) [bottomYCoeffs addObject:[NSValue valueWithCGPoint:CGPointMake(-R * (1 - f.doubleValue), 1)]];
-    NSMutableArray<NSValue *> *leftXCoeffs = [NSMutableArray array];
-    for (NSNumber *f in outerToInner) [leftXCoeffs addObject:[NSValue valueWithCGPoint:CGPointMake(R * (1 - f.doubleValue), 0)]];
-    NSMutableArray<NSValue *> *rightXCoeffs = [NSMutableArray array];
-    for (NSNumber *f in depthFactors) [rightXCoeffs addObject:[NSValue valueWithCGPoint:CGPointMake(-R * (1 - f.doubleValue), 1)]];
+    SGAddGrid(t, spec, span, leading);     // top band
+    SGAddGrid(t, spec, span, trailing);    // bottom band
+    SGAddGrid(t, spec, leading, span);     // left band
+    SGAddGrid(t, spec, trailing, span);    // right band
+    SGAddGrid(t, spec, span, span);        // middle
 
-    SGBuildGridTemplate(t, topXCoeffs, topYCoeffs, refW, refH, R, edgeDistance, outerEdgeDistance);
-    SGBuildGridTemplate(t, topXCoeffs, bottomYCoeffs, refW, refH, R, edgeDistance, outerEdgeDistance);
-    SGBuildGridTemplate(t, leftXCoeffs, sideYCoeffs, refW, refH, R, edgeDistance, outerEdgeDistance);
-    SGBuildGridTemplate(t, rightXCoeffs, sideYCoeffs, refW, refH, R, edgeDistance, outerEdgeDistance);
-    SGBuildGridTemplate(t, topXCoeffs, sideYCoeffs, refW, refH, R, edgeDistance, outerEdgeDistance);
-
-    SGBuildCornerTemplate(t, R, 0, R, 0, M_PI, 1.5 * M_PI, outerToInner, angularFactors, R, refW, refH, R, edgeDistance, outerEdgeDistance);
-    SGBuildCornerTemplate(t, -R, 1, R, 0, 1.5 * M_PI, 2 * M_PI, outerToInner, angularFactors, R, refW, refH, R, edgeDistance, outerEdgeDistance);
-    SGBuildCornerTemplate(t, -R, 1, -R, 1, M_PI_2, 0, outerToInner, angularFactors, R, refW, refH, R, edgeDistance, outerEdgeDistance);
-    SGBuildCornerTemplate(t, R, 0, -R, 1, M_PI, M_PI_2, outerToInner, angularFactors, R, refW, refH, R, edgeDistance, outerEdgeDistance);
-
+    CGPoint near = CGPointMake(R, 0), far = CGPointMake(-R, 1);   // (base, scale) of a corner centre on each axis
+    SGAddCorner(t, spec, near, near, M_PI, 1.5 * M_PI, rings, angles);
+    SGAddCorner(t, spec, far, near, 1.5 * M_PI, 2 * M_PI, rings, angles);
+    SGAddCorner(t, spec, far, far, M_PI_2, 0, rings, angles);
+    SGAddCorner(t, spec, near, far, M_PI, M_PI_2, rings, angles);
     return t;
 }
 
-static NSCache<NSString *, SGGlassMeshTemplate *> *SGGlassTemplateCache(void) {
-    static NSCache *cache;
+// The mesh for `size`, from the cached template of its corner radius.
+static id SGMakeGlassMesh(CGSize size, CGFloat radius) {
+    radius = MIN(radius, MIN(size.width, size.height) / 2);
+    if (radius <= 0 || size.width < 1 || size.height < 1) return nil;
+
+    static NSCache<NSNumber *, SGMeshTemplate *> *cache;
     static dispatch_once_t once;
     dispatch_once(&once, ^{ cache = [NSCache new]; cache.countLimit = 24; });
-    return cache;
-}
-
-// Instantiates the template at the real pixel size (cheap: an affine remap per vertex, no SDF work)
-// and hands the result to the private mesh-transform API. Mirrors instantiateGlassMesh in Swift.
-static id SGMakeGlassMesh(CGSize size, CGFloat cornerRadius) {
-    cornerRadius = MIN(cornerRadius, MIN(size.width, size.height) / 2);
-    if (cornerRadius <= 0 || size.width < 1 || size.height < 1) return nil;
-
-    CGFloat edgeDistance = MIN(12.0, cornerRadius);
-    NSInteger cornerResolution = 12;
-    CGFloat outerEdgeDistance = 2.0;
-    CGFloat displacementPoints = 20.0;
-
-    NSString *key = [NSString stringWithFormat:@"%.1f-%.1f-%ld-%.1f", cornerRadius, edgeDistance, (long)cornerResolution, outerEdgeDistance];
-    SGGlassMeshTemplate *tmpl = [SGGlassTemplateCache() objectForKey:key];
+    NSNumber *key = @(round(radius * 10));
+    SGMeshTemplate *tmpl = [cache objectForKey:key];
     if (!tmpl) {
-        tmpl = SGBuildGlassMeshTemplate(cornerRadius, edgeDistance, cornerResolution, outerEdgeDistance);
-        [SGGlassTemplateCache() setObject:tmpl forKey:key];
+        tmpl = SGBuildTemplate(radius);
+        [cache setObject:tmpl forKey:key];
     }
 
     CGFloat W = size.width, H = size.height;
-    CGFloat insetPoints = -1.0;
-    CGFloat insetU = insetPoints / W, insetV = insetPoints / H;
-    CGFloat usableU = (W - insetPoints * 2) / W, usableV = (H - insetPoints * 2) / H;
-    CGFloat dU = displacementPoints / W, dV = displacementPoints / H;
+    CGFloat insetU = kInsetPoints / W, insetV = kInsetPoints / H;
+    CGFloat usableU = 1 - 2 * insetU, usableV = 1 - 2 * insetV;
+    CGFloat dU = kDisplacementPoints / W, dV = kDisplacementPoints / H;
 
-    NSUInteger vertexCount = tmpl.vertices.length / sizeof(SGGlassVertexTemplate);
-    NSUInteger faceCount = tmpl.faces.length / sizeof(SGMeshFace);
-    const SGGlassVertexTemplate *templates = tmpl.vertices.bytes;
+    NSUInteger vertexCount = tmpl.vertices.length / sizeof(SGTemplateVertex);
+    const SGTemplateVertex *templates = tmpl.vertices.bytes;
     SGMeshVertex *vertices = malloc(sizeof(SGMeshVertex) * vertexCount);
     for (NSUInteger i = 0; i < vertexCount; i++) {
-        SGGlassVertexTemplate v = templates[i];
-        CGFloat worldX = v.baseX + v.scaleX * W, worldY = v.baseY + v.scaleY * H;
-        CGFloat u = worldX / W, vv = worldY / H;
-        CGFloat mappedU = insetU + u * usableU, mappedV = insetV + vv * usableV;
-        CGFloat fromX = MAX(0.0, MIN(1.0, mappedU + v.dispX * dU));
-        CGFloat fromY = MAX(0.0, MIN(1.0, mappedV + v.dispY * dV));
-        vertices[i] = (SGMeshVertex){CGPointMake(fromX, fromY), {mappedU, mappedV, v.depth}};
+        SGTemplateVertex v = templates[i];
+        CGFloat u = insetU + (v.baseX + v.scaleX * W) / W * usableU;
+        CGFloat w = insetV + (v.baseY + v.scaleY * H) / H * usableV;
+        CGPoint from = CGPointMake(MAX(0.0, MIN(1.0, u + v.dispX * dU)), MAX(0.0, MIN(1.0, w + v.dispY * dV)));
+        vertices[i] = (SGMeshVertex){from, {u, w, v.depth}};
     }
-    id transform = SGMakeMeshTransform(vertices, vertexCount, (SGMeshFace *)tmpl.faces.bytes, faceCount);
+    id transform = SGMakeMeshTransform(vertices, vertexCount, (SGMeshFace *)tmpl.faces.bytes, tmpl.faces.length / sizeof(SGMeshFace));
     free(vertices);
     return transform;
 }
 
 #pragma mark - SGLegacyGlassView
 
-@interface SGLegacyGlassView () {
+@implementation SGLegacyGlassView {
     CALayer *_backdropLayer;
-    SGBackdropNullActionDelegate *_backdropDelegate;
-    CGSize _lastSize;
-    CGFloat _lastRadius;
-    BOOL _lastClear;
+    SGNoActionsDelegate *_backdropDelegate;
+    CGSize _meshSize;
+    CGFloat _meshRadius;
 }
-@end
-
-@implementation SGLegacyGlassView
 
 - (instancetype)initWithFrame:(CGRect)frame {
     if (!(self = [super initWithFrame:frame])) return nil;
     self.layer.cornerCurve = kCACornerCurveCircular;
     self.clipsToBounds = YES;
 
-    _backdropDelegate = [SGBackdropNullActionDelegate new];
-    _backdropLayer = SGMakeBackdropLayer();
-    if (_backdropLayer) {
-        [self.layer addSublayer:_backdropLayer];
-        _backdropLayer.delegate = _backdropDelegate;
-    }
+    _backdropDelegate = [SGNoActionsDelegate new];
+    _backdropLayer = SGMakeBackdropLayer(_backdropDelegate);
+    if (_backdropLayer) [self.layer addSublayer:_backdropLayer];
 
     _contentView = [[UIView alloc] initWithFrame:self.bounds];
     _contentView.backgroundColor = UIColor.clearColor;
     _contentView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     [self addSubview:_contentView];
-
-    _lastRadius = -1;
     return self;
 }
 
-- (void)updateWithSize:(CGSize)size cornerRadius:(CGFloat)cornerRadius capsule:(BOOL)capsule clear:(BOOL)clear {
-    CGFloat radius = capsule ? MIN(size.width, size.height) / 2 : cornerRadius;
-    BOOL sizeChanged = !CGSizeEqualToSize(size, _lastSize);
-    BOOL radiusChanged = radius != _lastRadius;
-    BOOL clearChanged = clear != _lastClear;
-    if (!sizeChanged && !radiusChanged && !clearChanged) return;
-    _lastSize = size; _lastRadius = radius; _lastClear = clear;
+- (void)setCornerRadius:(CGFloat)cornerRadius {
+    if (_cornerRadius == cornerRadius) return;
+    _cornerRadius = cornerRadius;
+    [self setNeedsLayout];
+}
 
-    if (!_backdropLayer) return;
+- (void)setCapsule:(BOOL)capsule {
+    if (_capsule == capsule) return;
+    _capsule = capsule;
+    [self setNeedsLayout];
+}
 
-    if (clearChanged || !_backdropLayer.filters) {
-        CALayer *blur = SGFilterBlur(clear ? 6.0 : 2.0);
-        CALayer *colorMatrix = SGFilterColorMatrix();
-        if (blur) {
-            if (clear) {
-                _backdropLayer.filters = colorMatrix ? @[colorMatrix, blur] : @[blur];
-            } else {
-                _backdropLayer.filters = colorMatrix ? @[colorMatrix, blur] : @[blur];
-            }
-        }
-    }
+- (void)layoutSubviews {
+    [super layoutSubviews];
+    CGSize size = self.bounds.size;
+    CGFloat radius = _capsule ? MIN(size.width, size.height) / 2 : _cornerRadius;
+    if (CGSizeEqualToSize(size, _meshSize) && radius == _meshRadius) return;
+    _meshSize = size;
+    _meshRadius = radius;
 
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     self.layer.cornerRadius = radius;
-    _backdropLayer.frame = CGRectMake(0, 0, size.width, size.height);
+    _backdropLayer.frame = self.bounds;
     id mesh = SGMakeGlassMesh(size, radius);
     if (mesh) [_backdropLayer setValue:mesh forKey:@"meshTransform"];
     [CATransaction commit];
