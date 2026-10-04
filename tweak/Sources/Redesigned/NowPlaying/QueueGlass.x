@@ -68,13 +68,27 @@ static void clearBar(UIView *bar) {
 }
 
 %hook _TtC14Queue_ViewImpl20SessionModifiersView
-- (void)layoutSubviews { %orig; clearBar((UIView *)self); }
-- (void)didMoveToWindow { %orig; clearBar((UIView *)self); }
+- (void)layoutSubviews {
+    %orig;
+    clearBar((UIView *)self);
+}
+
+- (void)didMoveToWindow {
+    %orig;
+    clearBar((UIView *)self);
+}
 %end
 
 %hook _TtC14Queue_ViewImpl19EditModeToolbarView
-- (void)layoutSubviews { %orig; clearBar((UIView *)self); }
-- (void)didMoveToWindow { %orig; clearBar((UIView *)self); }
+- (void)layoutSubviews {
+    %orig;
+    clearBar((UIView *)self);
+}
+
+- (void)didMoveToWindow {
+    %orig;
+    clearBar((UIView *)self);
+}
 %end
 
 %ctor {
