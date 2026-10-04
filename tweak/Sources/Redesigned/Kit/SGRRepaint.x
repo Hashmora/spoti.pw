@@ -3,6 +3,7 @@
 #import "Core/SGCore.h"
 #import "SGRRepaint.h"
 #import "SGRGlass.h"
+#import <objc/runtime.h>
 
 __weak UIView *sgr_nowPlayingRoot = nil;
 __weak UIView *sgr_nowPlayingCard = nil;
@@ -29,7 +30,15 @@ static BOOL isNeutralTint(CGColorRef color) {
 // of which lays the library page out, so clearing it once from the page's pass left the grey back under
 // the glass every time. Told apart by the class of its parent, not by a root: the root library and a
 // folder can both be alive, and each has chips.
+static char kChipFillKey;
+
+void SGRMarkChipFill(UIView *fill) {
+    if (fill) objc_setAssociatedObject(fill, &kChipFillKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+}
+
 static BOOL isChipFill(UIView *view) {
+    // Home's pills: marked by HomePills.m, the pill itself or the plain view it lays under its label.
+    if (objc_getAssociatedObject(view, &kChipFillKey)) return YES;
     if (view.superview == nil || ![view isMemberOfClass:UIView.class]) return NO;
     return [NSStringFromClass(view.superview.class) isEqualToString:@"EncoreConsumerMobile_BaseKit.FilterChipView"];
 }

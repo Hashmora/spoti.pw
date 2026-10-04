@@ -1,7 +1,12 @@
-// Home redesign: the header the way the Music app has it. The filter pills (All, Music, Podcasts) go and
-// a large title takes their place at the leading edge; the avatar that opens the side drawer moves to the
-// trailing edge; the scrim Spotify lays behind the header goes too, the soft scroll edge (Kit/SGREdgeEffect.x)
-// being what keeps the title clear of the page scrolling under it, as on every other redesigned page.
+// Home redesign: the header the way the Music app has it. The filter pills (All, Music, Podcasts) leave the
+// header's row and a large title takes their place at the leading edge; the avatar that opens the side drawer
+// moves to the trailing edge; the scrim Spotify lays behind the header goes too, the soft scroll edge
+// (Kit/SGREdgeEffect.x) being what keeps the title clear of the page scrolling under it, as on every other
+// redesigned page.
+//
+// Below iOS 26 (SGRHomePillsShown, the legacy glass) the pills are not taken out, they are moved: Spotify's own
+// pill row goes under the title as a row of its own on glass, like the Library's chips, and the list below
+// starts under it (HomePills.m). From iOS 26 they are simply gone, as before.
 //
 // Tree (trees/clean/home/10.txt:3018-3051): FunkisViewController's view holds a 402x112 UIView around
 // Reprise_LiquidGlassKit LiquidGlass.GradientView (the scrim) and, at {0, 62}, an
@@ -104,6 +109,10 @@ static void layoutHeader(UIViewController *page) {
     UIView *header = sg_header;
     UIStackView *stack = sg_stack;
     vanish(sg_scrim);
+
+    // Before the stack's parts are walked: the pill row leaves the stack here, so the walk below only meets
+    // the avatar.
+    if (SGRHomePillsShown()) SGRHomeDockPills(page, stack, header);
 
     static Class faceClass;
     if (!faceClass) faceClass = NSClassFromString(@"_TtC29ListeningActivity_ElementsKit21AdaptiveFaceContainer");
