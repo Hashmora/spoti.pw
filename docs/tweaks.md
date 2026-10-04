@@ -180,7 +180,7 @@ Redesigned:
                   (LyricsText.h). Laid out on the Mac against harness/lyrics/
     Home/         Home decluttered to music on black (an allow list of its sections: shortcuts, the DJ without its heading and
                   transcript, the shelves of cards), a large title where the filter pills were with the avatar at the trailing
-                  edge, the shelves' headings at the Music app's size, each shortcut tile's cover run across it blurred
+                  edge (below iOS 26 the pills come back as a glass row under the title, HomePills.m), the shelves' headings at the Music app's size, each shortcut tile's cover run across it blurred
                   (SGRPalette's extension), continuous corners on the covers, and in FLEX builds a meter of each scroll's
                   frames and the hooks' time (Home.h lists its files)
     Search/       the Browse page decluttered to its category cards (an allow list of the list's cells: the watch feed

@@ -5,6 +5,7 @@
 //                      cards stay; video and episode previews, episode cards and any new kind collapse. The
 //                      DJ loses its heading, and the flags the redesign forces on Home
 //     HomeHeader.x     a large title where the filter pills were, the avatar at the trailing edge, no scrim
+//     HomePills.m      below iOS 26: the filter pills as a glass row under the title, like the Library's chips
 //     HomeHeadings.x   the shelves' headings in the Music app's size, drawn over Spotify's
 //     HomeCards.x      the Encore button every card is: shortcut tiles (HomeTiles.m), continuous corners on the
 //                      shelf covers, the DJ card at the card radius without its talking transcript
@@ -14,6 +15,14 @@
 // Every hook installs only while Redesigned UI is on (SGRedesignedUI).
 // Threading: main thread only.
 #import <UIKit/UIKit.h>
+
+// Whether Home keeps its filter pills (All, Music, Podcasts), on glass under the title: below iOS 26 only.
+BOOL SGRHomePillsShown(void);
+
+// Moves Spotify's pill row (Home_PillUIKit.PillScrollView, in the header's stack) out of the stack to a row of
+// its own under the header, puts the pills on glass and makes room for the row at the top of the list
+// (HomePills.m). Safe to call on every layout pass of the page; the row is found again if Spotify rebuilds it.
+void SGRHomeDockPills(UIViewController *page, UIStackView *stack, UIView *header);
 
 // Whether HomeSections.x has collapsed the section in this cell.
 BOOL SGRHomeSectionCollapsed(UIView *cell);
