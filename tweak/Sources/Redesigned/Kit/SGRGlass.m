@@ -160,8 +160,17 @@ BOOL SGRIsSheetChromeArea(UIView *view, UIView *root) {
     return NO;
 }
 
+// A card the sheet draws on purpose, not a wrapper's leftover grey: the device picker's "this device" card
+// and its Connect button (SwiftUI._UIGraphicsView with a fill and a radius, trees/continuous 2026-10-05).
+// They are the sheet's content, and cleared they leave the picker a bare list with nothing marking the
+// device that is playing.
+BOOL SGRIsSheetCard(UIView *view) {
+    if ([NSStringFromClass(view.class) hasPrefix:@"SwiftUI"]) return YES;
+    return view.layer.cornerRadius >= 1 && view.bounds.size.height > 4 && view.bounds.size.width < 380;
+}
+
 static void clearFill(UIView *view) {
-    if (!SGKeepsColor(view) && SGIsVisibleColor(view.layer.backgroundColor)) view.layer.backgroundColor = NULL;
+    if (!SGKeepsColor(view) && !SGRIsSheetCard(view) && SGIsVisibleColor(view.layer.backgroundColor)) view.layer.backgroundColor = NULL;
 }
 
 // The opaque dark grey Spotify paints a sheet's rows and wrappers with (#1F1F1F, trees/continuous 2026-10-05:
@@ -183,7 +192,7 @@ static const CGFloat kSheetBandShare = 0.75;
 
 static void clearListPaint(UIView *view, CGFloat wide, int depth) {
     if (!view || depth > 12 || wide < 1) return;   // wide 0: the sheet is not laid out yet; the next pass does it
-    if (!SGKeepsColor(view) && view.bounds.size.width >= wide && SGRIsSheetSurface(view.layer.backgroundColor)) {
+    if (!SGKeepsColor(view) && !SGRIsSheetCard(view) && view.bounds.size.width >= wide && SGRIsSheetSurface(view.layer.backgroundColor)) {
         // Written through the view so its own backgroundColor and the layer say the same thing.
         view.backgroundColor = UIColor.clearColor;
     }
@@ -211,6 +220,43 @@ static void stripSheetChrome(UIView *view, UIView *skip, CGFloat wide, int depth
     for (UIView *sub in view.subviews) stripSheetChrome(sub, skip, wide, depth + 1);
 }
 
+// A sheet is a big pane, and the glass of a small control is too thin for one: the page under it came through
+// nearly sharp (blur 2) and took the eye off the sheet. So the pane blurs far more and carries a dark body
+// and a hairline edge, which is what tells it from a plain blur -- the rim catching light, over a body dense
+// enough to hold the content. Under Reduce Transparency the body is the solid fill alone.
+static const CGFloat kSheetBlur = 28;
+static char kSheetBodyKey, kSheetRimKey;
+
+static void thickenSheetGlass(UIView *glass, UIView *sheet) {
+    if ([glass isKindOfClass:SGLegacyGlassView.class]) ((SGLegacyGlassView *)glass).blurRadius = kSheetBlur;
+    UIView *host = [glass isKindOfClass:UIVisualEffectView.class] ? ((UIVisualEffectView *)glass).contentView
+                 : [glass isKindOfClass:SGLegacyGlassView.class] ? ((SGLegacyGlassView *)glass).contentView
+                 : glass;
+    UIView *body = SGLazyChild(host, &kSheetBodyKey, ^UIView *{
+        UIView *view = [UIView new];
+        view.userInteractionEnabled = NO;
+        view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+        return view;
+    });
+    UIColor *tint = SGRReduceTransparency() ? SGRSolidGlassFill() : [UIColor colorWithWhite:0.06 alpha:0.62];
+    if (![body.backgroundColor isEqual:tint]) body.backgroundColor = tint;
+    if (!CGRectEqualToRect(body.frame, host.bounds)) body.frame = host.bounds;
+    // The rim: one point of light along the top edge, fading down the sides, drawn over the body.
+    UIView *rim = SGLazyChild(host, &kSheetRimKey, ^UIView *{
+        UIView *view = [UIView new];
+        view.userInteractionEnabled = NO;
+        view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+        view.layer.borderWidth = 1.0 / UIScreen.mainScreen.scale;
+        view.layer.borderColor = [UIColor colorWithWhite:1 alpha:0.20].CGColor;
+        view.layer.cornerCurve = kCACornerCurveContinuous;
+        return view;
+    });
+    if (!CGRectEqualToRect(rim.frame, host.bounds)) rim.frame = host.bounds;
+    if (rim.layer.cornerRadius != sheet.layer.cornerRadius) rim.layer.cornerRadius = sheet.layer.cornerRadius;
+    if (body.superview == host && host.subviews.firstObject != body) [host sendSubviewToBack:body];
+    if (rim.superview == host && host.subviews.lastObject != rim) [host bringSubviewToFront:rim];
+}
+
 UIView *SGRGlassSheetChrome(UIView *content) {
     static char kSheetChromeGlassKey;
     for (UIView *v = content; v; v = v.superview) {
@@ -219,6 +265,7 @@ UIView *SGRGlassSheetChrome(UIView *content) {
         glass.frame = v.bounds;
         glass.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
         SGShapeGlass(glass, v.layer.cornerRadius, NO);
+        thickenSheetGlass(glass, v);
         if (v.layer.backgroundColor) v.layer.backgroundColor = NULL;
         CGFloat wide = v.bounds.size.width * kSheetBandShare;
         for (UIView *sub in v.subviews) stripSheetChrome(sub, glass, wide, 0);

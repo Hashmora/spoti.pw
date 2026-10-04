@@ -68,9 +68,9 @@ static BOOL isLibraryHeader(UIView *view) {
                 color = NULL;
             } else if (SGIsBaseSurface(color) && (SGIsInside(view, sgr_playlistRoot) || SGIsInside(view, sgr_albumRoot) || SGIsInside(view, sgr_artistRoot))) {
                 color = NULL;
-            } else if (SGIsVisibleColor(color) && SGRIsSheetChromeArea(view, sgr_sheetChromeRoot)) {
+            } else if (SGIsVisibleColor(color) && SGRIsSheetChromeArea(view, sgr_sheetChromeRoot) && !SGRIsSheetCard(view)) {
                 color = NULL;
-            } else if (SGRIsSheetSurface(color) && SGIsInside(view, sgr_sheetChromeRoot)
+            } else if (SGRIsSheetSurface(color) && !SGRIsSheetCard(view) && SGIsInside(view, sgr_sheetChromeRoot)
                        && sgr_sheetChromeRoot.bounds.size.width > 1
                        && view.bounds.size.width >= sgr_sheetChromeRoot.bounds.size.width * 0.75) {
                 // A band in the sheet's own list (the queue's QueueCell and TrackRowQueue.Cell, #1F1F1F).

@@ -24,4 +24,8 @@ BOOL SGLegacyGlassAvailable(void);
 @property (nonatomic) CGFloat cornerRadius;
 @property (nonatomic) BOOL capsule;
 
+// How far the backdrop is blurred, 2 by default: enough to soften an edge, and so little that a small
+// control over text shows the text. A big pane (a sheet) sets more, or the page under it takes the eye.
+@property (nonatomic) CGFloat blurRadius;
+
 @end

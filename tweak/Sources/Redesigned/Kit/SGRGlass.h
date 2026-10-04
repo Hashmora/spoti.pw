@@ -52,3 +52,7 @@ BOOL SGRIsSheetSurface(CGColorRef color);
 // `root`). For a cell that comes into the sheet after the chrome was stripped: scrolled in, reused, or
 // dragged. Safe to call on every layout pass.
 void SGRClearSheetCellPaint(UIView *cell, UIView *root);
+
+// Whether `view` is a card the sheet draws on purpose (a SwiftUI shape, or a narrower rounded fill) rather than
+// the grey of a wrapper: SGRGlassSheetChrome and the repaint hook leave these alone.
+BOOL SGRIsSheetCard(UIView *view);

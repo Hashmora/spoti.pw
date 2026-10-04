@@ -3,7 +3,13 @@
 // like the playlist's sort/find toolbar (trees/continuous/8.txt). The sheet itself (id=sheet-view, as in
 // the ⋯ context menu) gets its pane from SGRGlassSheetChrome, the call Playlist/PlaylistMenu.x makes too. That
 // call also clears the grey (#1F1F1F) of the queue's table and rows, and the Kit's repaint hook keeps it
-// clear (trees/continuous 2026-10-05: the list stayed opaque under a glass header and footer).
+// clear.
+//
+// The queue is built and painted after its first layout pass, so a chrome pass that runs only from
+// viewDidLayoutSubviews missed the bar of Shuffle / Repeat / Timer and the edit toolbar (both
+// #1F1F1F@1.00 in the dump taken just after opening, trees/continuous 2026-10-05) until a drag of the
+// sheet laid it out again. It runs from the view's appearance and from the next turns of the run loop
+// as well, and the two bars clear their own paint whenever it is laid down.
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
 
@@ -27,10 +33,8 @@ static void glassChip(UIView *root, NSString *buttonIdentifier) {
     if (button && button.superview) SGRGlassFlatBox(button.superview, &kChipGlassKey);
 }
 
-%hook _TtC14Queue_ViewImpl19QueueViewController
-- (void)viewDidLayoutSubviews {
-    %orig;
-    UIView *root = ((UIViewController *)self).viewIfLoaded;
+static void chrome(UIViewController *controller) {
+    UIView *root = controller.viewIfLoaded;
     if (!root) return;
     SGRGlassSheetChrome(root);
     glassPills(root);
@@ -38,6 +42,39 @@ static void glassChip(UIView *root, NSString *buttonIdentifier) {
     glassChip(root, @"queue-edit-toolbar-remove");
     glassChip(root, @"queue-edit-toolbar-clear-selection");
 }
+
+%hook _TtC14Queue_ViewImpl19QueueViewController
+- (void)viewDidLayoutSubviews {
+    %orig;
+    chrome((UIViewController *)self);
+}
+
+- (void)viewDidAppear:(BOOL)animated {
+    %orig;
+    __weak UIViewController *weak = (UIViewController *)self;
+    chrome((UIViewController *)self);
+    for (NSNumber *delay in @[@0.0, @0.25, @0.6]) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            if (weak) chrome(weak);
+        });
+    }
+}
+%end
+
+// The two bars under the list: Queue_ViewImpl.SessionModifiersView and EditModeToolbarView, painted
+// #1F1F1F by Spotify when they are made and each time their content changes.
+static void clearBar(UIView *bar) {
+    if (SGRIsSheetSurface(bar.layer.backgroundColor)) bar.backgroundColor = UIColor.clearColor;
+}
+
+%hook _TtC14Queue_ViewImpl20SessionModifiersView
+- (void)layoutSubviews { %orig; clearBar((UIView *)self); }
+- (void)didMoveToWindow { %orig; clearBar((UIView *)self); }
+%end
+
+%hook _TtC14Queue_ViewImpl19EditModeToolbarView
+- (void)layoutSubviews { %orig; clearBar((UIView *)self); }
+- (void)didMoveToWindow { %orig; clearBar((UIView *)self); }
 %end
 
 %ctor {

@@ -52,6 +52,14 @@ static id SGBlurFilter(CGFloat radius) {
 - (id<CAAction>)actionForLayer:(CALayer *)layer forKey:(NSString *)event { return (id<CAAction>)[NSNull null]; }
 @end
 
+static NSArray *SGBackdropFilters(CGFloat blur) {
+    NSMutableArray *filters = [NSMutableArray array];
+    for (id filter in @[SGSaturationFilter() ?: NSNull.null, SGBlurFilter(blur) ?: NSNull.null]) {
+        if (filter != NSNull.null) [filters addObject:filter];
+    }
+    return filters;
+}
+
 static CALayer *SGMakeBackdropLayer(id<CALayerDelegate> delegate) {
     CALayer *layer = [[NSClassFromString(@"CABackdropLayer") alloc] init];
     if (!layer) return nil;
@@ -59,10 +67,7 @@ static CALayer *SGMakeBackdropLayer(id<CALayerDelegate> delegate) {
     if ([layer respondsToSelector:setScale]) ((void (*)(id, SEL, double))objc_msgSend)(layer, setScale, 1.0);
     layer.rasterizationScale = 1.0;
     layer.delegate = delegate;
-    NSMutableArray *filters = [NSMutableArray array];
-    for (id filter in @[SGSaturationFilter() ?: NSNull.null, SGBlurFilter(2.0) ?: NSNull.null]) {
-        if (filter != NSNull.null) [filters addObject:filter];
-    }
+    NSArray *filters = SGBackdropFilters(2.0);
     if (filters.count) layer.filters = filters;
     return layer;
 }
@@ -349,6 +354,7 @@ static id SGMakeGlassMesh(CGSize size, CGFloat radius) {
     self.layer.cornerCurve = kCACornerCurveCircular;
     self.clipsToBounds = YES;
 
+    _blurRadius = 2.0;
     _backdropDelegate = [SGNoActionsDelegate new];
     _backdropLayer = SGMakeBackdropLayer(_backdropDelegate);
     if (_backdropLayer) [self.layer addSublayer:_backdropLayer];
@@ -364,6 +370,13 @@ static id SGMakeGlassMesh(CGSize size, CGFloat radius) {
     if (_cornerRadius == cornerRadius) return;
     _cornerRadius = cornerRadius;
     [self setNeedsLayout];
+}
+
+- (void)setBlurRadius:(CGFloat)blurRadius {
+    if (_blurRadius == blurRadius) return;
+    _blurRadius = blurRadius;
+    NSArray *filters = SGBackdropFilters(blurRadius);
+    if (filters.count) _backdropLayer.filters = filters;
 }
 
 - (void)setCapsule:(BOOL)capsule {
