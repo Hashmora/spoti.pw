@@ -12,6 +12,7 @@
 //   at {8,0} 386x56 > UIView 386x56 (the painted card) > artwork 40x40 r=4, title stack,
 //   progress line 370x2 at the bottom. The glass pane goes on the container's view.
 #import "Core/SGCore.h"
+#import "Redesigned/Kit/SGRGlass.h"
 #import "Redesigned/Kit/SGRRepaint.h"
 #import "NowPlayingBar.h"
 
