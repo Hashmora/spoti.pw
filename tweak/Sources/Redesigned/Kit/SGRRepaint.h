@@ -20,9 +20,3 @@ extern __weak UIView *sgr_artistRoot;
 // and a view built only after that first pass (the queue's own footer, device 2026-09-27) never gets a
 // first strip at all without this.
 extern __weak UIView *sgr_sheetChromeRoot;
-
-// Marks a view as the plain fill of a filter chip or pill that sits on glass (Home's pills, HomePills.m): the
-// translucent white Spotify tints it with is kept clear whenever it is painted back, the way it is for the
-// Library's FilterChipView fills, which are found by their parent's class instead. A selected chip's solid
-// colour is never touched.
-void SGRMarkChipFill(UIView *fill);
