@@ -63,15 +63,12 @@ static void appendTab(NSDictionary *tab) {
 @interface SGRTabPickerPage : SGPage
 @end
 
-// The presets the dispatcher can send somewhere, each verdict logged. When it cannot be asked (not set
+// The presets the dispatcher can send somewhere. When it cannot be asked (not set
 // up yet, or 9.1.78's registry is not where it was) every preset stays, as before.
 static NSArray<NSDictionary *> *openablePresets(void) {
     NSMutableArray<NSDictionary *> *kept = [NSMutableArray array];
     for (NSDictionary *tab in tabPresets()) {
-        NSString *via = nil;
-        SGLinkRoute route = SGSpotifyURIRoute([NSURL URLWithString:tab[SGRNavbarURI]], &via);
-        SGLog(@"navbar: preset %@ -> %@", tab[SGRNavbarURI],
-              route == SGLinkRouteOpens ? via : route == SGLinkRouteNone ? @"no handler, left out" : @"unknown");
+        SGLinkRoute route = SGSpotifyURIRoute([NSURL URLWithString:tab[SGRNavbarURI]], NULL);
         if (route != SGLinkRouteNone) [kept addObject:tab];
     }
     return kept;
@@ -172,10 +169,7 @@ static NSArray<NSDictionary *> *openablePresets(void) {
         NSString *title = alert.textFields[0].text, *icon = alert.textFields[2].text;
         NSString *uri = SGSpotifyURIFromText(alert.textFields[1].text).absoluteString;
         if (!uri.length) return;
-        NSString *via = nil;
-        SGLinkRoute route = SGSpotifyURIRoute([NSURL URLWithString:uri], &via);
-        SGLog(@"navbar: custom %@ -> %@", uri, route == SGLinkRouteOpens ? via : route == SGLinkRouteNone ? @"no handler" : @"unknown");
-        if (route == SGLinkRouteNone) {
+        if (SGSpotifyURIRoute([NSURL URLWithString:uri], NULL) == SGLinkRouteNone) {
             [self refuse:uri];
             return;
         }

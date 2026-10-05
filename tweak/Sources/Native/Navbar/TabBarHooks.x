@@ -32,11 +32,27 @@ static UIView *tabBarOf(UIView *item) {
     return nil;
 }
 
+static char kTabBarGlassKey;
+
+// Legacy glass under the whole bar, the same pane Player.x puts behind the round header buttons. Spotify
+// paints the bar as flat chrome; that fill is cleared first or the pane would never show.
+static void glassBehindTabBar(UIView *tabBar) {
+    if (!SGUseLegacyGlass()) return;
+    tabBar.layer.backgroundColor = NULL;
+    UIView *glass = SGGlassFor(tabBar, &kTabBarGlassKey);
+    // Dark whatever the system is set to, as the player's header panes are (Player.x).
+    if (glass.overrideUserInterfaceStyle != UIUserInterfaceStyleDark) glass.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
+    glass.frame = tabBar.bounds;
+    glass.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    SGShapeGlass(glass, 0, NO);
+}
+
 %hook _TtC23NavigationUI_TabBarImpl10TabBarView
 - (void)layoutSubviews {
     %orig;
     SGComposeTabBar((UIView *)self);
     holdHome((UIView *)self);
+    glassBehindTabBar((UIView *)self);
     SGLogTabBarRow((UIView *)self);
 }
 %end

@@ -12,16 +12,18 @@
 //   at {8,0} 386x56 > UIView 386x56 (the painted card) > artwork 40x40 r=4, title stack,
 //   progress line 370x2 at the bottom. The glass pane goes on the container's view.
 #import "Core/SGCore.h"
+#import "Redesigned/Kit/SGRGlass.h"
 #import "Redesigned/Kit/SGRRepaint.h"
 #import "NowPlayingBar.h"
 
 static const CGFloat kCardRadius = 24;
 static char kGlassKey;
-static __weak UIVisualEffectView *sg_cardGlass;
+static char kTintKey;
+static __weak UIView *sg_cardGlass;
 static __weak UIView *sg_cardArtwork;
 
 CGRect SGRNowPlayingCardFrameIn(UIView *host, CGFloat *radius) {
-    UIVisualEffectView *glass = sg_cardGlass;
+    UIView *glass = sg_cardGlass;
     if (!glass.superview || !glass.window || !host) return CGRectNull;
     if (radius) *radius = MIN(kCardRadius, glass.bounds.size.height / 2);
     return [host convertRect:glass.bounds fromView:glass];
@@ -113,13 +115,15 @@ static void styleNowPlayingBar(UIViewController *container) {
         restyleCardContent(card);
     }
 
-    UIVisualEffectView *glass = SGGlassFor(container.view, &kGlassKey);
+    UIView *glass = SGGlassFor(container.view, &kGlassKey);
     // Dark whatever the system is set to: the bar is outside the navigation stacks Spotify makes dark, and
     // took the system's light glass on a phone in light mode (TabBar.x).
     if (glass.overrideUserInterfaceStyle != UIUserInterfaceStyleDark) glass.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
     sg_cardGlass = glass;
     glass.frame = frame;
     SGShapeGlass(glass, radius, NO);
+
+    SGRGlassFilm(container.view, &kTintKey, glass, radius);
 
     static dispatch_once_t once;
     dispatch_once(&once, ^{

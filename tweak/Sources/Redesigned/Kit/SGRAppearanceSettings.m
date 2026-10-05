@@ -21,9 +21,26 @@ static void chooseAccent(void) {
     [top presentViewController:sheet animated:YES completion:nil];
 }
 
+// A switch where the device has the private APIs legacy glass leans on (SGLegacyGlassAvailable()); where
+// it has not, a row that says so, and panes stay a plain blur.
+static SGModRow *legacyGlassRow(void) {
+    if (SGLegacyGlassAvailable()) {
+        SGModRow *row = SGOptionRow(@"Legacy Liquid Glass", @"An approximation of iOS 26's glass for the navbar and round buttons, on this iOS.", SGKeyLegacyGlass);
+        return SGWithSymbol(row, @"cube.transparent");
+    }
+    NSString *reason = [NSString stringWithFormat:@"This phone (iOS %@) doesn't have the private APIs it leans on, so glass panes stay a plain blur.", UIDevice.currentDevice.systemVersion];
+    SGModRow *row = SGStatActionRow(@"Legacy Liquid Glass", nil, ^NSString *{ return @"Unavailable"; }, ^{
+        UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Legacy Liquid Glass" message:reason preferredStyle:UIAlertControllerStyleAlert];
+        [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleCancel handler:nil]];
+        [SGTopController() presentViewController:alert animated:YES completion:nil];
+    });
+    return SGWithSymbol(row, @"cube.transparent");
+}
+
 // The redesign's rows of the Appearance card (App/Pages.m). AMOLED has no row: the redesign is always black.
 NSArray<SGModRow *> *SGRAppearanceRows(void) {
     return @[
         SGWithSymbol(SGStatActionRow(@"Accent colour", nil, ^NSString *{ return SGRAccentLabel(); }, ^{ chooseAccent(); }), @"paintpalette"),
+        legacyGlassRow(),
     ];
 }

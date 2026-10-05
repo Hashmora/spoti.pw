@@ -3,6 +3,9 @@
 #import "SGPrefs.h"
 
 BOOL SGRedesignAvailable(void) {
+    // The redesign stands in for the system's Liquid Glass where there is none. From iOS 26 the system
+    // draws its own, and a second engine over it only conflicts (Redesigned/Navbar/TabBar.x).
+    if (@available(iOS 26.0, *)) return NO;
     return YES;
 }
 

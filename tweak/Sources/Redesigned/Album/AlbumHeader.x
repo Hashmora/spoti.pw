@@ -438,10 +438,22 @@ static void applyHeader(UIView *header, UIView *page) {
     if (cover) applyHero(header, cover, bottom);
 }
 
+// Find on this page sits above the cover the way it does on a playlist (PlaylistHeader.x), and the
+// template is shared with a podcast episode and Your Episodes (AlbumField.x).
+static void glassAlbumToolbar(UIView *page) {
+    static char kToolbarKey, kFieldKey, kSortBoxKey, kFieldGlassKey, kSortGlassKey;
+    SGRPinnedBack(page, page);
+    UIView *toolbar = SGRFindByIdentifier(page, @"Components.Header.UI.Toolbar.Content", &kToolbarKey);
+    if (!toolbar) return;
+    SGRGlassFlatBox(SGRFindByIdentifier(toolbar, @"Components.Header.UI.Toolbar.SearchField", &kFieldKey), &kFieldGlassKey);
+    SGRGlassFlatBox(SGRFindByIdentifier(toolbar, @"Components.Header.UI.Toolbar.ButtonContainer", &kSortBoxKey), &kSortGlassKey);
+}
+
 static void applyPage(UIView *page) {
     UIView *header = SGRFindByIdentifier(page, @"CreativeWorkPlatform.Components.UI.CreativeWorkHeader", &kHeaderKey);
     if (!header) return;
     applyHeader(header, page);
+    glassAlbumToolbar(page);
     // The header lays itself out again whenever its cover, its artist or its buttons arrive, which the
     // page's own pass does not hear about. It is a plain UIView, so its pass can be watched.
     watch(header, &kHeaderWatchedKey, ^(UIView *view) {

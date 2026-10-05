@@ -373,9 +373,16 @@ static void install(UIViewController *menu) {
     }
 }
 
+// The sheet's own chrome: SGRGlassSheetChrome (Redesigned/Kit/SGRGlass.h), found by the identifier
+// Spotify gives it ("sheet-view") rather than by class, since the presentation controller that owns it
+// belongs to UIKit, not to this table's own view controller. It used to stop at the pane and leave
+// Spotify's own opaque wrapping views over it, which the glass showed through only where neither yet
+// covered it -- a band a couple of points tall at the very top of the sheet (trees/continuous/24.txt
+// 2026-09-26); the shared call strips those too, now, the same way it does for the queue's sheet.
 %hook _TtC24ContextMenu_InternalImpl25ContextMenuViewController
 - (void)viewDidLayoutSubviews {
     %orig;
+    SGRGlassSheetChrome(((UIViewController *)self).viewIfLoaded);
     install((UIViewController *)self);
 }
 %end
