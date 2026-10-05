@@ -243,7 +243,7 @@ static void stripSheetChrome(UIView *view, UIView *skip, CGFloat wide, int depth
 // nearly sharp (blur 2) and took the eye off the sheet. So the pane blurs far more and carries a dark body
 // and a hairline edge, which is what tells it from a plain blur -- the rim catching light, over a body dense
 // enough to hold the content. Under Reduce Transparency the body is the solid fill alone.
-static const CGFloat kSheetBlur = 14;
+static const CGFloat kSheetBlur = 10;
 static char kSheetBodyKey, kSheetRimKey;
 
 void SGRThickenSheetGlass(UIView *glass, CGFloat cornerRadius) {
