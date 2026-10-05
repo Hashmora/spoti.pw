@@ -45,12 +45,19 @@ static id legacyGlassRow(void) {
 
 // The card is the one holding the Redesigned UI row; the new row goes right under it.
 static NSArray *withLegacyGlassRow(NSArray *sections) {
-    if (!PGRedesignAvailable()) return sections;
+    if (!PGRedesignAvailable()) {
+        PGLog(@"settings: no Legacy Glass row, this is iOS 26 or later");
+        return sections;
+    }
     for (id section in sections) {
         if (![[section valueForKey:@"title"] isEqual:kCardTitle]) continue;
         NSArray *rows = [section valueForKey:@"rows"];
         NSUInteger anchor = [[rows valueForKey:@"title"] indexOfObject:kAnchorRow];
-        if (anchor == NSNotFound) continue;
+        if (anchor == NSNotFound) {
+            PGLog(@"settings: card %@ has no %@ row, its rows are %@", kCardTitle, kAnchorRow, [rows valueForKey:@"title"]);
+            continue;
+        }
+        PGLog(@"settings: Legacy Glass row added under %@", kAnchorRow);
         NSMutableArray *with = [rows mutableCopy];
         [with insertObject:legacyGlassRow() atIndex:anchor + 1];
         [section setValue:with forKey:@"rows"];
@@ -60,6 +67,7 @@ static NSArray *withLegacyGlassRow(NSArray *sections) {
 
 %hook SGModPage
 - (id)initWithTitle:(NSString *)title intro:(NSString *)intro sections:(NSArray *)sections footer:(NSString *)footer {
+    PGLog(@"settings: page %@ made with %lu sections", title, (unsigned long)sections.count);
     return %orig(title, intro, withLegacyGlassRow(sections), footer);
 }
 %end
