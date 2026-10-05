@@ -6,7 +6,6 @@
 // Nothing happens without spoti.pw, or from iOS 26, where there is no glass of ours to switch.
 #import "Core/PGCore.h"
 
-static NSString *const kCardTitle = @"Appearance";
 static NSString *const kAnchorRow = @"Redesigned UI";
 
 static UIViewController *topController(void) {
@@ -43,25 +42,25 @@ static id legacyGlassRow(void) {
     return row;
 }
 
-// The card is the one holding the Redesigned UI row; the new row goes right under it.
+// The card is the one holding the Redesigned UI row, whatever it is called; the new row goes right under it.
 static NSArray *withLegacyGlassRow(NSArray *sections) {
     if (!PGRedesignAvailable()) {
         PGLog(@"settings: no Legacy Glass row, this is iOS 26 or later");
         return sections;
     }
     for (id section in sections) {
-        if (![[section valueForKey:@"title"] isEqual:kCardTitle]) continue;
         NSArray *rows = [section valueForKey:@"rows"];
         NSUInteger anchor = [[rows valueForKey:@"title"] indexOfObject:kAnchorRow];
-        if (anchor == NSNotFound) {
-            PGLog(@"settings: card %@ has no %@ row, its rows are %@", kCardTitle, kAnchorRow, [rows valueForKey:@"title"]);
-            continue;
-        }
-        PGLog(@"settings: Legacy Glass row added under %@", kAnchorRow);
+        if (anchor == NSNotFound) continue;
+        PGLog(@"settings: Legacy Glass row added under %@ in card %@", kAnchorRow, [section valueForKey:@"title"]);
         NSMutableArray *with = [rows mutableCopy];
         [with insertObject:legacyGlassRow() atIndex:anchor + 1];
         [section setValue:with forKey:@"rows"];
+        return sections;
     }
+    NSMutableString *out = [NSMutableString stringWithFormat:@"settings: no %@ row on this page", kAnchorRow];
+    for (id section in sections) [out appendFormat:@"\n  %@: %@", [section valueForKey:@"title"], [[section valueForKey:@"rows"] valueForKey:@"title"]];
+    PGLog(@"%@", out);
     return sections;
 }
 
