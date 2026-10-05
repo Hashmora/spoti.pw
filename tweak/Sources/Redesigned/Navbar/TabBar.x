@@ -1064,85 +1064,6 @@ static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
     if (host.superview != stockBar) [stockBar addSubview:host];
     else if (stockBar.subviews.lastObject != host) [stockBar bringSubviewToFront:host];
     makeRoom(containerOf(stockBar));
-    SGRCompactBarSynced(stockBar);
-}
-
-#pragma mark - for the compact row (CompactBar.m)
-
-UIView *SGRTabBarStock(void) {
-    return sg_stockBar;
-}
-
-// host.frame is never read through a transform: CompactBar.m only fades the host, and a frame set on a view
-// with a transform would be set wrong by the compare in syncBarCore.
-UIView *SGRTabBarCapsule(CGRect *platter) {
-    UIView *stock = sg_stockBar;
-    UIView *host = stock ? objc_getAssociatedObject(stock, &kHostKey) : nil;
-    UITabBar *bar = stock ? objc_getAssociatedObject(stock, &kBarKey) : nil;
-    if (!host || !bar || host.superview != stock) return nil;
-    if (platter) {
-        CGRect frame = bar.frame;
-        frame.origin.x += host.frame.origin.x;
-        frame.origin.y += host.frame.origin.y;
-        *platter = frame;
-    }
-    return host;
-}
-
-UIView *SGRTabBarContainerView(void) {
-    UIView *stock = sg_stockBar;
-    UIViewController *container = stock ? containerOf(stock) : nil;
-    return container.viewIfLoaded;
-}
-
-static SGRSystemTabBar *systemBar(void) {
-    UIView *stock = sg_stockBar;
-    return stock ? objc_getAssociatedObject(stock, &kBarKey) : nil;
-}
-
-// The tab that is open: lastRealItem, never Create, which only pops a menu over it.
-UIImage *SGRTabBarCurrentGlyph(void) {
-    SGRSystemTabBar *bar = systemBar();
-    UITabBarItem *item = bar.lastRealItem ?: bar.selectedItem;
-    UIImage *image = item.selectedImage ?: item.image;
-    return [image imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
-}
-
-// The row's right circle: Search, found by its label, else the second of Spotify's tabs; Home while
-// Search is the tab that is open, so the circle always goes somewhere.
-static UITabBarItem *sideItem(SGRSystemTabBar *bar) {
-    if (bar.items.count != bar.sources.count || !bar.items.count) return nil;
-    NSUInteger search = NSNotFound;
-    for (NSUInteger i = 0; i < bar.sources.count; i++) {
-        if ([labelIn(bar.sources[i]).text.lowercaseString isEqualToString:@"search"]) { search = i; break; }
-    }
-    if (search == NSNotFound && bar.sources.count > 1) search = 1;
-    if (search == NSNotFound) return nil;
-    UITabBarItem *open = bar.lastRealItem ?: bar.selectedItem;
-    return bar.items[search] == open ? bar.items.firstObject : bar.items[search];
-}
-
-UIImage *SGRTabBarSideGlyph(void) {
-    SGRSystemTabBar *bar = systemBar();
-    UITabBarItem *item = bar ? sideItem(bar) : nil;
-    return [(item.image ?: item.selectedImage) imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
-}
-
-void SGRTabBarSideTap(void) {
-    SGRSystemTabBar *bar = systemBar();
-    UITabBarItem *item = bar ? sideItem(bar) : nil;
-    if (!item) return;
-    bar.selectedItem = item;
-    [bar tabBar:bar didSelectItem:item];
-    if (sg_stockBar) syncBar(sg_stockBar);
-}
-
-BOOL SGRFireTapRecognizers(UIView *view) {
-    return fireTapRecognizers(view);
-}
-
-void SGRForwardTap(UIView *item) {
-    forwardTap(item);
 }
 
 #pragma mark - hooks
@@ -1192,7 +1113,6 @@ static void itemDidLayOut(UIView *item) {
 %hook _TtC23NavigationUI_TabBarImpl19TabBarContainerImpl
 - (void)setSelectedViewController:(UIViewController *)controller {
     %orig;
-    SGRCompactBarSetCollapsed(NO, YES);
     // Spotify repaints its labels a moment after the controller changes, so the first look can still
     // find the old tab painted white; the second, once it has.
     dispatch_async(dispatch_get_main_queue(), ^{

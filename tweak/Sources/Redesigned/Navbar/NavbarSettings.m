@@ -242,7 +242,7 @@ typedef NS_ENUM(NSInteger, SGRNavbarSection) {
 }
 
 - (NSInteger)tableView:(UITableView *)table numberOfRowsInSection:(NSInteger)section {
-    if (section == SGRNavbarSectionSwitch) return 3;
+    if (section == SGRNavbarSectionSwitch) return 2;
     return section == SGRNavbarSectionTabs ? (NSInteger)_entries.count : 1;
 }
 
@@ -268,14 +268,12 @@ typedef NS_ENUM(NSInteger, SGRNavbarSection) {
     UITableViewCell *cell = SGDequeueCell(table, @"navbar");
     switch (path.section) {
         case SGRNavbarSectionSwitch: {
-            // Row 0 the custom navbar, 1 its labels, 2 the compact row. The tag is the row, read back in toggled:.
-            NSString *titles[] = {@"Custom navbar", @"Hide labels", @"Compact on scroll"};
-            NSString *details[] = {nil, @"Icons only", @"Scrolling down folds the bars into one row with the player"};
-            SGFillCell(cell, titles[path.row], details[path.row], nil, nil);
+            BOOL labels = path.row == 1;
+            SGFillCell(cell, labels ? @"Hide labels" : @"Custom navbar", labels ? @"Icons only" : nil, nil, nil);
             UISwitch *toggle = [UISwitch new];
             toggle.onTintColor = SGGreen();
             toggle.tag = path.row;
-            toggle.on = path.row == 0 ? SGEnabled(SGRKeyNavbar) : SGHidden(path.row == 1 ? SGRKeyNavbarHideLabels : SGRKeyNavbarCompact);
+            toggle.on = labels ? SGHidden(SGRKeyNavbarHideLabels) : SGEnabled(SGRKeyNavbar);
             [toggle addTarget:self action:@selector(toggled:) forControlEvents:UIControlEventValueChanged];
             cell.accessoryView = toggle;
             break;
@@ -347,10 +345,7 @@ typedef NS_ENUM(NSInteger, SGRNavbarSection) {
 }
 
 - (void)toggled:(UISwitch *)toggle {
-    NSString *keys[] = {SGRKeyNavbar, SGRKeyNavbarHideLabels, SGRKeyNavbarCompact};
-    SGSetEnabled(keys[toggle.tag], toggle.on);
-    // Folded bars come back at once when the switch goes off; the layout pass that follows does the rest.
-    if (toggle.tag == 2 && !toggle.on) SGRCompactBarSetCollapsed(NO, YES);
+    SGSetEnabled(toggle.tag == 1 ? SGRKeyNavbarHideLabels : SGRKeyNavbar, toggle.on);
     SGRRefreshTabBar();
 }
 

@@ -15,14 +15,12 @@
 #import "Redesigned/Kit/SGRGlass.h"
 #import "Redesigned/Kit/SGRRepaint.h"
 #import "NowPlayingBar.h"
-#import "Redesigned/Navbar/Navbar.h"
 
 static const CGFloat kCardRadius = 24;
 static char kGlassKey;
 static char kTintKey;
 static __weak UIView *sg_cardGlass;
 static __weak UIView *sg_cardArtwork;
-static __weak UIView *sg_container;
 
 CGRect SGRNowPlayingCardFrameIn(UIView *host, CGFloat *radius) {
     UIView *glass = sg_cardGlass;
@@ -35,81 +33,6 @@ CGRect SGRNowPlayingArtworkFrameIn(UIView *host) {
     UIView *artwork = sg_cardArtwork;
     if (!artwork.window || !host) return CGRectNull;
     return [host convertRect:artwork.bounds fromView:artwork];
-}
-
-#pragma mark - for the compact row
-
-UIView *SGRNowPlayingContainerView(void) {
-    UIView *container = sg_container;
-    return container.window ? container : nil;
-}
-
-// Spotify's own labels, top to bottom: the title, then the artist. A third line (the device the music is
-// on) is left out by taking two.
-static NSArray<UILabel *> *textLabels(UIView *bar) {
-    NSMutableArray<UILabel *> *labels = [NSMutableArray array];
-    SGForEachView(bar, ^(UIView *v) {
-        UILabel *label = [v isKindOfClass:UILabel.class] ? (UILabel *)v : nil;
-        if (label && !label.hidden && label.alpha > 0.01 && label.text.length && label.bounds.size.width > 0) [labels addObject:label];
-    });
-    return [labels sortedArrayUsingComparator:^NSComparisonResult(UILabel *a, UILabel *b) {
-        return [@(SGFrameIn(a, bar).origin.y) compare:@(SGFrameIn(b, bar).origin.y)];
-    }];
-}
-
-// The play/pause button: the one the accessibility label names, else the right-most control of the bar's
-// size (Spotify lays the card out connect, heart, play).
-static UIView *playControl(UIView *bar) {
-    __block UIView *named = nil, *rightmost = nil;
-    __block CGFloat bestX = -CGFLOAT_MAX;
-    SGForEachView(bar, ^(UIView *v) {
-        CGFloat width = v.bounds.size.width;
-        if (v.hidden || v.alpha < 0.01 || width < 20 || width > 100) return;
-        NSString *label = v.accessibilityLabel.lowercaseString;
-        if (!named && ([label hasPrefix:@"play"] || [label hasPrefix:@"pause"])) named = v;
-        if ([v isKindOfClass:UIControl.class]) {
-            CGFloat x = SGFrameIn(v, bar).origin.x;
-            if (x > bestX) { bestX = x; rightmost = v; }
-        }
-    });
-    return named ?: rightmost;
-}
-
-BOOL SGRNowPlayingState(NSString **title, NSString **artist, UIImage **artwork, BOOL *playing) {
-    UIView *bar = sgr_nowPlayingRoot;
-    if (!bar.window) return NO;
-    NSArray<UILabel *> *labels = textLabels(bar);
-    if (!labels.count) return NO;
-    if (title) *title = labels[0].text;
-    if (artist) *artist = labels.count > 1 ? labels[1].text : nil;
-    if (artwork) {
-        __block UIImage *image = nil;
-        SGForEachView(sg_cardArtwork ?: bar, ^(UIView *v) {
-            if (!image && [v isKindOfClass:UIImageView.class]) image = ((UIImageView *)v).image;
-        });
-        *artwork = image;
-    }
-    if (playing) {
-        // The button reads "Pause" while the music plays and "Play" while it does not.
-        NSString *label = playControl(bar).accessibilityLabel.lowercaseString;
-        *playing = [label hasPrefix:@"pause"];
-    }
-    return YES;
-}
-
-void SGRNowPlayingTogglePlay(void) {
-    UIView *control = playControl(sgr_nowPlayingRoot);
-    if (control) SGRForwardTap(control);
-}
-
-// The card, then the views above it up to the container: a tap recognizer for the whole bar sits on one of
-// those, and going down instead would find the play button's first.
-void SGRNowPlayingOpen(void) {
-    UIView *container = sg_container;
-    for (UIView *v = sgr_nowPlayingCard ?: sgr_nowPlayingRoot; v; v = v.superview) {
-        if (SGRFireTapRecognizers(v)) return;
-        if (v == container) return;
-    }
 }
 
 static UIView *detectColoredCard(UIView *bar) {
@@ -174,7 +97,6 @@ static void styleNowPlayingBar(UIViewController *container) {
     UIViewController *barVC = container.childViewControllers.firstObject;
     UIView *bar = barVC.viewIfLoaded ?: container.view;
     sgr_nowPlayingRoot = bar;
-    sg_container = container.view;
 
     UIView *card = sgr_nowPlayingCard;
     if (!card || !SGIsInside(card, bar)) card = sgr_nowPlayingCard = detectColoredCard(bar);
@@ -202,8 +124,6 @@ static void styleNowPlayingBar(UIViewController *container) {
     SGShapeGlass(glass, radius, NO);
 
     SGRGlassFilm(container.view, &kTintKey, glass, radius);
-
-    SGRCompactBarNowPlayingChanged();
 
     static dispatch_once_t once;
     dispatch_once(&once, ^{

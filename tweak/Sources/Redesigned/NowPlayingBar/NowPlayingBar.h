@@ -15,10 +15,3 @@ UIViewController *SGRNowPlayingBarSettingsPage(void);
 CGRect SGRNowPlayingCardFrameIn(UIView *host, CGFloat *radius);
 // The round artwork on that card in `host`'s coordinates; CGRectNull when none was found.
 CGRect SGRNowPlayingArtworkFrameIn(UIView *host);
-
-// For the compact row (Navbar/CompactBar.m): the bar's container view, what the bar shows (NO when it has
-// no title to show), a tap on its play/pause button and on the card itself, which opens the player.
-UIView *SGRNowPlayingContainerView(void);
-BOOL SGRNowPlayingState(NSString **title, NSString **artist, UIImage **artwork, BOOL *playing);
-void SGRNowPlayingTogglePlay(void);
-void SGRNowPlayingOpen(void);
