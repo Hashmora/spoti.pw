@@ -243,7 +243,7 @@ static void stripSheetChrome(UIView *view, UIView *skip, CGFloat wide, int depth
 // nearly sharp (blur 2) and took the eye off the sheet. So the pane blurs far more and carries a dark body
 // and a hairline edge, which is what tells it from a plain blur -- the rim catching light, over a body dense
 // enough to hold the content. Under Reduce Transparency the body is the solid fill alone.
-static const CGFloat kSheetBlur = 20;
+static const CGFloat kSheetBlur = 14;
 static char kSheetBodyKey, kSheetRimKey;
 
 static void thickenSheetGlass(UIView *glass, UIView *sheet) {
@@ -257,7 +257,7 @@ static void thickenSheetGlass(UIView *glass, UIView *sheet) {
         view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
         return view;
     });
-    UIColor *tint = SGRReduceTransparency() ? SGRSolidGlassFill() : [UIColor colorWithWhite:0.06 alpha:0.62];
+    UIColor *tint = SGRReduceTransparency() ? SGRSolidGlassFill() : [UIColor colorWithWhite:1 alpha:0.24];
     if (![body.backgroundColor isEqual:tint]) body.backgroundColor = tint;
     if (!CGRectEqualToRect(body.frame, host.bounds)) body.frame = host.bounds;
     // The rim: one point of light along the top edge, fading down the sides, drawn over the body.
@@ -266,7 +266,7 @@ static void thickenSheetGlass(UIView *glass, UIView *sheet) {
         view.userInteractionEnabled = NO;
         view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
         view.layer.borderWidth = 1.0 / UIScreen.mainScreen.scale;
-        view.layer.borderColor = [UIColor colorWithWhite:1 alpha:0.20].CGColor;
+        view.layer.borderColor = [UIColor colorWithWhite:1 alpha:0.28].CGColor;
         view.layer.cornerCurve = kCACornerCurveContinuous;
         return view;
     });

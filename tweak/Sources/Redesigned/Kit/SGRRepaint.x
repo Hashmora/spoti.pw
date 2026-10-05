@@ -107,6 +107,12 @@ static BOOL isSheetPaint(UIView *view, CGColorRef color) {
     return SGRIsSheetChromeArea(view, root) || view.bounds.size.width >= root.bounds.size.width * 0.75;
 }
 
+static void clearAttachedPaint(UIView *view) {
+    if (!sgr_sheetChromeRoot) return;
+    CGColorRef paint = view.layer.backgroundColor;
+    if (paint && isSheetPaint(view, paint)) view.backgroundColor = UIColor.clearColor;
+}
+
 %hook UIView
 - (void)setBackgroundColor:(UIColor *)color {
     if (sgr_sheetChromeRoot && color && isSheetPaint((UIView *)self, color.CGColor)) color = UIColor.clearColor;
@@ -115,10 +121,16 @@ static BOOL isSheetPaint(UIView *view, CGColorRef color) {
 
 - (void)didMoveToSuperview {
     %orig;
-    if (!sgr_sheetChromeRoot) return;
-    UIView *view = (UIView *)self;
-    CGColorRef paint = view.layer.backgroundColor;
-    if (paint && isSheetPaint(view, paint)) view.backgroundColor = UIColor.clearColor;
+    clearAttachedPaint((UIView *)self);
+}
+
+// A subtree built off screen (the queue's table and its bars) is attached to the sheet as a whole: only its
+// root hears didMoveToSuperview, with every view below it still painted and, when it was set, not yet inside
+// the sheet. didMoveToWindow reaches each of them with the full chain above it, so the grey a descendant
+// carried in is cleared before its first frame instead of at the next chrome pass.
+- (void)didMoveToWindow {
+    %orig;
+    if (((UIView *)self).window) clearAttachedPaint((UIView *)self);
 }
 %end
 

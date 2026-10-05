@@ -52,6 +52,9 @@ static void chrome(UIViewController *controller) {
 - (void)viewWillAppear:(BOOL)animated {
     %orig;
     chrome((UIViewController *)self);
+    // Whether the sheet is already above the queue's view here decides if the first frame is clean.
+    SGLog(@"redesign queue: willAppear, sheet %@, view %@", sgr_sheetChromeRoot ? @"found" : @"NOT found",
+          NSStringFromCGRect(((UIViewController *)self).viewIfLoaded.bounds));
 }
 
 - (void)viewDidAppear:(BOOL)animated {
