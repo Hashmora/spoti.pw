@@ -246,7 +246,7 @@ static void stripSheetChrome(UIView *view, UIView *skip, CGFloat wide, int depth
 static const CGFloat kSheetBlur = 14;
 static char kSheetBodyKey, kSheetRimKey;
 
-static void thickenSheetGlass(UIView *glass, UIView *sheet) {
+void SGRThickenSheetGlass(UIView *glass, CGFloat cornerRadius) {
     if ([glass isKindOfClass:SGLegacyGlassView.class]) ((SGLegacyGlassView *)glass).blurRadius = kSheetBlur;
     UIView *host = [glass isKindOfClass:UIVisualEffectView.class] ? ((UIVisualEffectView *)glass).contentView
                  : [glass isKindOfClass:SGLegacyGlassView.class] ? ((SGLegacyGlassView *)glass).contentView
@@ -271,7 +271,7 @@ static void thickenSheetGlass(UIView *glass, UIView *sheet) {
         return view;
     });
     if (!CGRectEqualToRect(rim.frame, host.bounds)) rim.frame = host.bounds;
-    if (rim.layer.cornerRadius != sheet.layer.cornerRadius) rim.layer.cornerRadius = sheet.layer.cornerRadius;
+    if (rim.layer.cornerRadius != cornerRadius) rim.layer.cornerRadius = cornerRadius;
     if (body.superview == host && host.subviews.firstObject != body) [host sendSubviewToBack:body];
     if (rim.superview == host && host.subviews.lastObject != rim) [host bringSubviewToFront:rim];
 }
@@ -284,7 +284,7 @@ UIView *SGRGlassSheetChrome(UIView *content) {
         glass.frame = v.bounds;
         glass.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
         SGShapeGlass(glass, v.layer.cornerRadius, NO);
-        thickenSheetGlass(glass, v);
+        SGRThickenSheetGlass(glass, v.layer.cornerRadius);
         if (v.layer.backgroundColor) v.layer.backgroundColor = NULL;
         CGFloat wide = v.bounds.size.width * kSheetBandShare;
         for (UIView *sub in v.subviews) stripSheetChrome(sub, glass, wide, 0);

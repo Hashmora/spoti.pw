@@ -1,10 +1,13 @@
+#import <objc/runtime.h>
 #import "Core/SGCore.h"
 #import "Settings/SGPageStyle.h"
 #import "MeaningSheet.h"
 #import "Redesigned/Kit/SGRTokens.h"
 #import "Core/SGGlass.h"
+#import "Redesigned/Kit/SGRGlass.h"
 
 static const CGFloat kSide = 24, kTop = 28, kGap = 12;
+static char kMeaningGlassKey;
 
 static NSString *authorName(SGLyricsMeaningAuthor author) {
     switch (author) {
@@ -29,6 +32,7 @@ static NSString *authorSymbol(SGLyricsMeaningAuthor author) {
     UIScrollView *_scroll;
     UILabel *_quote, *_body, *_count;
     UIButton *_author, *_next, *_open;
+    CGFloat _radius;
 }
 
 - (instancetype)initWithLine:(NSString *)lineText meanings:(NSArray<SGLyricsMeaning *> *)meanings {
@@ -74,11 +78,11 @@ static NSString *authorSymbol(SGLyricsMeaningAuthor author) {
 - (void)viewDidLoad {
     [super viewDidLoad];
     self.view.backgroundColor = UIColor.clearColor;
-    static char kMeaningGlassKey;
     UIView *glass = SGGlassFor(self.view, &kMeaningGlassKey);
     glass.frame = self.view.bounds;
     glass.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     SGShapeGlass(glass, 0, NO);
+    SGRThickenSheetGlass(glass, 0);
     _scroll = [[UIScrollView alloc] initWithFrame:self.view.bounds];
     _scroll.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     _scroll.alwaysBounceVertical = YES;
@@ -121,6 +125,13 @@ static NSString *authorSymbol(SGLyricsMeaningAuthor author) {
 
 - (void)viewDidLayoutSubviews {
     [super viewDidLayoutSubviews];
+    // The sheet's corners belong to the presentation's container, one level above the view.
+    CGFloat radius = self.view.superview.layer.cornerRadius;
+    if (radius != _radius) {
+        _radius = radius;
+        UIView *glass = objc_getAssociatedObject(self.view, &kMeaningGlassKey);
+        if (glass) { SGShapeGlass(glass, radius, NO); SGRThickenSheetGlass(glass, radius); }
+    }
     CGFloat width = self.view.bounds.size.width - 2 * kSide;
     CGFloat y = kTop;
     _quote.frame = CGRectMake(kSide, y, width, [_quote sizeThatFits:CGSizeMake(width, CGFLOAT_MAX)].height);
