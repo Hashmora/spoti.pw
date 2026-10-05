@@ -5,6 +5,9 @@
 #import <UIKit/UIKit.h>
 
 #define SGRKeyNavbar @"spotifyglass.redesign.navbar"
+// Compact bar: scrolling down folds the glass bar and the now playing card into one row (selected tab,
+// player, search), scrolling up or reaching the top unfolds them. Off unless set (CompactBar.m).
+#define SGRKeyNavbarCompact @"spotifyglass.redesign.navbar.compact"
 // Icons only on the glass bar. Off unless set; applies as soon as the bar lays out again.
 #define SGRKeyNavbarHideLabels @"spotifyglass.redesign.navbar.hideLabels"
 
@@ -30,3 +33,23 @@ void SGRRefreshTabBar(void);
 
 UIViewController *SGRNavbarSettingsPage(void);   // the tab editor, in Mod Settings
 UIViewController *SGRNavbarEditorPage(void);     // the tab editor alone, for the welcome tour
+
+// CompactBar.m. The row's state is the bar's own: it starts unfolded and goes back there for a tab change,
+// the player opening and the switch being turned off.
+void SGRCompactBarSynced(UIView *stockBar);              // end of every pass of TabBar.x's sync
+void SGRCompactBarSetCollapsed(BOOL collapsed, BOOL animated);
+void SGRCompactBarNowPlayingChanged(void);               // NowPlayingBar.x, after the card is styled
+
+// TabBar.x, for CompactBar.m. The capsule's host (nil before the bar exists) and the platter's frame in the
+// stock bar's coordinates; the container Spotify's tab pages live in; the glyph of the tab that is open and
+// of the tab the row's right circle goes to (Search, or Home while Search is open); a tap on that circle.
+UIView *SGRTabBarStock(void);
+UIView *SGRTabBarCapsule(CGRect *platter);
+UIView *SGRTabBarContainerView(void);
+UIImage *SGRTabBarCurrentGlyph(void);
+UIImage *SGRTabBarSideGlyph(void);
+void SGRTabBarSideTap(void);
+// Spotify's own tap handling replayed on a view: through its tap recognizers only, or, for a tab or a
+// button, through whatever answers.
+BOOL SGRFireTapRecognizers(UIView *view);
+void SGRForwardTap(UIView *item);

@@ -34,6 +34,7 @@
 // (npbSnapshotView, tabBarSnapshotView); which of the two 9.1.78 runs is not known, so both are hooked
 // and the log says which fired.
 #import "Core/SGCore.h"
+#import "Redesigned/Navbar/Navbar.h"
 
 @interface SPTBarOverlayPresentationTransition : NSObject
 - (UIView *)bottomBarView;
@@ -317,10 +318,13 @@ static void backWithGlass(UIView *snapshot, UIView *source, NSString *what, BOOL
 
 %hook SPTBarOverlayPresentationTransition
 - (void)setBarSnapshotView:(UIView *)view {
+    // The stand-ins are taken of a bar in its place: the compact row (CompactBar.m) goes away first.
+    SGRCompactBarSetCollapsed(NO, NO);
     backWithGlass(view, [self bottomBarView], @"bar", NO);
     %orig;
 }
 - (void)setTabBarSnapshotView:(UIView *)view {
+    SGRCompactBarSetCollapsed(NO, NO);
     backWithGlass(view, [self tabBarView], @"tab bar", YES);
     %orig;
 }
@@ -333,6 +337,7 @@ static id ivarNamed(id object, const char *name) {
 
 %hook _TtC19MainUI_TabBarUIImpl24CompactOverlayTransition
 - (void)animateTransition:(id)context {
+    SGRCompactBarSetCollapsed(NO, NO);
     %orig;
     static dispatch_once_t once;
     dispatch_once(&once, ^{ SGLog(@"player transition: CompactOverlayTransition animates, snapshots %@ / %@",
