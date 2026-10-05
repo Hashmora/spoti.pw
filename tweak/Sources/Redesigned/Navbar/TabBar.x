@@ -762,7 +762,7 @@ static void followCreateClose(UIView *stockBar) {
 // With spoti.pw's Redesigned UI on, spoti.pw builds a glass tab bar of its own over this same row (its
 // Redesigned/Navbar/TabBar.x: SGRSystemTabBar in an SGRTabBarHost). Two bars on one row fight over the
 // room under Spotify's bar (both write the container's additionalSafeAreaInsets) and over the front of
-// the stack, so while Legacy Glass is on this tweak is the one bar. spoti.pw's is taken out of its host,
+// the stack, so while Glass UI is on this tweak is the one bar. spoti.pw's is taken out of its host,
 // which makes its room pass return (it needs the bar in a window), and the host is left hidden so it
 // neither draws nor takes touches. It makes the bar once per row and never puts it back.
 static void dropForeignBar(UIView *stockBar) {

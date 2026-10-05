@@ -12,7 +12,7 @@ BOOL PGRedesignedUI(void) {
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         on = PGRedesignedUIStored();
-        PGLog(@"ui: glass %@", on ? @"on" : (PGRedesignAvailable() ? @"off (Legacy Glass is off)" : @"off (iOS 26 has its own)"));
+        PGLog(@"ui: glass %@", on ? @"on" : (PGRedesignAvailable() ? @"off (Glass UI is off)" : @"off (iOS 26 has its own)"));
     });
     return on;
 }
