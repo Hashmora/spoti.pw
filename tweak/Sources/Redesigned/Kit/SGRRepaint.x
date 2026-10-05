@@ -134,6 +134,22 @@ static void clearAttachedPaint(UIView *view) {
 }
 %end
 
+// Spotify builds a view and paints it before it is laid out: its bounds are zero then, which SGKeepsColor
+// reads as a hairline and spares, and nothing paints it again once it has its size. So the grey of the queue's
+// table, its header rows and the cell laid out last stood until the next chrome pass, which is a viewDidAppear
+// away (all three still #1F1F1F in the dump taken while the sheet was appearing, trees/continuous 2026-10-05,
+// with the sheet found at willAppear). This catches the moment such a view gets its size.
+%hook CALayer
+- (void)setBounds:(CGRect)bounds {
+    %orig;
+    if (!sgr_sheetChromeRoot || bounds.size.height <= 4 || bounds.size.width < 1) return;
+    CGColorRef paint = self.backgroundColor;
+    if (!paint || !SGRIsSheetSurface(paint)) return;   // the cheap test first: this runs for every layer
+    UIView *view = (UIView *)self.delegate;
+    if ([view isKindOfClass:UIView.class] && view.layer == self && isSheetPaint(view, paint)) view.backgroundColor = UIColor.clearColor;
+}
+%end
+
 %ctor {
     if (!SGRedesignedUI()) return;
     %init;
