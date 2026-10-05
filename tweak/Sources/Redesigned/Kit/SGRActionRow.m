@@ -447,17 +447,21 @@ static void keepOnTop(UIView *page, UIView *button) {
     else if (page.subviews.lastObject != button) [page bringSubviewToFront:button];
 }
 
-// Level with the window's safe area at the top, kCornerSide in from the leading or trailing edge. Measured
-// in the window and converted back, never from the page's own safe area: a page under a navigation bar
-// counts the bar into its inset, so the playlist's read 116 where the window's reads 62 and the button sat
-// a bar's height below the back button.
+// Level with the window's safe area at the top, kCornerSide in from the leading or trailing edge of the
+// page. The height is measured in the window and converted back, never from the page's own safe area: a
+// page under a navigation bar counts the bar into its inset, so the playlist's read 116 where the window's
+// reads 62 and the button sat a bar's height below the back button. The inset from the side is taken from
+// the page's own bounds and not converted from the window: the swipe back slides the page across the
+// window, and a frame converted from the window's x would hold the button still while the page left under
+// it, over the screen below, until the page was gone and took it along.
 static void placeInCorner(UIView *page, UIView *button, BOOL leading) {
     UIWindow *window = page.window;
     UIView *space = window ?: page;
     CGFloat side = SGRGlassCircleSize;
-    CGFloat x = leading ? kCornerSide : space.bounds.size.width - kCornerSide - side;
-    CGRect frame = CGRectMake(x, space.safeAreaInsets.top, side, side);
-    if (window) frame = [page convertRect:frame fromView:nil];
+    CGFloat x = leading ? kCornerSide : page.bounds.size.width - kCornerSide - side;
+    CGFloat y = space.safeAreaInsets.top;
+    if (window) y = [page convertPoint:CGPointMake(0, y) fromView:nil].y;
+    CGRect frame = CGRectMake(x, y, side, side);
     if (!CGRectIsEmpty(frame) && !CGRectEqualToRect(button.frame, frame)) button.frame = frame;
 }
 
