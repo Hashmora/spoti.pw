@@ -135,11 +135,6 @@ static NSArray<UIView *> *tabItems(UIView *tabBar) {
     }];
 }
 
-// Navbar.x never reorders Spotify's row and appends the mod's own tabs after it, so Home stays first.
-static BOOL isHome(UIView *item, UIView *tabBar) {
-    return item && item == PGRowIn(tabBar).arrangedSubviews.firstObject;
-}
-
 // Create never pushes a screen -- tapping it only pops CreateMenu's own option list open over whatever
 // is already on screen, and tapping anywhere dismisses that list again with nothing having navigated.
 // So it must never become the bar's real "selected" tab: the pill parking on it, or drifting toward
