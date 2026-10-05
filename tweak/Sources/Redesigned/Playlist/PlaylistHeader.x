@@ -500,6 +500,22 @@ static UIView *blockIn(UIView *layout, UIView *cover, UIView *fullbleed) {
     return block;
 }
 
+// The block's text and buttons scroll up and stop at the top of the page with the pinned header, where they
+// were under Spotify's navigation bar. That bar is gone now (PlaylistBar.x), so they show beside the ⋯ and the
+// title's glass instead (trees/continuous 2026-10-05: Play at y -5, the description at y 57). Each goes as
+// its top rises through the band below the pinned buttons (44pt at y 47, so down to 91), the way a row goes
+// under the Music app's bar. A view's own alpha is free here: nothing of the redesign writes the info's.
+static const CGFloat kBarBottom = 91, kFadeSpan = 48;
+
+static void fadeUnderBar(SGRHeaderInfo *info, UIView *page) {
+    if (!page) return;
+    for (UIView *sub in info.subviews) {
+        CGFloat top = CGRectGetMinY([info convertRect:sub.frame toView:page]);
+        CGFloat alpha = MAX(0, MIN(1, (top - kBarBottom) / kFadeSpan));
+        if (fabs(sub.alpha - alpha) > 0.01) sub.alpha = alpha;
+    }
+}
+
 static void applyHeader(UIView *layout) {
     UIViewController *headerVC = SGRPlaylistHeaderOf(layout);
     UIView *headerRoot = headerVC.viewIfLoaded;
@@ -516,6 +532,7 @@ static void applyHeader(UIView *layout) {
     applyToolbar(headerRoot);
     applyScrims(headerRoot);
     SGRHeaderInfo *info = applyInfo(block, headerRoot, headerVC);
+    fadeUnderBar(info, SGRPlaylistPageOf(headerRoot));
 
     // How far the page is pulled down past the top: the plane grows by that much and the block moves with it,
     // so nothing is measured then. Rest is the smallest the plane has been.

@@ -71,6 +71,11 @@ static void apply(UIView *bar) {
     UILabel *text = nil;
     UIView *title = titleIn(bar, &text);
     if (!title || title.bounds.size.width < 1) return;
+    // Spotify centres the name in the 64pt below the bar's top, 2pt under the pinned buttons' middle. The
+    // label is moved by a transform, which its layout never writes, and the capsule and the text go with it.
+    CGFloat middle = [title.superview convertPoint:title.center toView:nil].y;
+    CGFloat shift = (bar.window.safeAreaInsets.top + SGRGlassCircleSize / 2) - middle;
+    if (fabs(shift - title.transform.ty) > 0.01 && fabs(shift) < 20) title.transform = CGAffineTransformMakeTranslation(0, shift);
     CGFloat wanted = ceil([text sizeThatFits:CGSizeMake(CGFLOAT_MAX, kBubbleHeight)].width) + 2 * kBubblePadding;
     CGFloat width = MIN(MAX(wanted, kBubbleHeight), title.bounds.size.width);
     SGRGlassCapsuleInside(title, &kBubbleKey, CGSizeMake(width, kBubbleHeight), NO);
