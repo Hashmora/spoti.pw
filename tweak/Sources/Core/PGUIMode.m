@@ -1,5 +1,6 @@
 #import "PGUIMode.h"
 #import "PGLog.h"
+#import "PGPrefs.h"
 
 BOOL PGRedesignAvailable(void) {
     if (@available(iOS 26.0, *)) return NO;
@@ -10,12 +11,12 @@ BOOL PGRedesignedUI(void) {
     static BOOL on;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
-        on = PGRedesignAvailable();
-        PGLog(@"ui: glass %@", on ? @"on" : @"off (iOS 26 has its own)");
+        on = PGRedesignedUIStored();
+        PGLog(@"ui: glass %@", on ? @"on" : (PGRedesignAvailable() ? @"off (Legacy Glass is off)" : @"off (iOS 26 has its own)"));
     });
     return on;
 }
 
 BOOL PGRedesignedUIStored(void) {
-    return PGRedesignedUI();
+    return PGRedesignAvailable() && PGFlag(PGKeyLegacyGlass, NO);
 }

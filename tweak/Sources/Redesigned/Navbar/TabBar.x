@@ -618,6 +618,16 @@ static void setCreateOpen(PGRSystemTabBar *bar, BOOL open) {
 @end
 
 @implementation PGRTabBarHost
+// spoti.pw's tab bar pass hides and disables every sibling of its own host, this one included. The host
+// is never hidden or disabled by anything of ours, so what is asked of it from outside is refused.
+- (void)setAlpha:(CGFloat)alpha {
+    [super setAlpha:1];
+}
+
+- (void)setUserInteractionEnabled:(BOOL)enabled {
+    [super setUserInteractionEnabled:YES];
+}
+
 - (UIEdgeInsets)safeAreaInsets {
     UIEdgeInsets insets = [super safeAreaInsets];
     // The host's own frame now stands kNavGlassBottomMargin above the screen's real safe area, which
@@ -749,6 +759,22 @@ static void followCreateClose(UIView *stockBar) {
     pollCreateClose(stockBar, 0, NO);
 }
 
+// With spoti.pw's Redesigned UI on, spoti.pw builds a glass tab bar of its own over this same row (its
+// Redesigned/Navbar/TabBar.x: SGRSystemTabBar in an SGRTabBarHost). Two bars on one row fight over the
+// room under Spotify's bar (both write the container's additionalSafeAreaInsets) and over the front of
+// the stack, so while Legacy Glass is on this tweak is the one bar. spoti.pw's is taken out of its host,
+// which makes its room pass return (it needs the bar in a window), and the host is left hidden so it
+// neither draws nor takes touches. It makes the bar once per row and never puts it back.
+static void dropForeignBar(UIView *stockBar) {
+    Class foreignHost = NSClassFromString(@"SGRTabBarHost");
+    if (!foreignHost) return;
+    for (UIView *sub in stockBar.subviews) {
+        if (![sub isKindOfClass:foreignHost]) continue;
+        sub.hidden = YES;
+        for (UIView *inner in sub.subviews) [inner removeFromSuperview];
+    }
+}
+
 static void syncBar(UIView *stockBar) {
     syncBarCore(stockBar, NO);
 }
@@ -759,6 +785,7 @@ static void syncBarExternalChange(UIView *stockBar) {
 
 static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
     pg_stockBar = stockBar;
+    dropForeignBar(stockBar);
 
     PGRSystemTabBar *bar = objc_getAssociatedObject(stockBar, &kBarKey);
     if (!bar) {
@@ -1010,7 +1037,7 @@ static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
     }
 
     if (host.superview != stockBar) [stockBar addSubview:host];
-    else if (stockBar.subviews.lastObject != host) [stockBar bringSubviewToFront:host];
+    else if (stockBar.subviews.lastObject != host && !stockBar.subviews.lastObject.hidden) [stockBar bringSubviewToFront:host];
     makeRoom(containerOf(stockBar));
 }
 
