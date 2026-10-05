@@ -8,8 +8,8 @@
 //   in Discovery_MediumDensityCardKit.DJMDCView   the DJ card 370x192 r=8 that clips (01.txt:477-478): the card
 //                                  radius, and without the transcript Spotify's DJ talks through
 //                                  (Discovery_MediumDensityCardKit.TranscriptView, :500) or the Beta badge (:503)
-#import "Core/SGCore.h"
-#import "Redesigned/Kit/SGRKit.h"
+#import "Core/PGCore.h"
+#import "Redesigned/Kit/PGRKit.h"
 #import "Home.h"
 
 // Below this a card's picture is a glyph or a placeholder, not a cover.
@@ -24,11 +24,11 @@ static void roundCorners(UIView *view, CGFloat radius) {
 }
 
 static void roundCover(UIView *card) {
-    UIView *holder = SGRFindByIdentifier(card, @"Encore.ImageView", &kImageKey);
+    UIView *holder = PGRFindByIdentifier(card, @"Encore.ImageView", &kImageKey);
     if (holder.bounds.size.width < kCoverMinWidth) return;
     for (UIView *sub in holder.subviews) {
         if (![sub isKindOfClass:UIImageView.class]) continue;
-        roundCorners(sub, SGRRadiusCover);
+        roundCorners(sub, PGRRadiusCover);
         if (!sub.layer.masksToBounds) sub.layer.masksToBounds = YES;
     }
 }
@@ -41,8 +41,8 @@ static void calmDJ(UIView *card) {
         if (![name containsString:@"TranscriptView"] && ![name containsString:@"BetaBadge"]) continue;
         if (sub.alpha != 0) sub.alpha = 0;
         sub.accessibilityElementsHidden = YES;
-        SGForEachView(sub, ^(UIView *v) {
-            if ([v isKindOfClass:UILabel.class]) SGRSuppress(v);
+        PGForEachView(sub, ^(UIView *v) {
+            if ([v isKindOfClass:UILabel.class]) PGRSuppress(v);
         });
     }
 }
@@ -50,9 +50,9 @@ static void calmDJ(UIView *card) {
 static void style(UIView *button) {
     NSString *identifier = button.accessibilityIdentifier;
     if ([identifier isEqualToString:@"Shortcut.Card.Home"]) {
-        roundCorners(button, SGRRadiusCover);
-        if (button.superview.layer.cornerRadius > 0) roundCorners(button.superview, SGRRadiusCover);
-        SGRHomeStyleTile(button);
+        roundCorners(button, PGRRadiusCover);
+        if (button.superview.layer.cornerRadius > 0) roundCorners(button.superview, PGRRadiusCover);
+        PGRHomeStyleTile(button);
         return;
     }
     if ([identifier isEqualToString:@"Components.UI.HomeCard"]) {
@@ -62,26 +62,26 @@ static void style(UIView *button) {
     static Class dj;
     if (!dj) dj = NSClassFromString(@"_TtC30Discovery_MediumDensityCardKit9DJMDCView");
     if (dj && [button.superview isKindOfClass:dj]) {
-        roundCorners(button, SGRRadiusCard);
+        roundCorners(button, PGRRadiusCard);
         calmDJ(button);
         static dispatch_once_t once;
-        dispatch_once(&once, ^{ SGLog(@"redesign home: DJ card at the card radius, transcript gone"); });
+        dispatch_once(&once, ^{ PGLog(@"redesign home: DJ card at the card radius, transcript gone"); });
     }
 }
 
 %hook _TtC19LegacyUI_ECMCoreKit31InteractableLayoutBackingButton
 - (void)layoutSubviews {
     %orig;
-    CFTimeInterval began = SGRHomeProbeBegin();
+    CFTimeInterval began = PGRHomeProbeBegin();
     style((UIView *)self);
-    SGRHomeProbeEnd(SGRHomeProbeCards, began);
+    PGRHomeProbeEnd(PGRHomeProbeCards, began);
 }
 %end
 
 %ctor {
-    if (!SGRedesignedUI()) return;
+    if (!PGRedesignedUI()) return;
     %init;
-    SGRequireClasses(@[
+    PGRequireClasses(@[
         @"_TtC19LegacyUI_ECMCoreKit31InteractableLayoutBackingButton",
         @"_TtC30Discovery_MediumDensityCardKit9DJMDCView",
     ]);

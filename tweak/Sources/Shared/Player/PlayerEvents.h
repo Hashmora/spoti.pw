@@ -4,7 +4,7 @@
 #import <UIKit/UIKit.h>
 
 // Posted as the player starts to open or close, before the animation runs, and again once it is
-// over; SGPlayerTransitionEnds says when it is expected to be over (as CACurrentMediaTime), 0 when none runs.
-extern NSString *const SGPlayerTransitionNotification;
-extern NSString *const SGPlayerTransitionEndedNotification;
-CFTimeInterval SGPlayerTransitionEnds(void);
+// over; PGPlayerTransitionEnds says when it is expected to be over (as CACurrentMediaTime), 0 when none runs.
+extern NSString *const PGPlayerTransitionNotification;
+extern NSString *const PGPlayerTransitionEndedNotification;
+CFTimeInterval PGPlayerTransitionEnds(void);

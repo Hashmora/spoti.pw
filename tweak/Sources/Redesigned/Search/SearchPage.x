@@ -1,7 +1,7 @@
 // Search redesign: the Browse page's header the way Home has it (Redesigned/Home/HomeHeader.x). A large title at the
 // leading edge in place of Spotify's small one; the avatar that opens the side drawer at the trailing edge; the camera
 // that scans Spotify codes gone, and the scrim Spotify lays behind the header, the soft scroll edge
-// (Kit/SGREdgeEffect.x) being what keeps the header clear of the cards scrolling under it. The page's layout pass also
+// (Kit/PGREdgeEffect.x) being what keeps the header clear of the cards scrolling under it. The page's layout pass also
 // closes the gap the collapsed sections leave (SearchSections.x).
 //
 // Tree (trees/clean/search/01.txt:376-427): BrowsePageViewController's view holds the list (id=BrowsePage.ContentScrollView),
@@ -15,8 +15,8 @@
 // field. So the title goes into that row as a subview the stack does not arrange: it slides and fades with the row, and
 // its avatar moves to the trailing edge by the row's layout direction, as on Home. The title's text is Spotify's own
 // label's, so it follows the app's language.
-#import "Core/SGCore.h"
-#import "Redesigned/Kit/SGRKit.h"
+#import "Core/PGCore.h"
+#import "Redesigned/Kit/PGRKit.h"
 #import "Search.h"
 
 // Layout passes without the header before that is logged.
@@ -24,9 +24,9 @@ static const NSUInteger kMissesLogged = 60;
 
 static char kTitleKey;
 
-static __weak UICollectionView *sg_list;
-static __weak UIStackView *sg_row;
-static __weak UIView *sg_scrim;
+static __weak UICollectionView *pg_list;
+static __weak UIStackView *pg_row;
+static __weak UIView *pg_scrim;
 
 static void vanish(UIView *view) {
     if (!view) return;
@@ -56,21 +56,21 @@ static UIView *findOutsideList(UIView *view, NSString *identifier) {
 // The page's parts, found once per page: the page lays out on every step of its header sliding. A miss costs a walk of the
 // header alone, so the page keeps looking while it loads.
 static BOOL findParts(UIView *view) {
-    if (sg_row && sg_list && [sg_row isDescendantOfView:view] && [sg_list isDescendantOfView:view]) return YES;
+    if (pg_row && pg_list && [pg_row isDescendantOfView:view] && [pg_list isDescendantOfView:view]) return YES;
     for (UIView *sub in view.subviews) {
-        if ([sub isKindOfClass:UICollectionView.class] && [sub.accessibilityIdentifier isEqualToString:SGRSearchListIdentifier]) {
-            sg_list = (UICollectionView *)sub;
+        if ([sub isKindOfClass:UICollectionView.class] && [sub.accessibilityIdentifier isEqualToString:PGRSearchListIdentifier]) {
+            pg_list = (UICollectionView *)sub;
         }
         UIView *scrim = childNamed(sub, @"GradientView");
-        if (scrim) sg_scrim = scrim;
+        if (scrim) pg_scrim = scrim;
     }
     UIView *row = findOutsideList(view, @"SearchToolBar.Header");
-    sg_row = [row isKindOfClass:UIStackView.class] ? (UIStackView *)row : nil;
-    if (sg_row && sg_list) return YES;
+    pg_row = [row isKindOfClass:UIStackView.class] ? (UIStackView *)row : nil;
+    if (pg_row && pg_list) return YES;
     static NSUInteger misses;
     if (++misses == kMissesLogged) {
-        SGLog(@"redesign search: page parts not found in %lu passes (toolbar row %@, list %@), the header left as Spotify's",
-              (unsigned long)misses, sg_row ? @"found" : @"missing", sg_list ? @"found" : @"missing");
+        PGLog(@"redesign search: page parts not found in %lu passes (toolbar row %@, list %@), the header left as Spotify's",
+              (unsigned long)misses, pg_row ? @"found" : @"missing", pg_list ? @"found" : @"missing");
     }
     return NO;
 }
@@ -90,7 +90,7 @@ static UILabel *titleIn(UIStackView *row) {
     UILabel *title = objc_getAssociatedObject(row, &kTitleKey);
     if (!title) {
         title = [UILabel new];
-        title.textColor = SGRPrimary();
+        title.textColor = PGRPrimary();
         title.accessibilityTraits = UIAccessibilityTraitHeader;
         title.adjustsFontSizeToFitWidth = YES;
         title.minimumScaleFactor = 0.6;
@@ -102,7 +102,7 @@ static UILabel *titleIn(UIStackView *row) {
 }
 
 static void layoutHeader(UIStackView *row) {
-    vanish(sg_scrim);
+    vanish(pg_scrim);
 
     static Class faceClass;
     if (!faceClass) faceClass = NSClassFromString(@"_TtC29ListeningActivity_ElementsKit21AdaptiveFaceContainer");
@@ -123,10 +123,10 @@ static void layoutHeader(UIStackView *row) {
         title.text = text;
         title.accessibilityLabel = text;
     }
-    UIFont *font = SGRFont(UIFontTextStyleLargeTitle, UIFontWeightBold, UIContentSizeCategoryLarge);
+    UIFont *font = PGRFont(UIFontTextStyleLargeTitle, UIFontWeightBold, UIContentSizeCategoryLarge);
     if (![title.font isEqual:font]) title.font = font;
 
-    CGFloat trailing = face ? CGRectGetMinX(face.frame) - SGRGrid : row.bounds.size.width;
+    CGFloat trailing = face ? CGRectGetMinX(face.frame) - PGRGrid : row.bounds.size.width;
     CGFloat height = ceil(font.lineHeight);
     CGRect frame = CGRectMake(0, round(CGRectGetMidY(row.bounds) - height / 2), MAX(0, trailing), height);
     if (!CGRectEqualToRect(title.frame, frame)) title.frame = frame;
@@ -134,8 +134,8 @@ static void layoutHeader(UIStackView *row) {
     static BOOL logged;
     if (!logged && row.window && CGRectGetMinX(row.frame) >= 0 && row.bounds.size.width > 0) {
         logged = YES;
-        SGLog(@"redesign search: toolbar row %@, avatar %@, title %@ \"%@\", scrim %@", NSStringFromCGRect(row.frame),
-              face ? NSStringFromCGRect(face.frame) : @"not found", NSStringFromCGRect(frame), text, sg_scrim ? @"found" : @"not found");
+        PGLog(@"redesign search: toolbar row %@, avatar %@, title %@ \"%@\", scrim %@", NSStringFromCGRect(row.frame),
+              face ? NSStringFromCGRect(face.frame) : @"not found", NSStringFromCGRect(frame), text, pg_scrim ? @"found" : @"not found");
     }
 }
 
@@ -144,8 +144,8 @@ static void layoutHeader(UIStackView *row) {
     %orig;
     UIView *view = ((UIViewController *)self).viewIfLoaded;
     if (!view || !findParts(view)) return;
-    layoutHeader(sg_row);
-    SGRSearchCloseGap(sg_list);
+    layoutHeader(pg_row);
+    PGRSearchCloseGap(pg_list);
 }
 
 - (void)traitCollectionDidChange:(UITraitCollection *)previous {
@@ -155,9 +155,9 @@ static void layoutHeader(UIStackView *row) {
 %end
 
 %ctor {
-    if (!SGRedesignedUI()) return;
+    if (!PGRedesignedUI()) return;
     %init;
-    SGRequireClasses(@[
+    PGRequireClasses(@[
         @"_TtC21Browse_BrowsePageImpl24BrowsePageViewController",
         @"_TtC29ListeningActivity_ElementsKit21AdaptiveFaceContainer",
     ]);

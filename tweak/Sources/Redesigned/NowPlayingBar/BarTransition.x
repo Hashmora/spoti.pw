@@ -5,7 +5,7 @@
 // -snapshotViewAfterScreenUpdates: when the player opens, but with -[CALayer renderInContext:] into a
 // UIImageView when it closes, and the tab bar's that way too when it closes over a compact tab bar.
 // renderInContext: cannot draw glass (UIVisualEffectView, UIKit's tab bar platters, and our own
-// SGLegacyGlassView, a CABackdropLayer), so every close showed the bar's artwork and title and the tab
+// PGLegacyGlassView, a CABackdropLayer), so every close showed the bar's artwork and title and the tab
 // bar's glyphs and white film floating on nothing, and the glass popped back in when the real bars
 // returned. Checked in the simulator: a snapshot view keeps the glass, a rendered image loses all of it.
 //
@@ -33,7 +33,7 @@
 // MainUI_TabBarUIImpl.CompactOverlayTransition is a Swift animator with the same stand-ins
 // (npbSnapshotView, tabBarSnapshotView); which of the two 9.1.78 runs is not known, so both are hooked
 // and the log says which fired.
-#import "Core/SGCore.h"
+#import "Core/PGCore.h"
 
 @interface SPTBarOverlayPresentationTransition : NSObject
 - (UIView *)bottomBarView;
@@ -46,7 +46,7 @@
 static void collectPanes(UIView *view, NSMutableArray<UIView *> *panes) {
     for (UIView *sub in view.subviews) {
         if (sub.hidden || sub.alpha < 0.01) continue;
-        if ([sub isKindOfClass:UIVisualEffectView.class] || [sub isKindOfClass:SGLegacyGlassView.class]
+        if ([sub isKindOfClass:UIVisualEffectView.class] || [sub isKindOfClass:PGLegacyGlassView.class]
             || [NSStringFromClass(sub.class) hasSuffix:@"PlatterView"]) {
             [panes addObject:sub];
             continue;
@@ -57,14 +57,14 @@ static void collectPanes(UIView *view, NSMutableArray<UIView *> *panes) {
 
 static UIVisualEffectView *copyPane(UIView *pane) {
     BOOL platter = ![pane isKindOfClass:UIVisualEffectView.class];
-    UIVisualEffect *effect = platter ? SGGlassEffect() : ((UIVisualEffectView *)pane).effect;
+    UIVisualEffect *effect = platter ? PGGlassEffect() : ((UIVisualEffectView *)pane).effect;
     UIVisualEffectView *glass = [[UIVisualEffectView alloc] initWithEffect:effect];
     glass.userInteractionEnabled = NO;
     // The effect does not carry the appearance the pane was drawn in, dark for both bars, and the stand-in
     // would give the copy the system's.
     glass.overrideUserInterfaceStyle = pane.traitCollection.userInterfaceStyle;
     if (platter) {
-        SGShapeGlass(glass, pane.bounds.size.height / 2, YES);
+        PGShapeGlass(glass, pane.bounds.size.height / 2, YES);
     } else if ([pane respondsToSelector:@selector(cornerConfiguration)] && [glass respondsToSelector:@selector(setCornerConfiguration:)]) {
         [glass setCornerConfiguration:[(id)pane cornerConfiguration]];
     }
@@ -78,8 +78,8 @@ static UIVisualEffectView *copyPane(UIView *pane) {
 // legacy pane with the original's corner radius; it builds its mesh for the copy's own size.
 static UIView *copyGlass(UIView *pane, CGRect frame) {
     UIView *glass;
-    if ([pane isKindOfClass:SGLegacyGlassView.class]) {
-        SGLegacyGlassView *legacy = [[SGLegacyGlassView alloc] initWithFrame:frame];
+    if ([pane isKindOfClass:PGLegacyGlassView.class]) {
+        PGLegacyGlassView *legacy = [[PGLegacyGlassView alloc] initWithFrame:frame];
         legacy.userInteractionEnabled = NO;
         legacy.overrideUserInterfaceStyle = pane.traitCollection.userInterfaceStyle;
         legacy.cornerRadius = pane.layer.cornerRadius;
@@ -102,7 +102,7 @@ static CGRect scaledFrame(UIView *pane, UIView *source, CGSize to) {
 
 #pragma mark - stand-in that is a snapshot view
 
-@interface SGStandInGlass : NSObject
+@interface PGStandInGlass : NSObject
 @property (nonatomic, weak) UIView *snapshot;
 @property (nonatomic, weak) UIView *source;
 @property (nonatomic, copy) NSArray<UIView *> *panes;
@@ -117,7 +117,7 @@ static CGRect scaledFrame(UIView *pane, UIView *source, CGSize to) {
 @end
 
 // Alive while the display link is: it retains its target, and stop breaks that.
-static NSMutableSet<SGStandInGlass *> *sg_followers;
+static NSMutableSet<PGStandInGlass *> *pg_followers;
 
 // Who has hidden which real view, and how many stand-ins are holding it hidden. Two stand-ins can overlap
 // (letting go of a drag makes Spotify's transition hand over a fresh one while the first is still being
@@ -125,44 +125,44 @@ static NSMutableSet<SGStandInGlass *> *sg_followers;
 // it, and the first one's restore then showed the real bar under the second stand-in.
 // "Hidden" is an alpha of kHiddenAlpha, so the view's glass keeps drawing; the alpha it had comes back.
 static const CGFloat kHiddenAlpha = 0.02;
-static NSMapTable<UIView *, NSNumber *> *sg_hiddenCounts;
-static NSMapTable<UIView *, NSNumber *> *sg_savedAlpha;
+static NSMapTable<UIView *, NSNumber *> *pg_hiddenCounts;
+static NSMapTable<UIView *, NSNumber *> *pg_savedAlpha;
 
 static BOOL hiddenByUs(UIView *view) {
-    return [sg_hiddenCounts objectForKey:view] != nil;
+    return [pg_hiddenCounts objectForKey:view] != nil;
 }
 
 static void hideCounted(UIView *view) {
-    if (!sg_hiddenCounts) {
-        sg_hiddenCounts = [NSMapTable weakToStrongObjectsMapTable];
-        sg_savedAlpha = [NSMapTable weakToStrongObjectsMapTable];
+    if (!pg_hiddenCounts) {
+        pg_hiddenCounts = [NSMapTable weakToStrongObjectsMapTable];
+        pg_savedAlpha = [NSMapTable weakToStrongObjectsMapTable];
     }
-    NSUInteger count = [sg_hiddenCounts objectForKey:view].unsignedIntegerValue;
-    [sg_hiddenCounts setObject:@(count + 1) forKey:view];
+    NSUInteger count = [pg_hiddenCounts objectForKey:view].unsignedIntegerValue;
+    [pg_hiddenCounts setObject:@(count + 1) forKey:view];
     if (count) return;
-    [sg_savedAlpha setObject:@(view.alpha) forKey:view];
+    [pg_savedAlpha setObject:@(view.alpha) forKey:view];
     [UIView performWithoutAnimation:^{ view.alpha = kHiddenAlpha; }];
 }
 
 static void showCounted(UIView *view) {
-    NSUInteger count = [sg_hiddenCounts objectForKey:view].unsignedIntegerValue;
+    NSUInteger count = [pg_hiddenCounts objectForKey:view].unsignedIntegerValue;
     if (count > 1) {
-        [sg_hiddenCounts setObject:@(count - 1) forKey:view];
+        [pg_hiddenCounts setObject:@(count - 1) forKey:view];
         return;
     }
-    CGFloat alpha = [sg_savedAlpha objectForKey:view] ? [sg_savedAlpha objectForKey:view].doubleValue : 1;
-    [sg_hiddenCounts removeObjectForKey:view];
-    [sg_savedAlpha removeObjectForKey:view];
+    CGFloat alpha = [pg_savedAlpha objectForKey:view] ? [pg_savedAlpha objectForKey:view].doubleValue : 1;
+    [pg_hiddenCounts removeObjectForKey:view];
+    [pg_savedAlpha removeObjectForKey:view];
     [UIView performWithoutAnimation:^{ view.alpha = alpha; }];
 }
 
 static void startWatch(void);
 
-@implementation SGStandInGlass
+@implementation PGStandInGlass
 
 - (void)start {
-    if (!sg_followers) sg_followers = [NSMutableSet set];
-    [sg_followers addObject:self];
+    if (!pg_followers) pg_followers = [NSMutableSet set];
+    [pg_followers addObject:self];
     startWatch();
     self.born = CACurrentMediaTime();
     if (self.hideRealBar) [self hideReal];
@@ -178,7 +178,7 @@ static void startWatch(void);
     self.link = nil;
     [self.holder removeFromSuperview];
     [self restoreReal];
-    [sg_followers removeObject:self];
+    [pg_followers removeObject:self];
 }
 
 // The stand-in has been on screen and is not any more. Also called from the pre-commit watch below, so
@@ -258,18 +258,18 @@ static void startWatch(void);
 // Runs at the end of every run loop turn, before Core Animation commits (its observer is at order 2000000).
 // The stand-in is taken down by Spotify in some turn; the real bar has to be shown again in that same
 // turn, or one frame goes out with neither (the display link only ticks at the next vsync).
-static CFRunLoopObserverRef sg_watch;
+static CFRunLoopObserverRef pg_watch;
 
 static void startWatch(void) {
-    if (sg_watch) return;
-    sg_watch = CFRunLoopObserverCreateWithHandler(kCFAllocatorDefault, kCFRunLoopBeforeWaiting | kCFRunLoopExit, YES, 1000000,
+    if (pg_watch) return;
+    pg_watch = CFRunLoopObserverCreateWithHandler(kCFAllocatorDefault, kCFRunLoopBeforeWaiting | kCFRunLoopExit, YES, 1000000,
         ^(CFRunLoopObserverRef observer, CFRunLoopActivity activity) {
-            if (!sg_followers.count) return;
-            for (SGStandInGlass *follower in [sg_followers allObjects]) {
+            if (!pg_followers.count) return;
+            for (PGStandInGlass *follower in [pg_followers allObjects]) {
                 if ([follower gone]) [follower stop];
             }
         });
-    CFRunLoopAddObserver(CFRunLoopGetMain(), sg_watch, kCFRunLoopCommonModes);
+    CFRunLoopAddObserver(CFRunLoopGetMain(), pg_watch, kCFRunLoopCommonModes);
 }
 
 static void backWithGlass(UIView *snapshot, UIView *source, NSString *what, BOOL hideRealBar) {
@@ -279,7 +279,7 @@ static void backWithGlass(UIView *snapshot, UIView *source, NSString *what, BOOL
     if (!panes.count) return;
 
     if (![snapshot isKindOfClass:UIImageView.class]) {
-        SGStandInGlass *follower = [SGStandInGlass new];
+        PGStandInGlass *follower = [PGStandInGlass new];
         follower.snapshot = snapshot;
         follower.source = source;
         follower.panes = panes;
@@ -302,7 +302,7 @@ static void backWithGlass(UIView *snapshot, UIView *source, NSString *what, BOOL
 
     // The glass is inside the stand-in now; all that is left is keeping the real bar out from under it.
     if (hideRealBar) {
-        SGStandInGlass *watch = [SGStandInGlass new];
+        PGStandInGlass *watch = [PGStandInGlass new];
         watch.snapshot = snapshot;
         watch.source = source;
         watch.panes = panes;
@@ -312,7 +312,7 @@ static void backWithGlass(UIView *snapshot, UIView *source, NSString *what, BOOL
     }
 
     static NSUInteger logged;
-    if (logged++ < 4) SGLog(@"player transition: %@ stand-in got %lu glass panes", what, (unsigned long)panes.count);
+    if (logged++ < 4) PGLog(@"player transition: %@ stand-in got %lu glass panes", what, (unsigned long)panes.count);
 }
 
 %hook SPTBarOverlayPresentationTransition
@@ -335,7 +335,7 @@ static id ivarNamed(id object, const char *name) {
 - (void)animateTransition:(id)context {
     %orig;
     static dispatch_once_t once;
-    dispatch_once(&once, ^{ SGLog(@"player transition: CompactOverlayTransition animates, snapshots %@ / %@",
+    dispatch_once(&once, ^{ PGLog(@"player transition: CompactOverlayTransition animates, snapshots %@ / %@",
                                   [ivarNamed(self, "npbSnapshotView") class], [ivarNamed(self, "tabBarSnapshotView") class]); });
     backWithGlass(ivarNamed(self, "npbSnapshotView"), ivarNamed(self, "npbView"), @"bar", NO);
     backWithGlass(ivarNamed(self, "tabBarSnapshotView"), ivarNamed(self, "tabBarView"), @"tab bar", YES);
@@ -343,9 +343,9 @@ static id ivarNamed(id object, const char *name) {
 %end
 
 %ctor {
-    if (!SGRedesignedUI()) return;
+    if (!PGRedesignedUI()) return;
     %init;
-    SGRequireClasses(@[
+    PGRequireClasses(@[
         @"SPTBarOverlayPresentationTransition",
         @"_TtC19MainUI_TabBarUIImpl24CompactOverlayTransition",
     ]);

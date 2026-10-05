@@ -20,16 +20,16 @@
 // applies the cell's attributes and on the cell's layout passes, so it holds through scrolling, reuse and reloads (a
 // compositional list with the same shape on the iOS 27 simulator, 2026-09-17), and touches follow it. Spotify's content
 // inset, which its collapsing header is worked out from, stays its own.
-#import "Core/SGCore.h"
-#import "Redesigned/Kit/SGRKit.h"
+#import "Core/PGCore.h"
+#import "Redesigned/Kit/PGRKit.h"
 #import "Search.h"
 
-NSString *const SGRSearchListIdentifier = @"BrowsePage.ContentScrollView";
+NSString *const PGRSearchListIdentifier = @"BrowsePage.ContentScrollView";
 
-typedef NS_ENUM(NSInteger, SGRSearchKind) {
-    SGRSearchKindPending,   // the cell's root is not in yet: left as it is
-    SGRSearchKindKeep,
-    SGRSearchKindDrop,
+typedef NS_ENUM(NSInteger, PGRSearchKind) {
+    PGRSearchKindPending,   // the cell's root is not in yet: left as it is
+    PGRSearchKindKeep,
+    PGRSearchKindDrop,
 };
 
 // The items looked at from the top of the list for the first card before the gap is taken as none.
@@ -37,18 +37,18 @@ static const NSInteger kGapItems = 24;
 
 static char kCollapsedKey;
 
-static CGFloat sg_gap;
+static CGFloat pg_gap;
 // Collapses and expansions so far, so a layout pass of the page measures again after one.
-static NSUInteger sg_changes;
-static __weak UICollectionView *sg_list;
-static BOOL sg_measureQueued;
+static NSUInteger pg_changes;
+static __weak UICollectionView *pg_list;
+static BOOL pg_measureQueued;
 
 static void logOnce(NSString *what) {
     static NSMutableSet<NSString *> *logged;
     if (!logged) logged = [NSMutableSet set];
     if ([logged containsObject:what]) return;
     [logged addObject:what];
-    SGLog(@"redesign search: %@", what);
+    PGLog(@"redesign search: %@", what);
 }
 
 static BOOL isBrowseCell(UIView *content) {
@@ -64,22 +64,22 @@ static BOOL isBrowseCell(UIView *content) {
     return answer.boolValue;
 }
 
-static SGRSearchKind kindOf(UIView *root) {
-    if (!root) return SGRSearchKindPending;
-    return [root.accessibilityIdentifier isEqualToString:@"Components.UI.CategoryCardBrowse"] ? SGRSearchKindKeep : SGRSearchKindDrop;
+static PGRSearchKind kindOf(UIView *root) {
+    if (!root) return PGRSearchKindPending;
+    return [root.accessibilityIdentifier isEqualToString:@"Components.UI.CategoryCardBrowse"] ? PGRSearchKindKeep : PGRSearchKindDrop;
 }
 
 // What a dropped cell holds, for the log: the first identifier in it, else its root's class.
 static NSString *describe(UIView *root) {
     __block NSString *identifier = nil;
-    SGForEachView(root, ^(UIView *v) {
+    PGForEachView(root, ^(UIView *v) {
         if (!identifier && v.accessibilityIdentifier.length) identifier = v.accessibilityIdentifier;
     });
     return identifier ?: NSStringFromClass(root.class);
 }
 
 static void shift(UICollectionViewCell *cell) {
-    CGAffineTransform moved = CGAffineTransformMakeTranslation(0, -sg_gap);
+    CGAffineTransform moved = CGAffineTransformMakeTranslation(0, -pg_gap);
     if (!CGAffineTransformEqualToTransform(cell.transform, moved)) cell.transform = moved;
 }
 
@@ -125,21 +125,21 @@ static CGFloat measure(UICollectionView *list) {
     return 0;
 }
 
-void SGRSearchCloseGap(UICollectionView *list) {
+void PGRSearchCloseGap(UICollectionView *list) {
     if (!list) return;
     static CGSize lastSize;
     static NSUInteger lastChanges = NSUIntegerMax;
     static __weak UICollectionView *lastList;
     CGSize size = list.contentSize;
-    if (list == lastList && sg_changes == lastChanges && CGSizeEqualToSize(size, lastSize)) return;
-    sg_list = lastList = list;
-    lastChanges = sg_changes;
+    if (list == lastList && pg_changes == lastChanges && CGSizeEqualToSize(size, lastSize)) return;
+    pg_list = lastList = list;
+    lastChanges = pg_changes;
     lastSize = size;
 
     CGFloat gap = measure(list);
-    if (gap == sg_gap) return;
-    sg_gap = gap;
-    SGLog(@"redesign search: cards moved up %.0fpt, the spacing the collapsed sections above them leave", gap);
+    if (gap == pg_gap) return;
+    pg_gap = gap;
+    PGLog(@"redesign search: cards moved up %.0fpt, the spacing the collapsed sections above them leave", gap);
     for (UIView *sub in list.subviews) {
         if ([sub isKindOfClass:UICollectionViewCell.class] && isBrowseCell(((UICollectionViewCell *)sub).contentView)) {
             shift((UICollectionViewCell *)sub);
@@ -149,11 +149,11 @@ void SGRSearchCloseGap(UICollectionView *list) {
 
 // After the pass that sized the cell: the list's attributes take the new height when that pass ends.
 static void measureSoon(void) {
-    if (sg_measureQueued) return;
-    sg_measureQueued = YES;
+    if (pg_measureQueued) return;
+    pg_measureQueued = YES;
     dispatch_async(dispatch_get_main_queue(), ^{
-        sg_measureQueued = NO;
-        SGRSearchCloseGap(sg_list);
+        pg_measureQueued = NO;
+        PGRSearchCloseGap(pg_list);
     });
 }
 
@@ -165,20 +165,20 @@ static void measureSoon(void) {
     UICollectionViewLayoutAttributes *result = %orig;
 
     UIView *root = content.subviews.firstObject.subviews.firstObject;
-    SGRSearchKind kind = kindOf(root);
+    PGRSearchKind kind = kindOf(root);
     BOOL collapsed = objc_getAssociatedObject(cell, &kCollapsedKey) != nil;
-    if (kind == SGRSearchKindDrop) {
+    if (kind == PGRSearchKindDrop) {
         collapse(cell, MAX(1, result.size.height));
         result.size = CGSizeMake(result.size.width, 0);
         if (!collapsed) {
-            sg_changes++;
+            pg_changes++;
             measureSoon();
         }
         logOnce([@"dropped " stringByAppendingString:describe(root)]);
-    } else if (kind == SGRSearchKindKeep && collapsed) {
+    } else if (kind == PGRSearchKindKeep && collapsed) {
         // Cells are reused across kinds: one collapsed before holds a card now.
         expand(cell);
-        sg_changes++;
+        pg_changes++;
         measureSoon();
     }
     return result;
@@ -196,7 +196,7 @@ static void measureSoon(void) {
     UICollectionViewCell *cell = (UICollectionViewCell *)self;
     NSNumber *natural = objc_getAssociatedObject(cell, &kCollapsedKey);
     if (natural) collapse(cell, natural.doubleValue);
-    if (sg_gap > 0 && isBrowseCell(cell.contentView)) shift(cell);
+    if (pg_gap > 0 && isBrowseCell(cell.contentView)) shift(cell);
 }
 
 - (void)prepareForReuse {
@@ -206,7 +206,7 @@ static void measureSoon(void) {
 %end
 
 %ctor {
-    if (!SGRedesignedUI()) return;
+    if (!PGRedesignedUI()) return;
     %init;
-    SGRequireClasses(@[@"_TtC12Element_List18CollectionViewCell"]);
+    PGRequireClasses(@[@"_TtC12Element_List18CollectionViewCell"]);
 }

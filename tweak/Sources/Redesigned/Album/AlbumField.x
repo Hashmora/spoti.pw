@@ -11,7 +11,7 @@
 // of its own: the sharp cover at the top of the header is the picture, and AlbumHeader.x fades it into
 // exactly this field's colour, and conceals Spotify's wash so the field is what shows. What Spotify paints
 // over the field -- the list and every row, all of them the base surface -- is kept clear by the Kit's
-// repaint hook while sgr_albumRoot is this page, and by the list's own pass below, which paints itself
+// repaint hook while pgr_albumRoot is this page, and by the list's own pass below, which paints itself
 // rather than through a layer the repaint hook would hear about.
 //
 // The colour is Spotify's own for the album, read off the wash it paints behind the header, which
@@ -27,8 +27,8 @@
 // the album holds for it. What it puts on the field is its own -- a description, a comments card, Episode
 // Transcript, See all episodes -- and only the paint is taken off it; AlbumHeader.x and AlbumSections.x
 // look for the album's own elements and find none of them there.
-#import "Core/SGCore.h"
-#import "Redesigned/Kit/SGRKit.h"
+#import "Core/PGCore.h"
+#import "Redesigned/Kit/PGRKit.h"
 #import "Album.h"
 
 static NSString *const kPageIdentifier = @"CreativeWorkPlatform.CreativeWorkTemplateView";
@@ -40,7 +40,7 @@ static char kFieldKey;
 
 #pragma mark - the page
 
-UIView *SGRAlbumPageOf(UIView *view) {
+UIView *PGRAlbumPageOf(UIView *view) {
     for (UIView *v = view; v; v = v.superview) {
         if ([v.accessibilityIdentifier isEqualToString:kPageIdentifier]) return v;
     }
@@ -60,34 +60,34 @@ static BOOL isPageCell(UIView *cell) {
 
 #pragma mark - the page's field
 
-static SGRArtworkField *fieldOn(UIView *view) {
+static PGRArtworkField *fieldOn(UIView *view) {
     for (UIView *v = view; v; v = v.superview) {
-        SGRArtworkField *field = objc_getAssociatedObject(v, &kFieldKey);
+        PGRArtworkField *field = objc_getAssociatedObject(v, &kFieldKey);
         if (field) return field;
     }
     return nil;
 }
 
-UIColor *SGRAlbumFieldColor(UIView *view) {
-    SGRArtworkField *field = fieldOn(view);
-    return field.fieldColor ?: SGRNeutralField();
+UIColor *PGRAlbumFieldColor(UIView *view) {
+    PGRArtworkField *field = fieldOn(view);
+    return field.fieldColor ?: PGRNeutralField();
 }
 
-void SGRAlbumSetArtwork(UIView *view, UIImage *image) {
+void PGRAlbumSetArtwork(UIView *view, UIImage *image) {
     if (image) [fieldOn(view) setArtwork:image identity:nil animated:YES];
 }
 
-void SGRAlbumSetSpotifyColor(UIView *view, UIColor *color) {
+void PGRAlbumSetSpotifyColor(UIView *view, UIColor *color) {
     if (color) [fieldOn(view) setPreferredColor:color];
 }
 
-static SGRArtworkField *fieldIn(UIView *page) {
-    SGRArtworkField *field = objc_getAssociatedObject(page, &kFieldKey);
+static PGRArtworkField *fieldIn(UIView *page) {
+    PGRArtworkField *field = objc_getAssociatedObject(page, &kFieldKey);
     if (field) return field;
-    field = [[SGRArtworkField alloc] initWithFrame:page.bounds];
+    field = [[PGRArtworkField alloc] initWithFrame:page.bounds];
     field.bleed = kBleed;
     objc_setAssociatedObject(page, &kFieldKey, field, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    SGLog(@"redesign album: field on the page %.0fx%.0f", page.bounds.size.width, page.bounds.size.height);
+    PGLog(@"redesign album: field on the page %.0fx%.0f", page.bounds.size.width, page.bounds.size.height);
     return field;
 }
 
@@ -98,8 +98,8 @@ static SGRArtworkField *fieldIn(UIView *page) {
     if (page.bounds.size.height < 200) return;
     // The page the repaint hook keeps clear is the one laying out, which is the one on screen; an album
     // pushed over this one sets itself from its own pass, and this one sets itself again coming back.
-    sgr_albumRoot = page;
-    SGRArtworkField *field = fieldIn(page);
+    pgr_albumRoot = page;
+    PGRArtworkField *field = fieldIn(page);
     if (field.superview != page) [page insertSubview:field atIndex:0];
     else if (page.subviews.firstObject != field) [page sendSubviewToBack:field];
     if (!CGRectEqualToRect(field.frame, page.bounds)) field.frame = page.bounds;
@@ -113,10 +113,10 @@ static SGRArtworkField *fieldIn(UIView *page) {
 - (void)layoutSubviews {
     %orig;
     UIView *list = (UIView *)self;
-    if (!SGRAlbumPageOf(list)) return;
-    if (list.backgroundColor && SGIsBaseSurface(list.backgroundColor.CGColor)) list.backgroundColor = UIColor.clearColor;
+    if (!PGRAlbumPageOf(list)) return;
+    if (list.backgroundColor && PGIsBaseSurface(list.backgroundColor.CGColor)) list.backgroundColor = UIColor.clearColor;
     for (UIView *sub in list.subviews) {
-        if (sub.backgroundColor && SGIsBaseSurface(sub.backgroundColor.CGColor)) sub.backgroundColor = UIColor.clearColor;
+        if (sub.backgroundColor && PGIsBaseSurface(sub.backgroundColor.CGColor)) sub.backgroundColor = UIColor.clearColor;
     }
 }
 %end
@@ -129,15 +129,15 @@ static SGRArtworkField *fieldIn(UIView *page) {
 - (void)layoutSubviews {
     %orig;
     UIView *cell = (UIView *)self;
-    if (isPageCell(cell)) SGRClearCellPaint(cell);
+    if (isPageCell(cell)) PGRClearCellPaint(cell);
 }
 %end
 
 %ctor {
     // Registered whatever the switch says: the flag rows elsewhere lock to these while it is on.
-    SGRedesignForceFlags(@"album", @{
+    PGRedesignForceFlags(@"album", @{
         // More stays in Spotify's own header row, blanked with the rest of the column, and the redesign pins
-        // its own glass ⋯ over the page (Kit/SGRActionRow.h). In the navigation bar -- which this flag is
+        // its own glass ⋯ over the page (Kit/PGRActionRow.h). In the navigation bar -- which this flag is
         // Spotify's own way of putting it, and which the redesign forced until 2026-09-20 -- it was gone as
         // soon as the page was scrolled (the playlist's tree caught the bar's trailing slot empty,
         // trees/continuous/1.txt, issue #57).
@@ -148,9 +148,9 @@ static SGRArtworkField *fieldIn(UIView *page) {
         // Spotify's cover square is concealed on both pages this covers, so there is nothing left to tilt.
         @"ios-creativeworkcommons-cover-art-tilt-configuration-kit.album_playlist_and_podcast_pages_enabled": @NO,
     });
-    if (!SGRedesignedUI()) return;
+    if (!PGRedesignedUI()) return;
     %init;
-    SGRequireClasses(@[
+    PGRequireClasses(@[
         @"_TtC28CreativeWorkPlatform_PageKit24CreativeWorkTemplateView",
         @"_TtC32CreativeWorkPlatform_TemplateKit28CreativeWorkTemplateListView",
         @"_TtC12Element_List18CollectionViewCell",

@@ -14,8 +14,8 @@
 // the path and the fill colour of its animationLayer, a CAShapeLayer among its layer's sublayers, from the card's colour
 // set on every pass (Encore_LayoutKit.Box's fields, and -[Box layoutSubviews] calling setPath: and setFillColor:,
 // 2026-09-17). So the colour is read off that layer, and the layer is hidden rather than cleared, since Spotify fills it again.
-#import "Core/SGCore.h"
-#import "Redesigned/Kit/SGRKit.h"
+#import "Core/PGCore.h"
+#import "Redesigned/Kit/PGRKit.h"
 #import "Search.h"
 
 // The tint the glass takes of the card's colour, and how dark the far corner of the colour under it gets.
@@ -27,26 +27,26 @@ static const CGFloat kPressScale = 0.96;
 
 static char kPartsKey, kRoundedKey;
 
-@interface UIView (SGREncoreBox)
+@interface UIView (PGREncoreBox)
 - (BOOL)isHighlighted;
 @end
 
-@interface SGRSearchCardPlate : UIView
+@interface PGRSearchCardPlate : UIView
 @end
 
-@implementation SGRSearchCardPlate
+@implementation PGRSearchCardPlate
 + (Class)layerClass {
     return CAGradientLayer.class;
 }
 @end
 
-@interface SGRSearchCardParts : NSObject
-@property (nonatomic) SGRSearchCardPlate *plate;
+@interface PGRSearchCardParts : NSObject
+@property (nonatomic) PGRSearchCardPlate *plate;
 @property (nonatomic) UIVisualEffectView *glass;
 @property (nonatomic) UIColor *color;
 @end
 
-@implementation SGRSearchCardParts
+@implementation PGRSearchCardParts
 @end
 
 static void logOnce(NSString *what) {
@@ -54,7 +54,7 @@ static void logOnce(NSString *what) {
     if (!logged) logged = [NSMutableSet set];
     if ([logged containsObject:what]) return;
     [logged addObject:what];
-    SGLog(@"redesign search: %@", what);
+    PGLog(@"redesign search: %@", what);
 }
 
 static BOOL isCategoryCard(UIView *box) {
@@ -98,16 +98,16 @@ static UIColor *darker(UIColor *color) {
 }
 
 static BOOL glassAllowed(void) {
-    if (SGRReduceTransparency()) return NO;
+    if (PGRReduceTransparency()) return NO;
     if (@available(iOS 26.0, *)) return YES;
     return NO;
 }
 
-static SGRSearchCardParts *partsIn(UIView *box, UIView *content) {
-    SGRSearchCardParts *parts = objc_getAssociatedObject(box, &kPartsKey);
+static PGRSearchCardParts *partsIn(UIView *box, UIView *content) {
+    PGRSearchCardParts *parts = objc_getAssociatedObject(box, &kPartsKey);
     if (!parts) {
-        parts = [SGRSearchCardParts new];
-        SGRSearchCardPlate *plate = [SGRSearchCardPlate new];
+        parts = [PGRSearchCardParts new];
+        PGRSearchCardPlate *plate = [PGRSearchCardPlate new];
         plate.userInteractionEnabled = NO;
         plate.accessibilityElementsHidden = YES;
         plate.layer.zPosition = -2;
@@ -135,7 +135,7 @@ static SGRSearchCardParts *partsIn(UIView *box, UIView *content) {
     return parts;
 }
 
-static void paint(SGRSearchCardParts *parts, UIColor *color) {
+static void paint(PGRSearchCardParts *parts, UIColor *color) {
     if (parts.color && CGColorEqualToColor(parts.color.CGColor, color.CGColor)) return;
     parts.color = color;
     ((CAGradientLayer *)parts.plate.layer).colors = @[(id)color.CGColor, (id)darker(color).CGColor];
@@ -163,7 +163,7 @@ static void roundCover(UIView *content) {
         if (![sub.accessibilityIdentifier isEqualToString:@"Encore.ImageView"]) continue;
         for (UIView *image in sub.subviews) {
             if (![image isKindOfClass:UIImageView.class]) continue;
-            roundCorners(image, SGRRadiusThumb);
+            roundCorners(image, PGRRadiusThumb);
             if (!image.layer.masksToBounds) image.layer.masksToBounds = YES;
         }
     }
@@ -179,7 +179,7 @@ static void style(UIView *box) {
     }
     // A pressed card's fill is Spotify's pressed shade; the colour is taken while it is not pressed.
     CGColorRef fillColor = fill.fillColor;
-    SGRSearchCardParts *parts = partsIn(box, content);
+    PGRSearchCardParts *parts = partsIn(box, content);
     if (fillColor && CGColorGetAlpha(fillColor) > 0 && ![box isHighlighted]) paint(parts, [UIColor colorWithCGColor:fillColor]);
     if (!parts.color) return;
     hideFills(box);
@@ -187,18 +187,18 @@ static void style(UIView *box) {
     // The card is cut at the card radius by the Box, which clips already and which Spotify gives no radius. Spotify puts
     // its own 4pt back on the content view between layout passes, and the colour and the cover then showed past the glass
     // at the corners (on the phone, 2026-09-17); the content view keeps the card radius only for as long as it lasts.
-    if (content.layer.cornerRadius != SGRRadiusCard && objc_getAssociatedObject(box, &kRoundedKey)) {
+    if (content.layer.cornerRadius != PGRRadiusCard && objc_getAssociatedObject(box, &kRoundedKey)) {
         logOnce([NSString stringWithFormat:@"Spotify set a card's content radius back to %.0f; the Box's corner holds", content.layer.cornerRadius]);
     }
     objc_setAssociatedObject(box, &kRoundedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    roundCorners(box, SGRRadiusCard);
+    roundCorners(box, PGRRadiusCard);
     if (!box.layer.masksToBounds) box.layer.masksToBounds = YES;
-    roundCorners(content, SGRRadiusCard);
+    roundCorners(content, PGRRadiusCard);
     CGRect bounds = content.bounds;
     if (!CGRectEqualToRect(parts.plate.frame, bounds)) parts.plate.frame = bounds;
     if (parts.glass && !CGRectEqualToRect(parts.glass.frame, bounds)) {
         parts.glass.frame = bounds;
-        SGShapeGlass(parts.glass, SGRRadiusCard, NO);
+        PGShapeGlass(parts.glass, PGRRadiusCard, NO);
     }
     moveTitleIn(content);
     roundCover(content);
@@ -216,14 +216,14 @@ static void style(UIView *box) {
     BOOL was = [box isHighlighted];
     %orig;
     if (was == highlighted || !isCategoryCard(box)) return;
-    SGRAnimate(SGRMotionPress, ^{
+    PGRAnimate(PGRMotionPress, ^{
         box.transform = highlighted ? CGAffineTransformMakeScale(kPressScale, kPressScale) : CGAffineTransformIdentity;
     }, nil);
 }
 %end
 
 %ctor {
-    if (!SGRedesignedUI()) return;
+    if (!PGRedesignedUI()) return;
     %init;
-    SGRequireClasses(@[@"_TtCE16Encore_LayoutKitO16EncoreFoundation6Encore3Box"]);
+    PGRequireClasses(@[@"_TtCE16Encore_LayoutKitO16EncoreFoundation6Encore3Box"]);
 }

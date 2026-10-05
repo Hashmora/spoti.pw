@@ -9,31 +9,31 @@
 //   (CreateMenu.ScrollView, #1F1F1F, r=16, inset 8 pt from the sides), and the card's own grey goes clear.
 //   The pane is a sibling of the card rather than a subview of it, so it stays put when the card scrolls.
 // - The Create playlist sheet from the Library's + (PlaylistCreation_SheetPageImpl) is an ordinary sheet:
-//   id=sheet-view, #1F1F1F, full width, with the same rows in it. SGRGlassSheetChrome does all of it.
+//   id=sheet-view, #1F1F1F, full width, with the same rows in it. PGRGlassSheetChrome does all of it.
 //
 // The rows' icon circles (Encore.Box, #FFFFFF@0.14) are already translucent white and are left as they are.
-#import "Core/SGCore.h"
-#import "Redesigned/Kit/SGRKit.h"
+#import "Core/PGCore.h"
+#import "Redesigned/Kit/PGRKit.h"
 
 static NSString *const kCardIdentifier = @"CreateMenu.ScrollView";
 static char kCardKey, kCardGlassKey;
 
 static void glassCard(UIViewController *controller) {
     UIView *root = controller.viewIfLoaded;
-    UIView *card = root ? SGRFindByIdentifier(root, kCardIdentifier, &kCardKey) : nil;
+    UIView *card = root ? PGRFindByIdentifier(root, kCardIdentifier, &kCardKey) : nil;
     UIView *host = card.superview;
     if (!host) return;
     CGFloat radius = card.layer.cornerRadius;
-    UIView *glass = SGGlassFor(host, &kCardGlassKey);
+    UIView *glass = PGGlassFor(host, &kCardGlassKey);
     if (!CGRectEqualToRect(glass.frame, card.frame)) glass.frame = card.frame;
-    SGShapeGlass(glass, radius, NO);
-    SGRThickenSheetGlass(glass, radius);
-    if (SGIsVisibleColor(card.layer.backgroundColor)) card.backgroundColor = UIColor.clearColor;
+    PGShapeGlass(glass, radius, NO);
+    PGRThickenSheetGlass(glass, radius);
+    if (PGIsVisibleColor(card.layer.backgroundColor)) card.backgroundColor = UIColor.clearColor;
 }
 
 static void glassSheet(UIViewController *controller) {
     UIView *root = controller.viewIfLoaded;
-    if (root) SGRGlassSheetChrome(root);
+    if (root) PGRGlassSheetChrome(root);
 }
 
 // The rows are built after the first layout and Spotify paints its grey back on later passes, so the pass
@@ -83,8 +83,8 @@ static void afterAppear(UIViewController *controller, void (*chrome)(UIViewContr
 %end
 
 %ctor {
-    if (!SGRedesignedUI()) return;
+    if (!PGRedesignedUI()) return;
     %init;
-    SGRequireClasses(@[@"_TtC29CreateMenu_CreateMenuPageImpl24CreateMenuViewController",
+    PGRequireClasses(@[@"_TtC29CreateMenu_CreateMenuPageImpl24CreateMenuViewController",
                        @"_TtC30PlaylistCreation_SheetPageImpl35BICreatePlaylistSheetViewController"]);
 }

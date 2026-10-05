@@ -18,8 +18,8 @@
 // "For fans of " 11pt #B3B3B3, "Yzomandias" 17pt #FFFFFF at {0, 19.3} 91x20.7, and a hidden one. A heading
 // of a title alone is 20.7 tall (10.txt:2363). "Show all" is Components.UI.NavigationButtonHome, a sibling
 // of the button's stack, 0 wide while it is not offered.
-#import "Core/SGCore.h"
-#import "Redesigned/Kit/SGRKit.h"
+#import "Core/PGCore.h"
+#import "Redesigned/Kit/PGRKit.h"
 #import "Home.h"
 
 static char kTitleKey, kShowAllKey, kHeldKey, kTriesKey;
@@ -28,13 +28,13 @@ static char kTitleKey, kShowAllKey, kHeldKey, kTriesKey;
 static const NSUInteger kTries = 3;
 
 // What the title is held on, so the constraints are made again only when it changes.
-@interface SGRHeadingHold : NSObject
+@interface PGRHeadingHold : NSObject
 @property (nonatomic, weak) UILabel *label;
 @property (nonatomic, weak) UIView *limit;
 @property (nonatomic, copy) NSArray<NSLayoutConstraint *> *constraints;
 @end
 
-@implementation SGRHeadingHold
+@implementation PGRHeadingHold
 @end
 
 static UIView *headingAround(UIView *button) {
@@ -56,7 +56,7 @@ static BOOL shown(UIView *view, UIView *root) {
 // has not sized yet counts, since the constraints take its place from the layout rather than from its bounds.
 static UILabel *titleLabelIn(UIView *button, UILabel *mine) {
     __block UILabel *title = nil;
-    SGForEachView(button, ^(UIView *v) {
+    PGForEachView(button, ^(UIView *v) {
         if (v == mine || ![v isKindOfClass:UILabel.class]) return;
         UILabel *label = (UILabel *)v;
         if (!label.text.length || !shown(label, button)) return;
@@ -70,7 +70,7 @@ static void restyle(UIView *button) {
     if (!heading) return;
     UILabel *mine = objc_getAssociatedObject(button, &kTitleKey);
     UILabel *theirs = titleLabelIn(button, mine);
-    SGRHeadingHold *held = objc_getAssociatedObject(button, &kHeldKey);
+    PGRHeadingHold *held = objc_getAssociatedObject(button, &kHeldKey);
     if (!theirs) {
         // A heading between two shelves: nothing to hold the title on until its label has text again.
         mine.hidden = YES;
@@ -90,7 +90,7 @@ static void restyle(UIView *button) {
     if (added) [button addSubview:mine];
     mine.hidden = NO;
 
-    UIFont *font = SGRFont(UIFontTextStyleTitle2, UIFontWeightBold, UIContentSizeCategoryLarge);
+    UIFont *font = PGRFont(UIFontTextStyleTitle2, UIFontWeightBold, UIContentSizeCategoryLarge);
     if (![mine.font isEqual:font]) mine.font = font;
     if (![mine.text isEqualToString:theirs.text]) mine.text = theirs.text;
     if (![mine.textColor isEqual:theirs.textColor]) mine.textColor = theirs.textColor;
@@ -100,7 +100,7 @@ static void restyle(UIView *button) {
     // heading's trailing edge while there is none, and truncates rather than push anything.
     // Whether "Show all" is offered is read off the hidden flags, not off its width: it has none to go by until
     // the layout resolves, and a title held to the heading's own edge then ran under it.
-    UIView *showAll = SGRFindByIdentifier(heading, @"Components.UI.NavigationButtonHome", &kShowAllKey);
+    UIView *showAll = PGRFindByIdentifier(heading, @"Components.UI.NavigationButtonHome", &kShowAllKey);
     BOOL offered = showAll && shown(showAll, heading);
     UIView *limit = offered ? showAll : heading;
     if (added || held.label != theirs || held.limit != limit) {
@@ -110,16 +110,16 @@ static void restyle(UIView *button) {
             [mine.firstBaselineAnchor constraintEqualToAnchor:theirs.firstBaselineAnchor],
             [mine.trailingAnchor constraintLessThanOrEqualToAnchor:heading.trailingAnchor],
         ]];
-        if (offered) [constraints addObject:[mine.trailingAnchor constraintLessThanOrEqualToAnchor:showAll.leadingAnchor constant:-SGRGrid]];
+        if (offered) [constraints addObject:[mine.trailingAnchor constraintLessThanOrEqualToAnchor:showAll.leadingAnchor constant:-PGRGrid]];
         [NSLayoutConstraint activateConstraints:constraints];
-        held = [SGRHeadingHold new];
+        held = [PGRHeadingHold new];
         held.label = theirs;
         held.limit = limit;
         held.constraints = constraints;
         objc_setAssociatedObject(button, &kHeldKey, held, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         objc_setAssociatedObject(button, &kTriesKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         static dispatch_once_t once;
-        dispatch_once(&once, ^{ SGLog(@"redesign home: heading \"%@\" %.0fpt drawn at %.0fpt, held on Spotify's label", theirs.text, theirs.font.pointSize, font.pointSize); });
+        dispatch_once(&once, ^{ PGLog(@"redesign home: heading \"%@\" %.0fpt drawn at %.0fpt, held on Spotify's label", theirs.text, theirs.font.pointSize, font.pointSize); });
     }
 }
 
@@ -137,15 +137,15 @@ static void restyleWhenReady(UIView *button) {
 %hook _TtCOOOE11Home_ECMKitO19LegacyUI_ECMCoreKit10Components18SectionHeadingHome2UI7Private28NoIntrinsicContentSizeButton
 - (void)layoutSubviews {
     %orig;
-    CFTimeInterval began = SGRHomeProbeBegin();
+    CFTimeInterval began = PGRHomeProbeBegin();
     restyle((UIView *)self);
     restyleWhenReady((UIView *)self);
-    SGRHomeProbeEnd(SGRHomeProbeHeadings, began);
+    PGRHomeProbeEnd(PGRHomeProbeHeadings, began);
 }
 %end
 
 %ctor {
-    if (!SGRedesignedUI()) return;
+    if (!PGRedesignedUI()) return;
     %init;
-    SGRequireClasses(@[@"_TtCOOOE11Home_ECMKitO19LegacyUI_ECMCoreKit10Components18SectionHeadingHome2UI7Private28NoIntrinsicContentSizeButton"]);
+    PGRequireClasses(@[@"_TtCOOOE11Home_ECMKitO19LegacyUI_ECMCoreKit10Components18SectionHeadingHome2UI7Private28NoIntrinsicContentSizeButton"]);
 }

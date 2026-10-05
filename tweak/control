@@ -1,7 +1,7 @@
-Package: com.spotipw
-Name: spoti.pw
+Package: com.pureglass
+Name: pureglass
 Architecture: iphoneos-arm
-Description: Liquid Glass for the Spotify iOS app
-Maintainer: spoti.pw
-Author: spoti.pw
+Description: Liquid Glass for the Spotify iOS app below iOS 26
+Maintainer: pureglass
+Author: pureglass
 Section: Tweaks

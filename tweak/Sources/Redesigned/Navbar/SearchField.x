@@ -11,21 +11,22 @@
 // Spotify configures the field for a white background again, black glyph and black text, after the
 // layout pass that styled it: both are then invisible on the glass until the next pass, a second or
 // so later. So the two setters are refused for as long as the field is a capsule.
-#import "Core/SGCore.h"
-#import "Diagnostics/Diagnostics.h"
+#import "Core/PGCore.h"
+// Debug tracing of the field is compiled out here.
+#define PGIsDebugBuild() NO
 
 // Spotify's glyph view, resolved at runtime; declared on UIView so the call and the hook below
 // share one declaration.
-@interface UIView (SGEncoreIcon)
+@interface UIView (PGEncoreIcon)
 - (void)setForegroundColor:(UIColor *)color;
 @end
 
 static char kStyledKey;
-static __weak UIView *sg_searchField;
+static __weak UIView *pg_searchField;
 
 static BOOL isSearchField(UIView *button) {
     if ([button.accessibilityIdentifier isEqualToString:@"SearchHeaderFind.SearchBar"]) return YES;
-    return SGIsLightColor(button.layer.backgroundColor);
+    return PGIsLightColor(button.layer.backgroundColor);
 }
 
 static void whiten(UIView *view) {
@@ -41,7 +42,7 @@ static void whiten(UIView *view) {
 // too short to catch in a tree, so every pass over the field says what it looked like, and the
 // silence before the first line says the field did not exist yet.
 static void traceField(UIView *button, NSString *when) {
-    if (!SGIsDebugBuild()) return;
+    if (!PGIsDebugBuild()) return;
     UIView *pane = nil, *dim = nil;
     for (UIView *sub in button.subviews) {
         if ([sub isKindOfClass:UIVisualEffectView.class]) pane = sub;
@@ -49,7 +50,7 @@ static void traceField(UIView *button, NSString *when) {
     for (UIView *v = button; v && !dim; v = v.superview) {
         if (v.hidden || v.alpha < 0.99) dim = v;
     }
-    SGLog(@"search field %@: window %d, %@, pane %@, hidden by %@", when, button.window != nil,
+    PGLog(@"search field %@: window %d, %@, pane %@, hidden by %@", when, button.window != nil,
           NSStringFromCGSize(button.bounds.size), pane ? @"attached" : @"missing",
           dim ? NSStringFromClass(dim.class) : @"nothing");
 }
@@ -72,7 +73,7 @@ static void sampleField(__weak UIView *weakButton, int step) {
         if ([sub isKindOfClass:UIVisualEffectView.class]) pane = sub;
     }
     CGColorRef fill = button.layer.backgroundColor;
-    SGLog(@"search field +%4dms: window %d, in window %@, alpha %.2f hidden %d, dimmed by %@, pane %@ alpha %.2f, fill alpha %.2f, radius %.1f",
+    PGLog(@"search field +%4dms: window %d, in window %@, alpha %.2f hidden %d, dimmed by %@, pane %@ alpha %.2f, fill alpha %.2f, radius %.1f",
           step * 50, window != nil,
           NSStringFromCGRect([button convertRect:button.bounds toView:window]),
           button.alpha, button.hidden, dim ? NSStringFromClass(dim.class) : @"nothing",
@@ -85,7 +86,7 @@ static void sampleField(__weak UIView *weakButton, int step) {
 
 // One burst per arrival, so three trips in and out read as three bursts rather than three overlaid.
 static void traceFieldArriving(UIView *button) {
-    if (!SGIsDebugBuild() || !button.window) return;
+    if (!PGIsDebugBuild() || !button.window) return;
     static NSTimeInterval last;
     NSTimeInterval now = NSDate.timeIntervalSinceReferenceDate;
     if (now - last < 2.5) return;
@@ -99,20 +100,20 @@ static void styleSearchField(UIView *button) {
     BOOL styled = [objc_getAssociatedObject(button, &kStyledKey) boolValue];
     if (!styled && !isSearchField(button)) return;
     objc_setAssociatedObject(button, &kStyledKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    if (sg_searchField != button) sg_searchField = button;
+    if (pg_searchField != button) pg_searchField = button;
 
     button.layer.backgroundColor = NULL;
     button.layer.cornerRadius = size.height / 2;
     button.layer.cornerCurve = kCACornerCurveContinuous;
 
-    UIView *glass = SGGlassAt(button, 0);
+    UIView *glass = PGGlassAt(button, 0);
     // Dark like every glass of the redesign's, rather than by grace of the navigation stack Spotify hosts
     // the page in (TabBar.x).
     if (glass.overrideUserInterfaceStyle != UIUserInterfaceStyleDark) glass.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
     glass.frame = button.bounds;
-    SGShapeGlass(glass, size.height / 2, YES);
+    PGShapeGlass(glass, size.height / 2, YES);
 
-    SGForEachView(button, ^(UIView *v) { whiten(v); });
+    PGForEachView(button, ^(UIView *v) { whiten(v); });
     traceField(button, @"styled");
 }
 
@@ -140,18 +141,18 @@ static void styleSearchField(UIView *button) {
 
 %hook UILabel
 - (void)setTextColor:(UIColor *)color {
-    %orig(SGIsInside((UIView *)self, sg_searchField) ? UIColor.whiteColor : color);
+    %orig(PGIsInside((UIView *)self, pg_searchField) ? UIColor.whiteColor : color);
 }
 %end
 
 %hook SPTEncoreIconView
 - (void)setForegroundColor:(UIColor *)color {
-    %orig(SGIsInside((UIView *)self, sg_searchField) ? UIColor.whiteColor : color);
+    %orig(PGIsInside((UIView *)self, pg_searchField) ? UIColor.whiteColor : color);
 }
 %end
 
 %ctor {
-    if (!SGRedesignedUI()) return;
+    if (!PGRedesignedUI()) return;
     %init;
-    SGRequireClasses(@[@"_TtCCE16Encore_ButtonKitO16EncoreFoundation6Encore6Button8Tertiary", @"SPTEncoreIconView"]);
+    PGRequireClasses(@[@"_TtCCE16Encore_ButtonKitO16EncoreFoundation6Encore6Button8Tertiary", @"SPTEncoreIconView"]);
 }

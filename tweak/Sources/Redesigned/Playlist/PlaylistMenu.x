@@ -21,18 +21,18 @@
 // sections are written to avoid. Spotify keeps its rows; the mod adds to them.
 //
 // Which sheet is the playlist's: the ⋯ that opened it is the redesign's own pinned button
-// (Kit/SGRActionRow.h), so it records its page as it is tapped and a sheet that appears within
-// SGRPinnedMoreWindow of that belongs to it. Under the native look nothing pins a ⋯ and nothing here runs.
+// (Kit/PGRActionRow.h), so it records its page as it is tapped and a sheet that appears within
+// PGRPinnedMoreWindow of that belongs to it. Under the native look nothing pins a ⋯ and nothing here runs.
 //
 // What each row does is fire Spotify's own pill, so the action, the sheet Sort opens and the state Mix
 // keeps are all Spotify's; the words are read off the pills for the same reason. The pills sit in a list
-// cell closed up to nothing, which the page hands over as it lays out (SGRPlaylistTakeCuration) and which
+// cell closed up to nothing, which the page hands over as it lays out (PGRPlaylistTakeCuration) and which
 // is held from the page, so they are still there to fire once the list has scrolled past them.
-#import "Core/SGCore.h"
-#import "Redesigned/Kit/SGRKit.h"
+#import "Core/PGCore.h"
+#import "Redesigned/Kit/PGRKit.h"
 #import "Playlist.h"
 
-NSString *const SGRPlaylistCurationIdentifier = @"PlaylistCuration.Row.CurationActionsToolbar";
+NSString *const PGRPlaylistCurationIdentifier = @"PlaylistCuration.Row.CurationActionsToolbar";
 
 // Mix says what it is in its identifier; Sort is an Encore.Button.Primary like Video, Edit and Name &
 // details, and its only word is the word in the app's language, so it is told apart by the glyph it draws
@@ -72,7 +72,7 @@ static NSString *pillGlyph(UIView *pill) {
     static Class iconClass;
     if (!iconClass) iconClass = NSClassFromString(@"SPTEncoreIconView");
     __block NSString *name = nil;
-    SGForEachView(pill, ^(UIView *v) {
+    PGForEachView(pill, ^(UIView *v) {
         if (!name && iconClass && [v isKindOfClass:iconClass]) name = glyphName(v);
     });
     return name;
@@ -80,7 +80,7 @@ static NSString *pillGlyph(UIView *pill) {
 
 static NSString *pillWord(UIView *pill) {
     __block NSString *word = nil;
-    SGForEachView(pill, ^(UIView *v) {
+    PGForEachView(pill, ^(UIView *v) {
         if (word || ![v isKindOfClass:UILabel.class]) return;
         NSString *text = [((UILabel *)v).text stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
         if (text.length) word = text;
@@ -98,11 +98,11 @@ static BOOL isSortGlyph(NSString *glyph) {
 static void pillsIn(UIView *toolbar, UIView **sort, UIView **mix) {
     __block UIView *foundSort = nil, *foundMix = nil;
     __block NSMutableArray<NSString *> *seen = [NSMutableArray array];
-    SGForEachView(toolbar, ^(UIView *v) {
+    PGForEachView(toolbar, ^(UIView *v) {
         NSString *identifier = v.accessibilityIdentifier;
         // The pills, and only the pills: the toolbar itself carries an identifier too, and the first glyph
         // under it is whichever pill comes first.
-        if (!identifier.length || [identifier isEqualToString:SGRPlaylistCurationIdentifier]) return;
+        if (!identifier.length || [identifier isEqualToString:PGRPlaylistCurationIdentifier]) return;
         if (!foundMix && [identifier containsString:kMixIdentifier]) {
             foundMix = v;
             return;
@@ -115,14 +115,14 @@ static void pillsIn(UIView *toolbar, UIView **sort, UIView **mix) {
     static BOOL logged;
     if (!logged && seen.count) {
         logged = YES;
-        SGLog(@"redesign playlist: the curation pills draw %@; sort %@", [seen componentsJoinedByString:@", "],
+        PGLog(@"redesign playlist: the curation pills draw %@; sort %@", [seen componentsJoinedByString:@", "],
               foundSort ? @"found" : @"NOT FOUND");
     }
     *sort = foundSort;
     *mix = foundMix;
 }
 
-void SGRPlaylistTakeSort(UIView *page, UIView *button) {
+void PGRPlaylistTakeSort(UIView *page, UIView *button) {
     if (page && button && objc_getAssociatedObject(page, &kSortKey) != button) {
         objc_setAssociatedObject(page, &kSortKey, button, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
@@ -132,9 +132,9 @@ void SGRPlaylistTakeSort(UIView *page, UIView *button) {
 // list reuses the cell once it has scrolled past, and the sheet is opened from the top of a page one is
 // usually well down. Held strongly for the same reason -- the element view Spotify binds to the toolbar is
 // the toolbar's own, so it goes on answering wherever the cell it was in ends up.
-void SGRPlaylistTakeCuration(UIView *cell) {
-    UIView *toolbar = SGRFindByIdentifier(cell, SGRPlaylistCurationIdentifier, &kToolbarKey);
-    UIView *page = toolbar ? SGRPlaylistPageOf(cell) : nil;
+void PGRPlaylistTakeCuration(UIView *cell) {
+    UIView *toolbar = PGRFindByIdentifier(cell, PGRPlaylistCurationIdentifier, &kToolbarKey);
+    UIView *page = toolbar ? PGRPlaylistPageOf(cell) : nil;
     if (!page || objc_getAssociatedObject(page, &kToolbarKey) == toolbar) return;
     objc_setAssociatedObject(page, &kToolbarKey, toolbar, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     UIView *sort = nil, *mix = nil;
@@ -142,7 +142,7 @@ void SGRPlaylistTakeCuration(UIView *cell) {
     static BOOL logged;
     if (!logged) {
         logged = YES;
-        SGLog(@"redesign playlist: the curation row is the page's, sort %@, mix %@",
+        PGLog(@"redesign playlist: the curation row is the page's, sort %@, mix %@",
               sort ? pillWord(sort) : @"not found", mix ? pillWord(mix) : @"not found");
     }
 }
@@ -151,11 +151,11 @@ void SGRPlaylistTakeCuration(UIView *cell) {
 
 // One row: a glyph, a word, and the whole width of the sheet to be tapped on. Spotify's own rows are drawn
 // by its table, so this only has to read as one of them.
-@interface SGRMenuRow : UIControl
+@interface PGRMenuRow : UIControl
 @property (nonatomic, weak) UIView *pill;
 @end
 
-@implementation SGRMenuRow {
+@implementation PGRMenuRow {
     UIImageView *_glyph;
     UILabel *_word;
 }
@@ -177,8 +177,8 @@ void SGRPlaylistTakeCuration(UIView *cell) {
 
     self.isAccessibilityElement = YES;
     self.accessibilityTraits = UIAccessibilityTraitButton;
-    [self addTarget:self action:@selector(sgr_down) forControlEvents:UIControlEventTouchDown];
-    [self addTarget:self action:@selector(sgr_up)
+    [self addTarget:self action:@selector(pgr_down) forControlEvents:UIControlEventTouchDown];
+    [self addTarget:self action:@selector(pgr_up)
    forControlEvents:UIControlEventTouchUpInside | UIControlEventTouchUpOutside | UIControlEventTouchCancel];
     return self;
 }
@@ -201,33 +201,33 @@ void SGRPlaylistTakeCuration(UIView *cell) {
                              MAX(0, bounds.size.width - lead - kSideMargin), _word.bounds.size.height);
 }
 
-- (void)sgr_down {
+- (void)pgr_down {
     self.backgroundColor = [UIColor colorWithWhite:1 alpha:0.10];
 }
 
-- (void)sgr_up {
+- (void)pgr_up {
     self.backgroundColor = UIColor.clearColor;
 }
 
 @end
 
-@interface SGRMenuBlock : UIView
+@interface PGRMenuBlock : UIView
 @property (nonatomic, weak) UIViewController *menu;
 - (void)showSort:(UIView *)sort mix:(UIView *)mix;
 - (CGFloat)wantedHeight;
 @end
 
-@implementation SGRMenuBlock {
-    SGRMenuRow *_sort, *_mix;
+@implementation PGRMenuBlock {
+    PGRMenuRow *_sort, *_mix;
 }
 
 - (instancetype)initWithFrame:(CGRect)frame {
     if (!(self = [super initWithFrame:frame])) return nil;
-    _sort = [[SGRMenuRow alloc] initWithFrame:CGRectZero];
-    _mix = [[SGRMenuRow alloc] initWithFrame:CGRectZero];
-    for (SGRMenuRow *row in @[_sort, _mix]) {
+    _sort = [[PGRMenuRow alloc] initWithFrame:CGRectZero];
+    _mix = [[PGRMenuRow alloc] initWithFrame:CGRectZero];
+    for (PGRMenuRow *row in @[_sort, _mix]) {
         row.hidden = YES;
-        [row addTarget:self action:@selector(sgr_rowTapped:) forControlEvents:UIControlEventTouchUpInside];
+        [row addTarget:self action:@selector(pgr_rowTapped:) forControlEvents:UIControlEventTouchUpInside];
         [self addSubview:row];
     }
     return self;
@@ -248,14 +248,14 @@ void SGRPlaylistTakeCuration(UIView *cell) {
 
 - (CGFloat)wantedHeight {
     CGFloat height = 0;
-    for (SGRMenuRow *row in @[_sort, _mix]) height += row.hidden ? 0 : kRowHeight;
+    for (PGRMenuRow *row in @[_sort, _mix]) height += row.hidden ? 0 : kRowHeight;
     return height;
 }
 
 - (void)layoutSubviews {
     [super layoutSubviews];
     CGFloat y = 0;
-    for (SGRMenuRow *row in @[_sort, _mix]) {
+    for (PGRMenuRow *row in @[_sort, _mix]) {
         if (row.hidden) continue;
         row.frame = CGRectMake(0, y, self.bounds.size.width, kRowHeight);
         y += kRowHeight;
@@ -265,15 +265,15 @@ void SGRPlaylistTakeCuration(UIView *cell) {
 // Spotify's Sort opens a sheet of its own and its Mix changes the page under this one, so the menu closes
 // first and the pill is fired once it has: firing under an open sheet would put Spotify's next sheet behind
 // this one.
-- (void)sgr_rowTapped:(SGRMenuRow *)row {
+- (void)pgr_rowTapped:(PGRMenuRow *)row {
     UIView *pill = row.pill;
     UIViewController *menu = self.menu;
     void (^fire)(void) = ^{
-        SGRActivate(pill);
+        PGRActivate(pill);
         static BOOL logged;
         if (!logged) {
             logged = YES;
-            SGLog(@"redesign playlist: the sheet fired %@, still on screen: %@", row.accessibilityLabel,
+            PGLog(@"redesign playlist: the sheet fired %@, still on screen: %@", row.accessibilityLabel,
                   pill.window ? @"yes" : @"no");
         }
     };
@@ -305,7 +305,7 @@ static UITableView *tableIn(UIView *root, int depth) {
 static UIView *curationIn(UIView *page) {
     UIView *held = objc_getAssociatedObject(page, &kToolbarKey);
     if (held) return held;
-    UIView *found = SGRFindByIdentifier(page, SGRPlaylistCurationIdentifier, NULL);
+    UIView *found = PGRFindByIdentifier(page, PGRPlaylistCurationIdentifier, NULL);
     if (found) objc_setAssociatedObject(page, &kToolbarKey, found, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     return found;
 }
@@ -316,7 +316,7 @@ static UIView *curationIn(UIView *page) {
 static UIView *pageFor(UIViewController *menu) {
     id decided = objc_getAssociatedObject(menu, &kDecidedKey);
     if (decided) return decided == NSNull.null ? nil : decided;
-    UIView *page = SGRPinnedMoreRecentPage();
+    UIView *page = PGRPinnedMoreRecentPage();
     if (page) curationIn(page);
     objc_setAssociatedObject(menu, &kDecidedKey, page ?: (id)NSNull.null, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     return page;
@@ -330,17 +330,17 @@ static void install(UIViewController *menu) {
     CGFloat width = table.bounds.size.width;
     if (!table || width <= 0) return;
     // Spotify already uses the header on some sheets; there the rows go under its own instead.
-    SGRMenuBlock *block = objc_getAssociatedObject(menu, &kBlockKey);
+    PGRMenuBlock *block = objc_getAssociatedObject(menu, &kBlockKey);
     BOOL inFooter = block ? [objc_getAssociatedObject(block, &kBlockKey) boolValue] : NO;
     if (!block) {
         BOOL headerFree = !table.tableHeaderView || table.tableHeaderView.bounds.size.height < 1;
         inFooter = !headerFree;
         if (inFooter && table.tableFooterView && table.tableFooterView.bounds.size.height >= 1) {
-            SGLog(@"redesign playlist: the sheet's header and footer are both Spotify's, sort and mix left out");
+            PGLog(@"redesign playlist: the sheet's header and footer are both Spotify's, sort and mix left out");
             objc_setAssociatedObject(menu, &kDecidedKey, NSNull.null, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
             return;
         }
-        block = [[SGRMenuBlock alloc] initWithFrame:CGRectZero];
+        block = [[PGRMenuBlock alloc] initWithFrame:CGRectZero];
         block.menu = menu;
         objc_setAssociatedObject(block, &kBlockKey, @(inFooter), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         objc_setAssociatedObject(menu, &kBlockKey, block, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
@@ -368,12 +368,12 @@ static void install(UIViewController *menu) {
     static BOOL logged;
     if (!logged) {
         logged = YES;
-        SGLog(@"redesign playlist: the ⋯ sheet took %.0fpt of sort and mix in its %@", height,
+        PGLog(@"redesign playlist: the ⋯ sheet took %.0fpt of sort and mix in its %@", height,
               inFooter ? @"footer" : @"header");
     }
 }
 
-// The sheet's own chrome: SGRGlassSheetChrome (Redesigned/Kit/SGRGlass.h), found by the identifier
+// The sheet's own chrome: PGRGlassSheetChrome (Redesigned/Kit/PGRGlass.h), found by the identifier
 // Spotify gives it ("sheet-view") rather than by class, since the presentation controller that owns it
 // belongs to UIKit, not to this table's own view controller. It used to stop at the pane and leave
 // Spotify's own opaque wrapping views over it, which the glass showed through only where neither yet
@@ -382,13 +382,13 @@ static void install(UIViewController *menu) {
 %hook _TtC24ContextMenu_InternalImpl25ContextMenuViewController
 - (void)viewDidLayoutSubviews {
     %orig;
-    SGRGlassSheetChrome(((UIViewController *)self).viewIfLoaded);
+    PGRGlassSheetChrome(((UIViewController *)self).viewIfLoaded);
     install((UIViewController *)self);
 }
 %end
 
 %ctor {
-    if (!SGRedesignedUI()) return;
+    if (!PGRedesignedUI()) return;
     %init;
-    SGRequireClasses(@[@"_TtC24ContextMenu_InternalImpl25ContextMenuViewController"]);
+    PGRequireClasses(@[@"_TtC24ContextMenu_InternalImpl25ContextMenuViewController"]);
 }

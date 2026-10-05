@@ -12,8 +12,8 @@
 // recorded). And a hairline runs between the rows from the text's leading edge, which is where a library list
 // draws one -- a layer rather than a view, since the rows are reused as fast as the list scrolls, with its
 // actions off so a reused row does not slide its line into place.
-#import "Core/SGCore.h"
-#import "Redesigned/Kit/SGRKit.h"
+#import "Core/PGCore.h"
+#import "Redesigned/Kit/PGRKit.h"
 #import "Library.h"
 
 // What a row leaves between its artwork and its text (03.txt:36 and :39: the artwork ends at 64, the text
@@ -38,7 +38,7 @@ static void roundCorners(UIView *artwork, CGFloat radius) {
 static void hairline(UIView *cell, UIView *thumb) {
     CALayer *line = objc_getAssociatedObject(cell, &kLineKey);
     CGSize size = cell.bounds.size;
-    CGRect artwork = thumb ? SGFrameIn(thumb, cell) : CGRectZero;
+    CGRect artwork = thumb ? PGFrameIn(thumb, cell) : CGRectZero;
     BOOL wanted = thumb && size.width > 300 && size.height <= 120 && artwork.size.width > 1;
     if (!wanted) {
         if (line && !line.hidden) line.hidden = YES;
@@ -46,7 +46,7 @@ static void hairline(UIView *cell, UIView *thumb) {
     }
     if (!line) {
         line = [CALayer layer];
-        line.backgroundColor = SGRHairline().CGColor;
+        line.backgroundColor = PGRHairline().CGColor;
         objc_setAssociatedObject(cell, &kLineKey, line, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
     if (line.superlayer != cell.layer) [cell.layer addSublayer:line];
@@ -64,16 +64,16 @@ static void hairline(UIView *cell, UIView *thumb) {
 }
 
 static void style(UIView *cell) {
-    UIView *thumb = SGRFindByIdentifier(cell, @"Artwork.Row.Library", &kThumbKey);
-    if (thumb) roundCorners(thumb, SGRRadiusThumb);
-    else roundCorners(SGRFindByIdentifier(cell, @"Components.UI.CardLibrary.Artwork", &kCoverKey), SGRRadiusCover);
+    UIView *thumb = PGRFindByIdentifier(cell, @"Artwork.Row.Library", &kThumbKey);
+    if (thumb) roundCorners(thumb, PGRRadiusThumb);
+    else roundCorners(PGRFindByIdentifier(cell, @"Components.UI.CardLibrary.Artwork", &kCoverKey), PGRRadiusCover);
     hairline(cell, thumb);
 
     // The first cell that held an artwork, so the line says what was found rather than what had not loaded yet.
     static BOOL logged;
     if (!logged && thumb && thumb.bounds.size.width > 1) {
         logged = YES;
-        SGLog(@"redesign library: rows styled, first cell %@, thumbnail %@ at r=%.1f",
+        PGLog(@"redesign library: rows styled, first cell %@, thumbnail %@ at r=%.1f",
               NSStringFromCGSize(cell.bounds.size), NSStringFromCGSize(thumb.bounds.size), thumb.layer.cornerRadius);
     }
 }
@@ -86,7 +86,7 @@ static void style(UIView *cell) {
 %end
 
 %ctor {
-    if (!SGRedesignedUI()) return;
+    if (!PGRedesignedUI()) return;
     %init;
-    SGRequireClasses(@[@"_TtC21YourLibrary_CommonKit47YourLibrarySwipeableCollectionViewCellContainer"]);
+    PGRequireClasses(@[@"_TtC21YourLibrary_CommonKit47YourLibrarySwipeableCollectionViewCellContainer"]);
 }

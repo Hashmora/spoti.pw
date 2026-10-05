@@ -9,25 +9,25 @@
 //     ArtistField.x     the photo's field behind the whole page, the page kept clear on it, the tab strip
 //                       gone (the Music list is the page), the flags the screen forces
 //     ArtistHeader.x    the header: the photo full bleed dissolving into the field, and the Kit's
-//                       SGRHeaderInfo over it -- the name, the listeners, shuffle, a white Play and Follow
+//                       PGRHeaderInfo over it -- the name, the listeners, shuffle, a white Play and Follow
 //     ArtistSections.x  the sections the Music list carries that are not the artist's music: its videos
 //     ArtistFollow.x    whether the artist is followed, from Spotify's collection, for Follow's glyph
 //
-// Every hook installs only while Redesigned UI is on (SGRedesignedUI); the native look's do not then.
+// Every hook installs only while Redesigned UI is on (PGRedesignedUI); the native look's do not then.
 // Threading: main thread only.
 #import <UIKit/UIKit.h>
 
 // The artist page `view` is on, or nil: the TemplateView with the identifier creator-page.
-UIView *SGRArtistPageOf(UIView *view);
+UIView *PGRArtistPageOf(UIView *view);
 
 // ArtistField.x. The field belongs to the page `view` is on.
 //
-// The colour the page's field is showing, SGRNeutralField() before one has been read.
-UIColor *SGRArtistFieldColor(UIView *view);
+// The colour the page's field is showing, PGRNeutralField() before one has been read.
+UIColor *PGRArtistFieldColor(UIView *view);
 // The artist's photo, for the page's field to take its colour from. The same image again is a no-op.
-void SGRArtistSetArtwork(UIView *view, UIImage *image);
+void PGRArtistSetArtwork(UIView *view, UIImage *image);
 
 // ArtistFollow.x. YES once Spotify's collection has said whether the user follows the page's artist, with
 // the answer; NO until then. The first call subscribes for the page's lifetime, and `changed` runs on the
 // main thread whenever the answer changes.
-BOOL SGRArtistFollowing(UIView *page, NSString *moreIdentifier, BOOL *following, void (^changed)(void));
+BOOL PGRArtistFollowing(UIView *page, NSString *moreIdentifier, BOOL *following, void (^changed)(void));

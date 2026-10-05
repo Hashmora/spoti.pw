@@ -13,8 +13,8 @@
 //
 // Spotify's type and its spacing are left alone: the row is 56pt for a title of 13pt, and a larger font of
 // the Kit's would be cut off by the box the element framework measured for it.
-#import "Core/SGCore.h"
-#import "Redesigned/Kit/SGRKit.h"
+#import "Core/PGCore.h"
+#import "Redesigned/Kit/PGRKit.h"
 #import "Album.h"
 
 // Under the text rather than the whole row, as the Music app draws it; the trailing end clears the page
@@ -25,7 +25,7 @@ static char kRowKey, kSubtitleKey, kLineKey;
 
 static void clearSurface(UIView *view) {
     UIColor *color = view.backgroundColor;
-    if (color && SGIsBaseSurface(color.CGColor)) view.backgroundColor = UIColor.clearColor;
+    if (color && PGIsBaseSurface(color.CGColor)) view.backgroundColor = UIColor.clearColor;
 }
 
 static void applyHairline(UIView *row) {
@@ -35,11 +35,11 @@ static void applyHairline(UIView *row) {
         line.zPosition = 1;
         objc_setAssociatedObject(row, &kLineKey, line, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
-    line.backgroundColor = SGRHairline().CGColor;
+    line.backgroundColor = PGRHairline().CGColor;
     if (line.superlayer != row.layer) [row.layer addSublayer:line];
     CGRect bounds = row.bounds;
-    CGRect frame = CGRectMake(SGRSideMargin, bounds.size.height - kHairline,
-                              MAX(0, bounds.size.width - 2 * SGRSideMargin), kHairline);
+    CGRect frame = CGRectMake(PGRSideMargin, bounds.size.height - kHairline,
+                              MAX(0, bounds.size.width - 2 * PGRSideMargin), kHairline);
     if (CGRectEqualToRect(line.frame, frame)) return;
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
@@ -49,7 +49,7 @@ static void applyHairline(UIView *row) {
 
 static void applyRow(UIView *cell) {
     clearSurface(cell);
-    UIView *row = SGRFindByIdentifier(cell, @"Components.UI.RetrievalRow*", &kRowKey);
+    UIView *row = PGRFindByIdentifier(cell, @"Components.UI.RetrievalRow*", &kRowKey);
     if (!row) return;
     // The row, and every box the element framework wraps it in on the way back up to the cell.
     for (UIView *v = row; v; v = v.superview) {
@@ -57,11 +57,11 @@ static void applyRow(UIView *cell) {
         if (v == cell) break;
     }
 
-    UIView *subtitle = SGRFindByIdentifier(row, @"EncoreConsumerMobile.View.Granular.Subtitle", &kSubtitleKey);
-    SGForEachView(subtitle, ^(UIView *v) {
+    UIView *subtitle = PGRFindByIdentifier(row, @"EncoreConsumerMobile.View.Granular.Subtitle", &kSubtitleKey);
+    PGForEachView(subtitle, ^(UIView *v) {
         if (![v isKindOfClass:UILabel.class]) return;
         UILabel *label = (UILabel *)v;
-        if (![label.textColor isEqual:SGRSecondary()]) label.textColor = SGRSecondary();
+        if (![label.textColor isEqual:PGRSecondary()]) label.textColor = PGRSecondary();
     });
 
     applyHairline(row);
@@ -88,12 +88,12 @@ static BOOL isTrackContent(UIView *content) {
     %orig;
     UICollectionViewCell *cell = (UICollectionViewCell *)self;
     if (!isTrackContent(cell.contentView.subviews.firstObject)) return;
-    if (SGRAlbumPageOf(cell)) applyRow(cell);
+    if (PGRAlbumPageOf(cell)) applyRow(cell);
 }
 %end
 
 %ctor {
-    if (!SGRedesignedUI()) return;
+    if (!PGRedesignedUI()) return;
     %init;
-    SGRequireClasses(@[@"_TtC12Element_List18CollectionViewCell"]);
+    PGRequireClasses(@[@"_TtC12Element_List18CollectionViewCell"]);
 }

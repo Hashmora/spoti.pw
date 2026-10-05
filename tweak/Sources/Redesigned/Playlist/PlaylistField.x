@@ -10,15 +10,15 @@
 // So the field is the page's bottom-most view, the size of the view and bleeding past it, with no backdrop
 // of its own: the sharp cover at the top of the header is the picture, and PlaylistHeader.x fades it into
 // exactly this field's colour. What Spotify paints over the field -- the page, the list and every row, all
-// of them the base surface -- is kept clear by the Kit's repaint hook while sgr_playlistRoot is this page.
+// of them the base surface -- is kept clear by the Kit's repaint hook while pgr_playlistRoot is this page.
 //
 // The colour is read from the cover the header shows (PlaylistHeader.x hands it over), and until that has
 // loaded the field is the neutral one, as it is for a playlist with no cover at all.
-#import "Core/SGCore.h"
-#import "Redesigned/Kit/SGRKit.h"
+#import "Core/PGCore.h"
+#import "Redesigned/Kit/PGRKit.h"
 #import "Playlist.h"
 
-NSString *const SGRPlaylistListIdentifier = @"SPTFreeTierPlaylistTableView";
+NSString *const PGRPlaylistListIdentifier = @"SPTFreeTierPlaylistTableView";
 
 // Above for the bounce at the top of the list, below for the one at the end of it.
 static const UIEdgeInsets kBleed = {600, 0, 600, 0};
@@ -27,30 +27,30 @@ static char kFieldKey;
 
 #pragma mark - the page's field
 
-static SGRArtworkField *fieldOn(UIView *view) {
+static PGRArtworkField *fieldOn(UIView *view) {
     for (UIView *v = view; v; v = v.superview) {
-        SGRArtworkField *field = objc_getAssociatedObject(v, &kFieldKey);
+        PGRArtworkField *field = objc_getAssociatedObject(v, &kFieldKey);
         if (field) return field;
     }
     return nil;
 }
 
-UIColor *SGRPlaylistFieldColor(UIView *view) {
-    SGRArtworkField *field = fieldOn(view);
-    return field.fieldColor ?: SGRNeutralField();
+UIColor *PGRPlaylistFieldColor(UIView *view) {
+    PGRArtworkField *field = fieldOn(view);
+    return field.fieldColor ?: PGRNeutralField();
 }
 
-void SGRPlaylistSetArtwork(UIView *view, UIImage *image) {
+void PGRPlaylistSetArtwork(UIView *view, UIImage *image) {
     if (image) [fieldOn(view) setArtwork:image identity:nil animated:YES];
 }
 
-static SGRArtworkField *fieldIn(UIView *page) {
-    SGRArtworkField *field = objc_getAssociatedObject(page, &kFieldKey);
+static PGRArtworkField *fieldIn(UIView *page) {
+    PGRArtworkField *field = objc_getAssociatedObject(page, &kFieldKey);
     if (field) return field;
-    field = [[SGRArtworkField alloc] initWithFrame:page.bounds];
+    field = [[PGRArtworkField alloc] initWithFrame:page.bounds];
     field.bleed = kBleed;
     objc_setAssociatedObject(page, &kFieldKey, field, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    SGLog(@"redesign playlist: field on the page %.0fx%.0f", page.bounds.size.width, page.bounds.size.height);
+    PGLog(@"redesign playlist: field on the page %.0fx%.0f", page.bounds.size.width, page.bounds.size.height);
     return field;
 }
 
@@ -59,8 +59,8 @@ static SGRArtworkField *fieldIn(UIView *page) {
     %orig;
     UIView *page = ((UIViewController *)self).viewIfLoaded;
     if (!page || page.bounds.size.height < 200) return;
-    sgr_playlistRoot = page;
-    SGRArtworkField *field = fieldIn(page);
+    pgr_playlistRoot = page;
+    PGRArtworkField *field = fieldIn(page);
     if (field.superview != page) [page insertSubview:field atIndex:0];
     else if (page.subviews.firstObject != field) [page sendSubviewToBack:field];
     if (!CGRectEqualToRect(field.frame, page.bounds)) field.frame = page.bounds;
@@ -71,7 +71,7 @@ static SGRArtworkField *fieldIn(UIView *page) {
 - (void)viewWillAppear:(BOOL)animated {
     %orig;
     UIView *page = ((UIViewController *)self).viewIfLoaded;
-    if (page) sgr_playlistRoot = page;
+    if (page) pgr_playlistRoot = page;
 }
 %end
 
@@ -81,17 +81,17 @@ static SGRArtworkField *fieldIn(UIView *page) {
 - (void)layoutSubviews {
     %orig;
     UIScrollView *list = (UIScrollView *)self;
-    if (list.backgroundColor && SGIsBaseSurface(list.backgroundColor.CGColor)) list.backgroundColor = UIColor.clearColor;
+    if (list.backgroundColor && PGIsBaseSurface(list.backgroundColor.CGColor)) list.backgroundColor = UIColor.clearColor;
 }
 %end
 
 %ctor {
     // Registered whatever the switch says: the flag rows elsewhere lock to these while it is on.
-    SGRedesignForceFlags(@"playlist", @{
+    PGRedesignForceFlags(@"playlist", @{
         // The page the trees were recorded with (trees/clean/playlist/02.txt).
         @"ios-feature-freetierplaylist.use_collection_view": @YES,
         // More stays in Spotify's own header row, concealed with the rest of the block, and the redesign
-        // pins its own glass ⋯ over the page (Kit/SGRActionRow.h). Moving it into the navigation bar --
+        // pins its own glass ⋯ over the page (Kit/PGRActionRow.h). Moving it into the navigation bar --
         // which this flag is Spotify's own way of doing, and which the redesign forced until 2026-09-20 --
         // put it somewhere Spotify empties on the way down the page: scrolled, the bar's trailing slot held
         // an empty 48x44 view and there was no ⋯ anywhere (trees/continuous/1.txt, issue #57).
@@ -102,9 +102,9 @@ static SGRArtworkField *fieldIn(UIView *page) {
         // with the tracks rather than pinning itself over them, as the Music app's sort does.
         @"ios-feature-freetierplaylist.pin_curation_actions": @NO,
     });
-    if (!SGRedesignedUI()) return;
+    if (!PGRedesignedUI()) return;
     %init;
-    SGRequireClasses(@[
+    PGRequireClasses(@[
         @"_TtC35ListUXPlatform_FreeTierPlaylistImpl17FTPViewController",
         @"_TtC35ListUXPlatform_FreeTierPlaylistImpl32FTPTouchCancellingCollectionView",
     ]);

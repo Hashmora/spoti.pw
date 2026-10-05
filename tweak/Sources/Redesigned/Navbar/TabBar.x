@@ -10,11 +10,10 @@
 //
 // Tree (trees/home.txt): NavigationUI_TabBarImpl.TabBarView > TabBarCompactView > UIStackView of
 //   ElementContentView<TabBarItemElement>, each with an SPTEncoreIconView and an SPTEncoreLabel.
-#import "Core/SGCore.h"
+#import "Core/PGCore.h"
 #import "Navbar.h"
-#import "Redesigned/Kit/SGRGlass.h"
-#import "Redesigned/Kit/SGRTokens.h"
-#import "Settings/SGPage.h"
+#import "Redesigned/Kit/PGRGlass.h"
+#import "Redesigned/Kit/PGRTokens.h"
 #import "Headers/SPTEncoreIconView.h"
 #import <objc/message.h>
 
@@ -33,18 +32,18 @@ static const CGFloat kNavIconOnlyImageShift = 6;
 static const CGFloat kNavItemSpacing = 4;
 static const CGFloat kNavItemWidth = 90;    // fixed, so the capsule hugs its items instead of stretching them
 static const CGFloat kSelPillInset = 3;     // gap between the selection pill and the capsule's edge
-static __weak UIView *sg_stockBar;
-static CGFloat sg_room, sg_glassHeight;   // see "room for the glass bar"
+static __weak UIView *pg_stockBar;
+static CGFloat pg_room, pg_glassHeight;   // see "room for the glass bar"
 
 // Components/TabSelectionRecognizer/Sources/TabSelectionRecognizer.swift, ported as-is: state goes to
 // Began the instant a finger touches down (no distance or duration threshold the way a pan or a long
 // press has), and Changed on every move after that, so a caller can follow the finger from frame one.
-@interface SGTabDragRecognizer : UIGestureRecognizer
+@interface PGTabDragRecognizer : UIGestureRecognizer
 @property (nonatomic) CGPoint currentLocation;
 @property (nonatomic) BOOL moved;
 @end
 
-@implementation SGTabDragRecognizer
+@implementation PGTabDragRecognizer
 
 - (instancetype)initWithTarget:(id)target action:(SEL)action {
     self = [super initWithTarget:target action:action];
@@ -91,12 +90,10 @@ static CGFloat sg_room, sg_glassHeight;   // see "room for the glass bar"
 
 @end
 
-@interface SGRSystemTabBar : UITabBar <UITabBarDelegate, UIGestureRecognizerDelegate>
+@interface PGRSystemTabBar : UITabBar <UITabBarDelegate, UIGestureRecognizerDelegate>
 @property (nonatomic, weak) UIView *stockBar;
 @property (nonatomic, copy) NSArray<UIView *> *sources;
-@property (nonatomic, weak) UILongPressGestureRecognizer *hold;
 @property (nonatomic, weak) UIGestureRecognizer *drag;
-@property (nonatomic) BOOL holding;
 // The last tab actually navigated to. Create is never this -- see isCreateSource -- so tapping/dragging
 // onto Create can always snap the bar's selection (and the pill) straight back to this instead of
 // resting on, or passing through, a "tab" that never really opened.
@@ -117,7 +114,7 @@ static void syncBar(UIView *stockBar);
 // Called only when Spotify's own navigation genuinely changed the selected controller from outside our
 // bar (a link, the side drawer) -- see the TabBarContainerImpl hook below. Every other caller goes
 // through plain syncBar, which trusts whatever tab our own tap/drag handling last confirmed
-// (SGRSystemTabBar.lastRealItem) over Spotify's isActive/label-color heuristic. That heuristic never
+// (PGRSystemTabBar.lastRealItem) over Spotify's isActive/label-color heuristic. That heuristic never
 // clears for a tab the mod added itself: Spotify's own navigation stack never touched it, so the
 // previously active *real* tab's label just stays white forever, and re-scanning it on every layout
 // pass kept snapping the selection (and the pill) back to that old tab.
@@ -130,17 +127,17 @@ static void followCreateClose(UIView *stockBar);
 // The items the bar shows, left to right as Navbar/Navbar.x placed them.
 static NSArray<UIView *> *tabItems(UIView *tabBar) {
     NSMutableArray<UIView *> *items = [NSMutableArray array];
-    for (UIView *item in SGRowIn(tabBar).arrangedSubviews) {
+    for (UIView *item in PGRowIn(tabBar).arrangedSubviews) {
         if (!item.hidden && item.bounds.size.width >= 20) [items addObject:item];
     }
     return [items sortedArrayUsingComparator:^NSComparisonResult(UIView *a, UIView *b) {
-        return [@(SGFrameIn(a, tabBar).origin.x) compare:@(SGFrameIn(b, tabBar).origin.x)];
+        return [@(PGFrameIn(a, tabBar).origin.x) compare:@(PGFrameIn(b, tabBar).origin.x)];
     }];
 }
 
 // Navbar.x never reorders Spotify's row and appends the mod's own tabs after it, so Home stays first.
 static BOOL isHome(UIView *item, UIView *tabBar) {
-    return item && item == SGRowIn(tabBar).arrangedSubviews.firstObject;
+    return item && item == PGRowIn(tabBar).arrangedSubviews.firstObject;
 }
 
 // Create never pushes a screen -- tapping it only pops CreateMenu's own option list open over whatever
@@ -156,7 +153,7 @@ static BOOL isHome(UIView *item, UIView *tabBar) {
 static BOOL isCreateSource(UIView *source) {
     if (!source) return NO;
     __block BOOL found = NO;
-    SGForEachView(source, ^(UIView *v) {
+    PGForEachView(source, ^(UIView *v) {
         if (found) return;
         found = [NSStringFromClass(v.class) containsString:@"CreateMenuTabBarItemView"] || [v.accessibilityIdentifier isEqualToString:@"TabBar.Item.Create"];
     });
@@ -165,7 +162,7 @@ static BOOL isCreateSource(UIView *source) {
 
 static UILabel *labelIn(UIView *item) {
     __block UILabel *label = nil;
-    SGForEachView(item, ^(UIView *v) {
+    PGForEachView(item, ^(UIView *v) {
         if (!label && [v isKindOfClass:UILabel.class] && ((UILabel *)v).text.length) label = (UILabel *)v;
     });
     return label;
@@ -173,7 +170,7 @@ static UILabel *labelIn(UIView *item) {
 
 static UIView *iconIn(UIView *item) {
     __block UIView *icon = nil;
-    SGForEachView(item, ^(UIView *v) {
+    PGForEachView(item, ^(UIView *v) {
         if (icon || v.bounds.size.width < 2) return;
         if ([v isKindOfClass:UIImageView.class] || [NSStringFromClass(v.class) containsString:@"IconView"]) icon = v;
     });
@@ -290,10 +287,10 @@ static BOOL fireTapRecognizers(UIView *view) {
 
 static void forwardTap(UIView *item) {
     __block BOOL sent = NO;
-    SGForEachView(item, ^(UIView *v) {
+    PGForEachView(item, ^(UIView *v) {
         if (!sent) sent = fireTapRecognizers(v);
     });
-    SGForEachView(item, ^(UIView *v) {
+    PGForEachView(item, ^(UIView *v) {
         if (sent || ![v isKindOfClass:UIControl.class]) return;
         [(UIControl *)v sendActionsForControlEvents:UIControlEventTouchUpInside];
         sent = YES;
@@ -306,7 +303,7 @@ static void forwardTap(UIView *item) {
 static void bumpIcon(UITabBar *bar, UITabBarItem *item) {
     if (!item) return;
     __block UIView *iconView = nil;
-    SGForEachView(bar, ^(UIView *v) {
+    PGForEachView(bar, ^(UIView *v) {
         if (iconView || v.hidden || ![v isKindOfClass:UIImageView.class]) return;
         UIImage *image = ((UIImageView *)v).image;
         if (image && (image == item.image || image == item.selectedImage)) iconView = v;
@@ -394,7 +391,7 @@ static void paintGlyphs(UITabBar *bar) {
 
 // Spotify's own Create item turns its plus 45 degrees and puts a white disc behind it while the menu is
 // open. That runs on the hidden stock view, so the glass bar has to do the same on its own Create button.
-static void setCreateOpen(SGRSystemTabBar *bar, BOOL open) {
+static void setCreateOpen(PGRSystemTabBar *bar, BOOL open) {
     NSUInteger index = NSNotFound;
     for (NSUInteger i = 0; i < bar.sources.count; i++) {
         if (isCreateSource(bar.sources[i])) { index = i; break; }
@@ -441,7 +438,7 @@ static void setCreateOpen(SGRSystemTabBar *bar, BOOL open) {
 
 #pragma mark - the system bar
 
-@implementation SGRSystemTabBar
+@implementation PGRSystemTabBar
 
 - (void)layoutSubviews {
     [super layoutSubviews];
@@ -503,8 +500,7 @@ static void setCreateOpen(SGRSystemTabBar *bar, BOOL open) {
         return;
     }
     self.lastRealItem = item;
-    // Home tapped while on Home pops Spotify's stack, which would take Mod Settings straight off it.
-    if (!self.holding) forwardTap(source);
+    forwardTap(source);
     // Spotify repaints its labels a moment later; a tap it did not take snaps the selection back.
     UIView *stockBar = self.stockBar;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.25 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
@@ -517,7 +513,7 @@ static void setCreateOpen(SGRSystemTabBar *bar, BOOL open) {
 - (UITabBarItem *)itemAt:(CGPoint)point {
     __block UITabBarItem *nearest = nil;
     __block CGFloat best = CGFLOAT_MAX;
-    SGForEachView(self, ^(UIView *v) {
+    PGForEachView(self, ^(UIView *v) {
         BOOL label = [v isKindOfClass:UILabel.class], glyph = [v isKindOfClass:UIImageView.class];
         if ((!label && !glyph) || v.bounds.size.width < 1) return;
         CGFloat distance = fabs([v convertPoint:CGPointMake(CGRectGetMidX(v.bounds), 0) toView:self].x - point.x);
@@ -553,7 +549,7 @@ static void setCreateOpen(SGRSystemTabBar *bar, BOOL open) {
         if (buttons[index].bounds.size.width > 1) return CGRectGetMidX(buttons[index].frame);
     }
     __block CGRect unionFrame = CGRectNull;
-    SGForEachView(self, ^(UIView *v) {
+    PGForEachView(self, ^(UIView *v) {
         BOOL label = [v isKindOfClass:UILabel.class], glyph = [v isKindOfClass:UIImageView.class];
         if ((!label && !glyph) || v.bounds.size.width < 1) return;
         if (glyph) {
@@ -568,35 +564,15 @@ static void setCreateOpen(SGRSystemTabBar *bar, BOOL open) {
     return CGRectIsNull(unionFrame) ? NAN : CGRectGetMidX(unionFrame);
 }
 
-// UIView asks itself this for its own recognizers too, so only the hold is answered here.
-- (BOOL)gestureRecognizerShouldBegin:(UIGestureRecognizer *)recognizer {
-    if (recognizer != self.hold) return [super gestureRecognizerShouldBegin:recognizer];
-    NSUInteger index = [self.items indexOfObject:[self itemAt:[recognizer locationInView:self]]];
-    return index < self.sources.count && isHome(self.sources[index], self.stockBar);
-}
-
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)recognizer shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)other {
     return YES;
-}
-
-- (void)held:(UILongPressGestureRecognizer *)hold {
-    if (hold.state == UIGestureRecognizerStateBegan) {
-        self.holding = YES;
-        SGOpenModSettings(self);
-    } else if (hold.state != UIGestureRecognizerStateChanged) {
-        // The bar may still pick Home as the finger lifts, after this.
-        __weak typeof(self) weakSelf = self;
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            weakSelf.holding = NO;
-        });
-    }
 }
 
 // Resolves to whichever tab is nearest at every touch update, never a position in between: crossing
 // into a new tab's territory snaps the pill there immediately with one smooth animation, and release
 // decides which tab it lands on and actually switches Spotify's content -- the same call a plain tap
 // would have made through the delegate method.
-- (void)dragged:(SGTabDragRecognizer *)g {
+- (void)dragged:(PGTabDragRecognizer *)g {
     UIView *stockBar = self.stockBar;
     UITabBarItem *item = [self itemAt:g.currentLocation];
     NSUInteger itemIndex = item ? [self.items indexOfObject:item] : NSNotFound;
@@ -643,39 +619,20 @@ static void setCreateOpen(SGRSystemTabBar *bar, BOOL open) {
 // area of the view it stands in, and the room made under Spotify's bar is not the phone's: on a phone
 // with a home button it went under the platter as well, squeezing it to 49 pt. So this view hands the
 // bar the safe area without the room.
-@interface SGRTabBarHost : UIView
+@interface PGRTabBarHost : UIView
 @end
 
-@implementation SGRTabBarHost
+@implementation PGRTabBarHost
 - (UIEdgeInsets)safeAreaInsets {
     UIEdgeInsets insets = [super safeAreaInsets];
     // The host's own frame now stands kNavGlassBottomMargin above the screen's real safe area, which
     // hands it that much *extra* raw inset on its own. Left alone, UITabBar would read that as more
     // home-indicator padding to reserve and push the icon/label stack up, off-centre in the pill.
     // Canceling it out here keeps the bar's internal vertical centering exactly as it was undocked.
-    insets.bottom = MAX(0, insets.bottom - sg_room - kNavGlassBottomMargin);
+    insets.bottom = MAX(0, insets.bottom - pg_room - kNavGlassBottomMargin);
     return insets;
 }
 @end
-
-@interface SGRHomeHold : UILongPressGestureRecognizer
-@end
-
-@implementation SGRHomeHold
-+ (void)held:(SGRHomeHold *)hold {
-    if (hold.state == UIGestureRecognizerStateBegan) SGOpenModSettings(hold.view);
-}
-@end
-
-// On Spotify's own bar a hold that begins fails the item's tap recognizer, so Home is not tapped too.
-static void holdHome(UIView *stockBar) {
-    UIView *home = SGRowIn(stockBar).arrangedSubviews.firstObject;
-    if (!home) return;
-    for (UIGestureRecognizer *recognizer in home.gestureRecognizers) {
-        if ([recognizer isKindOfClass:SGRHomeHold.class]) return;
-    }
-    [home addGestureRecognizer:[[SGRHomeHold alloc] initWithTarget:SGRHomeHold.class action:@selector(held:)]];
-}
 
 #pragma mark - room for the glass bar
 
@@ -694,12 +651,12 @@ static void holdHome(UIView *stockBar) {
 static const CGFloat kStockRow = 49;
 
 // UIKit asks for 62 + max(21, inset) on a phone with a home button, max(83, 49 + inset) on a Face ID
-// phone, by the safe area of the view the bar stands in. SGRTabBarHost keeps the room out of that; if
+// phone, by the safe area of the view the bar stands in. PGRTabBarHost keeps the room out of that; if
 // it ever reached the bar again, the bar would ask for more room every pass, so what it asks for with
 // no room made is what is kept.
 static CGFloat glassHeight(UITabBar *bar, UIView *stockBar) {
-    if (sg_room < 0.5 || sg_glassHeight <= 0) sg_glassHeight = [bar sizeThatFits:CGSizeMake(stockBar.bounds.size.width, kStockRow)].height;
-    return sg_glassHeight;
+    if (pg_room < 0.5 || pg_glassHeight <= 0) pg_glassHeight = [bar sizeThatFits:CGSizeMake(stockBar.bounds.size.width, kStockRow)].height;
+    return pg_glassHeight;
 }
 
 static UIViewController *containerOf(UIView *stockBar) {
@@ -711,7 +668,7 @@ static UIViewController *containerOf(UIView *stockBar) {
 }
 
 static void makeRoom(UIViewController *container) {
-    UIView *stockBar = sg_stockBar;
+    UIView *stockBar = pg_stockBar;
     UITabBar *bar = stockBar ? objc_getAssociatedObject(stockBar, &kBarKey) : nil;
     if (!bar.window || !container.isViewLoaded || ![stockBar isDescendantOfView:container.view]) return;
     UIEdgeInsets extra = container.additionalSafeAreaInsets;
@@ -721,7 +678,7 @@ static void makeRoom(UIViewController *container) {
     BOOL compact = container.traitCollection.horizontalSizeClass == UIUserInterfaceSizeClassCompact;
     CGFloat room = compact ? MAX(0, ceil(height - kStockRow - inset)) : 0;
     if (fabs(extra.bottom - room) < 0.5) return;
-    sg_room = extra.bottom = room;
+    pg_room = extra.bottom = room;
     container.additionalSafeAreaInsets = extra;
 }
 
@@ -741,7 +698,7 @@ static void makeRoom(UIViewController *container) {
 // this from silently never firing again the way one exact string compare would.
 static BOOL createMenuIsUp(UIView *stockBar) {
     __block BOOL up = NO;
-    SGForEachView(stockBar.window ?: stockBar, ^(UIView *v) {
+    PGForEachView(stockBar.window ?: stockBar, ^(UIView *v) {
         if (up) return;
         if ([v.accessibilityIdentifier isEqualToString:@"CreateMenu"]) up = YES;
         else if ([NSStringFromClass(v.class) containsString:@"CreateMenuView"]) up = YES;
@@ -751,7 +708,7 @@ static BOOL createMenuIsUp(UIView *stockBar) {
 }
 
 static void settleAfterCreate(UIView *stockBar) {
-    SGRSystemTabBar *bar = objc_getAssociatedObject(stockBar, &kBarKey);
+    PGRSystemTabBar *bar = objc_getAssociatedObject(stockBar, &kBarKey);
     if (!bar) return;
     setCreateOpen(bar, NO);
     UIView *open = activeStockSource(stockBar);
@@ -774,7 +731,7 @@ static void pollCreateClose(UIView *stockBar, NSUInteger attempt, BOOL seen) {
     __weak UIView *weakStock = stockBar;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.08 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         UIView *stock = weakStock;
-        SGRSystemTabBar *bar = stock ? objc_getAssociatedObject(stock, &kBarKey) : nil;
+        PGRSystemTabBar *bar = stock ? objc_getAssociatedObject(stock, &kBarKey) : nil;
         if (!bar || !bar.awaitingCreateClose) return;
         BOOL up = createMenuIsUp(stock);
         if (up ? attempt < 560 : (!seen && attempt < 10)) {
@@ -791,7 +748,7 @@ static void pollCreateClose(UIView *stockBar, NSUInteger attempt, BOOL seen) {
 }
 
 static void followCreateClose(UIView *stockBar) {
-    SGRSystemTabBar *bar = objc_getAssociatedObject(stockBar, &kBarKey);
+    PGRSystemTabBar *bar = objc_getAssociatedObject(stockBar, &kBarKey);
     if (!bar || bar.awaitingCreateClose) return;
     bar.awaitingCreateClose = YES;
     pollCreateClose(stockBar, 0, NO);
@@ -806,11 +763,11 @@ static void syncBarExternalChange(UIView *stockBar) {
 }
 
 static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
-    sg_stockBar = stockBar;
+    pg_stockBar = stockBar;
 
-    SGRSystemTabBar *bar = objc_getAssociatedObject(stockBar, &kBarKey);
+    PGRSystemTabBar *bar = objc_getAssociatedObject(stockBar, &kBarKey);
     if (!bar) {
-        bar = [[SGRSystemTabBar alloc] initWithFrame:stockBar.bounds];
+        bar = [[PGRSystemTabBar alloc] initWithFrame:stockBar.bounds];
         // UIKit draws the glass in the appearance the bar inherits, and the bar is outside the navigation
         // stacks Spotify makes dark itself (-[SPNavigationController viewDidLoad] while +[SPTLiquidGlass
         // isEnabled]), so a phone in light mode had it light over Spotify's black. Spotify is dark whatever
@@ -833,18 +790,14 @@ static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
         bar.scrollEdgeAppearance = appearance;
         bar.delegate = bar;
         bar.stockBar = stockBar;
-        UILongPressGestureRecognizer *hold = [[UILongPressGestureRecognizer alloc] initWithTarget:bar action:@selector(held:)];
-        hold.delegate = bar;
-        [bar addGestureRecognizer:hold];
-        bar.hold = hold;
-        // Telegram's own drag-to-switch, not an approximation of it anymore: SGTabDragRecognizer above
+        // Telegram's own drag-to-switch, not an approximation of it anymore: PGTabDragRecognizer above
         // is TabSelectionRecognizer.swift ported directly.
-        SGTabDragRecognizer *drag = [[SGTabDragRecognizer alloc] initWithTarget:bar action:@selector(dragged:)];
+        PGTabDragRecognizer *drag = [[PGTabDragRecognizer alloc] initWithTarget:bar action:@selector(dragged:)];
         drag.delegate = bar;
         [bar addGestureRecognizer:drag];
         bar.drag = drag;
         objc_setAssociatedObject(stockBar, &kBarKey, bar, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        SGRTabBarHost *host = [SGRTabBarHost new];
+        PGRTabBarHost *host = [PGRTabBarHost new];
         [host addSubview:bar];
         objc_setAssociatedObject(stockBar, &kHostKey, host, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
@@ -876,7 +829,7 @@ static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
     NSArray<UIView *> *sources = tabItems(stockBar);
     if (!sources.count) return;
     // An item with no title is drawn by UIKit as its glyph alone, centred, on a bar of the same height.
-    BOOL hideLabels = SGHidden(SGRKeyNavbarHideLabels);
+    BOOL hideLabels = PGHidden(PGRKeyNavbarHideLabels);
 
     // Set once we actually rebuild bar.items below (add, remove, or pure reorder) -- read
     // further down to decide whether the pill's geometry needs a fresh settled layout pass, not
@@ -1009,20 +962,20 @@ static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
     if (frameChanged || itemsRebuilt) [bar layoutIfNeeded];
 
     // A glass capsule behind the bar, as NowPlayingBar.x backs the mini player; radius half its height.
-    UIView *navGlass = SGGlassFor(host, &kNavGlassKey);
+    UIView *navGlass = PGGlassFor(host, &kNavGlassKey);
     navGlass.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
     CGRect glassFrame = platterFrame;
     if (!CGRectEqualToRect(navGlass.frame, glassFrame)) navGlass.frame = glassFrame;
-    SGShapeGlass(navGlass, glassFrame.size.height / 2, NO);
+    PGShapeGlass(navGlass, glassFrame.size.height / 2, NO);
 
-    UIView *navTint = SGRGlassFilm(host, &kNavTintKey, navGlass, glassFrame.size.height / 2);
+    UIView *navTint = PGRGlassFilm(host, &kNavTintKey, navGlass, glassFrame.size.height / 2);
 
     // A dark capsule behind the selected icon only - the closest legacy stand-in for iOS 26+'s glass
     // "selection bubble". Sits above the tint so it reads as a shadow in the material, below the
     // (transparent) bar itself so the icon still draws on top of it.
     // Solid black (not Telegram's ~10% white lens glow): over navTint's 16% white film,
     // anything under ~50% alpha reads as washed-out grey instead of a clean black capsule.
-    UIView *selPill = SGLazyChild(host, &kSelPillKey, ^UIView *{
+    UIView *selPill = PGLazyChild(host, &kSelPillKey, ^UIView *{
         UIView *v = [UIView new];
         v.userInteractionEnabled = NO;
         v.backgroundColor = [UIColor colorWithWhite:0 alpha:0.55];
@@ -1077,11 +1030,10 @@ static UIView *tabBarOf(UIView *item) {
 %hook _TtC23NavigationUI_TabBarImpl10TabBarView
 - (void)layoutSubviews {
     %orig;
-    SGRComposeTabBar((UIView *)self);
+    PGRComposeTabBar((UIView *)self);
     for (UIView *sub in ((UIView *)self).subviews) {
-        if (![sub isKindOfClass:SGRTabBarHost.class]) [sub layoutIfNeeded];
+        if (![sub isKindOfClass:PGRTabBarHost.class]) [sub layoutIfNeeded];
     }
-    holdHome((UIView *)self);
     syncBar((UIView *)self);
 }
 %end
@@ -1090,8 +1042,7 @@ static UIView *tabBarOf(UIView *item) {
 static void itemDidLayOut(UIView *item) {
     UIView *bar = tabBarOf(item);
     if (!bar) return;
-    SGRComposeTabBar(bar);
-    holdHome(bar);
+    PGRComposeTabBar(bar);
     syncBar(bar);
 }
 
@@ -1116,11 +1067,11 @@ static void itemDidLayOut(UIView *item) {
     // Spotify repaints its labels a moment after the controller changes, so the first look can still
     // find the old tab painted white; the second, once it has.
     dispatch_async(dispatch_get_main_queue(), ^{
-        UIView *bar = sg_stockBar;
+        UIView *bar = pg_stockBar;
         if (bar) syncBarExternalChange(bar);
     });
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.25 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        UIView *bar = sg_stockBar;
+        UIView *bar = pg_stockBar;
         if (bar) syncBarExternalChange(bar);
     });
 }
@@ -1133,9 +1084,9 @@ static void itemDidLayOut(UIView *item) {
 %end
 
 %ctor {
-    if (!SGRedesignedUI()) return;
+    if (!PGRedesignedUI()) return;
     %init;
-    SGRequireClasses(@[
+    PGRequireClasses(@[
         @"_TtC23NavigationUI_TabBarImpl10TabBarView",
         @"_TtC23NavigationUI_TabBarImpl21TabBarItemElementView",
         @"_TtC25CreateMenu_TabBarItemImpl24CreateMenuTabBarItemView",

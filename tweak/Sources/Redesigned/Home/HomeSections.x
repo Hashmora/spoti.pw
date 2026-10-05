@@ -24,14 +24,14 @@
 // A dropped section still leaves the list's 24pt gap on either side of it (the shortcuts end at 216, the
 // next section starts at 240, 01.txt:30, :325): the spacing is the list layout's, which a cell's height
 // does not reach. Taking the sections out of the casita feed itself is what would close it.
-#import "Core/SGCore.h"
-#import "Redesigned/Kit/SGRKit.h"
+#import "Core/PGCore.h"
+#import "Redesigned/Kit/PGRKit.h"
 #import "Home.h"
 
-typedef NS_ENUM(NSInteger, SGRHomeKind) {
-    SGRHomeKindPending,   // the section's root is not in the cell yet: left as it is
-    SGRHomeKindKeep,
-    SGRHomeKindDrop,
+typedef NS_ENUM(NSInteger, PGRHomeKind) {
+    PGRHomeKindPending,   // the section's root is not in the cell yet: left as it is
+    PGRHomeKindKeep,
+    PGRHomeKindDrop,
 };
 
 static char kCollapsedKey;
@@ -63,30 +63,30 @@ static void logOnce(NSString *what) {
     if (!logged) logged = [NSMutableSet set];
     if ([logged containsObject:what]) return;
     [logged addObject:what];
-    SGLog(@"redesign home: %@", what);
+    PGLog(@"redesign home: %@", what);
 }
 
 // The shortcuts grid names no identifier; episode cards and whatever else comes as a bare list do.
-static SGRHomeKind gridKind(UICollectionView *grid) {
-    if (grid.accessibilityIdentifier.length) return SGRHomeKindDrop;
+static PGRHomeKind gridKind(UICollectionView *grid) {
+    if (grid.accessibilityIdentifier.length) return PGRHomeKindDrop;
     UIView *cell = grid.visibleCells.firstObject;
     // A grid the list sized before it laid its own cells out: nothing but the shortcuts has come as one.
-    if (!cell) return SGRHomeKindKeep;
-    return contentNames(cell.subviews.firstObject, @"Home_AnchorsAndShortcutsKit") ? SGRHomeKindKeep : SGRHomeKindDrop;
+    if (!cell) return PGRHomeKindKeep;
+    return contentNames(cell.subviews.firstObject, @"Home_AnchorsAndShortcutsKit") ? PGRHomeKindKeep : PGRHomeKindDrop;
 }
 
 // A LazyElementView names the element it will hold before it holds it.
-static SGRHomeKind stackKind(UIStackView *stack) {
+static PGRHomeKind stackKind(UIStackView *stack) {
     for (UIView *part in stack.arrangedSubviews) {
-        if ([NSStringFromClass(part.class) containsString:@"Discovery_DJElementKit"]) return SGRHomeKindKeep;
+        if ([NSStringFromClass(part.class) containsString:@"Discovery_DJElementKit"]) return PGRHomeKindKeep;
     }
-    return stack.arrangedSubviews.count >= 2 ? SGRHomeKindDrop : SGRHomeKindPending;
+    return stack.arrangedSubviews.count >= 2 ? PGRHomeKindDrop : PGRHomeKindPending;
 }
 
 // Before the cell is measured, so the height it reports is without the heading.
 static void dropDJHeading(UIView *content) {
     UIStackView *stack = (UIStackView *)content.subviews.firstObject.subviews.firstObject;
-    if (![stack isKindOfClass:UIStackView.class] || stackKind(stack) != SGRHomeKindKeep) return;
+    if (![stack isKindOfClass:UIStackView.class] || stackKind(stack) != PGRHomeKindKeep) return;
     for (UIView *part in stack.arrangedSubviews) {
         if (part.hidden || ![NSStringFromClass(part.class) containsString:@"Home_HeadingElementKit"]) continue;
         part.hidden = YES;
@@ -94,16 +94,16 @@ static void dropDJHeading(UIView *content) {
     }
 }
 
-static SGRHomeKind kindOf(UIView *content, NSString **rootName) {
+static PGRHomeKind kindOf(UIView *content, NSString **rootName) {
     UIView *root = content.subviews.firstObject.subviews.firstObject;
-    if (!root) return SGRHomeKindPending;
+    if (!root) return PGRHomeKindPending;
     *rootName = NSStringFromClass(root.class);
     static Class shelf;
     if (!shelf) shelf = NSClassFromString(@"_TtC16Home_CarouselKit29TouchCancellingCollectionView");
-    if (shelf && [root isKindOfClass:shelf]) return SGRHomeKindKeep;
+    if (shelf && [root isKindOfClass:shelf]) return PGRHomeKindKeep;
     if ([root isKindOfClass:UICollectionView.class]) return gridKind((UICollectionView *)root);
     if ([root isKindOfClass:UIStackView.class]) return stackKind((UIStackView *)root);
-    return SGRHomeKindDrop;
+    return PGRHomeKindDrop;
 }
 
 // A dropped section's cell is 0 tall, but what it holds keeps the height it measured at, hidden and cut off
@@ -136,25 +136,25 @@ static void expand(UICollectionViewCell *cell) {
     UICollectionViewCell *cell = (UICollectionViewCell *)self;
     UIView *content = cell.contentView;
     if (!isSection(content)) return %orig;
-    CFTimeInterval began = SGRHomeProbeBegin();
+    CFTimeInterval began = PGRHomeProbeBegin();
     dropDJHeading(content);
     UICollectionViewLayoutAttributes *result = %orig;
 
     NSString *rootName = nil;
-    SGRHomeKind kind = kindOf(content, &rootName);
+    PGRHomeKind kind = kindOf(content, &rootName);
     BOOL collapsed = objc_getAssociatedObject(cell, &kCollapsedKey) != nil;
-    if (kind == SGRHomeKindDrop) {
+    if (kind == PGRHomeKindDrop) {
         collapse(cell, MAX(1, result.size.height));
         result.size = CGSizeMake(result.size.width, 0);
         logOnce([@"dropped a section of " stringByAppendingString:rootName]);
-    } else if (kind == SGRHomeKindKeep) {
+    } else if (kind == PGRHomeKindKeep) {
         // Cells are reused across kinds: one collapsed before holds a section to keep now.
         if (collapsed) expand(cell);
         logOnce([@"kept a section of " stringByAppendingString:rootName]);
     } else {
         logOnce([@"sized a section before its root was in, left as it is: " stringByAppendingString:rootName ?: @"no root"]);
     }
-    SGRHomeProbeEnd(SGRHomeProbeSections, began);
+    PGRHomeProbeEnd(PGRHomeProbeSections, began);
     return result;
 }
 
@@ -171,21 +171,21 @@ static void expand(UICollectionViewCell *cell) {
 }
 %end
 
-BOOL SGRHomeSectionCollapsed(UIView *cell) {
+BOOL PGRHomeSectionCollapsed(UIView *cell) {
     return objc_getAssociatedObject(cell, &kCollapsedKey) != nil;
 }
 
 %ctor {
     // Registered whatever the switch says: the flag rows elsewhere lock to these while it is on.
-    SGRedesignForceFlags(@"home", @{
+    PGRedesignForceFlags(@"home", @{
         // The badge on the DJ card.
         @"ios-home-evopage-impl.dj_mdc_beta_badge_enabled": @NO,
         // The prompt field for Spotify's AI on Home.
         @"ios-home-evopage-impl.interactive_entrypoint_enabled": @NO,
     });
-    if (!SGRedesignedUI()) return;
+    if (!PGRedesignedUI()) return;
     %init;
-    SGRequireClasses(@[
+    PGRequireClasses(@[
         @"_TtC12Element_List18CollectionViewCell",
         @"_TtC16Home_CarouselKit29TouchCancellingCollectionView",
     ]);

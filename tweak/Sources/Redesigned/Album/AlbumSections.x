@@ -18,8 +18,8 @@
 // cell: Spotify's content squeezed to 0 with the cell breaks its own required constraints on every layout
 // pass, which is what held the main thread where dropped sections scrolled in on Home (2026-09-17). The two
 // kept cells are given the gap the spacers used to draw and their content is pinned under it.
-#import "Core/SGCore.h"
-#import "Redesigned/Kit/SGRKit.h"
+#import "Core/PGCore.h"
+#import "Redesigned/Kit/PGRKit.h"
 #import "Album.h"
 
 // Over the album's own line, and between it and the copyright: the spacers they sat between are gone.
@@ -45,13 +45,13 @@ static BOOL isFooterContent(UIView *content) {
 static BOOL isKept(UIView *content) {
     UIView *kept = nil;
     for (NSString *identifier in @[@"Album.ConsumptionExperience", @"Album.Copyright"]) {
-        kept = kept ?: SGRFindByIdentifier(content, identifier, NULL);
+        kept = kept ?: PGRFindByIdentifier(content, identifier, NULL);
     }
     if (!kept) return NO;
-    SGForEachView(kept, ^(UIView *v) {
+    PGForEachView(kept, ^(UIView *v) {
         if (![v isKindOfClass:UILabel.class]) return;
         UILabel *label = (UILabel *)v;
-        if (![label.textColor isEqual:SGRTertiary()]) label.textColor = SGRTertiary();
+        if (![label.textColor isEqual:PGRTertiary()]) label.textColor = PGRTertiary();
     });
     return YES;
 }
@@ -85,7 +85,7 @@ static void logOnce(NSString *what) {
     if (!logged) logged = [NSMutableSet set];
     if ([logged containsObject:what]) return;
     [logged addObject:what];
-    SGLog(@"redesign album: %@", what);
+    PGLog(@"redesign album: %@", what);
 }
 
 %hook _TtC12Element_List18CollectionViewCell
@@ -93,7 +93,7 @@ static void logOnce(NSString *what) {
     UICollectionViewCell *cell = (UICollectionViewCell *)self;
     UIView *content = cell.contentView.subviews.firstObject;
     // Cells are reused across kinds, and one settled before can hold a track row now.
-    if (!isFooterContent(content) || !SGRAlbumPageOf(cell)) {
+    if (!isFooterContent(content) || !PGRAlbumPageOf(cell)) {
         if (objc_getAssociatedObject(cell, &kSettledKey)) unsettle(cell);
         return %orig;
     }
@@ -125,7 +125,7 @@ static void logOnce(NSString *what) {
 %end
 
 %ctor {
-    if (!SGRedesignedUI()) return;
+    if (!PGRedesignedUI()) return;
     %init;
-    SGRequireClasses(@[@"_TtC12Element_List18CollectionViewCell"]);
+    PGRequireClasses(@[@"_TtC12Element_List18CollectionViewCell"]);
 }

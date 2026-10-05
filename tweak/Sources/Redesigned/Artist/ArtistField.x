@@ -5,15 +5,15 @@
 // the header, then PCFFTabLayoutViewController.tabsViewAccessibilityID, the strip of tabs
 // (Components.UI.TabsSectionHeading, 44pt) over a paging scroll view with one list per tab. The field goes
 // under all of it, as the page's bottom-most view, and what Spotify paints the page, its lists and its rows
-// with -- the base surface -- is kept clear by the Kit's repaint hook while sgr_artistRoot is this page.
+// with -- the base surface -- is kept clear by the Kit's repaint hook while pgr_artistRoot is this page.
 //
 // The strip is Music, Video and Merch. The Music list is the page the Music app gives an artist: the videos
 // and the merch have their own tabs only so that they can be left out, so the strip goes and the Music list
 // stays. The strip sits in an AutoLayoutStackView, which traps when a view in it hides, so it goes invisible
 // and the pages under it move up into its place and stop paging, the way the native look's switch does it
 // (Native/Artist/Artist.x).
-#import "Core/SGCore.h"
-#import "Redesigned/Kit/SGRKit.h"
+#import "Core/PGCore.h"
+#import "Redesigned/Kit/PGRKit.h"
 #import "Artist.h"
 
 static NSString *const kPageIdentifier = @"creator-page";
@@ -25,7 +25,7 @@ static char kFieldKey;
 
 #pragma mark - the page
 
-UIView *SGRArtistPageOf(UIView *view) {
+UIView *PGRArtistPageOf(UIView *view) {
     for (UIView *v = view; v; v = v.superview) {
         if ([v.accessibilityIdentifier isEqualToString:kPageIdentifier]) return v;
     }
@@ -34,30 +34,30 @@ UIView *SGRArtistPageOf(UIView *view) {
 
 #pragma mark - the page's field
 
-static SGRArtworkField *fieldOn(UIView *view) {
+static PGRArtworkField *fieldOn(UIView *view) {
     for (UIView *v = view; v; v = v.superview) {
-        SGRArtworkField *field = objc_getAssociatedObject(v, &kFieldKey);
+        PGRArtworkField *field = objc_getAssociatedObject(v, &kFieldKey);
         if (field) return field;
     }
     return nil;
 }
 
-UIColor *SGRArtistFieldColor(UIView *view) {
-    SGRArtworkField *field = fieldOn(view);
-    return field.fieldColor ?: SGRNeutralField();
+UIColor *PGRArtistFieldColor(UIView *view) {
+    PGRArtworkField *field = fieldOn(view);
+    return field.fieldColor ?: PGRNeutralField();
 }
 
-void SGRArtistSetArtwork(UIView *view, UIImage *image) {
+void PGRArtistSetArtwork(UIView *view, UIImage *image) {
     if (image) [fieldOn(view) setArtwork:image identity:nil animated:YES];
 }
 
-static SGRArtworkField *fieldIn(UIView *page) {
-    SGRArtworkField *field = objc_getAssociatedObject(page, &kFieldKey);
+static PGRArtworkField *fieldIn(UIView *page) {
+    PGRArtworkField *field = objc_getAssociatedObject(page, &kFieldKey);
     if (field) return field;
-    field = [[SGRArtworkField alloc] initWithFrame:page.bounds];
+    field = [[PGRArtworkField alloc] initWithFrame:page.bounds];
     field.bleed = kBleed;
     objc_setAssociatedObject(page, &kFieldKey, field, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    SGLog(@"redesign artist: field on the page %.0fx%.0f", page.bounds.size.width, page.bounds.size.height);
+    PGLog(@"redesign artist: field on the page %.0fx%.0f", page.bounds.size.width, page.bounds.size.height);
     return field;
 }
 
@@ -67,8 +67,8 @@ static SGRArtworkField *fieldIn(UIView *page) {
     UIView *page = (UIView *)self;
     if (![page.accessibilityIdentifier isEqualToString:kPageIdentifier] || page.bounds.size.height < 200) return;
     // The page the repaint hook keeps clear is the one laying out, which is the one on screen.
-    sgr_artistRoot = page;
-    SGRArtworkField *field = fieldIn(page);
+    pgr_artistRoot = page;
+    PGRArtworkField *field = fieldIn(page);
     if (field.superview != page) [page insertSubview:field atIndex:0];
     else if (page.subviews.firstObject != field) [page sendSubviewToBack:field];
     if (!CGRectEqualToRect(field.frame, page.bounds)) field.frame = page.bounds;
@@ -82,10 +82,10 @@ static SGRArtworkField *fieldIn(UIView *page) {
 - (void)layoutSubviews {
     %orig;
     UIView *list = (UIView *)self;
-    if (!SGRArtistPageOf(list)) return;
-    if (list.backgroundColor && SGIsBaseSurface(list.backgroundColor.CGColor)) list.backgroundColor = UIColor.clearColor;
+    if (!PGRArtistPageOf(list)) return;
+    if (list.backgroundColor && PGIsBaseSurface(list.backgroundColor.CGColor)) list.backgroundColor = UIColor.clearColor;
     for (UIView *sub in list.subviews) {
-        if (sub.backgroundColor && SGIsBaseSurface(sub.backgroundColor.CGColor)) sub.backgroundColor = UIColor.clearColor;
+        if (sub.backgroundColor && PGIsBaseSurface(sub.backgroundColor.CGColor)) sub.backgroundColor = UIColor.clearColor;
     }
 }
 %end
@@ -107,7 +107,7 @@ static void hideStrip(UIView *strip) {
     static BOOL logged;
     if (!logged) {
         logged = YES;
-        SGLog(@"redesign artist: the tab strip gone, the Music list up %.0fpt into its place", lift);
+        PGLog(@"redesign artist: the tab strip gone, the Music list up %.0fpt into its place", lift);
     }
 }
 
@@ -117,7 +117,7 @@ static void hideStrip(UIView *strip) {
     %orig;
     for (UIView *v = ((UIView *)self).superview; v; v = v.superview) {
         if (![v.accessibilityIdentifier isEqualToString:@"Components.UI.TabsSectionHeading"]) continue;
-        if (SGRArtistPageOf(v)) hideStrip(v);
+        if (PGRArtistPageOf(v)) hideStrip(v);
         return;
     }
 }
@@ -129,9 +129,9 @@ static void hideStrip(UIView *strip) {
     // that has none and traps as the page opens (device crash 2026-09-18 19:09, SIGTRAP in -[OverflowStackView
     // updateConstraints], OverflowStackViewLayoutBuilder.Line.tallestView nil). The row stays Spotify's, and
     // ArtistHeader.x draws more itself.
-    if (!SGRedesignedUI()) return;
+    if (!PGRedesignedUI()) return;
     %init;
-    SGRequireClasses(@[
+    PGRequireClasses(@[
         @"_TtC32CreativeWorkPlatform_TemplateKit12TemplateView",
         @"_TtC32CreativeWorkPlatform_TemplateKit28CreativeWorkTemplateListView",
         @"_TtCOOOE16PodcastUI_ECMKitO19LegacyUI_ECMCoreKit10Components18TabsSectionHeading2UI7Private9TabButton",

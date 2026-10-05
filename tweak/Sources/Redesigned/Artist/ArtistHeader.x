@@ -23,11 +23,11 @@
 //
 // Everything else of the ImageHeaderView is drawn by nothing (an empty mask) and takes no touches: the badge,
 // Explore, and the headline go with it -- the headline's pre-save is also the list's own Release Countdown
-// section. The Kit's SGRHeaderInfo reads the name and the listeners off Spotify's concealed labels and draws
+// section. The Kit's PGRHeaderInfo reads the name and the listeners off Spotify's concealed labels and draws
 // and fires Spotify's shuffle, play and Follow, Follow as a glyph from the collection (ArtistFollow.x). More stays in Spotify's row, where the row needs it (ArtistField.x), and the Kit's pinned ⋯
-// (SGRPinnedMore) draws and fires it from the top trailing corner of the page, level with the back button.
-#import "Core/SGCore.h"
-#import "Redesigned/Kit/SGRKit.h"
+// (PGRPinnedMore) draws and fires it from the top trailing corner of the page, level with the back button.
+#import "Core/PGCore.h"
+#import "Redesigned/Kit/PGRKit.h"
 #import "Artist.h"
 
 // How much of the photo's height the dissolve into the field covers, and the scrim over the top of it that
@@ -64,7 +64,7 @@ static NSString *trimmed(NSString *text) {
 
 static NSString *firstText(UIView *root) {
     __block NSString *found = nil;
-    SGForEachView(root, ^(UIView *v) {
+    PGForEachView(root, ^(UIView *v) {
         if (found || ![v isKindOfClass:UILabel.class]) return;
         found = trimmed(((UILabel *)v).text);
     });
@@ -83,7 +83,7 @@ static UIView *containerOf(UIView *header) {
 
 // The picture across the top of the page with the field showing through the bottom of it: a scrim over the
 // top for the status bar, and under it a fade to the very colour the page's field is drawing.
-@interface SGRArtistHero : UIView
+@interface PGRArtistHero : UIView
 @property (nonatomic, readonly) UIImageView *picture;
 @property (nonatomic, copy) UIColor *fieldColor;
 // The photo in Spotify's artwork view, and every photo it puts there afterwards: the hero keeps itself
@@ -92,7 +92,7 @@ static UIView *containerOf(UIView *header) {
 - (void)followArtwork:(UIImageView *)source;
 @end
 
-@implementation SGRArtistHero {
+@implementation PGRArtistHero {
     CAGradientLayer *_scrim, *_dissolve;
     __weak UIImageView *_artwork;
 }
@@ -117,10 +117,10 @@ static UIView *containerOf(UIView *header) {
     _dissolve = [CAGradientLayer layer];
     _dissolve.zPosition = 2;
     [self.layer addSublayer:_dissolve];
-    self.fieldColor = SGRNeutralField();
+    self.fieldColor = PGRNeutralField();
     // The colour is read off the main thread, so it can land after the last layout pass of the page.
-    [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(sgr_fieldColorDidChange)
-                                               name:SGRFieldColorDidChangeNotification object:nil];
+    [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(pgr_fieldColorDidChange)
+                                               name:PGRFieldColorDidChangeNotification object:nil];
     return self;
 }
 
@@ -128,8 +128,8 @@ static UIView *containerOf(UIView *header) {
     [NSNotificationCenter.defaultCenter removeObserver:self];
 }
 
-- (void)sgr_fieldColorDidChange {
-    if (self.superview) self.fieldColor = SGRArtistFieldColor(self);
+- (void)pgr_fieldColorDidChange {
+    if (self.superview) self.fieldColor = PGRArtistFieldColor(self);
 }
 
 - (void)setFieldColor:(UIColor *)color {
@@ -161,8 +161,8 @@ static UIView *containerOf(UIView *header) {
     [self takeArtwork:source late:NO];
     if (_artwork == source) return;
     _artwork = source;
-    __weak SGRArtistHero *weakSelf = self;
-    SGRObserveImage(source, ^(UIImageView *view) { [weakSelf takeArtwork:view late:YES]; });
+    __weak PGRArtistHero *weakSelf = self;
+    PGRObserveImage(source, ^(UIImageView *view) { [weakSelf takeArtwork:view late:YES]; });
 }
 
 // `late` is a photo that arrived after the header had laid out -- the artist opened for the first time,
@@ -173,11 +173,11 @@ static UIView *containerOf(UIView *header) {
     if (!image || _picture.image == image) return;
     _picture.image = image;
     // The page's field takes its colour from the same picture.
-    SGRArtistSetArtwork(self, image);
+    PGRArtistSetArtwork(self, image);
     static BOOL logged;
     if (late && !logged) {
         logged = YES;
-        SGLog(@"redesign artist: the photo landed after the header had laid out; the hero took it");
+        PGLog(@"redesign artist: the photo landed after the header had laid out; the hero took it");
     }
 }
 
@@ -188,7 +188,7 @@ static UIView *containerOf(UIView *header) {
 // picture, never a small placeholder glyph beside it.
 static UIImageView *photoIn(UIView *artwork) {
     __block UIImageView *found = nil, *empty = nil;
-    SGForEachView(artwork, ^(UIView *v) {
+    PGForEachView(artwork, ^(UIView *v) {
         if (found || ![v isKindOfClass:UIImageView.class]) return;
         UIImageView *image = (UIImageView *)v;
         if (image.bounds.size.width < kMinCover) return;
@@ -201,9 +201,9 @@ static UIImageView *photoIn(UIView *artwork) {
 // The picture from the top of the container down to `bottom`, which comes from the container at rest and only
 // ever grows, so it does not change size while the page loads or scrolls.
 static void applyHero(UIView *container, UIView *artwork, CGFloat bottom) {
-    SGRArtistHero *hero = objc_getAssociatedObject(container, &kHeroKey);
+    PGRArtistHero *hero = objc_getAssociatedObject(container, &kHeroKey);
     if (!hero) {
-        hero = [[SGRArtistHero alloc] initWithFrame:CGRectZero];
+        hero = [[PGRArtistHero alloc] initWithFrame:CGRectZero];
         objc_setAssociatedObject(container, &kHeroKey, hero, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
     if (hero.superview != container) [container insertSubview:hero atIndex:0];
@@ -213,11 +213,11 @@ static void applyHero(UIView *container, UIView *artwork, CGFloat bottom) {
     if (bottom > height + 0.5) {
         height = round(bottom);
         objc_setAssociatedObject(hero, &kHeroHeightKey, @(height), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        SGLog(@"redesign artist: hero %.0fpt across the top of the page", height);
+        PGLog(@"redesign artist: hero %.0fpt across the top of the page", height);
     }
     if (height < kMinHero) return;
     setFrame(hero, CGRectMake(0, 0, container.bounds.size.width, height));
-    hero.fieldColor = SGRArtistFieldColor(container);
+    hero.fieldColor = PGRArtistFieldColor(container);
     [hero followArtwork:photoIn(artwork)];
 }
 
@@ -234,7 +234,7 @@ static UIView *keepBar(UIView *header) {
         if ([NSStringFromClass(sub.class) containsString:@"HeaderForegroundView"]) foreground = sub;
     }
     if (foreground && !objc_getAssociatedObject(header, &kBarKey)) {
-        SGForEachView(foreground, ^(UIView *v) {
+        PGForEachView(foreground, ^(UIView *v) {
             if ([NSStringFromClass(v.class) containsString:@"GradientView"] && !v.layer.mask) v.layer.mask = [CALayer layer];
         });
         objc_setAssociatedObject(header, &kBarKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
@@ -244,24 +244,24 @@ static UIView *keepBar(UIView *header) {
 
 static void applyHeader(UIView *header) {
     UIView *container = containerOf(header);
-    UIView *artwork = SGRFindByIdentifier(header, @"Components.Header.UI.ArtworkImage", &kArtworkKey);
-    if (!container || !artwork || !SGRArtistPageOf(container)) return;
+    UIView *artwork = PGRFindByIdentifier(header, @"Components.Header.UI.ArtworkImage", &kArtworkKey);
+    if (!container || !artwork || !PGRArtistPageOf(container)) return;
 
     UIView *bar = keepBar(header);
     for (UIView *sub in header.subviews) {
         if (sub != bar) blank(sub);
     }
 
-    SGRHeaderInfo *info = objc_getAssociatedObject(container, &kInfoKey);
+    PGRHeaderInfo *info = objc_getAssociatedObject(container, &kInfoKey);
     if (!info) {
-        info = [[SGRHeaderInfo alloc] initWithFrame:CGRectZero];
+        info = [[PGRHeaderInfo alloc] initWithFrame:CGRectZero];
         // Follow's only state is its title in the app's language, so the glyph takes it from the collection.
-        __weak UIView *weakPage = SGRArtistPageOf(container);
-        __weak SGRHeaderInfo *weakInfo = info;
+        __weak UIView *weakPage = PGRArtistPageOf(container);
+        __weak PGRHeaderInfo *weakInfo = info;
         __weak UIView *weakHeader = header;
         info.trailingState = ^BOOL(BOOL *on) {
-            UIView *more = SGRFindByIdentifier(weakHeader, @"Components.UI.ContextMenuButton*", &kMoreKey);
-            return SGRArtistFollowing(weakPage, more.accessibilityIdentifier, on, ^{ [weakInfo trailingStateChanged]; });
+            UIView *more = PGRFindByIdentifier(weakHeader, @"Components.UI.ContextMenuButton*", &kMoreKey);
+            return PGRArtistFollowing(weakPage, more.accessibilityIdentifier, on, ^{ [weakInfo trailingStateChanged]; });
         };
         info.trailingOffSymbol = @"person.badge.plus";
         info.trailingOnSymbol = @"person.fill.checkmark";
@@ -270,23 +270,23 @@ static void applyHeader(UIView *header) {
     if (info.superview != container) [container addSubview:info];
     setFrame(info, container.bounds);
 
-    UIView *title = SGRFindByIdentifier(header, @"Encore.AdaptiveTitle", &kTitleKey);
-    UIView *listeners = SGRFindByIdentifier(header, @"Components.Header.UI.Metadata", &kMetaKey);
+    UIView *title = PGRFindByIdentifier(header, @"Encore.AdaptiveTitle", &kTitleKey);
+    UIView *listeners = PGRFindByIdentifier(header, @"Components.Header.UI.Metadata", &kMetaKey);
     NSString *name = firstText(title) ?: firstText(bar);
     [info showTitle:name creator:nil length:firstText(listeners) about:nil];
 
-    UIView *shuffle = SGRFindByIdentifier(header, @"Components.UI.ShuffleButton", &kShuffleKey);
-    UIView *play = SGRFindByIdentifier(header, @"header-play-button", &kPlayKey);
-    UIView *follow = SGRFindByIdentifier(header, @"Curation.FollowButtonElementKit.FollowButton", &kFollowKey);
-    [info showShuffle:shuffle play:play trailing:follow trailingFallback:nil playColor:SGRArtistFieldColor(container)];
+    UIView *shuffle = PGRFindByIdentifier(header, @"Components.UI.ShuffleButton", &kShuffleKey);
+    UIView *play = PGRFindByIdentifier(header, @"header-play-button", &kPlayKey);
+    UIView *follow = PGRFindByIdentifier(header, @"Curation.FollowButtonElementKit.FollowButton", &kFollowKey);
+    [info showShuffle:shuffle play:play trailing:follow trailingFallback:nil playColor:PGRArtistFieldColor(container)];
 
     // More, in the top trailing corner of the page itself rather than of the container, which scrolls away
     // with the photo: pinned there it is the same button in the same place on the album and the playlist,
     // and the page keeps it however far down the list one is (issue #57).
-    UIView *more = SGRFindByIdentifier(header, @"Components.UI.ContextMenuButton*", &kMoreKey);
-    UIView *page = SGRArtistPageOf(container);
-    SGRPinnedMore(page, &kMoreButtonKey, more);
-    SGRPinnedBack(page, header);
+    UIView *more = PGRFindByIdentifier(header, @"Components.UI.ContextMenuButton*", &kMoreKey);
+    UIView *page = PGRArtistPageOf(container);
+    PGRPinnedMore(page, &kMoreButtonKey, more);
+    PGRPinnedBack(page, header);
 
     // Collapsing, the text would pass over Spotify's bar with the name in it: it goes over the last kFade of
     // the collapse, from the header's own height, which this pass runs on every step of. More stays: it is
@@ -298,7 +298,7 @@ static void applyHeader(UIView *header) {
     // height as the header collapses, and only ever grows as the page loads.
     CGFloat rest = MAX([objc_getAssociatedObject(container, &kContainerHeightKey) doubleValue], container.bounds.size.height);
     objc_setAssociatedObject(container, &kContainerHeightKey, @(rest), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    CGFloat bottom = rest - SGRHeaderInfoBottom - [info contentHeightForWidth:container.bounds.size.width] + SGRHeaderInfoTitleRise;
+    CGFloat bottom = rest - PGRHeaderInfoBottom - [info contentHeightForWidth:container.bounds.size.width] + PGRHeaderInfoTitleRise;
     applyHero(container, artwork, bottom);
 
     // The buttons arrive after the header has laid out, in a row that keeps its size and so lays nothing out
@@ -308,7 +308,7 @@ static void applyHeader(UIView *header) {
     if (row && [row class] == UIStackView.class && !objc_getAssociatedObject(row, &kRowWatchedKey)) {
         objc_setAssociatedObject(row, &kRowWatchedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         __weak UIView *weakHeader = header;
-        SGRObserveLayout(row, ^(UIView *view) {
+        PGRObserveLayout(row, ^(UIView *view) {
             if (weakHeader) applyHeader(weakHeader);
         });
     }
@@ -316,7 +316,7 @@ static void applyHeader(UIView *header) {
     static BOOL logged;
     if (!logged && header.window && name) {
         logged = YES;
-        SGLog(@"redesign artist: own block \"%@\", \"%@\"; shuffle %@, play %@, follow %@, more %@", name,
+        PGLog(@"redesign artist: own block \"%@\", \"%@\"; shuffle %@, play %@, follow %@, more %@", name,
               firstText(listeners) ?: @"no listeners", shuffle ? @"found" : @"missing", play ? @"found" : @"missing",
               follow ? @"found" : @"missing", more ? @"found" : @"missing");
     }
@@ -330,7 +330,7 @@ static void applyHeader(UIView *header) {
 %end
 
 %ctor {
-    if (!SGRedesignedUI()) return;
+    if (!PGRedesignedUI()) return;
     %init;
-    SGRequireClasses(@[@"_TtC35CreativeWorkPlatform_ImageHeaderKit15ImageHeaderView"]);
+    PGRequireClasses(@[@"_TtC35CreativeWorkPlatform_ImageHeaderKit15ImageHeaderView"]);
 }

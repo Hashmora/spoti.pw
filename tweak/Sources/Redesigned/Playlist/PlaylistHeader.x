@@ -20,7 +20,7 @@
 // height: the cover's square is where the full bleed picture goes, and the block keeps its place, its size
 // and its fading as the header collapses.
 //
-// What is in the block is the redesign's own (the Kit's SGRHeaderInfo), not Spotify's rearranged. Moving Spotify's
+// What is in the block is the redesign's own (the Kit's PGRHeaderInfo), not Spotify's rearranged. Moving Spotify's
 // column and controls meant answering every layout pass of theirs -- stacks re-arranging, Auto Layout putting
 // frames back, buttons flashing where Spotify wanted them -- so Spotify's contents of the block are concealed
 // whole and one view of the redesign's own is drawn in their place, which nothing of Spotify's lays out. It
@@ -28,8 +28,8 @@
 // whose playlist it is; device 2026-09-18) and from Spotify's concealed labels where the model has no getter
 // (the creator, and the length line, already in the app's language). Its buttons draw Spotify's glyphs and
 // fire Spotify's own concealed controls, so every action, state and language stays Spotify's.
-#import "Core/SGCore.h"
-#import "Redesigned/Kit/SGRKit.h"
+#import "Core/PGCore.h"
+#import "Redesigned/Kit/PGRKit.h"
 #import "Playlist.h"
 #import <objc/message.h>
 
@@ -46,16 +46,16 @@ static char kHeroKey, kHeroHeightKey, kRestPlaneKey, kRowKey, kRowWatchedKey, kM
 
 #pragma mark - finding things
 
-@interface SGRWeakView : NSObject
+@interface PGRWeakView : NSObject
 @property (nonatomic, weak) UIView *view;
 @end
-@implementation SGRWeakView
+@implementation PGRWeakView
 @end
 
 // The page the header is on: FTPViewController's own view, which holds the field, the list and the header
-// and does not scroll. Walked from the header rather than taken off sgr_playlistRoot, so a playlist under
+// and does not scroll. Walked from the header rather than taken off pgr_playlistRoot, so a playlist under
 // another one on the stack pins its own ⋯ and not the one on top.
-UIView *SGRPlaylistPageOf(UIView *view) {
+UIView *PGRPlaylistPageOf(UIView *view) {
     for (UIResponder *r = view; r; r = r.nextResponder) {
         if (![r isKindOfClass:UIViewController.class]) continue;
         if ([NSStringFromClass(r.class) containsString:@"FTPViewController"]) return ((UIViewController *)r).viewIfLoaded;
@@ -63,7 +63,7 @@ UIView *SGRPlaylistPageOf(UIView *view) {
     return nil;
 }
 
-UIViewController *SGRPlaylistHeaderOf(UIView *view) {
+UIViewController *PGRPlaylistHeaderOf(UIView *view) {
     for (UIResponder *r = view; r; r = r.nextResponder) {
         if (![r isKindOfClass:UIViewController.class]) continue;
         return [NSStringFromClass(r.class) containsString:@"FreeTierPlaylist"] ? (UIViewController *)r : nil;
@@ -92,7 +92,7 @@ static void conceal(UIView *view) {
 
 static UIView *firstOfClass(UIView *root, Class wanted) {
     __block UIView *found = nil;
-    SGForEachView(root, ^(UIView *v) {
+    PGForEachView(root, ^(UIView *v) {
         if (!found && [v isKindOfClass:wanted]) found = v;
     });
     return found;
@@ -103,7 +103,7 @@ static UIView *firstOfClass(UIView *root, Class wanted) {
 // The picture across the top of the page, a scrim over its top for the status bar, and its bottom masked
 // away so the field shows through whatever colour it is at that height: pulled down, the hero ends where
 // the field is already fading to black, and a fade to the field's flat colour showed as an edge.
-@interface SGRPlaylistHero : UIView
+@interface PGRPlaylistHero : UIView
 @property (nonatomic, readonly) UIImageView *picture;
 @property (nonatomic) CGFloat coverPixels;   // the widest copy of the artwork it has been shown
 // The cover in Spotify's artwork view, and every cover it puts there afterwards: the hero keeps itself
@@ -111,7 +111,7 @@ static UIView *firstOfClass(UIView *root, Class wanted) {
 - (void)followCover:(UIImageView *)source;
 @end
 
-@implementation SGRPlaylistHero {
+@implementation PGRPlaylistHero {
     CAGradientLayer *_scrim, *_dissolve;   // the dissolve is the layer's mask
     __weak UIImageView *_cover;
 }
@@ -158,8 +158,8 @@ static UIView *firstOfClass(UIView *root, Class wanted) {
     [self takeCover:source late:NO];
     if (_cover == source) return;
     _cover = source;
-    __weak SGRPlaylistHero *weakSelf = self;
-    SGRObserveImage(source, ^(UIImageView *view) { [weakSelf takeCover:view late:YES]; });
+    __weak PGRPlaylistHero *weakSelf = self;
+    PGRObserveImage(source, ^(UIImageView *view) { [weakSelf takeCover:view late:YES]; });
 }
 
 // Spotify loads the artwork at the size the cover square is asking for, and the square shrinks as the
@@ -177,11 +177,11 @@ static UIView *firstOfClass(UIView *root, Class wanted) {
     self.coverPixels = image.size.width;
     _picture.image = image;
     // The page's field takes its colour from the same picture.
-    SGRPlaylistSetArtwork(self, image);
+    PGRPlaylistSetArtwork(self, image);
     static BOOL logged;
     if (late && !logged) {
         logged = YES;
-        SGLog(@"redesign playlist: the cover landed after the header had laid out; the hero took it");
+        PGLog(@"redesign playlist: the cover landed after the header had laid out; the hero took it");
     }
 }
 
@@ -191,7 +191,7 @@ static UIView *firstOfClass(UIView *root, Class wanted) {
 // fetched, the empty one it will land in, so it can be watched from the first pass.
 static UIImageView *coverImageIn(UIView *cover) {
     __block UIImageView *found = nil, *empty = nil;
-    SGForEachView(cover, ^(UIView *v) {
+    PGForEachView(cover, ^(UIView *v) {
         if (found || ![v isKindOfClass:UIImageView.class]) return;
         UIImageView *image = (UIImageView *)v;
         if (image.bounds.size.width < kMinCover) return;
@@ -206,9 +206,9 @@ static UIImageView *coverImageIn(UIView *cover) {
 // Pulled down past the top the plane grows and the hero stretches with it, bottom kept in place.
 static void applyHero(UIView *layout, UIView *cover, UIView *plane, UIView *block, CGFloat reach, CGFloat stretch) {
     if (!plane || !block) return;
-    SGRPlaylistHero *hero = objc_getAssociatedObject(plane, &kHeroKey);
+    PGRPlaylistHero *hero = objc_getAssociatedObject(plane, &kHeroKey);
     if (!hero) {
-        hero = [[SGRPlaylistHero alloc] initWithFrame:CGRectZero];
+        hero = [[PGRPlaylistHero alloc] initWithFrame:CGRectZero];
         objc_setAssociatedObject(plane, &kHeroKey, hero, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
     if (hero.superview != plane) [plane insertSubview:hero atIndex:0];
@@ -220,7 +220,7 @@ static void applyHero(UIView *layout, UIView *cover, UIView *plane, UIView *bloc
     if (stretch < 0.5 && top > height + 0.5) {
         height = top;
         objc_setAssociatedObject(hero, &kHeroHeightKey, @(height), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        SGLog(@"redesign playlist: hero %.0fpt across the top of the plane", height);
+        PGLog(@"redesign playlist: hero %.0fpt across the top of the plane", height);
     }
     if (height < kMinHero) return;
     // On past the block's top by `reach`, so the title sits on the bottom of the dissolve the way the Music app
@@ -280,7 +280,7 @@ static NSString *plainText(NSString *html) {
 
 static NSString *firstText(UIView *root, UIView *skip) {
     __block NSString *found = nil;
-    SGForEachView(root, ^(UIView *v) {
+    PGForEachView(root, ^(UIView *v) {
         if (found || ![v isKindOfClass:UILabel.class] || (skip && [v isDescendantOfView:skip])) return;
         NSString *text = [((UILabel *)v).text stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
         if (text.length > 1) found = text;
@@ -294,7 +294,7 @@ static NSString *firstText(UIView *root, UIView *skip) {
 // facepile's own row, where the title would be the next label found.
 static NSString *creatorIn(UIView *block) {
     __block UIView *facepile = nil;
-    SGForEachView(block, ^(UIView *v) {
+    PGForEachView(block, ^(UIView *v) {
         if (!facepile && [NSStringFromClass(v.class) containsString:@"FacepileView"]) facepile = v;
     });
     UIView *row = facepile.superview;
@@ -307,51 +307,51 @@ static NSString *creatorIn(UIView *block) {
 
 // The length line, as Spotify words it in the app's language: "8 saves • 41h 14m", "1 038 songs".
 static NSString *lengthIn(UIView *block) {
-    return firstText(SGRFindByIdentifier(block, @"Components.Header.UI.Metadata", &kMetaKey), nil);
+    return firstText(PGRFindByIdentifier(block, @"Components.Header.UI.Metadata", &kMetaKey), nil);
 }
 
 // What the playlist's header shows: the name and the description from the page's model, the creator and the
 // length from Spotify's concealed labels, and on Play's right save for someone else's playlist, download for
 // one's own and for Liked Songs, which Spotify reports as neither owned nor unsaved (isOwnedBySelf NO,
 // formatListType liked-songs).
-static void showPlaylist(SGRHeaderInfo *info, UIView *block, UIView *root, id model) {
+static void showPlaylist(PGRHeaderInfo *info, UIView *block, UIView *root, id model) {
     NSString *title = modelString(model, @"playlistName") ?: firstText(block, nil);
     [info showTitle:title creator:creatorIn(block) length:lengthIn(block)
               about:plainText(modelString(model, @"playlistDescription"))];
 
     BOOL liked = [modelString(model, @"formatListType") isEqualToString:@"liked-songs"];
     BOOL own = modelFlag(model, @"isOwnedBySelf", YES) || liked;
-    UIView *shuffle = SGRFindByIdentifier(block, @"Components.UI.ShuffleButton", &kShuffleKey);
-    UIView *play = SGRFindByIdentifier(root, @"header-play-button", &kPlayKey);
-    UIView *save = own ? nil : SGRFindByIdentifier(block, @"Components.UI.AddToButton", &kAddKey);
-    UIView *download = save ? nil : SGRFindByIdentifier(block, @"DownloadButton.Granular*", &kDownloadKey);
+    UIView *shuffle = PGRFindByIdentifier(block, @"Components.UI.ShuffleButton", &kShuffleKey);
+    UIView *play = PGRFindByIdentifier(root, @"header-play-button", &kPlayKey);
+    UIView *save = own ? nil : PGRFindByIdentifier(block, @"Components.UI.AddToButton", &kAddKey);
+    UIView *download = save ? nil : PGRFindByIdentifier(block, @"DownloadButton.Granular*", &kDownloadKey);
     [info showShuffle:shuffle play:play trailing:save ?: download
-     trailingFallback:[UIImage systemImageNamed:save ? @"plus" : @"arrow.down"] playColor:SGRPlaylistFieldColor(info)];
+     trailingFallback:[UIImage systemImageNamed:save ? @"plus" : @"arrow.down"] playColor:PGRPlaylistFieldColor(info)];
     // Only what the button draws goes: a concealed layer still sends the actions the capsule fires.
     conceal(play);
 
     // Whoever made the playlist, opened from the line that names them. Spotify's own button carries the
     // facepile and the name and takes the tap to a profile -- or, for a playlist several people are on, to
     // the picker it opens itself (issue #56).
-    [info showCreatorLink:SGRFindByIdentifier(block, @"Components.PlaylistHeader.collaboratorsButton", &kCreatorKey)];
+    [info showCreatorLink:PGRFindByIdentifier(block, @"Components.PlaylistHeader.collaboratorsButton", &kCreatorKey)];
 
     // More, pinned over the page rather than left in the block, which is concealed and scrolls away; and
     // Spotify's own Sort, from the find-on-page toolbar this header conceals, for the ⋯ sheet to fire.
-    UIView *page = SGRPlaylistPageOf(root);
-    SGRPinnedMore(page, &kPinnedMoreKey, SGRFindByIdentifier(block, @"Components.UI.ContextMenuButton*", &kMoreKey));
-    SGRPlaylistTakeSort(page, SGRFindByIdentifier(root, @"Components.Header.UI.Toolbar.Button", &kSortKey));
+    UIView *page = PGRPlaylistPageOf(root);
+    PGRPinnedMore(page, &kPinnedMoreKey, PGRFindByIdentifier(block, @"Components.UI.ContextMenuButton*", &kMoreKey));
+    PGRPlaylistTakeSort(page, PGRFindByIdentifier(root, @"Components.Header.UI.Toolbar.Button", &kSortKey));
 
     static BOOL logged;
     if (!logged && info.window && (title || play)) {
         logged = YES;
-        SGLog(@"redesign playlist: own block \"%@\" by %@, \"%@\"; shuffle %@, play %@, %@; model %@",
+        PGLog(@"redesign playlist: own block \"%@\" by %@, \"%@\"; shuffle %@, play %@, %@; model %@",
               title, creatorIn(block) ?: @"nobody", lengthIn(block) ?: @"no length", shuffle ? @"found" : @"missing",
               play ? @"found" : @"missing", save ? @"save" : (download ? @"download" : @"nothing on the right"),
               model ? NSStringFromClass([model class]) : @"missing");
     }
 }
 
-static SGRHeaderInfo *applyInfo(UIView *block, UIView *headerRoot, UIViewController *headerVC);
+static PGRHeaderInfo *applyInfo(UIView *block, UIView *headerRoot, UIViewController *headerVC);
 
 // `view`'s own pass puts the block together again, installed once under `key`.
 static void reapplyOnPass(UIView *view, const void *key, UIView *block, UIView *headerRoot, UIViewController *headerVC) {
@@ -359,7 +359,7 @@ static void reapplyOnPass(UIView *view, const void *key, UIView *block, UIView *
     objc_setAssociatedObject(view, key, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     __weak UIView *weakBlock = block, *weakRoot = headerRoot;
     __weak UIViewController *weakVC = headerVC;
-    SGRObserveLayout(view, ^(UIView *laidOut) {
+    PGRObserveLayout(view, ^(UIView *laidOut) {
         // A block the view has since left is Spotify's to lay out alone.
         if (!weakBlock || !weakRoot || !weakVC || [objc_getAssociatedObject(weakRoot, &kInfoKey) superview] != weakBlock) return;
         applyInfo(weakBlock, weakRoot, weakVC);
@@ -369,16 +369,16 @@ static void reapplyOnPass(UIView *view, const void *key, UIView *block, UIView *
 // The block's own content goes, whole, and the redesign's takes its place. Spotify adds to the block as the page
 // loads and shows parts of it again when Play is pressed, so everything of Spotify's in it is concealed on every
 // pass and again from the block's own pass; concealing is idempotent and costs nothing once done.
-static SGRHeaderInfo *applyInfo(UIView *block, UIView *headerRoot, UIViewController *headerVC) {
+static PGRHeaderInfo *applyInfo(UIView *block, UIView *headerRoot, UIViewController *headerVC) {
     // One per page, kept on the header's root: if Spotify ever hands over another block, the same view moves
     // into it rather than a second one being drawn beside the first.
-    SGRHeaderInfo *info = objc_getAssociatedObject(headerRoot, &kInfoKey);
+    PGRHeaderInfo *info = objc_getAssociatedObject(headerRoot, &kInfoKey);
     if (!info) {
-        info = [[SGRHeaderInfo alloc] initWithFrame:CGRectZero];
+        info = [[PGRHeaderInfo alloc] initWithFrame:CGRectZero];
         objc_setAssociatedObject(headerRoot, &kInfoKey, info, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
     if (info.superview != block) {
-        if (info.superview) SGLog(@"redesign playlist: the block moved, %@ -> %@", NSStringFromCGRect(info.superview.frame), NSStringFromCGRect(block.frame));
+        if (info.superview) PGLog(@"redesign playlist: the block moved, %@ -> %@", NSStringFromCGRect(info.superview.frame), NSStringFromCGRect(block.frame));
         [block addSubview:info];
     }
     else if (block.subviews.lastObject != info) [block bringSubviewToFront:info];
@@ -395,7 +395,7 @@ static SGRHeaderInfo *applyInfo(UIView *block, UIView *headerRoot, UIViewControl
     // Save arrives after the header has laid out on a playlist opened for the first time, in a row that lays
     // nothing else out: Play's right drew download, or nothing, until the page was opened again (issue #19). The
     // row's own pass is watched too, a plain UIStackView, as the album's and the artist's are.
-    reapplyOnPass(SGRFindByIdentifier(block, @"HeaderActionsRow", &kRowKey), &kRowWatchedKey, block, headerRoot, headerVC);
+    reapplyOnPass(PGRFindByIdentifier(block, @"HeaderActionsRow", &kRowKey), &kRowWatchedKey, block, headerRoot, headerVC);
     return info;
 }
 
@@ -405,16 +405,16 @@ static SGRHeaderInfo *applyInfo(UIView *block, UIView *headerRoot, UIViewControl
 // controls, so the tap opens Spotify's find page; only the grey box becomes glass.
 static void applyToolbar(UIView *headerRoot) {
     static char kFieldKey, kSortBoxKey, kFieldGlassKey, kSortGlassKey;
-    SGRPinnedBack(SGRPlaylistPageOf(headerRoot), headerRoot);
-    UIView *toolbar = SGRFindByIdentifier(headerRoot, @"Components.Header.UI.Toolbar.Content", &kToolbarKey);
+    PGRPinnedBack(PGRPlaylistPageOf(headerRoot), headerRoot);
+    UIView *toolbar = PGRFindByIdentifier(headerRoot, @"Components.Header.UI.Toolbar.Content", &kToolbarKey);
     if (!toolbar) return;
-    UIView *field = SGRFindByIdentifier(toolbar, @"Components.Header.UI.Toolbar.SearchField", &kFieldKey);
-    SGRGlassFlatBox(field, &kFieldGlassKey);
-    SGRGlassFlatBox(SGRFindByIdentifier(toolbar, @"Components.Header.UI.Toolbar.ButtonContainer", &kSortBoxKey), &kSortGlassKey);
+    UIView *field = PGRFindByIdentifier(toolbar, @"Components.Header.UI.Toolbar.SearchField", &kFieldKey);
+    PGRGlassFlatBox(field, &kFieldGlassKey);
+    PGRGlassFlatBox(PGRFindByIdentifier(toolbar, @"Components.Header.UI.Toolbar.ButtonContainer", &kSortBoxKey), &kSortGlassKey);
     static BOOL logged;
     if (!logged && field.window) {
         logged = YES;
-        SGLog(@"redesign playlist: find field %@ in glass, %.0fx%.0f", field.accessibilityLabel,
+        PGLog(@"redesign playlist: find field %@ in glass, %.0fx%.0f", field.accessibilityLabel,
               field.bounds.size.width, field.bounds.size.height);
     }
 }
@@ -426,7 +426,7 @@ static void applyToolbar(UIView *headerRoot) {
 // the bar and keeps the back button legible, as on Home, Search and Library. Concealed rather than faded:
 // Spotify writes their alpha on every step of the scroll, and the navigation bar's with -setHidden:.
 static void applyScrims(UIView *headerRoot) {
-    conceal(SGRFindByIdentifier(headerRoot, @"LiquidGlass.gradientContainer", &kScrimKey));
+    conceal(PGRFindByIdentifier(headerRoot, @"LiquidGlass.gradientContainer", &kScrimKey));
     // A concealed view stays concealed, so the bar is looked for until it is found and then never again:
     // the header lays out on every step of its collapse.
     if (objc_getAssociatedObject(headerRoot, &kBarScrimKey)) return;
@@ -457,15 +457,15 @@ static UIView *applyBackground(UIView *layout) {
         }
     }
     UIView *plane = container.subviews.firstObject;
-    SGRPlaylistHero *hero = objc_getAssociatedObject(plane, &kHeroKey);
-    SGForEachView(container, ^(UIView *v) {
+    PGRPlaylistHero *hero = objc_getAssociatedObject(plane, &kHeroKey);
+    PGForEachView(container, ^(UIView *v) {
         if (hero && (v == hero || [v isDescendantOfView:hero])) return;
         if ([NSStringFromClass(v.class) containsString:@"GradientView"]) {
             conceal(v);
             return;
         }
         CGColorRef color = v.layer.backgroundColor;
-        if (color && SGIsBaseSurface(color)) v.backgroundColor = UIColor.clearColor;
+        if (color && PGIsBaseSurface(color)) v.backgroundColor = UIColor.clearColor;
     });
     return plane;
 }
@@ -494,7 +494,7 @@ static UIView *blockIn(UIView *layout, UIView *cover, UIView *fullbleed) {
     UIView *block = nil;
     CGFloat wide = layout.bounds.size.width * 0.6;
     for (UIView *sub in layout.subviews) {
-        if (sub == cover || sub == fullbleed || [sub isKindOfClass:SGRPlaylistHero.class] || sub.bounds.size.width < wide) continue;
+        if (sub == cover || sub == fullbleed || [sub isKindOfClass:PGRPlaylistHero.class] || sub.bounds.size.width < wide) continue;
         if (!block || CGRectGetMinY(sub.frame) > CGRectGetMinY(block.frame)) block = sub;
     }
     return block;
@@ -507,7 +507,7 @@ static UIView *blockIn(UIView *layout, UIView *cover, UIView *fullbleed) {
 // under the Music app's bar. A view's own alpha is free here: nothing of the redesign writes the info's.
 static const CGFloat kBarBottom = 91, kFadeSpan = 48;
 
-static void fadeUnderBar(SGRHeaderInfo *info, UIView *page) {
+static void fadeUnderBar(PGRHeaderInfo *info, UIView *page) {
     if (!page) return;
     for (UIView *sub in info.subviews) {
         CGFloat top = CGRectGetMinY([info convertRect:sub.frame toView:page]);
@@ -517,22 +517,22 @@ static void fadeUnderBar(SGRHeaderInfo *info, UIView *page) {
 }
 
 static void applyHeader(UIView *layout) {
-    UIViewController *headerVC = SGRPlaylistHeaderOf(layout);
+    UIViewController *headerVC = PGRPlaylistHeaderOf(layout);
     UIView *headerRoot = headerVC.viewIfLoaded;
     if (!headerRoot) return;
 
     // A playlist's artwork square, or a mix's full bleed picture where there is no square. Either way it is
     // the view the picture is read from and the view that is concealed once the hero is drawing it.
     UIView *fullbleed = fullbleedIn(layout);
-    UIView *cover = SGRFindByIdentifier(layout, @"Components.Header.UI.ArtworkImage", &kCoverKey) ?: fullbleed;
+    UIView *cover = PGRFindByIdentifier(layout, @"Components.Header.UI.ArtworkImage", &kCoverKey) ?: fullbleed;
     UIView *block = blockIn(layout, cover, fullbleed);
     if (!block) return;
 
     UIView *plane = applyBackground(layout);
     applyToolbar(headerRoot);
     applyScrims(headerRoot);
-    SGRHeaderInfo *info = applyInfo(block, headerRoot, headerVC);
-    fadeUnderBar(info, SGRPlaylistPageOf(headerRoot));
+    PGRHeaderInfo *info = applyInfo(block, headerRoot, headerVC);
+    fadeUnderBar(info, PGRPlaylistPageOf(headerRoot));
 
     // How far the page is pulled down past the top: the plane grows by that much and the block moves with it,
     // so nothing is measured then. Rest is the smallest the plane has been.
@@ -553,7 +553,7 @@ static void applyHeader(UIView *layout) {
         rest = block.bounds.size.height;
         objc_setAssociatedObject(block, &kBlockHeightKey, @(rest), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
-    CGFloat reach = rest - SGRHeaderInfoBottom - [info contentHeightForWidth:info.bounds.size.width] + SGRHeaderInfoTitleRise;
+    CGFloat reach = rest - PGRHeaderInfoBottom - [info contentHeightForWidth:info.bounds.size.width] + PGRHeaderInfoTitleRise;
     if (cover) applyHero(layout, cover, plane, block, reach, stretch);
 }
 
@@ -561,7 +561,7 @@ static void applyHeader(UIView *layout) {
 // its collapse and a walk of its tree each time would be the redesign's own cost.
 static UIView *layoutIn(UIView *root) {
     if (!root) return nil;
-    SGRWeakView *box = objc_getAssociatedObject(root, &kLayoutKey);
+    PGRWeakView *box = objc_getAssociatedObject(root, &kLayoutKey);
     UIView *layout = box.view;
     if (layout && [layout isDescendantOfView:root]) return layout;
     static Class content;
@@ -569,7 +569,7 @@ static UIView *layoutIn(UIView *root) {
     layout = firstOfClass(root, content);
     if (!layout) return nil;
     if (!box) {
-        box = [SGRWeakView new];
+        box = [PGRWeakView new];
         objc_setAssociatedObject(root, &kLayoutKey, box, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
     box.view = layout;
@@ -579,7 +579,7 @@ static UIView *layoutIn(UIView *root) {
 %hook _TtC28EncoreConsumerMobile_BaseKit19HeaderContentLayout
 - (void)layoutSubviews {
     %orig;
-    if (SGRPlaylistHeaderOf((UIView *)self)) applyHeader((UIView *)self);
+    if (PGRPlaylistHeaderOf((UIView *)self)) applyHeader((UIView *)self);
 }
 %end
 
@@ -594,7 +594,7 @@ static UIView *layoutIn(UIView *root) {
     %orig;
     UIView *button = (UIView *)self;
     if (button.layer.hidden || ![button.accessibilityIdentifier isEqualToString:@"header-play-button"]) return;
-    if (SGRPlaylistHeaderOf(button)) conceal(button);
+    if (PGRPlaylistHeaderOf(button)) conceal(button);
 }
 %end
 
@@ -616,9 +616,9 @@ static UIView *layoutIn(UIView *root) {
 %end
 
 %ctor {
-    if (!SGRedesignedUI()) return;
+    if (!PGRedesignedUI()) return;
     %init;
-    SGRequireClasses(@[
+    PGRequireClasses(@[
         @"_TtC28EncoreConsumerMobile_BaseKit19HeaderContentLayout",
         @"SPTFreeTierPlaylistEncoreHeaderViewController",
         @"_TtC28EncoreConsumerMobile_BaseKit14PlayButtonView",

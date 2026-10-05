@@ -16,9 +16,9 @@ xcrun -sdk iphonesimulator clang -target arm64-apple-ios17.0-simulator -fobjc-ar
     -Wno-deprecated-declarations \
     "$(dirname "$0")/main.m" "$(dirname "$0")/stubs.m" \
     "$OUT"/gen/*.m \
-    "$SRC"/Core/SGLog.m "$SRC"/Core/SGPrefs.m "$SRC"/Core/SGViewTree.m "$SRC"/Core/SGGlass.m \
-    "$SRC"/Core/SGBackdrop.m "$SRC"/Core/SGFlagForce.m "$SRC"/Core/SGUIMode.m \
-    "$SRC"/Redesigned/Kit/SGRTokens.m \
+    "$SRC"/Core/PGLog.m "$SRC"/Core/PGPrefs.m "$SRC"/Core/PGViewTree.m "$SRC"/Core/PGGlass.m \
+    "$SRC"/Core/PGLegacyGlass.m "$SRC"/Core/PGBackdrop.m "$SRC"/Core/PGFlagForce.m "$SRC"/Core/PGUIMode.m \
+    "$SRC"/Redesigned/Kit/PGRTokens.m \
     -framework UIKit -framework QuartzCore -framework CoreGraphics -framework Foundation \
     -o "$OUT/TabBarHarness.app/TabBarHarness"
 
@@ -39,7 +39,7 @@ cat > "$OUT/TabBarHarness.app/Info.plist" <<'PLIST'
   <key>UISceneConfigurations</key><dict>
     <key>UIWindowSceneSessionRoleApplication</key><array><dict>
       <key>UISceneConfigurationName</key><string>Default</string>
-      <key>UISceneDelegateClassName</key><string>SGHarnessScene</string>
+      <key>UISceneDelegateClassName</key><string>PGHarnessScene</string>
     </dict></array>
   </dict>
 </dict>

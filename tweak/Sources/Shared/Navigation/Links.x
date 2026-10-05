@@ -1,18 +1,18 @@
 // The dispatcher is a singleton the app builds at startup; -setMainUILoaded: is the last call of its
 // setup (objc-methods.txt:38809).
-#import "Core/SGCore.h"
+#import "Core/PGCore.h"
 #import "Headers/SPTLinkDispatcherImplementation.h"
 #import "Links.h"
 #import <objc/message.h>
 
-static __weak SPTLinkDispatcherImplementation *sg_linkDispatcher;
+static __weak SPTLinkDispatcherImplementation *pg_linkDispatcher;
 
-id SGLinkDispatcher(void) {
-    return sg_linkDispatcher;
+id PGLinkDispatcher(void) {
+    return pg_linkDispatcher;
 }
 
-BOOL SGOpenSpotifyURI(NSURL *uri) {
-    SPTLinkDispatcherImplementation *dispatcher = sg_linkDispatcher;
+BOOL PGOpenSpotifyURI(NSURL *uri) {
+    SPTLinkDispatcherImplementation *dispatcher = pg_linkDispatcher;
     if (!uri || ![dispatcher respondsToSelector:@selector(navigateToURI:options:interactionID:)]) return NO;
     [dispatcher navigateToURI:uri options:0 interactionID:nil];
     return YES;
@@ -27,20 +27,20 @@ BOOL SGOpenSpotifyURI(NSURL *uri) {
 // hash table that answer -URISubtypeHandlerCanHandleURI: YES and opens with the first by priority;
 // pages go through Navigation's PageResolverURISubtypeHandler. With no taker, -handleSpotifyURL:
 // tries again once with -remapURI: (its fallback resolver's URI), and only then shows the alert.
-static id sg_send(id target, NSString *selector) {
+static id pg_send(id target, NSString *selector) {
     SEL sel = NSSelectorFromString(selector);
     if (![target respondsToSelector:sel]) return nil;
     return ((id (*)(id, SEL))objc_msgSend)(target, sel);
 }
 
-static id sg_send1(id target, NSString *selector, id arg) {
+static id pg_send1(id target, NSString *selector, id arg) {
     SEL sel = NSSelectorFromString(selector);
     if (![target respondsToSelector:sel]) return nil;
     return ((id (*)(id, SEL, id))objc_msgSend)(target, sel, arg);
 }
 
 // The class of the first handler that takes `uri`, nil for none. A handler whose name says it only
-// listens (Jam's SGSNavigationURIHandledEventSource) is not asked, so a question is not taken for a
+// listens (Jam's PGSNavigationURIHandledEventSource) is not asked, so a question is not taken for a
 // navigation.
 static NSString *takerFor(id<NSFastEnumeration> handlers, NSURL *uri, NSUInteger *asked) {
     SEL canHandle = NSSelectorFromString(@"URISubtypeHandlerCanHandleURI:");
@@ -53,34 +53,34 @@ static NSString *takerFor(id<NSFastEnumeration> handlers, NSURL *uri, NSUInteger
     return nil;
 }
 
-SGLinkRoute SGSpotifyURIRoute(NSURL *uri, NSString **via) {
+PGLinkRoute PGSpotifyURIRoute(NSURL *uri, NSString **via) {
     if (via) *via = nil;
-    if (!uri) return SGLinkRouteNone;
-    id linkHandler = sg_send(sg_linkDispatcher, @"spotifyLinkHandler");
-    id handlers = sg_send(sg_send(linkHandler, @"URISubtypeRegistry"), @"handlers");
-    if (![handlers conformsToProtocol:@protocol(NSFastEnumeration)]) return SGLinkRouteUnknown;
+    if (!uri) return PGLinkRouteNone;
+    id linkHandler = pg_send(pg_linkDispatcher, @"spotifyLinkHandler");
+    id handlers = pg_send(pg_send(linkHandler, @"URISubtypeRegistry"), @"handlers");
+    if (![handlers conformsToProtocol:@protocol(NSFastEnumeration)]) return PGLinkRouteUnknown;
     @try {
-        NSURL *clean = sg_send(uri, @"spt_normalizedSpotifyURI");
+        NSURL *clean = pg_send(uri, @"spt_normalizedSpotifyURI");
         if (![clean isKindOfClass:NSURL.class]) clean = uri;
         NSUInteger asked = 0;
         NSString *taker = takerFor(handlers, clean, &asked);
         if (!taker) {
-            NSURL *remapped = sg_send1(linkHandler, @"remapURI:", clean);
+            NSURL *remapped = pg_send1(linkHandler, @"remapURI:", clean);
             if ([remapped isKindOfClass:NSURL.class] && ![remapped isEqual:clean]) {
                 taker = takerFor(handlers, remapped, &asked);
                 if (taker) taker = [NSString stringWithFormat:@"remap %@ %@", remapped.absoluteString, taker];
             }
         }
-        if (!asked) return SGLinkRouteUnknown;
+        if (!asked) return PGLinkRouteUnknown;
         if (via) *via = taker;
-        return taker ? SGLinkRouteOpens : SGLinkRouteNone;
+        return taker ? PGLinkRouteOpens : PGLinkRouteNone;
     } @catch (NSException *e) {
-        SGLog(@"links: asking about %@ threw %@", uri, e.reason);
-        return SGLinkRouteUnknown;
+        PGLog(@"links: asking about %@ threw %@", uri, e.reason);
+        return PGLinkRouteUnknown;
     }
 }
 
-NSURL *SGSpotifyURIFromText(NSString *text) {
+NSURL *PGSpotifyURIFromText(NSString *text) {
     NSString *trimmed = [text stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
     if (!trimmed.length) return nil;
     NSURLComponents *parts = [NSURLComponents componentsWithString:trimmed];
@@ -99,11 +99,11 @@ NSURL *SGSpotifyURIFromText(NSString *text) {
 %hook SPTLinkDispatcherImplementation
 - (void)setMainUILoaded:(BOOL)loaded {
     %orig;
-    sg_linkDispatcher = (SPTLinkDispatcherImplementation *)self;
+    pg_linkDispatcher = (SPTLinkDispatcherImplementation *)self;
 }
 %end
 
 %ctor {
     %init;
-    SGRequireClasses(@[@"SPTLinkDispatcherImplementation"]);
+    PGRequireClasses(@[@"SPTLinkDispatcherImplementation"]);
 }

@@ -15,33 +15,33 @@
 //
 // A dropped cell is 0 tall but what it holds keeps the height it measured at, hidden and cut off by the
 // cell: content squeezed to 0 breaks Spotify's required constraints on every pass (Album/AlbumSections.x).
-#import "Core/SGCore.h"
-#import "Redesigned/Kit/SGRKit.h"
+#import "Core/PGCore.h"
+#import "Redesigned/Kit/PGRKit.h"
 #import "Artist.h"
 
 static char kSettledKey, kKindsKey, kDroppedKey;
 
-typedef NS_ENUM(NSInteger, SGRArtistCell) {
-    SGRArtistCellOther,
-    SGRArtistCellSpacer,
-    SGRArtistCellHeading,
-    SGRArtistCellVideos,
+typedef NS_ENUM(NSInteger, PGRArtistCell) {
+    PGRArtistCellOther,
+    PGRArtistCellSpacer,
+    PGRArtistCellHeading,
+    PGRArtistCellVideos,
 };
 
-static SGRArtistCell kindOf(UIView *content, CGFloat height) {
-    __block SGRArtistCell kind = SGRArtistCellOther;
-    SGForEachView(content, ^(UIView *v) {
+static PGRArtistCell kindOf(UIView *content, CGFloat height) {
+    __block PGRArtistCell kind = PGRArtistCellOther;
+    PGForEachView(content, ^(UIView *v) {
         NSString *identifier = v.accessibilityIdentifier;
-        if (kind != SGRArtistCellOther || !identifier.length) return;
+        if (kind != PGRArtistCellOther || !identifier.length) return;
         if ([identifier isEqualToString:@"Components.UI.MusicVideoShelfHeader"] ||
             [identifier isEqualToString:@"Music-Videos.Video-Card-Carousel"] ||
-            [identifier isEqualToString:@"WatchFeedCarouselEntryPointElement"]) kind = SGRArtistCellVideos;
-        else if ([identifier isEqualToString:@"Components.UI.SectionHeadingHome"]) kind = SGRArtistCellHeading;
+            [identifier isEqualToString:@"WatchFeedCarouselEntryPointElement"]) kind = PGRArtistCellVideos;
+        else if ([identifier isEqualToString:@"Components.UI.SectionHeadingHome"]) kind = PGRArtistCellHeading;
     });
-    if (kind == SGRArtistCellOther && height <= 16.5 && content.subviews.count <= 1) {
+    if (kind == PGRArtistCellOther && height <= 16.5 && content.subviews.count <= 1) {
         __block BOOL empty = YES;
-        SGForEachView(content, ^(UIView *v) { if (v.accessibilityIdentifier.length) empty = NO; });
-        if (empty) kind = SGRArtistCellSpacer;
+        PGForEachView(content, ^(UIView *v) { if (v.accessibilityIdentifier.length) empty = NO; });
+        if (empty) kind = PGRArtistCellSpacer;
     }
     return kind;
 }
@@ -109,11 +109,11 @@ static void dropHeadingOf(UICollectionView *list, NSIndexPath *path) {
     NSMutableSet *dropped = droppedOf(list);
     BOOL added = NO;
     NSIndexPath *heading = before(list, path, 1);
-    if (heading && [kinds[heading] integerValue] == SGRArtistCellHeading && ![dropped containsObject:heading]) {
+    if (heading && [kinds[heading] integerValue] == PGRArtistCellHeading && ![dropped containsObject:heading]) {
         [dropped addObject:heading];
         added = YES;
         NSIndexPath *spacer = before(list, path, 2);
-        if (spacer && [kinds[spacer] integerValue] == SGRArtistCellSpacer) [dropped addObject:spacer];
+        if (spacer && [kinds[spacer] integerValue] == PGRArtistCellSpacer) [dropped addObject:spacer];
     }
     if (!added) return;
     __weak UICollectionView *weakList = list;
@@ -125,7 +125,7 @@ static void logOnce(NSString *what) {
     if (!logged) logged = [NSMutableSet set];
     if ([logged containsObject:what]) return;
     [logged addObject:what];
-    SGLog(@"redesign artist: %@", what);
+    PGLog(@"redesign artist: %@", what);
 }
 
 %hook _TtC12Element_List18CollectionViewCell
@@ -133,7 +133,7 @@ static void logOnce(NSString *what) {
     UICollectionViewCell *cell = (UICollectionViewCell *)self;
     UICollectionView *list = listOf(cell);
     // Only the page's own list: a card inside a carousel is a cell of the same class, and its row decides.
-    BOOL page = list && ![listOf(list) isKindOfClass:UICollectionView.class] && SGRArtistPageOf(cell) && attributes.indexPath;
+    BOOL page = list && ![listOf(list) isKindOfClass:UICollectionView.class] && PGRArtistPageOf(cell) && attributes.indexPath;
     if (!page) {
         if (objc_getAssociatedObject(cell, &kSettledKey)) unsettle(cell);
         return %orig;
@@ -141,11 +141,11 @@ static void logOnce(NSString *what) {
     UICollectionViewLayoutAttributes *result = %orig;
     NSIndexPath *path = attributes.indexPath;
     UIView *content = cell.contentView.subviews.firstObject ?: cell.contentView;
-    SGRArtistCell kind = kindOf(content, result.size.height);
+    PGRArtistCell kind = kindOf(content, result.size.height);
     kindsOf(list)[path] = @(kind);
 
-    BOOL drop = kind == SGRArtistCellVideos || [droppedOf(list) containsObject:path];
-    if (kind == SGRArtistCellVideos) {
+    BOOL drop = kind == PGRArtistCellVideos || [droppedOf(list) containsObject:path];
+    if (kind == PGRArtistCellVideos) {
         [droppedOf(list) addObject:path];
         dropHeadingOf(list, path);
     }
@@ -166,10 +166,10 @@ static void logOnce(NSString *what) {
     NSNumber *settled = objc_getAssociatedObject(self, &kSettledKey);
     if (settled) settle(cell, settled.doubleValue);
     UICollectionView *list = listOf(cell);
-    if (list && ![listOf(list) isKindOfClass:UICollectionView.class] && SGRArtistPageOf(cell)) {
+    if (list && ![listOf(list) isKindOfClass:UICollectionView.class] && PGRArtistPageOf(cell)) {
         // What the cell paints over the field -- the "You liked" row, every carousel's collection and the
         // fade Popular's "See more" draws over its last track (device, trees/continuous/3.txt 2026-09-18).
-        SGRClearCellPaint(cell);
+        PGRClearCellPaint(cell);
     }
 }
 
@@ -180,7 +180,7 @@ static void logOnce(NSString *what) {
 %end
 
 %ctor {
-    if (!SGRedesignedUI()) return;
+    if (!PGRedesignedUI()) return;
     %init;
-    SGRequireClasses(@[@"_TtC12Element_List18CollectionViewCell"]);
+    PGRequireClasses(@[@"_TtC12Element_List18CollectionViewCell"]);
 }

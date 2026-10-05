@@ -1,19 +1,19 @@
 // Home redesign: a shortcut tile the way an Apple list row holds artwork. The cover sits inset from the tile's
 // edges with its own corners, the title follows it in, and the tile is a dark surface tinted faintly towards the
-// cover's dominant colour (Kit/SGRPalette.h, +tintForImage:), so the grid is not one grey and white text always
+// cover's dominant colour (Kit/PGRPalette.h, +tintForImage:), so the grid is not one grey and white text always
 // reads. Until the cover has loaded, the tile is the untinted surface.
 //
 // The surface sits behind Spotify's stack, over the tile's own fill, so the title, the playing indicator and
 // the button's touches stay Spotify's. The inset and the title's move are transforms, which Spotify's layout
 // never reads, so its constraints are left as they are. The tint is worked out off the main thread once per
-// picture and follows the cover as Spotify sets it (SGRObserveImage), since a cover lands after layout.
+// picture and follows the cover as Spotify sets it (PGRObserveImage), since a cover lands after layout.
 //
 // Tree (trees/home 3 more scrolled.txt:36-50, 2026-09-17): InteractableLayoutBackingButton id=Shortcut.Card.Home
 // 181x48 clips > UIView 181x48 bg=#FFFFFF@0.10 (the fill), then Encore.StackView > AutoLayoutStackView >
 // UIView 173x48 (the row) > UIView {0, 0} 48x48 bg=#000000@0.90 r=4 (the cover's square) > Encore.ImageView >
 // UIImageView 48x48 and the PlaceholderView; then the row's 8pt spacer and the title's stack at x 56.
-#import "Core/SGCore.h"
-#import "Redesigned/Kit/SGRKit.h"
+#import "Core/PGCore.h"
+#import "Redesigned/Kit/PGRKit.h"
 #import "Home.h"
 
 // How far the cover sits in from the tile's top, bottom and leading edges, and its corners there.
@@ -30,22 +30,22 @@ static NSMapTable<UIImage *, UIColor *> *tints(void) {
 
 static UIColor *untinted(void) {
     static UIColor *color;
-    if (!color) color = SGRElevated(UIColor.blackColor);
+    if (!color) color = PGRElevated(UIColor.blackColor);
     return color;
 }
 
-@interface SGRTileParts : NSObject
+@interface PGRTileParts : NSObject
 @property (nonatomic, weak) UIView *fill;
 @property (nonatomic, weak) UIView *square;
 @property (nonatomic, weak) UIImageView *cover;
 @end
 
-@implementation SGRTileParts
+@implementation PGRTileParts
 @end
 
-static SGRTileParts *partsOf(UIView *tile) {
-    UIView *holder = SGRFindByIdentifier(tile, @"Encore.ImageView", &kImageKey);
-    SGRTileParts *parts = [SGRTileParts new];
+static PGRTileParts *partsOf(UIView *tile) {
+    UIView *holder = PGRFindByIdentifier(tile, @"Encore.ImageView", &kImageKey);
+    PGRTileParts *parts = [PGRTileParts new];
     for (UIView *sub in holder.subviews) {
         if ([sub isKindOfClass:UIImageView.class]) parts.cover = (UIImageView *)sub;
     }
@@ -105,11 +105,11 @@ static void tint(UIView *tile, UIView *surface, UIColor *color, BOOL animated) {
         surface.backgroundColor = color;
         return;
     }
-    SGRAnimate(SGRMotionFade, ^{ surface.backgroundColor = color; }, nil);
+    PGRAnimate(PGRMotionFade, ^{ surface.backgroundColor = color; }, nil);
 }
 
 static void refresh(UIView *tile) {
-    SGRTileParts *parts = partsOf(tile);
+    PGRTileParts *parts = partsOf(tile);
     UIImageView *cover = parts.cover;
     UIView *square = parts.square;
     if (!cover || !square || square.bounds.size.width < 20 || tile.bounds.size.width <= square.bounds.size.width) return;
@@ -132,7 +132,7 @@ static void refresh(UIView *tile) {
     objc_setAssociatedObject(tile, &kShownKey, image, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 
     __weak UIView *weakTile = tile;
-    [SGRPalette tintForImage:image surface:untinted() completion:^(UIColor *color) {
+    [PGRPalette tintForImage:image surface:untinted() completion:^(UIColor *color) {
         UIView *strongTile = weakTile;
         if (color) [tints() setObject:color forKey:image];
         // A tile reused for another cover in the meantime has asked for that one.
@@ -141,16 +141,16 @@ static void refresh(UIView *tile) {
     }];
 }
 
-void SGRHomeStyleTile(UIView *tile) {
-    CFTimeInterval began = SGRHomeProbeBegin();
+void PGRHomeStyleTile(UIView *tile) {
+    CFTimeInterval began = PGRHomeProbeBegin();
     UIImageView *cover = partsOf(tile).cover;
     if (!cover) return;
     __weak UIView *weakTile = tile;
     // The block is replaced on every pass, so a cover taken into another tile tells the tile it is in now.
-    SGRObserveImage(cover, ^(UIImageView *view) {
+    PGRObserveImage(cover, ^(UIImageView *view) {
         UIView *strongTile = weakTile;
         if (strongTile && [view isDescendantOfView:strongTile]) refresh(strongTile);
     });
     refresh(tile);
-    SGRHomeProbeEnd(SGRHomeProbeTiles, began);
+    PGRHomeProbeEnd(PGRHomeProbeTiles, began);
 }

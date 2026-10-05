@@ -1,13 +1,12 @@
 // Spotify reads every remote-config flag once at startup through the configuration provider,
-// keyed "component.property". The value handed back is Core/SGFlagForce.h's: what the redesign forces
-// (Redesigned/Kit/SGRedesign.h), which comes before an override so one left from Spotify's own screens
+// keyed "component.property". The value handed back is Core/PGFlagForce.h's: what the redesign forces
+// (Redesigned/Kit/PGRedesign.h), which comes before an override so one left from Spotify's own screens
 // cannot pull a redesigned one apart, then an override from the Flags page, then what the Search switches
 // and the lyrics sources force.
-#import "Core/SGCore.h"
-#import "Flags.h"
+#import "Core/PGCore.h"
 
 static id forced(NSString *key) {
-    return SGForcedFlagValue(key);
+    return PGForcedFlagValue(key);
 }
 
 static BOOL boolFor(NSString *key, BOOL orig) {
@@ -58,7 +57,7 @@ static id enumFor(NSString *key, id orig) {
 
 %ctor {
     %init;
-    SGRequireClasses(@[
+    PGRequireClasses(@[
         @"_TtC22RemoteConfigurationSDK25ConfigurationProviderImpl",
         @"_TtC22RemoteConfigurationSDK35ObservableConfigurationProviderImpl",
     ]);

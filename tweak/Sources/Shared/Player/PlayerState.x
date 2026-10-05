@@ -1,73 +1,73 @@
 // PlayerState.h names the hooks and why they are the ones.
-#import "Core/SGCore.h"
+#import "Core/PGCore.h"
 #import "PlayerState.h"
 
-NSString *SGURIString(id uri) {
+NSString *PGURIString(id uri) {
     if ([uri isKindOfClass:NSString.class]) return uri;
     if ([uri isKindOfClass:NSURL.class]) return ((NSURL *)uri).absoluteString;
     return nil;
 }
 
-static NSHashTable<id<SGPlayerStateObserver>> *sg_stateObservers;
-static SPTPlayerState *sg_playerState;
-static NSString *sg_stateKey;
+static NSHashTable<id<PGPlayerStateObserver>> *pg_stateObservers;
+static SPTPlayerState *pg_playerState;
+static NSString *pg_stateKey;
 // Set once the now playing platform has reported; the mod's own observer on the player stands down.
-static BOOL sg_platformReported = NO;
+static BOOL pg_platformReported = NO;
 
-void SGAddPlayerStateObserver(id<SGPlayerStateObserver> observer) {
+void PGAddPlayerStateObserver(id<PGPlayerStateObserver> observer) {
     if (!observer) return;
-    if (!sg_stateObservers) sg_stateObservers = [NSHashTable weakObjectsHashTable];
-    [sg_stateObservers addObject:observer];
+    if (!pg_stateObservers) pg_stateObservers = [NSHashTable weakObjectsHashTable];
+    [pg_stateObservers addObject:observer];
 }
 
-SPTPlayerState *SGPlayerState(void) {
-    return sg_playerState;
+SPTPlayerState *PGPlayerState(void) {
+    return pg_playerState;
 }
 
 // What an observer is told about; the state object itself is new with every position report.
 static NSString *keyOf(SPTPlayerState *state) {
     SPTPlayerOptions *options = [state respondsToSelector:@selector(options)] ? state.options : nil;
     BOOL shuffling = [options respondsToSelector:@selector(shufflingContext)] && options.shufflingContext;
-    return [NSString stringWithFormat:@"%@|%@|%d%d%d%d", SGURIString(state.track.URI), SGURIString(state.contextURI),
+    return [NSString stringWithFormat:@"%@|%@|%d%d%d%d", PGURIString(state.track.URI), PGURIString(state.contextURI),
             state.isPaused, state.isPlaying, [state respondsToSelector:@selector(isLoading)] && state.isLoading, shuffling];
 }
 
 static void publish(SPTPlayerState *state) {
-    sg_playerState = state;
+    pg_playerState = state;
     NSString *key = keyOf(state);
-    if ([key isEqualToString:sg_stateKey]) return;
-    sg_stateKey = key;
-    for (id<SGPlayerStateObserver> observer in sg_stateObservers.allObjects) [observer playerStateDidChange:state];
+    if ([key isEqualToString:pg_stateKey]) return;
+    pg_stateKey = key;
+    for (id<PGPlayerStateObserver> observer in pg_stateObservers.allObjects) [observer playerStateDidChange:state];
 }
 
 static void report(id state, BOOL platform) {
     if (![state isKindOfClass:objc_getClass("SPTPlayerState")]) return;
     dispatch_block_t apply = ^{
-        if (platform) sg_platformReported = YES;
-        else if (sg_platformReported) return;
+        if (platform) pg_platformReported = YES;
+        else if (pg_platformReported) return;
         publish(state);
     };
     if (NSThread.isMainThread) apply();
     else dispatch_async(dispatch_get_main_queue(), apply);
 }
 
-@interface SGPlayerObserver : NSObject
+@interface PGPlayerObserver : NSObject
 @end
 
-@implementation SGPlayerObserver
+@implementation PGPlayerObserver
 - (void)player:(id)player stateDidChange:(id)state {
     report(state, NO);
 }
 @end
 
-static SGPlayerObserver *sg_ownObserver;
+static PGPlayerObserver *pg_ownObserver;
 
 %hook _TtC23NowPlaying_PlatformImpl28StatefulPlayerImplementation
 - (void)player:(id)player stateDidChange:(id)state {
     %orig;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
-        SGLog(@"player state: from %@, a %@, on the main thread %d", [player class], [state class], NSThread.isMainThread);
+        PGLog(@"player state: from %@, a %@, on the main thread %d", [player class], [state class], NSThread.isMainThread);
     });
     report(state, YES);
 }
@@ -82,8 +82,8 @@ static SGPlayerObserver *sg_ownObserver;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         dispatch_async(dispatch_get_main_queue(), ^{
-            sg_ownObserver = [SGPlayerObserver new];
-            [(id<SPTPlayer>)player addPlayerObserver:sg_ownObserver];
+            pg_ownObserver = [PGPlayerObserver new];
+            [(id<SPTPlayer>)player addPlayerObserver:pg_ownObserver];
             id state = [player respondsToSelector:@selector(state)] ? [(id<SPTPlayer>)player state] : nil;
             if (state) report(state, NO);
         });
@@ -93,5 +93,5 @@ static SGPlayerObserver *sg_ownObserver;
 
 %ctor {
     %init;
-    SGRequireClasses(@[@"_TtC23NowPlaying_PlatformImpl28StatefulPlayerImplementation", @"SPTEsperantoPlayer", @"SPTPlayerState"]);
+    PGRequireClasses(@[@"_TtC23NowPlaying_PlatformImpl28StatefulPlayerImplementation", @"SPTEsperantoPlayer", @"SPTPlayerState"]);
 }

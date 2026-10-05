@@ -9,13 +9,13 @@
 //                       scrim; and the page's layout pass, which measures that spacing
 //     SearchCards.x     each category card as Liquid Glass tinted by its own colour, at the card radius, giving under a press
 //
-// Every hook installs only while Redesigned UI is on (SGRedesignedUI).
+// Every hook installs only while Redesigned UI is on (PGRedesignedUI).
 // Threading: main thread only.
 #import <UIKit/UIKit.h>
 
 // The page's list (trees/clean/search/01.txt:24).
-extern NSString *const SGRSearchListIdentifier;
+extern NSString *const PGRSearchListIdentifier;
 
 // SearchSections.x: measures how far the cards sit below the top of the list because of the sections collapsed above
 // them, and moves every cell of the list up by that much. Cheap to call on every layout pass of the page.
-void SGRSearchCloseGap(UICollectionView *list);
+void PGRSearchCloseGap(UICollectionView *list);

@@ -4,7 +4,7 @@
 // Tree (trees/test6.txt): the button row is a UIStackView holding Connect_EntryPointsImpl.ConnectStateView
 // (the connected device) and .ConnectButtonView, each wrapped; hiding the wrapper closes the gap.
 // The ConnectStateView under the title ("playing on ...") sits in InformationContainer and stays.
-#import "Core/SGCore.h"
+#import "Core/PGCore.h"
 #import "NowPlayingBar.h"
 
 static BOOL insideClass(UIView *view, NSString *marker) {
@@ -13,7 +13,7 @@ static BOOL insideClass(UIView *view, NSString *marker) {
 }
 
 static void hideConnectButton(UIView *bar) {
-    SGForEachView(bar, ^(UIView *v) {
+    PGForEachView(bar, ^(UIView *v) {
         NSString *name = NSStringFromClass(v.class);
         if (![name containsString:@"ConnectButtonView"] && ![name containsString:@"ConnectStateView"]) return;
         if (insideClass(v, @"InformationContainer")) return;
@@ -31,7 +31,7 @@ static void hideConnectButton(UIView *bar) {
 %end
 
 %ctor {
-    if (!SGRedesignedUI() || !SGHidden(SGRHideBarConnect)) return;
+    if (!PGRedesignedUI() || !PGHidden(PGRHideBarConnect)) return;
     %init;
-    SGRequireClasses(@[@"_TtC18NowPlaying_BarImpl27NowPlayingBarViewController"]);
+    PGRequireClasses(@[@"_TtC18NowPlaying_BarImpl27NowPlayingBarViewController"]);
 }

@@ -1,13 +1,13 @@
 // Redesign: glass for the sleep timer sheet (the "Sleep timer" list of 5 minutes ... End of track, opened from
 // the Queue's Timer button; trees/continuous 2026-10-05). It is the same Navigation sheet as the queue's, the
 // ⋯ menu's and the Connect picker's (NavigationUI_SheetImpl, id=sheet-view, #1F1F1F), with one more #1F1F1F
-// view over the whole of it (id=sleep_timer_options) that SGRGlassSheetChrome clears with the rest.
-#import "Core/SGCore.h"
-#import "Redesigned/Kit/SGRKit.h"
+// view over the whole of it (id=sleep_timer_options) that PGRGlassSheetChrome clears with the rest.
+#import "Core/PGCore.h"
+#import "Redesigned/Kit/PGRKit.h"
 
 static void chrome(UIViewController *controller) {
     UIView *root = controller.viewIfLoaded;
-    if (root) SGRGlassSheetChrome(root);
+    if (root) PGRGlassSheetChrome(root);
 }
 
 %hook _TtC30PlaybackControl_SleepTimerImpl21OptionsViewController
@@ -35,7 +35,7 @@ static void chrome(UIViewController *controller) {
 %end
 
 %ctor {
-    if (!SGRedesignedUI()) return;
+    if (!PGRedesignedUI()) return;
     %init;
-    SGRequireClasses(@[@"_TtC30PlaybackControl_SleepTimerImpl21OptionsViewController"]);
+    PGRequireClasses(@[@"_TtC30PlaybackControl_SleepTimerImpl21OptionsViewController"]);
 }

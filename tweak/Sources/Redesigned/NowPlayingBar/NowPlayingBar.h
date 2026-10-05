@@ -5,13 +5,12 @@
 // native look's lives in Native/NowPlayingBar/.
 #import <UIKit/UIKit.h>
 
-#define SGRHideBarConnect @"spotifyglass.redesign.hide.barConnect"   // the device button on the card
+#define PGRHideBarConnect @"pureglass.redesign.hide.barConnect"   // the device button on the card
 
-UIViewController *SGRNowPlayingBarSettingsPage(void);
 
 // The bar's glass card in `host`'s coordinates, with its corner radius; CGRectNull before the bar has
 // been styled or while it is out of a window (NowPlayingBar.x). The bar keeps its geometry while
 // Spotify hides it for the player's open and close.
-CGRect SGRNowPlayingCardFrameIn(UIView *host, CGFloat *radius);
+CGRect PGRNowPlayingCardFrameIn(UIView *host, CGFloat *radius);
 // The round artwork on that card in `host`'s coordinates; CGRectNull when none was found.
-CGRect SGRNowPlayingArtworkFrameIn(UIView *host);
+CGRect PGRNowPlayingArtworkFrameIn(UIView *host);

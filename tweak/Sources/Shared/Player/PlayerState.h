@@ -12,13 +12,13 @@
 #import "Headers/SPTPlayer.h"
 
 // A URI Spotify types as id (NSURL or NSString) as a string; nil for anything else.
-NSString *SGURIString(id uri);
+NSString *PGURIString(id uri);
 
-@protocol SGPlayerStateObserver <NSObject>
+@protocol PGPlayerStateObserver <NSObject>
 // Called when the track, the context, paused, playing, loading or shuffle changed, not for position.
 - (void)playerStateDidChange:(SPTPlayerState *)state;
 @end
 // Observers are held weakly and need no removal.
-void SGAddPlayerStateObserver(id<SGPlayerStateObserver> observer);
+void PGAddPlayerStateObserver(id<PGPlayerStateObserver> observer);
 // The last state reported, nil before the player has reported one.
-SPTPlayerState *SGPlayerState(void);
+SPTPlayerState *PGPlayerState(void);

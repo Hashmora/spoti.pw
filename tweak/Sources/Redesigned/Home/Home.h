@@ -11,25 +11,25 @@
 //     HomeTiles.m      a shortcut tile's picture run across the tile, blurred behind its title
 //     HomePerf.x       FLEX builds: the frames of each scroll of Home and the time the hooks above took
 //
-// Every hook installs only while Redesigned UI is on (SGRedesignedUI).
+// Every hook installs only while Redesigned UI is on (PGRedesignedUI).
 // Threading: main thread only.
 #import <UIKit/UIKit.h>
 
 // Whether HomeSections.x has collapsed the section in this cell.
-BOOL SGRHomeSectionCollapsed(UIView *cell);
+BOOL PGRHomeSectionCollapsed(UIView *cell);
 
 // Styles a shortcut tile (id=Shortcut.Card.Home) and keeps its picture in step with its cover (HomeTiles.m).
-void SGRHomeStyleTile(UIView *tile);
+void PGRHomeStyleTile(UIView *tile);
 
 // FLEX builds only (HomePerf.x): a hook takes the time as it starts and hands it back as it ends; outside
 // a FLEX build Begin returns 0 and End does nothing.
-typedef NS_ENUM(NSUInteger, SGRHomeProbe) {
-    SGRHomeProbeSections,
-    SGRHomeProbeHeader,
-    SGRHomeProbeHeadings,
-    SGRHomeProbeCards,
-    SGRHomeProbeTiles,
-    SGRHomeProbeCount,
+typedef NS_ENUM(NSUInteger, PGRHomeProbe) {
+    PGRHomeProbeSections,
+    PGRHomeProbeHeader,
+    PGRHomeProbeHeadings,
+    PGRHomeProbeCards,
+    PGRHomeProbeTiles,
+    PGRHomeProbeCount,
 };
-CFTimeInterval SGRHomeProbeBegin(void);
-void SGRHomeProbeEnd(SGRHomeProbe probe, CFTimeInterval began);
+CFTimeInterval PGRHomeProbeBegin(void);
+void PGRHomeProbeEnd(PGRHomeProbe probe, CFTimeInterval began);

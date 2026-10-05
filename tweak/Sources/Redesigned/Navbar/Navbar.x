@@ -14,7 +14,7 @@
 // Tree (trees/home.txt): NavigationUI_TabBarImpl.TabBarView > TabBarCompactView > UIStackView
 //   402x49 of four ElementContentView<TabBarItemElement> 100x49, each an SPTEncoreIconView 24x24
 //   at y 12.5 over an SPTEncoreLabel at y 35.
-#import "Core/SGCore.h"
+#import "Core/PGCore.h"
 #import "Navbar.h"
 #import "Headers/SPTEncoreIconView.h"
 #import "Shared/Navigation/Links.h"
@@ -28,16 +28,16 @@ static char kCustomKey, kOrderKey;
 
 // Where Spotify's own items keep their icon and label, read off one of them every pass, so an item of
 // the mod's own sits on the same line as its neighbours.
-static CGRect sg_iconBox = {{0, kIconTop}, {kIconSize, kIconSize}};
-static CGRect sg_labelBox = {{0, kLabelTop}, {0, kLabelHeight}};
+static CGRect pg_iconBox = {{0, kIconTop}, {kIconSize, kIconSize}};
+static CGRect pg_labelBox = {{0, kLabelTop}, {0, kLabelHeight}};
 
-static __weak UIView *sg_navbarRoot;
+static __weak UIView *pg_navbarRoot;
 // The bar's row of items, given its frames by placeRow after each of its own passes.
-static __weak UIStackView *sg_row;
-static UIFont *sg_tabFont;
+static __weak UIStackView *pg_row;
+static UIFont *pg_tabFont;
 // Spotify's own tabs in Spotify's order, from the first layout pass of this launch, before
 // anything below has moved them.
-static NSMutableArray<NSString *> *sg_stockOrder;
+static NSMutableArray<NSString *> *pg_stockOrder;
 
 static UIColor *itemColor(void) { return [UIColor colorWithWhite:0xB3 / 255.0 alpha:1]; }
 
@@ -66,13 +66,13 @@ static UIView *iconView(NSString *name) {
     return fallback;
 }
 
-@interface SGRTabItemView : UIControl
+@interface PGRTabItemView : UIControl
 @property (nonatomic, copy) NSString *uri;
 - (instancetype)initWithEntry:(NSDictionary *)entry;
 - (void)applyEntry:(NSDictionary *)entry;
 @end
 
-@implementation SGRTabItemView {
+@implementation PGRTabItemView {
     NSString *_iconName;
     UIView *_icon;
     UILabel *_title;
@@ -90,9 +90,9 @@ static UIView *iconView(NSString *name) {
 }
 
 - (void)applyEntry:(NSDictionary *)entry {
-    self.uri = entry[SGRNavbarURI];
-    _title.text = entry[SGRNavbarTitle];
-    NSString *name = entry[SGRNavbarIcon] ?: @"star";
+    self.uri = entry[PGRNavbarURI];
+    _title.text = entry[PGRNavbarTitle];
+    NSString *name = entry[PGRNavbarIcon] ?: @"star";
     if ([name isEqualToString:_iconName]) return;
     [_icon removeFromSuperview];
     _iconName = [name copy];
@@ -109,10 +109,10 @@ static UIView *iconView(NSString *name) {
     CGFloat width = self.bounds.size.width;
     // The glass bar of TabBar.x draws the names; the hidden row keeps its icons for the glyphs.
     _title.hidden = YES;
-    _title.font = sg_tabFont ?: [UIFont systemFontOfSize:10];
-    _title.frame = CGRectMake(0, CGRectGetMinY(sg_labelBox), width, CGRectGetHeight(sg_labelBox));
-    _icon.frame = CGRectMake((width - CGRectGetWidth(sg_iconBox)) / 2, CGRectGetMinY(sg_iconBox),
-                             CGRectGetWidth(sg_iconBox), CGRectGetHeight(sg_iconBox));
+    _title.font = pg_tabFont ?: [UIFont systemFontOfSize:10];
+    _title.frame = CGRectMake(0, CGRectGetMinY(pg_labelBox), width, CGRectGetHeight(pg_labelBox));
+    _icon.frame = CGRectMake((width - CGRectGetWidth(pg_iconBox)) / 2, CGRectGetMinY(pg_iconBox),
+                             CGRectGetWidth(pg_iconBox), CGRectGetHeight(pg_iconBox));
 }
 
 // A row that splits its width evenly ignores this, but one that sizes itself to its content would
@@ -128,7 +128,7 @@ static UIView *iconView(NSString *name) {
 
 // Through the app's own link dispatcher (Shared/Navigation/Links.h).
 - (void)open {
-    SGOpenSpotifyURI(SGRNavbarTabURL(self.uri));
+    PGOpenSpotifyURI(PGRNavbarTabURL(self.uri));
 }
 
 @end
@@ -139,7 +139,7 @@ static UIView *iconView(NSString *name) {
 // rebuilt, and it is the name the Navbar page lists them under.
 static NSString *stockID(UIView *item) {
     __block NSString *text = nil;
-    SGForEachView(item, ^(UIView *v) {
+    PGForEachView(item, ^(UIView *v) {
         if (!text && [v isKindOfClass:UILabel.class] && ((UILabel *)v).text.length) text = ((UILabel *)v).text;
     });
     return text ?: NSStringFromClass(item.class);
@@ -147,17 +147,17 @@ static NSString *stockID(UIView *item) {
 
 static void measureItem(UIView *item) {
     __block UIView *icon = nil, *label = nil;
-    SGForEachView(item, ^(UIView *v) {
+    PGForEachView(item, ^(UIView *v) {
         if (!icon && [NSStringFromClass(v.class) containsString:@"IconView"] && v.bounds.size.width > 1) icon = v;
         if (!label && [v isKindOfClass:UILabel.class] && ((UILabel *)v).text.length) label = v;
     });
-    if (icon) sg_iconBox = SGFrameIn(icon, item);
+    if (icon) pg_iconBox = PGFrameIn(icon, item);
     if (!label) return;
-    sg_labelBox = SGFrameIn(label, item);
-    if (!sg_tabFont) sg_tabFont = ((UILabel *)label).font;
+    pg_labelBox = PGFrameIn(label, item);
+    if (!pg_tabFont) pg_tabFont = ((UILabel *)label).font;
 }
 
-static NSMutableDictionary<NSString *, SGRTabItemView *> *customItems(UIStackView *stack) {
+static NSMutableDictionary<NSString *, PGRTabItemView *> *customItems(UIStackView *stack) {
     NSMutableDictionary *items = objc_getAssociatedObject(stack, &kCustomKey);
     if (!items) {
         items = [NSMutableDictionary dictionary];
@@ -166,39 +166,39 @@ static NSMutableDictionary<NSString *, SGRTabItemView *> *customItems(UIStackVie
     return items;
 }
 
-void SGRComposeTabBar(UIView *tabBar) {
-    UIStackView *stack = SGRowIn(tabBar);
+void PGRComposeTabBar(UIView *tabBar) {
+    UIStackView *stack = PGRowIn(tabBar);
     if (!stack) return;
-    sg_navbarRoot = tabBar;
+    pg_navbarRoot = tabBar;
 
     NSMutableDictionary<NSString *, UIView *> *stockViews = [NSMutableDictionary dictionary];
     for (UIView *item in stack.arrangedSubviews) {
-        if ([item isKindOfClass:SGRTabItemView.class]) continue;
+        if ([item isKindOfClass:PGRTabItemView.class]) continue;
         NSString *ident = stockID(item);
         if (stockViews[ident]) continue;
         stockViews[ident] = item;
         measureItem(item);
-        if (!sg_stockOrder) sg_stockOrder = [NSMutableArray array];
-        if (![sg_stockOrder containsObject:ident]) [sg_stockOrder addObject:ident];
+        if (!pg_stockOrder) pg_stockOrder = [NSMutableArray array];
+        if (![pg_stockOrder containsObject:ident]) [pg_stockOrder addObject:ident];
     }
-    if (sg_stockOrder && ![sg_stockOrder isEqualToArray:SGRNavbarStock()]) SGRSetNavbarStock(sg_stockOrder);
+    if (pg_stockOrder && ![pg_stockOrder isEqualToArray:PGRNavbarStock()]) PGRSetNavbarStock(pg_stockOrder);
 
-    NSMutableDictionary<NSString *, SGRTabItemView *> *custom = customItems(stack);
+    NSMutableDictionary<NSString *, PGRTabItemView *> *custom = customItems(stack);
     NSMutableArray<UIView *> *wanted = [NSMutableArray array];
     NSMutableSet<NSString *> *placed = [NSMutableSet set];
     NSMutableSet<NSString *> *keep = [NSMutableSet set];
 
-    if (SGEnabled(SGRKeyNavbar)) {
-        for (NSDictionary *entry in SGRNavbarLayout()) {
-            NSString *ident = entry[SGRNavbarID];
+    if (PGEnabled(PGRKeyNavbar)) {
+        for (NSDictionary *entry in PGRNavbarLayout()) {
+            NSString *ident = entry[PGRNavbarID];
             if (![ident isKindOfClass:NSString.class] || [placed containsObject:ident]) continue;
             [placed addObject:ident];
-            BOOL hidden = [entry[SGRNavbarHidden] boolValue];
-            if (entry[SGRNavbarURI]) {
+            BOOL hidden = [entry[PGRNavbarHidden] boolValue];
+            if (entry[PGRNavbarURI]) {
                 if (hidden) continue;
-                SGRTabItemView *item = custom[ident];
+                PGRTabItemView *item = custom[ident];
                 if (item) [item applyEntry:entry];
-                else custom[ident] = item = [[SGRTabItemView alloc] initWithEntry:entry];
+                else custom[ident] = item = [[PGRTabItemView alloc] initWithEntry:entry];
                 [keep addObject:ident];
                 [wanted addObject:item];
             } else if (stockViews[ident]) {
@@ -209,7 +209,7 @@ void SGRComposeTabBar(UIView *tabBar) {
     }
     // Tabs of Spotify's the list does not name — or named before Spotify had built them — keep
     // Spotify's own place, at the end, shown.
-    for (NSString *ident in sg_stockOrder) {
+    for (NSString *ident in pg_stockOrder) {
         UIView *item = stockViews[ident];
         if (!item || [wanted containsObject:item]) continue;
         item.hidden = NO;
@@ -229,11 +229,11 @@ void SGRComposeTabBar(UIView *tabBar) {
     // Items of the mod's own join the stack at the end, where they are past whatever Spotify
     // counts, and Spotify's own keep the places it gave them.
     for (UIView *item in wanted) {
-        if ([item isKindOfClass:SGRTabItemView.class] && item.superview != stack) [stack addArrangedSubview:item];
+        if ([item isKindOfClass:PGRTabItemView.class] && item.superview != stack) [stack addArrangedSubview:item];
     }
     NSMutableArray<UIView *> *order = [NSMutableArray array];
     for (UIView *item in wanted) if (!item.hidden && item.superview == stack) [order addObject:item];
-    sg_row = stack;
+    pg_row = stack;
     if (![order isEqualToArray:objc_getAssociatedObject(stack, &kOrderKey)]) {
         objc_setAssociatedObject(stack, &kOrderKey, order, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         [stack setNeedsLayout];
@@ -244,7 +244,7 @@ void SGRComposeTabBar(UIView *tabBar) {
 // 134pt slot, the centre of the 80pt it had with five tabs) and lays the item out no further
 // once the slot changes. Assigning the centres back sends them through the hooks below.
 static void centreContents(UIView *item) {
-    SGForEachView(item, ^(UIView *v) {
+    PGForEachView(item, ^(UIView *v) {
         if ([v isKindOfClass:%c(SPTEncoreIconView)] || [v isKindOfClass:%c(SPTEncoreLabel)]) v.center = v.center;
     });
 }
@@ -253,7 +253,7 @@ static void centreContents(UIView *item) {
 // own pass, so Spotify's own widths never decide whether a fifth item fits.
 static void placeRow(UIStackView *stack) {
     NSArray<UIView *> *order = objc_getAssociatedObject(stack, &kOrderKey);
-    UIView *bar = sg_navbarRoot;
+    UIView *bar = pg_navbarRoot;
     if (!order.count || !bar) return;
     CGFloat width = bar.bounds.size.width / order.count;
     CGFloat height = stack.bounds.size.height;
@@ -269,7 +269,7 @@ static void placeRow(UIStackView *stack) {
 %hook UIStackView
 - (void)layoutSubviews {
     %orig;
-    if ((UIStackView *)self == sg_row) placeRow((UIStackView *)self);
+    if ((UIStackView *)self == pg_row) placeRow((UIStackView *)self);
 }
 %end
 
@@ -278,7 +278,7 @@ static void placeRow(UIStackView *stack) {
 // its parent gets no layout pass of its own. So the placement itself is bent: on the bar, whatever
 // x Spotify sets, the view lands centred on its slot.
 static CGFloat slotCentreX(UIView *view) {
-    UIStackView *row = sg_row;
+    UIStackView *row = pg_row;
     if (!row) return NAN;
     UIView *slot = nil;
     for (UIView *v = view; v.superview; v = v.superview) if (v.superview == row) { slot = v; break; }
@@ -312,14 +312,14 @@ static CGFloat slotCentreX(UIView *view) {
 }
 %end
 
-void SGRRefreshTabBar(void) {
-    [sg_navbarRoot setNeedsLayout];
+void PGRRefreshTabBar(void) {
+    [pg_navbarRoot setNeedsLayout];
 }
 
 %ctor {
-    if (!SGRedesignedUI()) return;
+    if (!PGRedesignedUI()) return;
     %init;
-    SGRequireClasses(@[
+    PGRequireClasses(@[
         @"SPTEncoreIcon",
         @"SPTEncoreIconView",
         @"SPTEncoreLabel",

@@ -104,9 +104,9 @@
 @end
 
 // A page on the tab's stack: a list, inset the way Spotify's pages are, by the safe area it inherits.
-@interface SGHarnessPage : UITableViewController
+@interface PGHarnessPage : UITableViewController
 @end
-@implementation SGHarnessPage
+@implementation PGHarnessPage
 - (void)viewDidLoad {
     [super viewDidLoad];
     self.tableView.backgroundColor = UIColor.blackColor;
@@ -161,7 +161,7 @@ static UIView *item(Class cls, NSString *title, NSString *symbol, BOOL active) {
     self.compactGuide = [UILayoutGuide new];
     [view addLayoutGuide:self.compactGuide];
 
-    SGHarnessPage *page = [SGHarnessPage new];
+    PGHarnessPage *page = [PGHarnessPage new];
     [self addChildViewController:page];
     page.view.translatesAutoresizingMaskIntoConstraints = NO;
     [view addSubview:page.view];
@@ -223,14 +223,14 @@ static UIView *item(Class cls, NSString *title, NSString *symbol, BOOL active) {
 // (the tab bar container) above the bottom attachment, which is Spotify's message bar, and the
 // floating chrome (the now playing bar's page) standing on MainUIContainer's bottom anchor, the top of
 // the tab bar container's compact height guide (0x100ae0178).
-@interface SGHarnessChrome : UIViewController
+@interface PGHarnessChrome : UIViewController
 @property (nonatomic, strong) _TtC23NavigationUI_TabBarImpl19TabBarContainerImpl *tabs;
 @property (nonatomic, strong) UIView *banner;
 @property (nonatomic, strong) NSLayoutConstraint *bannerHeight;
 @property (nonatomic, strong) UIView *npb;
 @end
 
-@implementation SGHarnessChrome
+@implementation PGHarnessChrome
 
 - (void)viewDidLoad {
     [super viewDidLoad];
@@ -317,7 +317,7 @@ static UIView *item(Class cls, NSString *title, NSString *symbol, BOOL active) {
 
 #pragma mark - what the harness measures
 
-extern CGRect SGRNowPlayingCardFrameIn(UIView *host, CGFloat *radius);
+extern CGRect PGRNowPlayingCardFrameIn(UIView *host, CGFloat *radius);
 
 static UIView *platterIn(UIView *root) {
     // UIKit._UITabBarItemPlatterView on iOS 27; BarTransition.x looks for the same suffix.
@@ -338,7 +338,7 @@ static UITabBar *systemBarIn(UIView *root) {
     return nil;
 }
 
-static void report(SGHarnessChrome *chrome, NSString *moment) {
+static void report(PGHarnessChrome *chrome, NSString *moment) {
     UIWindow *window = chrome.view.window;
     UIView *stock = chrome.tabs.bar;
     UITabBar *system = systemBarIn(stock);
@@ -346,7 +346,7 @@ static void report(SGHarnessChrome *chrome, NSString *moment) {
     CGRect stockFrame = [stock convertRect:stock.bounds toView:window];
     CGRect systemFrame = system ? [system convertRect:system.bounds toView:window] : CGRectNull;
     CGRect platterFrame = platter ? [platter convertRect:platter.bounds toView:window] : CGRectNull;
-    CGRect card = SGRNowPlayingCardFrameIn(window, NULL);
+    CGRect card = PGRNowPlayingCardFrameIn(window, NULL);
     CGRect banner = [chrome.banner convertRect:chrome.banner.bounds toView:window];
     UITableView *list = (UITableView *)chrome.tabs.childViewControllers.firstObject.view;
     CGFloat listEnd = CGRectGetMaxY([list convertRect:list.bounds toView:window]) - list.adjustedContentInset.bottom;
@@ -361,20 +361,20 @@ static void report(SGHarnessChrome *chrome, NSString *moment) {
 #pragma mark - the app
 
 // Before every %ctor, so the redesign's gate reads on.
-__attribute__((constructor(101))) static void sgr_harnessDefaults(void) {
-    [NSUserDefaults.standardUserDefaults setBool:YES forKey:@"spotifyglass.redesign"];
+__attribute__((constructor(101))) static void pgr_harnessDefaults(void) {
+    [NSUserDefaults.standardUserDefaults setBool:YES forKey:@"pureglass.redesign"];
 }
 
-@interface SGHarnessApp : UIResponder <UIApplicationDelegate>
+@interface PGHarnessApp : UIResponder <UIApplicationDelegate>
 @end
-@implementation SGHarnessApp
+@implementation PGHarnessApp
 @end
 
-@interface SGHarnessScene : UIResponder <UIWindowSceneDelegate>
+@interface PGHarnessScene : UIResponder <UIWindowSceneDelegate>
 @property (nonatomic, strong) UIWindow *window;
 @end
 
-@implementation SGHarnessScene
+@implementation PGHarnessScene
 
 static void after(double seconds, dispatch_block_t block) {
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(seconds * NSEC_PER_SEC)), dispatch_get_main_queue(), block);
@@ -383,7 +383,7 @@ static void after(double seconds, dispatch_block_t block) {
 - (void)scene:(UIScene *)scene willConnectToSession:(UISceneSession *)session options:(UISceneConnectionOptions *)options {
     self.window = [[UIWindow alloc] initWithWindowScene:(UIWindowScene *)scene];
     self.window.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
-    SGHarnessChrome *chrome = [SGHarnessChrome new];
+    PGHarnessChrome *chrome = [PGHarnessChrome new];
     self.window.rootViewController = chrome;
     [self.window makeKeyAndVisible];
 
@@ -418,5 +418,5 @@ static void after(double seconds, dispatch_block_t block) {
 @end
 
 int main(int argc, char *argv[]) {
-    @autoreleasepool { return UIApplicationMain(argc, argv, nil, NSStringFromClass(SGHarnessApp.class)); }
+    @autoreleasepool { return UIApplicationMain(argc, argv, nil, NSStringFromClass(PGHarnessApp.class)); }
 }

@@ -9,7 +9,7 @@
 // it back or made it after the pass. This runs from the bar's own layout and window callbacks on every
 // pass instead, which is when Spotify draws it.
 //
-// The capsule is a child of the name label (SGRGlassCapsuleInside), so it takes the label's alpha as
+// The capsule is a child of the name label (PGRGlassCapsuleInside), so it takes the label's alpha as
 // Spotify fades the name in and out with the scroll, and it moves wherever the label does.
 //
 // Liked Songs keeps Spotify's bar as it is: the page's model says which it is (formatListType, the same
@@ -18,10 +18,10 @@
 // masked, never hidden) and the artist's sits in the header's HeaderForegroundView (7.txt:110, 100pt, its
 // gradient not even masked), both with the name in the same SPTEncoreLabel 64pt tall. They are told apart
 // from the page's other bars by the page having been dressed: the redesign pins its own Back on the page's
-// root (SGRPinnedBack) for a playlist, an album and an artist, and for nothing else on the album's template,
+// root (PGRPinnedBack) for a playlist, an album and an artist, and for nothing else on the album's template,
 // which a podcast's episode shares and leaves as Spotify's.
-#import "Core/SGCore.h"
-#import "Redesigned/Kit/SGRKit.h"
+#import "Core/PGCore.h"
+#import "Redesigned/Kit/PGRKit.h"
 #import "Playlist.h"
 #import "Redesigned/Album/Album.h"
 #import "Redesigned/Artist/Artist.h"
@@ -69,16 +69,16 @@ static UIView *titleIn(UIView *bar, UILabel **text) {
 // An album's or an artist's bar, once the redesign has pinned its Back on the page: that button is a direct
 // subview of the page's root, which only the pages dressed in AlbumHeader.x and ArtistHeader.x get.
 static BOOL isDressedAlbumOrArtist(UIView *bar) {
-    UIView *page = SGRAlbumPageOf(bar) ?: SGRArtistPageOf(bar);
+    UIView *page = PGRAlbumPageOf(bar) ?: PGRArtistPageOf(bar);
     for (UIView *sub in page.subviews) {
-        if ([sub isKindOfClass:SGRMirrorButton.class]) return YES;
+        if ([sub isKindOfClass:PGRMirrorButton.class]) return YES;
     }
     return NO;
 }
 
 // Whether this bar is one the redesign dresses: a playlist's (Liked Songs apart), a dressed album's or artist's.
 static BOOL handles(UIView *bar) {
-    UIViewController *headerVC = SGRPlaylistHeaderOf(bar);
+    UIViewController *headerVC = PGRPlaylistHeaderOf(bar);
     return headerVC ? !isLikedSongs(headerVC) : isDressedAlbumOrArtist(bar);
 }
 
@@ -88,7 +88,7 @@ static void apply(UIView *bar) {
     for (UIView *sub in bar.subviews) {
         if ([NSStringFromClass(sub.class) containsString:@"GradientView"]) hideScrim(sub);
     }
-    if (SGIsVisibleColor(bar.layer.backgroundColor)) bar.backgroundColor = UIColor.clearColor;
+    if (PGIsVisibleColor(bar.layer.backgroundColor)) bar.backgroundColor = UIColor.clearColor;
 
     UILabel *text = nil;
     UIView *title = titleIn(bar, &text);
@@ -101,19 +101,19 @@ static void apply(UIView *bar) {
     // identity before Spotify lays out, so what is read here is always the layout's own centre, and the move
     // is written only then: a pass of ours with a move on already (didMoveToWindow, a gradient added) leaves it.
     CGFloat middle = [title.superview convertPoint:title.center toView:nil].y;
-    CGFloat shift = (bar.window.safeAreaInsets.top + SGRGlassCircleSize / 2) - middle;
+    CGFloat shift = (bar.window.safeAreaInsets.top + PGRGlassCircleSize / 2) - middle;
     if (title.transform.ty == 0 && shift != 0 && fabs(shift) < 20) title.transform = CGAffineTransformMakeTranslation(0, shift);
     static NSInteger logged;
     static CGFloat lastShift = CGFLOAT_MAX;
     if (logged < 12 && fabs(shift - lastShift) > 0.01) {
         logged++;
         lastShift = shift;
-        SGLog(@"redesign bar: name centre %.2f, buttons' middle %.2f, shift %.2f, transform %.2f, frame y %.2f", middle,
-              bar.window.safeAreaInsets.top + SGRGlassCircleSize / 2, shift, title.transform.ty, title.frame.origin.y);
+        PGLog(@"redesign bar: name centre %.2f, buttons' middle %.2f, shift %.2f, transform %.2f, frame y %.2f", middle,
+              bar.window.safeAreaInsets.top + PGRGlassCircleSize / 2, shift, title.transform.ty, title.frame.origin.y);
     }
     CGFloat wanted = ceil([text sizeThatFits:CGSizeMake(CGFLOAT_MAX, kBubbleHeight)].width) + 2 * kBubblePadding;
     CGFloat width = MIN(MAX(wanted, kBubbleHeight), title.bounds.size.width);
-    SGRGlassCapsuleInside(title, &kBubbleKey, CGSizeMake(width, kBubbleHeight), NO);
+    PGRGlassCapsuleInside(title, &kBubbleKey, CGSizeMake(width, kBubbleHeight), NO);
 }
 
 %hook _TtC28EncoreConsumerMobile_BaseKit19HeaderNavigationBar
@@ -140,7 +140,7 @@ static void apply(UIView *bar) {
 %end
 
 %ctor {
-    if (!SGRedesignedUI()) return;
+    if (!PGRedesignedUI()) return;
     %init;
-    SGRequireClasses(@[@"_TtC28EncoreConsumerMobile_BaseKit19HeaderNavigationBar"]);
+    PGRequireClasses(@[@"_TtC28EncoreConsumerMobile_BaseKit19HeaderNavigationBar"]);
 }

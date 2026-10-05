@@ -21,8 +21,8 @@
 // Refresh cell paint the base surface over the field, where the black made bands of them (device,
 // trees/continuous/2.txt 2026-09-20). So the paint comes off every cell of the page, the Kit's way, and
 // only the row below is a row.
-#import "Core/SGCore.h"
-#import "Redesigned/Kit/SGRKit.h"
+#import "Core/PGCore.h"
+#import "Redesigned/Kit/PGRKit.h"
 #import "Playlist.h"
 
 // Under the text rather than the whole row, as the Music app draws it; the trailing end clears the page margin.
@@ -31,12 +31,12 @@ static const CGFloat kHairline = 0.5, kHairlineGap = 12;
 static char kRowKey, kArtKey, kSubtitleKey, kLineKey, kToolbarKey;
 
 static UIView *identified(UIView *root, NSString *identifier, const void *cacheKey) {
-    return SGRFindByIdentifier(root, identifier, cacheKey);
+    return PGRFindByIdentifier(root, identifier, cacheKey);
 }
 
 static void clearSurface(UIView *view) {
     UIColor *color = view.backgroundColor;
-    if (color && SGIsBaseSurface(color.CGColor)) view.backgroundColor = UIColor.clearColor;
+    if (color && PGIsBaseSurface(color.CGColor)) view.backgroundColor = UIColor.clearColor;
 }
 
 static void applyHairline(UIView *row, CGFloat leading) {
@@ -50,7 +50,7 @@ static void applyHairline(UIView *row, CGFloat leading) {
     if (line.superlayer != row.layer) [row.layer addSublayer:line];
     CGRect bounds = row.bounds;
     CGRect frame = CGRectMake(leading, bounds.size.height - kHairline,
-                              MAX(0, bounds.size.width - leading - SGRSideMargin), kHairline);
+                              MAX(0, bounds.size.width - leading - PGRSideMargin), kHairline);
     if (CGRectEqualToRect(line.frame, frame)) return;
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
@@ -64,11 +64,11 @@ static void applyRow(UIView *cell) {
     if (!row) return;
     clearSurface(row);
 
-    CGFloat leading = SGRSideMargin + 48 + kHairlineGap;
+    CGFloat leading = PGRSideMargin + 48 + kHairlineGap;
     UIView *art = identified(row, @"Encore.ImageView", &kArtKey);
     if (art) {
-        if (art.layer.cornerRadius != SGRRadiusThumb) {
-            art.layer.cornerRadius = SGRRadiusThumb;
+        if (art.layer.cornerRadius != PGRRadiusThumb) {
+            art.layer.cornerRadius = PGRRadiusThumb;
             art.layer.cornerCurve = kCACornerCurveContinuous;
             art.clipsToBounds = YES;
         }
@@ -77,10 +77,10 @@ static void applyRow(UIView *cell) {
     }
 
     UIView *subtitle = identified(row, @"Track.Row.Content.Subtitle", &kSubtitleKey);
-    SGForEachView(subtitle, ^(UIView *v) {
+    PGForEachView(subtitle, ^(UIView *v) {
         if (![v isKindOfClass:UILabel.class]) return;
         UILabel *label = (UILabel *)v;
-        if (![label.textColor isEqual:SGRSecondary()]) label.textColor = SGRSecondary();
+        if (![label.textColor isEqual:PGRSecondary()]) label.textColor = PGRSecondary();
     });
 
     applyHairline(row, leading);
@@ -90,25 +90,25 @@ static void applyRow(UIView *cell) {
 - (void)layoutSubviews {
     %orig;
     UIView *cell = (UIView *)self;
-    if (!SGRPlaylistHeaderOf(cell)) return;
-    SGRClearCellPaint(cell);
-    SGRPlaylistTakeCuration(cell);
+    if (!PGRPlaylistHeaderOf(cell)) return;
+    PGRClearCellPaint(cell);
+    PGRPlaylistTakeCuration(cell);
     applyRow(cell);
 }
 
 - (UICollectionViewLayoutAttributes *)preferredLayoutAttributesFittingAttributes:(UICollectionViewLayoutAttributes *)attributes {
     UICollectionViewLayoutAttributes *result = %orig;
-    if (!SGRFindByIdentifier((UIView *)self, SGRPlaylistCurationIdentifier, &kToolbarKey)) return result;
+    if (!PGRFindByIdentifier((UIView *)self, PGRPlaylistCurationIdentifier, &kToolbarKey)) return result;
     result.size = CGSizeMake(result.size.width, 0);
     ((UIView *)self).clipsToBounds = YES;
     static dispatch_once_t once;
-    dispatch_once(&once, ^{ SGLog(@"redesign playlist: curation pills asked for a height, answered 0"); });
+    dispatch_once(&once, ^{ PGLog(@"redesign playlist: curation pills asked for a height, answered 0"); });
     return result;
 }
 %end
 
 %ctor {
-    if (!SGRedesignedUI()) return;
+    if (!PGRedesignedUI()) return;
     %init;
-    SGRequireClasses(@[@"_TtC35ListUXPlatform_FreeTierPlaylistImpl25ElementCollectionViewCell"]);
+    PGRequireClasses(@[@"_TtC35ListUXPlatform_FreeTierPlaylistImpl25ElementCollectionViewCell"]);
 }

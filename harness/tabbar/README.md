@@ -12,7 +12,7 @@ Offline and Private Session show) under the tab bar. It plays issue #33.
     xcrun simctl io <udid> screenshot shot.png
 
 `build.sh` runs `logos.pl -c generator=internal` over `TabBar.x` and `NowPlayingBar.x` from the
-checkout it sits in and links them with the real `Core/` and `SGRTokens.m`; `SRC=<other tweak/Sources>
+checkout it sits in and links them with the real `Core/` and `PGRTokens.m`; `SRC=<other tweak/Sources>
 ./build.sh` builds an older tree instead, to compare. `stubs.m` stands in for the accent and repaint
 hooks, the tab bar's composition and Mod Settings. iOS 27 ends an app with no scene delegate at
 launch, so the harness has one.

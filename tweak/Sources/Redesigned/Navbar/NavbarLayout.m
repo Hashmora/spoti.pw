@@ -2,14 +2,14 @@
 #import "Navbar.h"
 #import "Shared/Navigation/Links.h"
 
-NSString *const SGRNavbarID = @"id";
-NSString *const SGRNavbarTitle = @"title";
-NSString *const SGRNavbarURI = @"uri";
-NSString *const SGRNavbarIcon = @"icon";
-NSString *const SGRNavbarHidden = @"hidden";
+NSString *const PGRNavbarID = @"id";
+NSString *const PGRNavbarTitle = @"title";
+NSString *const PGRNavbarURI = @"uri";
+NSString *const PGRNavbarIcon = @"icon";
+NSString *const PGRNavbarHidden = @"hidden";
 
-static NSString *const kNavbarLayout = @"spotifyglass.redesign.navbar.layout";
-static NSString *const kNavbarStock = @"spotifyglass.redesign.navbar.stock";
+static NSString *const kNavbarLayout = @"pureglass.redesign.navbar.layout";
+static NSString *const kNavbarStock = @"pureglass.redesign.navbar.stock";
 
 // Only property list types go in, so a corrupt read cannot be anything but an array of dictionaries.
 static NSArray *listOfKind(NSString *key, Class kind) {
@@ -18,24 +18,24 @@ static NSArray *listOfKind(NSString *key, Class kind) {
     return list ?: @[];
 }
 
-NSArray<NSDictionary *> *SGRNavbarLayout(void) {
+NSArray<NSDictionary *> *PGRNavbarLayout(void) {
     return listOfKind(kNavbarLayout, NSDictionary.class);
 }
 
-void SGRSetNavbarLayout(NSArray<NSDictionary *> *layout) {
+void PGRSetNavbarLayout(NSArray<NSDictionary *> *layout) {
     [NSUserDefaults.standardUserDefaults setObject:layout ?: @[] forKey:kNavbarLayout];
 }
 
-NSArray<NSString *> *SGRNavbarStock(void) {
+NSArray<NSString *> *PGRNavbarStock(void) {
     return listOfKind(kNavbarStock, NSString.class);
 }
 
-void SGRSetNavbarStock(NSArray<NSString *> *stock) {
+void PGRSetNavbarStock(NSArray<NSString *> *stock) {
     [NSUserDefaults.standardUserDefaults setObject:stock ?: @[] forKey:kNavbarStock];
 }
 
-NSURL *SGRNavbarTabURL(NSString *uri) {
-    NSURL *url = SGSpotifyURIFromText(uri);
+NSURL *PGRNavbarTabURL(NSString *uri) {
+    NSURL *url = PGSpotifyURIFromText(uri);
     if ([url.absoluteString isEqualToString:@"spotify:collection:playlists"]) return [NSURL URLWithString:@"spotify:playlists"];
     return url;
 }

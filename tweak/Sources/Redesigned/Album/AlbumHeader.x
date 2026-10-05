@@ -14,7 +14,7 @@
 //         UIView {0, 329} 402x71         the bottom group: Components.UI.MetadataRow (the kind and the date,
 //                                        cells of a collection view) and the action row
 //
-// What the header shows is the redesign's own (the Kit's SGRHeaderInfo), not Spotify's rearranged: moving
+// What the header shows is the redesign's own (the Kit's PGRHeaderInfo), not Spotify's rearranged: moving
 // Spotify's stacks meant answering every pass of theirs, and the element framework measured the title for
 // its own font. So Spotify's whole column is concealed and the Kit's view is drawn over the header in its
 // place, reading its text off Spotify's concealed labels -- so it is in the app's language and follows
@@ -24,8 +24,8 @@
 // Play and shuffle are not in the header. The album page floats them over the page, pinned to the top
 // trailing corner outside the scroll (01.txt:1431, :1436): they are concealed where they are, and the row
 // draws them and fires them all the same.
-#import "Core/SGCore.h"
-#import "Redesigned/Kit/SGRKit.h"
+#import "Core/PGCore.h"
+#import "Redesigned/Kit/PGRKit.h"
 #import "Album.h"
 
 // How much of the cover's height the dissolve into the field covers, and the scrim over the top of it that
@@ -83,7 +83,7 @@ static UIView *wrapperFor(UIView *control, UIView *stop) {
 static UIView *floatingIn(UIView *page, NSString *identifier, const void *cacheKey) {
     for (UIView *sub in page.subviews) {
         if (sub.bounds.size.width > 120) continue;
-        UIView *found = SGRFindByIdentifier(sub, identifier, cacheKey);
+        UIView *found = PGRFindByIdentifier(sub, identifier, cacheKey);
         if (found) return found;
     }
     return nil;
@@ -105,7 +105,7 @@ static UIView *rowOf(UIView *button, UIView *header) {
 static void watch(UIView *view, const void *key, void (^laidOut)(UIView *view)) {
     if (!view || objc_getAssociatedObject(view, key)) return;
     objc_setAssociatedObject(view, key, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    SGRObserveLayout(view, laidOut);
+    PGRObserveLayout(view, laidOut);
 }
 
 #pragma mark - the cover, full bleed
@@ -113,7 +113,7 @@ static void watch(UIView *view, const void *key, void (^laidOut)(UIView *view)) 
 // The picture across the top of the page with the field showing through the bottom of it. Two gradients
 // rather than a mask or a blur: a scrim over the top for the status bar, and under it a fade from the
 // picture to the very colour the page's field is drawing, so the two meet with nothing to see.
-@interface SGRAlbumHero : UIView
+@interface PGRAlbumHero : UIView
 @property (nonatomic, readonly) UIImageView *picture;
 @property (nonatomic, copy) UIColor *fieldColor;
 // The cover in Spotify's artwork view, and every cover it puts there afterwards: the hero keeps itself
@@ -121,7 +121,7 @@ static void watch(UIView *view, const void *key, void (^laidOut)(UIView *view)) 
 - (void)followCover:(UIImageView *)source;
 @end
 
-@implementation SGRAlbumHero {
+@implementation PGRAlbumHero {
     CAGradientLayer *_scrim, *_dissolve;
     __weak UIImageView *_cover;
 }
@@ -146,10 +146,10 @@ static void watch(UIView *view, const void *key, void (^laidOut)(UIView *view)) 
     _dissolve = [CAGradientLayer layer];
     _dissolve.zPosition = 2;
     [self.layer addSublayer:_dissolve];
-    self.fieldColor = SGRNeutralField();
+    self.fieldColor = PGRNeutralField();
     // The colour is read off the main thread, so it can land after the last layout pass of the page.
-    [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(sgr_fieldColorDidChange)
-                                               name:SGRFieldColorDidChangeNotification object:nil];
+    [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(pgr_fieldColorDidChange)
+                                               name:PGRFieldColorDidChangeNotification object:nil];
     return self;
 }
 
@@ -157,8 +157,8 @@ static void watch(UIView *view, const void *key, void (^laidOut)(UIView *view)) 
     [NSNotificationCenter.defaultCenter removeObserver:self];
 }
 
-- (void)sgr_fieldColorDidChange {
-    if (self.superview) self.fieldColor = SGRAlbumFieldColor(self);
+- (void)pgr_fieldColorDidChange {
+    if (self.superview) self.fieldColor = PGRAlbumFieldColor(self);
 }
 
 - (void)setFieldColor:(UIColor *)color {
@@ -191,8 +191,8 @@ static void watch(UIView *view, const void *key, void (^laidOut)(UIView *view)) 
     [self takeCover:source late:NO];
     if (_cover == source) return;
     _cover = source;
-    __weak SGRAlbumHero *weakSelf = self;
-    SGRObserveImage(source, ^(UIImageView *view) { [weakSelf takeCover:view late:YES]; });
+    __weak PGRAlbumHero *weakSelf = self;
+    PGRObserveImage(source, ^(UIImageView *view) { [weakSelf takeCover:view late:YES]; });
 }
 
 // `late` is a cover that arrived after the header had laid out -- an album opened for the first time, whose
@@ -203,11 +203,11 @@ static void watch(UIView *view, const void *key, void (^laidOut)(UIView *view)) 
     if (!image || source.bounds.size.width < kMinCover || _picture.image == image) return;
     _picture.image = image;
     // The page's field takes its colour from the same picture.
-    SGRAlbumSetArtwork(self, image);
+    PGRAlbumSetArtwork(self, image);
     static BOOL logged;
     if (late && !logged) {
         logged = YES;
-        SGLog(@"redesign album: the cover landed after the header had laid out; the hero took it");
+        PGLog(@"redesign album: the cover landed after the header had laid out; the hero took it");
     }
 }
 
@@ -217,7 +217,7 @@ static void watch(UIView *view, const void *key, void (^laidOut)(UIView *view)) 
 // fetched, the empty one it will land in, so it can be watched from the first pass.
 static UIImageView *coverImageIn(UIView *cover) {
     __block UIImageView *found = nil, *empty = nil;
-    SGForEachView(cover, ^(UIView *v) {
+    PGForEachView(cover, ^(UIView *v) {
         if (found || ![v isKindOfClass:UIImageView.class]) return;
         UIImageView *image = (UIImageView *)v;
         if (image.bounds.size.width < kMinCover) return;
@@ -235,9 +235,9 @@ static UIImageView *coverImageIn(UIView *cover) {
 // still loading is shorter than it will end up, and once the cover and the artist are in it settles and the
 // picture does not change size again.
 static void applyHero(UIView *header, UIView *cover, CGFloat bottom) {
-    SGRAlbumHero *hero = objc_getAssociatedObject(header, &kHeroKey);
+    PGRAlbumHero *hero = objc_getAssociatedObject(header, &kHeroKey);
     if (!hero) {
-        hero = [[SGRAlbumHero alloc] initWithFrame:CGRectZero];
+        hero = [[PGRAlbumHero alloc] initWithFrame:CGRectZero];
         objc_setAssociatedObject(header, &kHeroKey, hero, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
     if (hero.superview != header) [header insertSubview:hero atIndex:0];
@@ -247,11 +247,11 @@ static void applyHero(UIView *header, UIView *cover, CGFloat bottom) {
     if (bottom > height + 0.5) {
         height = round(bottom);
         objc_setAssociatedObject(hero, &kHeroHeightKey, @(height), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        SGLog(@"redesign album: hero %.0fpt across the top of the header", height);
+        PGLog(@"redesign album: hero %.0fpt across the top of the header", height);
     }
     if (height < kMinHero) return;
     setFrame(hero, CGRectMake(0, 0, header.bounds.size.width, height));
-    hero.fieldColor = SGRAlbumFieldColor(header);
+    hero.fieldColor = PGRAlbumFieldColor(header);
 
     [hero followCover:coverImageIn(cover)];
     conceal(cover);
@@ -267,7 +267,7 @@ static NSString *trimmed(NSString *text) {
 // The first label under `root` with more than a letter in it: the facepile's initials are labels of their own.
 static NSString *firstText(UIView *root) {
     __block NSString *found = nil;
-    SGForEachView(root, ^(UIView *v) {
+    PGForEachView(root, ^(UIView *v) {
         if (found || ![v isKindOfClass:UILabel.class]) return;
         NSString *text = trimmed(((UILabel *)v).text);
         if (text.length > 1) found = text;
@@ -279,7 +279,7 @@ static NSString *firstText(UIView *root) {
 // read in the order they are drawn in.
 static NSString *metadataText(UIView *metadata) {
     NSMutableArray<UILabel *> *labels = [NSMutableArray array];
-    SGForEachView(metadata, ^(UIView *v) {
+    PGForEachView(metadata, ^(UIView *v) {
         if ([v isKindOfClass:UILabel.class] && trimmed(((UILabel *)v).text) && v.window) [labels addObject:(UILabel *)v];
     });
     [labels sortUsingComparator:^NSComparisonResult(UILabel *a, UILabel *b) {
@@ -294,23 +294,23 @@ static NSString *metadataText(UIView *metadata) {
 static void applyHeader(UIView *header, UIView *page);
 
 // The Kit's view over the whole header, its content on the header's bottom edge; Spotify's own column goes.
-static SGRHeaderInfo *applyInfo(UIView *header, UIView *page) {
-    SGRHeaderInfo *info = objc_getAssociatedObject(header, &kInfoKey);
+static PGRHeaderInfo *applyInfo(UIView *header, UIView *page) {
+    PGRHeaderInfo *info = objc_getAssociatedObject(header, &kInfoKey);
     if (!info) {
-        info = [[SGRHeaderInfo alloc] initWithFrame:CGRectZero];
+        info = [[PGRHeaderInfo alloc] initWithFrame:CGRectZero];
         objc_setAssociatedObject(header, &kInfoKey, info, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
     if (info.superview != header) [header addSubview:info];
     else if (header.subviews.lastObject != info) [header bringSubviewToFront:info];
-    SGRAlbumHero *hero = objc_getAssociatedObject(header, &kHeroKey);
+    PGRAlbumHero *hero = objc_getAssociatedObject(header, &kHeroKey);
     for (UIView *sub in header.subviews) {
         if (sub != info && sub != hero) blank(sub);
     }
     setFrame(info, header.bounds);
 
-    UIView *title = SGRFindByIdentifier(header, @"CreativeWorkPlatform.Components.UI.TitleRow", &kTitleKey);
-    UIView *parent = SGRFindByIdentifier(header, @"CreativeWorkPlatform.Components.UI.ParentRow", &kParentKey);
-    UIView *metadata = SGRFindByIdentifier(header, @"Components.UI.MetadataRow", &kMetaKey);
+    UIView *title = PGRFindByIdentifier(header, @"CreativeWorkPlatform.Components.UI.TitleRow", &kTitleKey);
+    UIView *parent = PGRFindByIdentifier(header, @"CreativeWorkPlatform.Components.UI.ParentRow", &kParentKey);
+    UIView *metadata = PGRFindByIdentifier(header, @"Components.UI.MetadataRow", &kMetaKey);
     NSString *length = metadataText(metadata);
     [info showTitle:firstText(title) creator:firstText(parent) ?: trimmed(parent.accessibilityLabel)
              length:length about:nil];
@@ -332,14 +332,14 @@ static SGRHeaderInfo *applyInfo(UIView *header, UIView *page) {
     [info showCreatorLink:parent];
 
     // More, pinned over the page rather than left in the header, which is blanked and scrolls away.
-    SGRPinnedMore(page, &kPinnedMoreKey, SGRFindByIdentifier(header, @"Components.UI.ContextMenuButton*", &kMoreKey));
+    PGRPinnedMore(page, &kPinnedMoreKey, PGRFindByIdentifier(header, @"Components.UI.ContextMenuButton*", &kMoreKey));
 
     UIView *play = floatingIn(page, @"header-play-button", &kPlayKey);
     UIView *shuffle = floatingIn(page, @"Components.UI.ShuffleButton", &kShuffleKey);
-    UIView *add = SGRFindByIdentifier(header, @"Components.UI.AddToButton", &kAddKey);
-    UIView *download = add ? nil : SGRFindByIdentifier(header, @"DownloadButton.Granular*", &kDownloadKey);
+    UIView *add = PGRFindByIdentifier(header, @"Components.UI.AddToButton", &kAddKey);
+    UIView *download = add ? nil : PGRFindByIdentifier(header, @"DownloadButton.Granular*", &kDownloadKey);
     [info showShuffle:shuffle play:play trailing:add ?: download
-     trailingFallback:[UIImage systemImageNamed:add ? @"plus" : @"arrow.down"] playColor:SGRAlbumFieldColor(header)];
+     trailingFallback:[UIImage systemImageNamed:add ? @"plus" : @"arrow.down"] playColor:PGRAlbumFieldColor(header)];
     // Only what the two floating buttons draw goes: a concealed layer still sends the actions the row fires.
     if (play) conceal(wrapperFor(play, page));
     if (shuffle) conceal(wrapperFor(shuffle, page));
@@ -349,7 +349,7 @@ static SGRHeaderInfo *applyInfo(UIView *header, UIView *page) {
     // row drew download on Play's right, or nothing, until the page was opened again (issue #19). So the row's
     // own pass is watched, a plain UIStackView, as the artist page's is, found from whichever of Spotify's
     // buttons is in it already.
-    UIView *inRow = add ?: download ?: SGRFindByIdentifier(header, @"Components.UI.WatchFeedEntityExplorerButton", &kExploreKey);
+    UIView *inRow = add ?: download ?: PGRFindByIdentifier(header, @"Components.UI.WatchFeedEntityExplorerButton", &kExploreKey);
     __weak UIView *weakHeader = header, *weakPage = page;
     watch(rowOf(inRow, header), &kRowWatchedKey, ^(UIView *view) {
         if (weakHeader && weakPage) applyHeader(weakHeader, weakPage);
@@ -358,7 +358,7 @@ static SGRHeaderInfo *applyInfo(UIView *header, UIView *page) {
     static BOOL logged;
     if (!logged && header.window && title) {
         logged = YES;
-        SGLog(@"redesign album: own block \"%@\" by %@, \"%@\"; shuffle %@, play %@, %@", firstText(title),
+        PGLog(@"redesign album: own block \"%@\" by %@, \"%@\"; shuffle %@, play %@, %@", firstText(title),
               firstText(parent) ?: @"nobody", metadataText(metadata) ?: @"no metadata", shuffle ? @"found" : @"missing",
               play ? @"found" : @"missing", add ? @"add" : (download ? @"download" : @"nothing on the right"));
     }
@@ -388,7 +388,7 @@ static UIColor *washColorOf(UIView *gradient) {
             CGColorRef cg = (__bridge CGColorRef)value;
             if (CFGetTypeID(cg) != CGColorGetTypeID() || CGColorGetAlpha(cg) < 0.5) continue;
             // The page's base surface is what a wash is before Spotify has a colour for it, not a colour.
-            if (SGIsBaseSurface(cg)) return nil;
+            if (PGIsBaseSurface(cg)) return nil;
             return [UIColor colorWithCGColor:cg];
         }
     }
@@ -400,7 +400,7 @@ static UIColor *washColorOf(UIView *gradient) {
 //
 // The navigation bar's gradient goes too. Hidden at rest, it is shown as the page scrolls under the
 // title, and over the field it was a flat dark band across the top (device, 2026-09-18). What keeps the
-// title legible over the list is the soft top edge every redesigned page has (SGREdgeEffect.x), as it is
+// title legible over the list is the soft top edge every redesigned page has (PGREdgeEffect.x), as it is
 // on Home, Search and Library.
 static void applyWash(UIView *page) {
     for (UIView *sub in page.subviews) {
@@ -414,10 +414,10 @@ static void applyWash(UIView *page) {
                 static BOOL logged;
                 if (!logged) {
                     logged = YES;
-                    SGLog(@"redesign album: Spotify's wash %@ on %@, colour %@", NSStringFromClass(v.class),
+                    PGLog(@"redesign album: Spotify's wash %@ on %@, colour %@", NSStringFromClass(v.class),
                           NSStringFromClass(v.layer.class), color ?: @"not found");
                 }
-                SGRAlbumSetSpotifyColor(page, color);
+                PGRAlbumSetSpotifyColor(page, color);
             }
             maskOut(v);
         }
@@ -425,16 +425,16 @@ static void applyWash(UIView *page) {
 }
 
 static void applyHeader(UIView *header, UIView *page) {
-    if (!SGRFindByIdentifier(header, @"CreativeWorkPlatform.Components.UI.TitleRow", &kTitleKey)) return;
+    if (!PGRFindByIdentifier(header, @"CreativeWorkPlatform.Components.UI.TitleRow", &kTitleKey)) return;
     applyWash(page);
-    SGRHeaderInfo *info = applyInfo(header, page);
+    PGRHeaderInfo *info = applyInfo(header, page);
 
     // The picture reaches to where the content's top is at rest, plus the title and the artist. The header at
     // rest is the tallest it has been, so the picture does not change size as the header loads or scrolls.
     CGFloat rest = MAX([objc_getAssociatedObject(header, &kHeaderHeightKey) doubleValue], header.bounds.size.height);
     objc_setAssociatedObject(header, &kHeaderHeightKey, @(rest), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    CGFloat bottom = rest - SGRHeaderInfoBottom - [info contentHeightForWidth:header.bounds.size.width] + SGRHeaderInfoTitleRise;
-    UIView *cover = SGRFindByIdentifier(header, @"CreativeWorkPlatform.Components.UI.ArtWorkElement.WithCoverArt", &kCoverKey);
+    CGFloat bottom = rest - PGRHeaderInfoBottom - [info contentHeightForWidth:header.bounds.size.width] + PGRHeaderInfoTitleRise;
+    UIView *cover = PGRFindByIdentifier(header, @"CreativeWorkPlatform.Components.UI.ArtWorkElement.WithCoverArt", &kCoverKey);
     if (cover) applyHero(header, cover, bottom);
 }
 
@@ -442,22 +442,22 @@ static void applyHeader(UIView *header, UIView *page) {
 // template is shared with a podcast episode and Your Episodes (AlbumField.x).
 static void glassAlbumToolbar(UIView *page) {
     static char kToolbarKey, kFieldKey, kSortBoxKey, kFieldGlassKey, kSortGlassKey;
-    SGRPinnedBack(page, page);
-    UIView *toolbar = SGRFindByIdentifier(page, @"Components.Header.UI.Toolbar.Content", &kToolbarKey);
+    PGRPinnedBack(page, page);
+    UIView *toolbar = PGRFindByIdentifier(page, @"Components.Header.UI.Toolbar.Content", &kToolbarKey);
     if (!toolbar) return;
-    SGRGlassFlatBox(SGRFindByIdentifier(toolbar, @"Components.Header.UI.Toolbar.SearchField", &kFieldKey), &kFieldGlassKey);
-    SGRGlassFlatBox(SGRFindByIdentifier(toolbar, @"Components.Header.UI.Toolbar.ButtonContainer", &kSortBoxKey), &kSortGlassKey);
+    PGRGlassFlatBox(PGRFindByIdentifier(toolbar, @"Components.Header.UI.Toolbar.SearchField", &kFieldKey), &kFieldGlassKey);
+    PGRGlassFlatBox(PGRFindByIdentifier(toolbar, @"Components.Header.UI.Toolbar.ButtonContainer", &kSortBoxKey), &kSortGlassKey);
 }
 
 static void applyPage(UIView *page) {
-    UIView *header = SGRFindByIdentifier(page, @"CreativeWorkPlatform.Components.UI.CreativeWorkHeader", &kHeaderKey);
+    UIView *header = PGRFindByIdentifier(page, @"CreativeWorkPlatform.Components.UI.CreativeWorkHeader", &kHeaderKey);
     if (!header) return;
     applyHeader(header, page);
     glassAlbumToolbar(page);
     // The header lays itself out again whenever its cover, its artist or its buttons arrive, which the
     // page's own pass does not hear about. It is a plain UIView, so its pass can be watched.
     watch(header, &kHeaderWatchedKey, ^(UIView *view) {
-        UIView *owner = SGRAlbumPageOf(view);
+        UIView *owner = PGRAlbumPageOf(view);
         if (owner) applyHeader(view, owner);
     });
 }
@@ -477,7 +477,7 @@ static void applyPage(UIView *page) {
     %orig;
     UIView *button = (UIView *)self;
     if (button.layer.hidden || ![button.accessibilityIdentifier isEqualToString:@"header-play-button"]) return;
-    UIView *page = SGRAlbumPageOf(button);
+    UIView *page = PGRAlbumPageOf(button);
     if (!page) return;
     conceal(wrapperFor(button, page));
     applyPage(page);
@@ -485,9 +485,9 @@ static void applyPage(UIView *page) {
 %end
 
 %ctor {
-    if (!SGRedesignedUI()) return;
+    if (!PGRedesignedUI()) return;
     %init;
-    SGRequireClasses(@[
+    PGRequireClasses(@[
         @"_TtC28CreativeWorkPlatform_PageKit24CreativeWorkTemplateView",
         @"_TtC28EncoreConsumerMobile_BaseKit14PlayButtonView",
     ]);

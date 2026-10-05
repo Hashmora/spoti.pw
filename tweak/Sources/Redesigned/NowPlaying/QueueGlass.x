@@ -1,7 +1,7 @@
 // Now playing redesign: glass for the queue sheet and its controls. Clear and Edit (QueueHeaderView's
 // PillButton) and the edit-mode toolbar's Move up / Remove / Clear selection are flat 10%-white capsules,
 // like the playlist's sort/find toolbar (trees/continuous/8.txt). The sheet itself (id=sheet-view, as in
-// the ⋯ context menu) gets its pane from SGRGlassSheetChrome, the call Playlist/PlaylistMenu.x makes too. That
+// the ⋯ context menu) gets its pane from PGRGlassSheetChrome, the call Playlist/PlaylistMenu.x makes too. That
 // call also clears the grey (#1F1F1F) of the queue's table and rows, and the Kit's repaint hook keeps it
 // clear.
 //
@@ -10,8 +10,8 @@
 // #1F1F1F@1.00 in the dump taken just after opening, trees/continuous 2026-10-05) until a drag of the
 // sheet laid it out again. It runs from the view's appearance and from the next turns of the run loop
 // as well, and the two bars clear their own paint whenever it is laid down.
-#import "Core/SGCore.h"
-#import "Redesigned/Kit/SGRKit.h"
+#import "Core/PGCore.h"
+#import "Redesigned/Kit/PGRKit.h"
 
 // NowPlaying_ECMKit.QueueHeader.UI.Private.PillButton, as NSStringFromClass prints it (trees/continuous/8.txt).
 static NSString *const kPillButtonClass = @"_TtCOOO17NowPlaying_ECMKit11QueueHeader2UI7Private10PillButton";
@@ -20,8 +20,8 @@ static char kPillGlassKey, kChipGlassKey;
 
 // Clear and Edit: wherever QueueHeaderView has put them this pass.
 static void glassPills(UIView *root) {
-    SGForEachView(root, ^(UIView *view) {
-        if ([NSStringFromClass(view.class) isEqualToString:kPillButtonClass]) SGRGlassFlatBox(view, &kPillGlassKey);
+    PGForEachView(root, ^(UIView *view) {
+        if ([NSStringFromClass(view.class) isEqualToString:kPillButtonClass]) PGRGlassFlatBox(view, &kPillGlassKey);
     });
 }
 
@@ -29,14 +29,14 @@ static void glassPills(UIView *root) {
 // identifier and glassed one superview up.
 static void glassChip(UIView *root, NSString *buttonIdentifier) {
     static char kBtnKey;
-    UIView *button = SGRFindByIdentifier(root, buttonIdentifier, &kBtnKey);
-    if (button && button.superview) SGRGlassFlatBox(button.superview, &kChipGlassKey);
+    UIView *button = PGRFindByIdentifier(root, buttonIdentifier, &kBtnKey);
+    if (button && button.superview) PGRGlassFlatBox(button.superview, &kChipGlassKey);
 }
 
 static void chrome(UIViewController *controller) {
     UIView *root = controller.viewIfLoaded;
     if (!root) return;
-    SGRGlassSheetChrome(root);
+    PGRGlassSheetChrome(root);
     glassPills(root);
     glassChip(root, @"queue-edit-toolbar-move-up");
     glassChip(root, @"queue-edit-toolbar-remove");
@@ -53,7 +53,7 @@ static void chrome(UIViewController *controller) {
     %orig;
     chrome((UIViewController *)self);
     // Whether the sheet is already above the queue's view here decides if the first frame is clean.
-    SGLog(@"redesign queue: willAppear, sheet %@, view %@", sgr_sheetChromeRoot ? @"found" : @"NOT found",
+    PGLog(@"redesign queue: willAppear, sheet %@, view %@", pgr_sheetChromeRoot ? @"found" : @"NOT found",
           NSStringFromCGRect(((UIViewController *)self).viewIfLoaded.bounds));
 }
 
@@ -72,7 +72,7 @@ static void chrome(UIViewController *controller) {
 // The two bars under the list: Queue_ViewImpl.SessionModifiersView and EditModeToolbarView, painted
 // #1F1F1F by Spotify when they are made and each time their content changes.
 static void clearBar(UIView *bar) {
-    if (SGRIsSheetSurface(bar.layer.backgroundColor)) bar.backgroundColor = UIColor.clearColor;
+    if (PGRIsSheetSurface(bar.layer.backgroundColor)) bar.backgroundColor = UIColor.clearColor;
 }
 
 %hook _TtC14Queue_ViewImpl20SessionModifiersView
@@ -100,7 +100,7 @@ static void clearBar(UIView *bar) {
 %end
 
 %ctor {
-    if (!SGRedesignedUI()) return;
+    if (!PGRedesignedUI()) return;
     %init;
-    SGRequireClasses(@[@"_TtC14Queue_ViewImpl19QueueViewController"]);
+    PGRequireClasses(@[@"_TtC14Queue_ViewImpl19QueueViewController"]);
 }

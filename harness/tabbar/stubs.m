@@ -1,14 +1,14 @@
-// What the harness does not compile: the accent hook (SGRAccent.x), the repaint hook (SGRRepaint.x), the
+// What the harness does not compile: the accent hook (PGRAccent.x), the repaint hook (PGRRepaint.x), the
 // tab bar's composition (Navbar.x) and Mod Settings. Spotify's order of tabs stays as the mock has it.
 #import <UIKit/UIKit.h>
 
-UIColor *SGRAccentColor(void) { return nil; }
-__weak UIView *sgr_nowPlayingRoot = nil;
-__weak UIView *sgr_nowPlayingCard = nil;
-__weak UIView *sgr_lyricsPageRoot = nil;
-__weak UIView *sgr_playlistRoot = nil;
-__weak UIView *sgr_albumRoot = nil;
-__weak UIView *sgr_artistRoot = nil;
+UIColor *PGRAccentColor(void) { return nil; }
+__weak UIView *pgr_nowPlayingRoot = nil;
+__weak UIView *pgr_nowPlayingCard = nil;
+__weak UIView *pgr_lyricsPageRoot = nil;
+__weak UIView *pgr_playlistRoot = nil;
+__weak UIView *pgr_albumRoot = nil;
+__weak UIView *pgr_artistRoot = nil;
 
-void SGRComposeTabBar(UIView *tabBar) {}
-void SGOpenModSettings(UIView *source) {}
+void PGRComposeTabBar(UIView *tabBar) {}
+void PGOpenModSettings(UIView *source) {}

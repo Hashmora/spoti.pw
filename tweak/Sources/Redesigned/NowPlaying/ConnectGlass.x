@@ -2,10 +2,10 @@
 // and the ⋯ menu are (id=sheet-view, trees/continuous 2026-10-05), but nothing gave it a pane: the pane stayed
 // the opaque #1F1F1F Spotify paints it, so the picker was the one sheet with no glass at all. Content is
 // SwiftUI (Connect_DevicePickerUIImpl.DevicePickerViewController hosts it), whose own cards -- the playing
-// device's, the Connect button -- are left as they are (SGRIsSheetCard). The grey fade over the bottom of the
+// device's, the Connect button -- are left as they are (PGRIsSheetCard). The grey fade over the bottom of the
 // list, above the Connect button, is switched off (clearFade).
-#import "Core/SGCore.h"
-#import "Redesigned/Kit/SGRKit.h"
+#import "Core/PGCore.h"
+#import "Redesigned/Kit/PGRKit.h"
 
 // The thin grey fade SwiftUI lays over the bottom of the device list, right above the Connect button
 // (trees 2026-10-05: a full-width _UIShapeHitTestingView, 42 pt tall, ending at the button's top edge, with
@@ -26,18 +26,18 @@ static BOOL isPickerFade(UIView *view) {
     CGFloat width = host.bounds.size.width;
     CGSize size = view.frame.size;
     if (width < 1 || size.width < width * 0.9 || size.height < 8 || size.height > 80) return NO;
-    if (view.subviews.count || SGIsVisibleColor(view.layer.backgroundColor)) return NO;
+    if (view.subviews.count || PGIsVisibleColor(view.layer.backgroundColor)) return NO;
     return [NSStringFromClass(host.class) containsString:@"DevicePicker"];
 }
 
 static void hideFade(UIView *view) {
     if (view.layer.opacity == 0 || !isPickerFade(view)) return;
     view.layer.opacity = 0;
-    SGLog(@"redesign connect: cleared the fade above the button, %@", NSStringFromCGRect(view.frame));
+    PGLog(@"redesign connect: cleared the fade above the button, %@", NSStringFromCGRect(view.frame));
 }
 
 static void clearFade(UIView *sheet) {
-    SGForEachView(sheet, ^(UIView *view) {
+    PGForEachView(sheet, ^(UIView *view) {
         if ([NSStringFromClass(view.class) hasSuffix:kShapeViewSuffix]) hideFade(view);
     });
 }
@@ -45,7 +45,7 @@ static void clearFade(UIView *sheet) {
 static void chrome(UIViewController *controller) {
     UIView *root = controller.viewIfLoaded;
     if (!root) return;
-    UIView *glass = SGRGlassSheetChrome(root);
+    UIView *glass = PGRGlassSheetChrome(root);
     if (glass) clearFade(glass.superview);
 }
 
@@ -90,7 +90,7 @@ static void chrome(UIViewController *controller) {
 %end
 
 %ctor {
-    if (!SGRedesignedUI()) return;
+    if (!PGRedesignedUI()) return;
     %init;
-    SGRequireClasses(@[@"_TtC26Connect_DevicePickerUIImpl26DevicePickerViewController"]);
+    PGRequireClasses(@[@"_TtC26Connect_DevicePickerUIImpl26DevicePickerViewController"]);
 }

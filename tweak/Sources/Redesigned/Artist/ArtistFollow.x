@@ -1,45 +1,45 @@
 // Whether the user follows the page's artist, read from Spotify's collection state (following saves the
 // artist to the collection) rather than the Follow button, whose only state is its localized title.
 // The provider is the one Spotify's own code uses, kept weakly.
-#import "Core/SGCore.h"
+#import "Core/PGCore.h"
 #import "Artist.h"
 
-@protocol SGRCollectionState <NSObject>
+@protocol PGRCollectionState <NSObject>
 + (id)saved;
 - (BOOL)contains:(id)state;
 - (NSInteger)rawValue;
 @end
 
-@protocol SGRCollectionStateProvider <NSObject>
+@protocol PGRCollectionStateProvider <NSObject>
 - (id)subscribeCollectionStateForURL:(NSURL *)url completion:(void (^)(id state, NSError *error))completion;
 @end
 
-static __weak id sg_provider;
+static __weak id pg_provider;
 
 // Called from wherever Spotify reaches for its provider, any thread.
 static void keepProvider(id provider) {
     if (!provider || ![provider respondsToSelector:@selector(subscribeCollectionStateForURL:completion:)]) return;
     static NSMutableSet<NSString *> *logged;
     @synchronized (NSObject.class) {
-        if (provider == sg_provider) return;
-        sg_provider = provider;
+        if (provider == pg_provider) return;
+        pg_provider = provider;
         if (!logged) logged = [NSMutableSet set];
         NSString *name = NSStringFromClass([provider class]);
         if ([logged containsObject:name]) return;
         [logged addObject:name];
     }
-    SGLog(@"redesign artist: collection state from %@", NSStringFromClass([provider class]));
+    PGLog(@"redesign artist: collection state from %@", NSStringFromClass([provider class]));
 }
 
-static __weak id sg_platform;
+static __weak id pg_platform;
 
 static id currentProvider(void) {
     id provider;
     @synchronized (NSObject.class) {
-        provider = sg_provider;
+        provider = pg_provider;
     }
-    if (!provider && [sg_platform respondsToSelector:@selector(stateProvider)]) {
-        provider = [sg_platform performSelector:@selector(stateProvider)];
+    if (!provider && [pg_platform respondsToSelector:@selector(stateProvider)]) {
+        provider = [pg_platform performSelector:@selector(stateProvider)];
         keepProvider(provider);
     }
     return provider;
@@ -48,7 +48,7 @@ static id currentProvider(void) {
 %hook SPTCollectionPlatformImplementation
 - (id)initWithCosmosDataLoader:(id)loader isGatedEntityRelationsEnabled:(BOOL)gated {
     id platform = %orig;
-    sg_platform = platform;
+    pg_platform = platform;
     return platform;
 }
 - (id)stateProvider {
@@ -132,7 +132,7 @@ static id currentProvider(void) {
 #pragma mark - one subscription per page
 
 // Held by the page, so the subscription ends with it.
-@interface SGRFollowWatch : NSObject
+@interface PGRFollowWatch : NSObject
 @property (nonatomic, copy) NSURL *uri;
 @property (nonatomic, strong) id token;
 @property (nonatomic) BOOL subscribed;
@@ -140,7 +140,7 @@ static id currentProvider(void) {
 @property (nonatomic, copy) void (^changed)(void);
 @end
 
-@implementation SGRFollowWatch
+@implementation PGRFollowWatch
 - (void)dealloc {
     if ([_token respondsToSelector:@selector(cancel)]) [_token cancel];
 }
@@ -164,45 +164,45 @@ static NSURL *artistURI(UIView *page, NSString *moreIdentifier) {
     return [NSURL URLWithString:[@"spotify:artist:" stringByAppendingString:identifier]];
 }
 
-static void subscribe(SGRFollowWatch *watch, id provider) {
+static void subscribe(PGRFollowWatch *watch, id provider) {
     Class stateClass = NSClassFromString(@"SPTCollectionPlatformState");
     if (![stateClass respondsToSelector:@selector(saved)]) return;
-    id saved = [(Class<SGRCollectionState>)stateClass saved];
-    __weak SGRFollowWatch *weakWatch = watch;
+    id saved = [(Class<PGRCollectionState>)stateClass saved];
+    __weak PGRFollowWatch *weakWatch = watch;
     NSURL *uri = watch.uri;
     watch.subscribed = YES;
-    SGLog(@"redesign artist: follow subscribes for %@ on %@", uri.absoluteString, NSStringFromClass([provider class]));
-    watch.token = [(id<SGRCollectionStateProvider>)provider subscribeCollectionStateForURL:uri completion:^(id state, NSError *error) {
+    PGLog(@"redesign artist: follow subscribes for %@ on %@", uri.absoluteString, NSStringFromClass([provider class]));
+    watch.token = [(id<PGRCollectionStateProvider>)provider subscribeCollectionStateForURL:uri completion:^(id state, NSError *error) {
         if (error || ![state respondsToSelector:@selector(contains:)]) {
-            SGLog(@"redesign artist: follow state for %@ unreadable: %@ %@", uri.absoluteString, [state class], error);
+            PGLog(@"redesign artist: follow state for %@ unreadable: %@ %@", uri.absoluteString, [state class], error);
             return;
         }
-        NSInteger raw = [state respondsToSelector:@selector(rawValue)] ? [(id<SGRCollectionState>)state rawValue] : -1;
-        BOOL following = [(id<SGRCollectionState>)state contains:saved];
+        NSInteger raw = [state respondsToSelector:@selector(rawValue)] ? [(id<PGRCollectionState>)state rawValue] : -1;
+        BOOL following = [(id<PGRCollectionState>)state contains:saved];
         dispatch_async(dispatch_get_main_queue(), ^{
-            SGRFollowWatch *current = weakWatch;
+            PGRFollowWatch *current = weakWatch;
             if (!current || current.following == following) return;
-            SGLog(@"redesign kit: follow state %ld for %@", (long)raw, uri.absoluteString);
+            PGLog(@"redesign kit: follow state %ld for %@", (long)raw, uri.absoluteString);
             current.following = following;
             if (current.changed) current.changed();
         });
     }];
 }
 
-BOOL SGRArtistFollowing(UIView *page, NSString *moreIdentifier, BOOL *following, void (^changed)(void)) {
+BOOL PGRArtistFollowing(UIView *page, NSString *moreIdentifier, BOOL *following, void (^changed)(void)) {
     if (!page) return NO;
-    SGRFollowWatch *watch = objc_getAssociatedObject(page, &kWatchKey);
+    PGRFollowWatch *watch = objc_getAssociatedObject(page, &kWatchKey);
     if (!watch) {
         NSURL *uri = artistURI(page, moreIdentifier);
         if (!uri) {
             static __weak UIView *loggedPage;
             if (loggedPage != page) {
                 loggedPage = page;
-                SGLog(@"redesign artist: follow has no artist URI, more is %@", moreIdentifier);
+                PGLog(@"redesign artist: follow has no artist URI, more is %@", moreIdentifier);
             }
             return NO;
         }
-        watch = [SGRFollowWatch new];
+        watch = [PGRFollowWatch new];
         watch.uri = uri;
         watch.following = -1;
         objc_setAssociatedObject(page, &kWatchKey, watch, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
@@ -216,7 +216,7 @@ BOOL SGRArtistFollowing(UIView *page, NSString *moreIdentifier, BOOL *following,
 }
 
 %ctor {
-    if (!SGRedesignedUI()) return;
+    if (!PGRedesignedUI()) return;
     %init;
-    SGRequireClasses(@[@"SPTCollectionPlatformState", @"_TtC23Collection_PlatformImpl35CollectionPlatformStateProviderImpl"]);
+    PGRequireClasses(@[@"SPTCollectionPlatformState", @"_TtC23Collection_PlatformImpl35CollectionPlatformStateProviderImpl"]);
 }
