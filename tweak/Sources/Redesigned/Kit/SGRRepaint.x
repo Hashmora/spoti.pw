@@ -50,9 +50,16 @@ static BOOL isLibraryHeader(UIView *view) {
         UIView *header = (UIView *)self.delegate;
         if ([header isKindOfClass:UIView.class] && header.layer == self && isLibraryHeader(header)) color = NULL;
     }
-    if (isNeutralTint(color)) {
+    // A chip's fill painted: the grey goes, and either way the chip's glass is told (below, once the paint is
+    // in), because selecting and deselecting a chip repaints the fill and lays nothing out, so the glass kept
+    // whatever state the last layout gave it (hidden under a selected colour that was gone again, 2026-10-05).
+    UIView *paintedChip = nil;
+    if (color && (isNeutralTint(color) || CGColorGetAlpha(color) > 0.5)) {
         UIView *fill = (UIView *)self.delegate;
-        if ([fill isKindOfClass:UIView.class] && fill.layer == self && isChipFill(fill)) color = NULL;
+        if ([fill isKindOfClass:UIView.class] && fill.layer == self && isChipFill(fill)) {
+            paintedChip = fill.superview;
+            if (isNeutralTint(color)) color = NULL;
+        }
     }
     if (color && (sgr_nowPlayingRoot || sgr_lyricsPageRoot || sgr_playlistRoot || sgr_albumRoot || sgr_artistRoot || sgr_sheetChromeRoot)) {
         UIView *view = (UIView *)self.delegate;
@@ -82,6 +89,7 @@ static BOOL isLibraryHeader(UIView *view) {
         }
     }
     %orig(color);
+    if (paintedChip) dispatch_async(dispatch_get_main_queue(), ^{ SGRLibraryChipPainted(paintedChip); });
 }
 %end
 

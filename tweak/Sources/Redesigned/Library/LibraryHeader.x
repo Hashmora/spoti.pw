@@ -240,7 +240,7 @@ static UIView *chipFill(UIView *chip, UIView *glass) {
 // (bg=#FFFFFF@0.10, trees/continuous/26.txt 2026-09-26) that SGRRepaint.x now keeps from ever landing.
 static BOOL chipIsSelected(UIView *fill) {
     CGColorRef color = fill.layer.backgroundColor;
-    return color && CGColorGetAlpha(color) > 0.5;
+    return color && CGColorGetAlpha(color) > 0.3;
 }
 
 // The glass goes in the chip itself, first among its subviews and under the fill, the way every round
@@ -287,6 +287,52 @@ static void glassChips(UIView *header) {
         watchChip(v);
     });
 }
+
+static BOOL isChipView(UIView *view) {
+    return [NSStringFromClass(view.class) isEqualToString:@"EncoreConsumerMobile_BaseKit.FilterChipView"];
+}
+
+// Only the chips of a library header or a folder's: Home has chips of its own, with their own treatment.
+static BOOL inLibraryChips(UIView *view) {
+    for (UIView *v = view; v; v = v.superview) {
+        if ([NSStringFromClass(v.class) hasSuffix:@"YourLibraryHeaderContentFiltersView"]) return YES;
+    }
+    return NO;
+}
+
+// A chip's fill was painted (SGRRepaint.x): selecting a chip or letting it go repaints the fill and lays
+// nothing out, so the glass stayed as the last layout left it. Deselected, the Playlists chip kept its glass
+// hidden from the selected state and at the width of a chip that had been another one in the reused cell,
+// and had no pill at all until the page happened to lay out (trees 2026-10-05, 5.txt:911).
+void SGRLibraryChipPainted(UIView *chip) {
+    if (!chip.window || !isChipView(chip) || !inLibraryChips(chip)) return;
+    // What the glass was when the paint came, before it is put right: the line that says whether it was stale.
+    static NSInteger logged;
+    if (logged < 40) {
+        logged++;
+        UIView *glass = objc_getAssociatedObject(chip, &kChipGlassKey);
+        UIView *fill = chipFill(chip, glass);
+        SGLog(@"redesign library: chip %@ painted, fill selected %d, glass %@ hidden %d width %.0f, chip width %.0f",
+              chip.accessibilityIdentifier, fill ? chipIsSelected(fill) : -1, glass ? @"present" : @"missing",
+              glass.hidden, glass.bounds.size.width, chip.bounds.size.width);
+    }
+    glassChip(chip);
+    watchChip(chip);
+}
+
+// The chips' own collection lays out when a filter is picked or cleared: the cells are reloaded, a chip comes
+// back in a cell that was another chip's or a new one, and the header's page, which glassChips walks from,
+// is not laid out at all. Each pass of that collection takes every chip in it through the same two steps.
+%hook UICollectionView
+- (void)layoutSubviews {
+    %orig;
+    UIView *collection = (UIView *)self;
+    if (![collection.accessibilityIdentifier isEqualToString:@"Layout.CollectionView"] || !inLibraryChips(collection)) return;
+    SGForEachView(collection, ^(UIView *v) {
+        if (isChipView(v)) { glassChip(v); watchChip(v); }
+    });
+}
+%end
 
 #pragma mark - the backing behind the title row only
 

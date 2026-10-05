@@ -20,3 +20,8 @@ extern __weak UIView *sgr_artistRoot;
 // and a view built only after that first pass (the queue's own footer, device 2026-09-27) never gets a
 // first strip at all without this.
 extern __weak UIView *sgr_sheetChromeRoot;
+
+// Defined in Redesigned/Library/LibraryHeader.x, declared here because the repaint hook is lower than the
+// part: a library filter chip's fill was just painted (selected, deselected, pressed), so its glass is brought
+// in line with the paint -- shown over a clear fill, hidden under a selected colour -- without a layout pass.
+void SGRLibraryChipPainted(UIView *chip);
