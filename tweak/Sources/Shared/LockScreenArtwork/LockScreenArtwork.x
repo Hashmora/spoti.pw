@@ -146,16 +146,15 @@ static void askCanvaz(NSString *uri, void (^done)(SGCanvas *canvas, NSString *no
     }] resume];
 }
 
-void SGArtworkAsk(NSString *source, SPTPlayerTrack *track, SGCanvas *fromMetadata, BOOL tall, void (^done)(SGCanvas *canvas, NSString *note)) {
+// One source's clip for the track, on the main queue; nil when it has none.
+static void ask(NSString *source, NSString *uri, SPTPlayerTrack *track, SGCanvas *fromMetadata, void (^done)(SGCanvas *canvas, NSString *note)) {
     if ([source isEqualToString:SGArtworkSourceSpotify]) {
-        NSString *uri = SGURIString(track.URI);
         if (fromMetadata) done(fromMetadata, @"track metadata");
-        else if (uri) askCanvaz(uri, done);
-        else done(nil, @"no track");
+        else askCanvaz(uri, done);
         return;
     }
     NSDictionary *metadata = [track respondsToSelector:@selector(metadata)] ? track.metadata : nil;
-    SGAppleArtworkFind(metadata[@"artist_name"] ?: track.artistName, metadata[@"album_title"], tall, done);
+    SGAppleArtworkFind(metadata[@"artist_name"] ?: track.artistName, metadata[@"album_title"], sg_aspect < 0.9, done);
 }
 
 static void walk(NSString *uri, SPTPlayerTrack *track, SGCanvas *fromMetadata, NSArray<NSString *> *order, NSUInteger at) {
@@ -163,7 +162,7 @@ static void walk(NSString *uri, SPTPlayerTrack *track, SGCanvas *fromMetadata, N
         SGLog(@"lock artwork: no clip for %@ from %@", uri, order.count ? [order componentsJoinedByString:@", "] : @"no source");
         return;
     }
-    SGArtworkAsk(order[at], track, fromMetadata, sg_aspect < 0.9, ^(SGCanvas *canvas, NSString *note) {
+    ask(order[at], uri, track, fromMetadata, ^(SGCanvas *canvas, NSString *note) {
         if (![sg_wanted isEqualToString:uri]) return;
         if (canvas.video) {
             play(uri, canvas, order[at]);
@@ -207,7 +206,7 @@ static void resolve(SPTPlayerTrack *track) {
     BOOL same = uri == sg_wanted || [uri isEqualToString:sg_wanted];
     if (same && (fromMetadata || !canvas)) return;
     fromMetadata = canvas != nil;
-    NSArray<NSString *> *order = SGArtworkOrderFor(SGKeyLockScreenArtworkSources);
+    NSArray<NSString *> *order = SGArtworkOrder();
     // A Canvas landing late is no news with Spotify off, or with a source asked before it already playing.
     NSUInteger spotifyAt = [order indexOfObject:SGArtworkSourceSpotify];
     if (same && (spotifyAt == NSNotFound || (sg_playing && [order indexOfObject:sg_playing] < spotifyAt))) return;

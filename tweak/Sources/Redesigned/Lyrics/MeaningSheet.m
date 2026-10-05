@@ -3,13 +3,13 @@
 #import "MeaningSheet.h"
 #import "Redesigned/Kit/SGRTokens.h"
 #import "Core/SGGlass.h"
-#import "Redesigned/Kit/SGRLegacyGlass.h"
+#import "Redesigned/Kit/SGRGlass.h"
 
 static const CGFloat kSide = 24, kTop = 28, kGap = 12;
-
-// Below iOS 26 only (SGBelowIOS26): the sheet's corners are the screen's own radius at every detent. A page
-// sheet is only 10 pt round at the medium detent and grows to the screen's radius as it is pulled to the large
-// one, so left alone the corners were small until dragged up.
+// The sheet's corners: the screen's own radius at every detent. A page sheet is only 10 pt round at the medium
+// detent and grows to the screen's radius as it is pulled to the large one (trees 2026-10-05: r=10 on the
+// container at medium, r=47.3 inside it), so left alone the corners were small until dragged up. 16, the
+// radius of Spotify's own sheets, was tried and read as always small; this keeps the big one throughout.
 static const CGFloat kScreenRadiusFallback = 47;
 
 static CGFloat sheetRadius(void) {
@@ -62,7 +62,7 @@ static NSString *authorSymbol(SGLyricsMeaningAuthor author) {
     UISheetPresentationController *sheet = self.sheetPresentationController;
     sheet.detents = @[UISheetPresentationControllerDetent.mediumDetent, UISheetPresentationControllerDetent.largeDetent];
     sheet.prefersGrabberVisible = YES;
-    if (SGBelowIOS26()) { if (@available(iOS 16.0, *)) sheet.preferredCornerRadius = sheetRadius(); }
+    if (@available(iOS 16.0, *)) sheet.preferredCornerRadius = sheetRadius();
     sheet.prefersScrollingExpandsWhenScrolledToEdge = YES;
     return self;
 }
@@ -95,15 +95,12 @@ static NSString *authorSymbol(SGLyricsMeaningAuthor author) {
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    self.view.backgroundColor = UIColor.systemBackgroundColor;
-    if (SGBelowIOS26()) {
-        self.view.backgroundColor = UIColor.clearColor;
-        UIView *glass = SGGlassFor(self.view, &kMeaningGlassKey);
-        glass.frame = self.view.bounds;
-        glass.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-        SGShapeGlass(glass, sheetRadius(), NO);
-        SGRThickenSheetGlass(glass, sheetRadius());
-    }
+    self.view.backgroundColor = UIColor.clearColor;
+    UIView *glass = SGGlassFor(self.view, &kMeaningGlassKey);
+    glass.frame = self.view.bounds;
+    glass.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    SGShapeGlass(glass, sheetRadius(), NO);
+    SGRThickenSheetGlass(glass, sheetRadius());
     _scroll = [[UIScrollView alloc] initWithFrame:self.view.bounds];
     _scroll.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     _scroll.alwaysBounceVertical = YES;

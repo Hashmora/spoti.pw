@@ -37,9 +37,3 @@ NSData *SGStripFeed(NSData *body);
 
 // The Premium, ads & privacy page: these switches, the ad flags they lock, telemetry, the counters.
 UIViewController *SGAdsSettingsPage(void);
-
-// The telemetry switch and what it has stopped (AdPrivacySections.m), on the same page. The author's own
-// Privacy & clutter page (Shared/Privacy) is left as it is, and these two sit beside it.
-@class SGModSection;
-SGModSection *SGPrivacySection(void);
-SGModSection *SGPrivacyCountersSection(void);

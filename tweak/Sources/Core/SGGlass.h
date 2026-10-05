@@ -13,12 +13,11 @@ BOOL SGUseLegacyGlass(void);
 
 // UIGlassEffect, which is only made by +effectWithStyle:, or a dark chrome blur as the fallback.
 UIVisualEffect *SGGlassEffect(void);
-// A UIVisualEffectView or an SGLegacyGlassView, hence __kindof: code written against UIVisualEffectView
-// (the author's call sites) compiles as it is. Callers set its frame and overrideUserInterfaceStyle and
+// A UIVisualEffectView or an SGLegacyGlassView. Callers set its frame and overrideUserInterfaceStyle and
 // pass it to SGShapeGlass, so they need not tell the two apart.
-__kindof UIView *SGGlassFor(UIView *host, const void *key);
+UIView *SGGlassFor(UIView *host, const void *key);
 // Several panes on one host, addressed by index; panes past `count` are hidden by SGHideGlassFrom.
-__kindof UIView *SGGlassAt(UIView *host, NSUInteger index);
+UIView *SGGlassAt(UIView *host, NSUInteger index);
 void SGHideGlassFrom(UIView *host, NSUInteger count);
 // Glass takes its shape from cornerConfiguration on iOS 26, from SGLegacyGlassView's own corner radius
 // below that, and from layer.cornerRadius on a plain blur.

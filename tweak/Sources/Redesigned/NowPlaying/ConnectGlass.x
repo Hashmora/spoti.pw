@@ -6,7 +6,6 @@
 // list, above the Connect button, is switched off (clearFade).
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
-#import "Redesigned/Kit/SGRLegacyGlass.h"
 
 // The thin grey fade SwiftUI lays over the bottom of the device list, right above the Connect button
 // (trees 2026-10-05: a full-width _UIShapeHitTestingView, 42 pt tall, ending at the button's top edge, with
@@ -91,7 +90,7 @@ static void chrome(UIViewController *controller) {
 %end
 
 %ctor {
-    if (!SGRedesignedUI() || !SGBelowIOS26()) return;
+    if (!SGRedesignedUI()) return;
     %init;
     SGRequireClasses(@[@"_TtC26Connect_DevicePickerUIImpl26DevicePickerViewController"]);
 }

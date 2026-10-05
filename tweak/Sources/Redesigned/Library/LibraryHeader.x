@@ -3,12 +3,14 @@
 // that opens the side drawer at the trailing edge, and the scrim Spotify lays behind the header gone, the soft
 // scroll edge (Kit/SGREdgeEffect.x) being what keeps the header clear of the list scrolling under it.
 //
-// The filter chips under the row stay Spotify's, untouched. They were taken out when the redesign was first
-// built and the header closed up by the 49pt they left, and sorting a library turned out to be something the
-// page cannot do without (issue #20). Spotify already draws them on the system's own glass
-// (Reprise_LiquidGlassKit.LiquidGlass.ChipGlassView, trees/clean/library/03.txt:1210), so they belong here as
-// they are; with them back the header keeps the height Spotify gives it and the list keeps Spotify's own inset,
-// and there is nothing here to resize or to hold.
+// The filter chips under the row stay Spotify's own views and controls. They were taken out when the redesign
+// was first built and the header closed up by the 49pt they left, and sorting a library turned out to be
+// something the page cannot do without (issue #20); with them back the header keeps the height Spotify gives
+// it and the list keeps Spotify's own inset, and there is nothing here to resize or to hold. Only the paint
+// changes: an unselected chip's flat grey fill goes (SGRRepaint.x holds it clear when Spotify paints it back)
+// and a glass capsule stands behind it, like the header's round buttons; a selected chip keeps its own colour.
+// The header's own backing ends under the title row and the list runs up under the chips (plateRow, raiseList),
+// so the glass has the rows to show; the root library only, a folder's header is left as Spotify's.
 //
 // Tree (trees/clean/library/03.txt:1159-1247): YourLibraryView holds YourLibraryContentView, the size of the
 // page, and after it -- so over it -- YourLibraryHeaderView 402x159.33: LiquidGlass.GradientView (the scrim), a
@@ -44,7 +46,6 @@
 
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
-#import "Redesigned/Kit/SGRLegacyGlass.h"
 #import "Library.h"
 
 NSString *const SGRLibraryListIdentifier = @"YourLibraryContent.collectionView";
@@ -55,7 +56,7 @@ NSString *const SGRLibraryListIdentifier = @"YourLibraryContent.collectionView";
 static const CGFloat kRowInset = 8;
 static char kTitleKey, kRowWatchedKey;
 static char kRecentsKey, kSearchKey, kPlusKey, kHeaderTitleKey;
-static char kRoundGlassKey;   // below iOS 26 (SGBelowIOS26), as the keys under it
+static char kRoundGlassKey;
 static char kBackKey, kMenuKey, kFolderPlusKey, kPlayKey, kPauseKey, kFolderTitleKey;
 static char kChipsKey, kChipGlassKey, kChipWatchedKey;
 static char kPlateKey, kContentKey, kListKey, kInsetKey;
@@ -226,9 +227,6 @@ static NSArray<UIView *> *placeFolder(UIView *header) {
     return placed;
 }
 
-// Below iOS 26 only (SGBelowIOS26): the library's filter chips on glass over the list, the way the round
-// buttons of the header have theirs. Spotify draws them on the system's own glass from iOS 26, so the author's
-// code leaves them as they are; nothing in this block runs there.
 // The plain view FilterChipView draws its capsule fill with, under the label and the border: the first
 // subview that is neither our glass nor one of Spotify's classes (trees/continuous/1.txt:824-830).
 static UIView *chipFill(UIView *chip, UIView *glass) {
@@ -271,7 +269,7 @@ static void glassChip(UIView *chip) {
 // pass of it (the legacy glass builds its mesh for a size, so autoresizing alone would not follow).
 static void watchChip(UIView *chip) {
     if (objc_getAssociatedObject(chip, &kChipWatchedKey)) return;
-    if (SGRLegacyObserveLayout(chip, ^(UIView *view) { glassChip(view); })) {
+    if (SGRObserveLayout(chip, ^(UIView *view) { glassChip(view); })) {
         objc_setAssociatedObject(chip, &kChipWatchedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
 }
@@ -349,13 +347,11 @@ static void layoutRoot(UIView *page) {
     if (!header) return;
     [header layoutIfNeeded];
     SGRLibraryClearScrim(header);
-    if (SGBelowIOS26()) {
-        glassChips(header);
-        UIView *filters = childNamed(header, @"YourLibraryHeaderContentFiltersView");
-        if (filters && header.bounds.size.height > 1) {
-            plateRow(header, filters);
-            raiseList(page, header, filters);
-        }
+    glassChips(header);
+    UIView *filters = childNamed(header, @"YourLibraryHeaderContentFiltersView");
+    if (filters && header.bounds.size.height > 1) {
+        plateRow(header, filters);
+        raiseList(page, header, filters);
     }
 
     NSArray<UIView *> *trailing = placeRoot(header);
@@ -364,11 +360,9 @@ static void layoutRoot(UIView *page) {
     // Search and + are plain 48pt icon buttons with nothing behind them (trees/continuous/10.txt
     // 2026-09-26); the avatar is skipped, its image already fills the circle so glass behind it would
     // never show.
-    if (SGBelowIOS26()) {
-        for (UIView *control in trailing) {
-            if (isFace(control)) continue;
-            SGRGlassInside(control, &kRoundGlassKey, 44);
-        }
+    for (UIView *control in trailing) {
+        if (isFace(control)) continue;
+        SGRGlassInside(control, &kRoundGlassKey, 44);
     }
 
     // The first pass that laid the header out, not the first pass at all: a page appearing lays out before
@@ -388,7 +382,7 @@ static void layoutFolder(UIView *page) {
     if (!header) return;
     [header layoutIfNeeded];
     SGRLibraryClearScrim(header);
-    if (SGBelowIOS26()) glassChips(header);
+    glassChips(header);
 
     NSArray<UIView *> *placed = placeFolder(header);
     if (!placed.count) return;

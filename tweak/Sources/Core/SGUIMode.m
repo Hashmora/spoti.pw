@@ -2,9 +2,11 @@
 #import "SGLog.h"
 #import "SGPrefs.h"
 
-BOOL SGRedesignTested(void) {
-    if (@available(iOS 26.0, *)) return YES;
-    return NO;
+BOOL SGRedesignAvailable(void) {
+    // The redesign stands in for the system's Liquid Glass where there is none. From iOS 26 the system
+    // draws its own, and a second engine over it only conflicts (Redesigned/Navbar/TabBar.x).
+    if (@available(iOS 26.0, *)) return NO;
+    return YES;
 }
 
 BOOL SGRedesignedUI(void) {
@@ -12,9 +14,7 @@ BOOL SGRedesignedUI(void) {
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         on = SGRedesignedUIStored();
-        // A switch left on from before the warning existed, so the row does not show a look that is not running.
-        if (!on && SGFlag(SGKeyRedesign, NO)) SGSetEnabled(SGKeyRedesign, NO);
-        SGLog(@"ui: %@%@", on ? @"redesigned" : @"native", SGRedesignTested() ? @"" : @" (untested below iOS 26)");
+        SGLog(@"ui: %@%@", on ? @"redesigned" : @"native", SGRedesignAvailable() ? @"" : @" (the redesign needs iOS 26)");
     });
     return on;
 }
@@ -24,5 +24,7 @@ BOOL SGNativeUI(void) {
 }
 
 BOOL SGRedesignedUIStored(void) {
-    return SGFlag(SGKeyRedesign, NO) && (SGRedesignTested() || SGFlag(SGKeyRedesignUntested, NO));
+    // The stored switch is left alone rather than turned off: a phone updated to iOS 26 gets the
+    // redesign it was last asked for back.
+    return SGRedesignAvailable() && SGFlag(SGKeyRedesign, NO);
 }

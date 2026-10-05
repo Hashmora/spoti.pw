@@ -402,8 +402,4 @@ static id SGMakeGlassMesh(CGSize size, CGFloat radius) {
     [CATransaction commit];
 }
 
-// See the header: kept so a call site written for UIVisualEffectView does not crash on a legacy pane.
-- (UIVisualEffect *)effect { return nil; }
-- (void)setEffect:(UIVisualEffect *)effect {}
-
 @end

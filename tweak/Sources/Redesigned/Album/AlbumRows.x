@@ -47,13 +47,10 @@ static void applyHairline(UIView *row) {
     [CATransaction commit];
 }
 
-static void applyRow(UIView *cell, UIView *page) {
+static void applyRow(UIView *cell) {
     clearSurface(cell);
     UIView *row = SGRFindByIdentifier(cell, @"Components.UI.RetrievalRow*", &kRowKey);
     if (!row) return;
-    // The first track with its title in is the list the page waits for (Kit/SGRReveal.h); a row still loading
-    // draws grey bars with empty labels.
-    if (SGRRevealWaitsFor(page, SGRRevealList) && SGRRevealShowsText(row)) SGRRevealMark(page, SGRRevealList);
     // The row, and every box the element framework wraps it in on the way back up to the cell.
     for (UIView *v = row; v; v = v.superview) {
         clearSurface(v);
@@ -91,8 +88,7 @@ static BOOL isTrackContent(UIView *content) {
     %orig;
     UICollectionViewCell *cell = (UICollectionViewCell *)self;
     if (!isTrackContent(cell.contentView.subviews.firstObject)) return;
-    UIView *page = SGRAlbumPageOf(cell);
-    if (page) applyRow(cell, page);
+    if (SGRAlbumPageOf(cell)) applyRow(cell);
 }
 %end
 

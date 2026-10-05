@@ -8,13 +8,6 @@
 // combines both.
 #import <UIKit/UIKit.h>
 
-// The one filter every piece of this fork's own code hangs on: YES below iOS 26. From iOS 26 the system
-// draws its own glass and the author's code runs as it is written, nothing of the fork's beside it.
-static inline BOOL SGBelowIOS26(void) {
-    if (@available(iOS 26.0, *)) return NO;
-    return YES;
-}
-
 // NO on iOS 26+ (UIGlassEffect is used there) and wherever the private classes turn out not to exist.
 // Cached after the first call.
 BOOL SGLegacyGlassAvailable(void);
@@ -34,9 +27,5 @@ BOOL SGLegacyGlassAvailable(void);
 // How far the backdrop is blurred, 2 by default: enough to soften an edge, and so little that a small
 // control over text shows the text. A big pane (a sheet) sets more, or the page under it takes the eye.
 @property (nonatomic) CGFloat blurRadius;
-
-// What code written against UIVisualEffectView may still ask of a pane (SGGlassFor returns either): there is
-// no effect to read or change here, so the getter is nil and the setter does nothing.
-@property (nonatomic, strong, nullable) UIVisualEffect *effect;
 
 @end

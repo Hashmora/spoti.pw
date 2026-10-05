@@ -17,7 +17,6 @@
 // SGRPlaylistHeaderOf answers only for a playlist page.
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
-#import "Redesigned/Kit/SGRLegacyGlass.h"
 #import "Playlist.h"
 #import <objc/message.h>
 
@@ -96,7 +95,7 @@ static void apply(UIView *bar) {
 %end
 
 %ctor {
-    if (!SGRedesignedUI() || !SGBelowIOS26()) return;
+    if (!SGRedesignedUI()) return;
     %init;
     SGRequireClasses(@[@"_TtC28EncoreConsumerMobile_BaseKit19HeaderNavigationBar"]);
 }

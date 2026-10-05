@@ -14,7 +14,6 @@
 // The rows' icon circles (Encore.Box, #FFFFFF@0.14) are already translucent white and are left as they are.
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
-#import "Redesigned/Kit/SGRLegacyGlass.h"
 
 static NSString *const kCardIdentifier = @"CreateMenu.ScrollView";
 static char kCardKey, kCardGlassKey;
@@ -84,7 +83,7 @@ static void afterAppear(UIViewController *controller, void (*chrome)(UIViewContr
 %end
 
 %ctor {
-    if (!SGRedesignedUI() || !SGBelowIOS26()) return;
+    if (!SGRedesignedUI()) return;
     %init;
     SGRequireClasses(@[@"_TtC29CreateMenu_CreateMenuPageImpl24CreateMenuViewController",
                        @"_TtC30PlaylistCreation_SheetPageImpl35BICreatePlaylistSheetViewController"]);
