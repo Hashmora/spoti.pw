@@ -6,6 +6,7 @@
 // queue's) and clears the grey of the wrappers and rows.
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
+#import "Redesigned/Kit/SGRLegacyGlass.h"
 
 static NSString *const kSheetController = @"_TtC32Artist_ArtistAttributionPageImpl42ArtistAttributionBottomSheetViewController";
 
@@ -39,7 +40,7 @@ static void chrome(UIViewController *controller) {
 %end
 
 %ctor {
-    if (!SGRedesignedUI()) return;
+    if (!SGRedesignedUI() || !SGBelowIOS26()) return;
     %init;
     SGRequireClasses(@[kSheetController]);
 }

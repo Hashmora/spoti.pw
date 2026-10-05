@@ -30,6 +30,7 @@
 // is held from the page, so they are still there to fire once the list has scrolled past them.
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
+#import "Redesigned/Kit/SGRLegacyGlass.h"
 #import "Playlist.h"
 
 NSString *const SGRPlaylistCurationIdentifier = @"PlaylistCuration.Row.CurationActionsToolbar";
@@ -304,10 +305,11 @@ static UITableView *tableIn(UIView *root, int depth) {
 // the cells on screen and no more, and it is done once per sheet.
 static UIView *curationIn(UIView *page) {
     UIView *held = objc_getAssociatedObject(page, &kToolbarKey);
-    if (held) return held;
+    // A reload replaces the row; the one held from before is out of the window and its Mix answers nothing.
+    if (held.window) return held;
     UIView *found = SGRFindByIdentifier(page, SGRPlaylistCurationIdentifier, NULL);
     if (found) objc_setAssociatedObject(page, &kToolbarKey, found, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    return found;
+    return found ?: held;
 }
 
 // The page this sheet belongs to, decided once and only from the ⋯ that opened it. What the page has to
@@ -350,7 +352,7 @@ static void install(UIViewController *menu) {
     // reused -- and the curation pill only where it has not, which is how it was found before the header's
     // button was (device 2026-09-20: the pill's glyph did not answer and the row went missing).
     UIView *sort = nil, *mix = nil;
-    pillsIn(objc_getAssociatedObject(page, &kToolbarKey), &sort, &mix);
+    pillsIn(curationIn(page), &sort, &mix);
     sort = objc_getAssociatedObject(page, &kSortKey) ?: sort;
     [block showSort:sort mix:mix];
     // Nothing to show yet is not an answer: the page fills in as it lays out, and the next pass is asked
@@ -373,16 +375,11 @@ static void install(UIViewController *menu) {
     }
 }
 
-// The sheet's own chrome: SGRGlassSheetChrome (Redesigned/Kit/SGRGlass.h), found by the identifier
-// Spotify gives it ("sheet-view") rather than by class, since the presentation controller that owns it
-// belongs to UIKit, not to this table's own view controller. It used to stop at the pane and leave
-// Spotify's own opaque wrapping views over it, which the glass showed through only where neither yet
-// covered it -- a band a couple of points tall at the very top of the sheet (trees/continuous/24.txt
-// 2026-09-26); the shared call strips those too, now, the same way it does for the queue's sheet.
 %hook _TtC24ContextMenu_InternalImpl25ContextMenuViewController
 - (void)viewDidLayoutSubviews {
     %orig;
-    SGRGlassSheetChrome(((UIViewController *)self).viewIfLoaded);
+    // The sheet's own chrome becomes glass below iOS 26 (SGRGlassSheetChrome, Kit/SGRLegacyGlass.h).
+    if (SGBelowIOS26()) SGRGlassSheetChrome(((UIViewController *)self).viewIfLoaded);
     install((UIViewController *)self);
 }
 %end

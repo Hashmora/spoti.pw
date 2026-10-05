@@ -21,9 +21,7 @@ static void chooseAccent(void) {
     [top presentViewController:sheet animated:YES completion:nil];
 }
 
-// The native look's rows of the Appearance card (App/Pages.m). Legacy Liquid Glass lives with the
-// redesign's rows now (Redesigned/Kit/SGRAppearanceSettings.m): it approximates glass for the
-// redesign's navbar and round buttons below iOS 26, and has nothing to do with the native look.
+// The native look's rows of the Appearance card (App/Pages.m).
 NSArray<SGModRow *> *SGNativeAppearanceRows(void) {
     return @[
         SGWithSymbol(SGOptionRow(@"AMOLED background", nil, SGKeyAmoled), @"moon"),

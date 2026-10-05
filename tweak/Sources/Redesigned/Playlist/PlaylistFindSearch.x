@@ -4,6 +4,7 @@
 // capsule like the redesign's other search fields (Navbar/SearchField.x).
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
+#import "Redesigned/Kit/SGRLegacyGlass.h"
 
 static char kBoxKey, kGlassKey;
 
@@ -35,7 +36,7 @@ static UIView *searchFieldBoxIn(UIView *bar) {
 %end
 
 %ctor {
-    if (!SGRedesignedUI()) return;
+    if (!SGRedesignedUI() || !SGBelowIOS26()) return;
     %init;
     SGRequireClasses(@[@"SPTSearchBar"]);
 }

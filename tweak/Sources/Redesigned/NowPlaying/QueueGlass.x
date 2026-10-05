@@ -12,6 +12,7 @@
 // as well, and the two bars clear their own paint whenever it is laid down.
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
+#import "Redesigned/Kit/SGRLegacyGlass.h"
 
 // NowPlaying_ECMKit.QueueHeader.UI.Private.PillButton, as NSStringFromClass prints it (trees/continuous/8.txt).
 static NSString *const kPillButtonClass = @"_TtCOOO17NowPlaying_ECMKit11QueueHeader2UI7Private10PillButton";
@@ -100,7 +101,7 @@ static void clearBar(UIView *bar) {
 %end
 
 %ctor {
-    if (!SGRedesignedUI()) return;
+    if (!SGRedesignedUI() || !SGBelowIOS26()) return;
     %init;
     SGRequireClasses(@[@"_TtC14Queue_ViewImpl19QueueViewController"]);
 }

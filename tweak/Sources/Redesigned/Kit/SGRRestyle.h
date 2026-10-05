@@ -33,10 +33,9 @@ void SGRMonospacedDigits(UILabel *label);
 BOOL SGRObserveImage(UIImageView *view, void (^changed)(UIImageView *view));
 
 // `laidOut` after every layoutSubviews of the view, Spotify's included, for as long as the view lives, by
-// a runtime subclass of the instance like SGRSuppress, or, for one of Spotify's own Swift classes, by an
-// override on that class that only ever reports the instances that asked (see SGRObserveImage). A second call
-// replaces the block, and a pass started from inside the block is not reported again. NO when neither took
-// (a KVO-observed instance): the caller then has only the passes it hooks itself to work from.
+// a runtime subclass of the instance like SGRSuppress. A second call replaces the block, and a pass started
+// from inside the block is not reported again. NO when the view cannot be subclassed (one of Spotify's Swift
+// classes, a KVO-observed instance): the caller then has only the passes it hooks itself to work from.
 //
 // For a screen that arranges Spotify's controls its own way: a parent lays its children out after the
 // hook that placed them has returned, so frames set from an ancestor's pass are the ones overwritten.

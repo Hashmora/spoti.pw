@@ -221,15 +221,6 @@ BOOL SGRObserveImage(UIImageView *view, void (^changed)(UIImageView *view)) {
 // returned; one level is enough to settle, and re-entering would not end.
 static BOOL sg_reportingLayout = NO;
 
-static void reportLayout(UIView *view) {
-    if (sg_reportingLayout) return;
-    void (^block)(UIView *) = objc_getAssociatedObject(view, &kLayoutObserverKey);
-    if (!block) return;
-    sg_reportingLayout = YES;
-    block(view);
-    sg_reportingLayout = NO;
-}
-
 BOOL SGRObserveLayout(UIView *view, void (^laidOut)(UIView *view)) {
     if (![view isKindOfClass:UIView.class]) return NO;
     objc_setAssociatedObject(view, &kLayoutObserverKey, laidOut, OBJC_ASSOCIATION_COPY_NONATOMIC);
@@ -237,19 +228,24 @@ BOOL SGRObserveLayout(UIView *view, void (^laidOut)(UIView *view)) {
         addOverride(subclass, original, @selector(layoutSubviews), ^(UIView *self) {
             struct objc_super parent = {self, original};
             ((void (*)(struct objc_super *, SEL))objc_msgSendSuper)(&parent, @selector(layoutSubviews));
-            reportLayout(self);
+            if (sg_reportingLayout) return;
+            void (^block)(UIView *) = objc_getAssociatedObject(self, &kLayoutObserverKey);
+            if (!block) return;
+            sg_reportingLayout = YES;
+            block(self);
+            sg_reportingLayout = NO;
         });
     });
-    // One of Spotify's Swift classes (a library filter chip) cannot be subclassed, so the class carries the
-    // override, which only ever reports the instances that asked, as SGRObserveImage does.
-    BOOL onClass = !kept && overrideOnClass(object_getClass(view), @selector(layoutSubviews), ^id(IMP replaced) {
-        return ^(UIView *self) {
-            ((void (*)(id, SEL))replaced)(self, @selector(layoutSubviews));
-            reportLayout(self);
-        };
-    });
-    logWatch(view, @selector(layoutSubviews), kept || onClass, onClass);
-    return kept || onClass;
+    if (!kept) {
+        static NSMutableSet<NSString *> *logged;
+        if (!logged) logged = [NSMutableSet set];
+        NSString *name = NSStringFromClass(object_getClass(view));
+        if (![logged containsObject:name]) {
+            [logged addObject:name];
+            SGLog(@"redesign kit: %@ cannot be watched for its layout", name);
+        }
+    }
+    return kept;
 }
 
 // An identifier ending in * matches by prefix, for Spotify's ids that carry an entity after a dash.

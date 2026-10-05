@@ -105,7 +105,7 @@ static void styleSearchField(UIView *button) {
     button.layer.cornerRadius = size.height / 2;
     button.layer.cornerCurve = kCACornerCurveContinuous;
 
-    UIView *glass = SGGlassAt(button, 0);
+    UIVisualEffectView *glass = SGGlassAt(button, 0);
     // Dark like every glass of the redesign's, rather than by grace of the navigation stack Spotify hosts
     // the page in (TabBar.x).
     if (glass.overrideUserInterfaceStyle != UIUserInterfaceStyleDark) glass.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;

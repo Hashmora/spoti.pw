@@ -30,6 +30,7 @@
 // fire Spotify's own concealed controls, so every action, state and language stays Spotify's.
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
+#import "Redesigned/Kit/SGRLegacyGlass.h"
 #import "Playlist.h"
 #import <objc/message.h>
 
@@ -178,6 +179,7 @@ static UIView *firstOfClass(UIView *root, Class wanted) {
     _picture.image = image;
     // The page's field takes its colour from the same picture.
     SGRPlaylistSetArtwork(self, image);
+    SGRRevealMark(SGRPlaylistPageOf(self), SGRRevealPicture);
     static BOOL logged;
     if (late && !logged) {
         logged = YES;
@@ -332,14 +334,18 @@ static void showPlaylist(SGRHeaderInfo *info, UIView *block, UIView *root, id mo
 
     // Whoever made the playlist, opened from the line that names them. Spotify's own button carries the
     // facepile and the name and takes the tap to a profile -- or, for a playlist several people are on, to
-    // the picker it opens itself (issue #56).
-    [info showCreatorLink:SGRFindByIdentifier(block, @"Components.PlaylistHeader.collaboratorsButton", &kCreatorKey)];
+    // the picker it opens itself (issue #56). Liked Songs has no such button, so no faces either.
+    UIView *creator = SGRFindByIdentifier(block, @"Components.PlaylistHeader.collaboratorsButton", &kCreatorKey);
+    [info showCreatorLink:creator];
+    [info showFacesIn:creator];
 
     // More, pinned over the page rather than left in the block, which is concealed and scrolls away; and
     // Spotify's own Sort, from the find-on-page toolbar this header conceals, for the ⋯ sheet to fire.
     UIView *page = SGRPlaylistPageOf(root);
     SGRPinnedMore(page, &kPinnedMoreKey, SGRFindByIdentifier(block, @"Components.UI.ContextMenuButton*", &kMoreKey));
     SGRPlaylistTakeSort(page, SGRFindByIdentifier(root, @"Components.Header.UI.Toolbar.Button", &kSortKey));
+    // The name and Play are what the header waits for; the row's other buttons fade in on their own when late.
+    if (title && play) SGRRevealMark(page, SGRRevealHeader);
 
     static BOOL logged;
     if (!logged && info.window && (title || play)) {
@@ -403,14 +409,26 @@ static SGRHeaderInfo *applyInfo(UIView *block, UIView *headerRoot, UIViewControl
 
 // Find on this page and Sort sit above the cover, shown as the page is pulled down. They stay Spotify's own
 // controls, so the tap opens Spotify's find page; only the grey box becomes glass.
+static void glassUp(UIView *box, const void *key) {
+    CGSize size = box.bounds.size;
+    if (size.width < 1 || size.height < 1) return;
+    if (box.backgroundColor != UIColor.clearColor) box.backgroundColor = UIColor.clearColor;
+    if (box.layer.cornerRadius != size.height / 2) box.layer.cornerRadius = size.height / 2;
+    SGRGlassCapsuleInside(box, key, size, NO);
+}
+
 static void applyToolbar(UIView *headerRoot) {
     static char kFieldKey, kSortBoxKey, kFieldGlassKey, kSortGlassKey;
-    SGRPinnedBack(SGRPlaylistPageOf(headerRoot), headerRoot);
+    if (SGBelowIOS26()) SGRPinnedBack(SGRPlaylistPageOf(headerRoot), headerRoot);
     UIView *toolbar = SGRFindByIdentifier(headerRoot, @"Components.Header.UI.Toolbar.Content", &kToolbarKey);
     if (!toolbar) return;
     UIView *field = SGRFindByIdentifier(toolbar, @"Components.Header.UI.Toolbar.SearchField", &kFieldKey);
-    SGRGlassFlatBox(field, &kFieldGlassKey);
-    SGRGlassFlatBox(SGRFindByIdentifier(toolbar, @"Components.Header.UI.Toolbar.ButtonContainer", &kSortBoxKey), &kSortGlassKey);
+    if (SGBelowIOS26()) {
+        SGRGlassFlatBox(field, &kFieldGlassKey);
+        SGRGlassFlatBox(SGRFindByIdentifier(toolbar, @"Components.Header.UI.Toolbar.ButtonContainer", &kSortBoxKey), &kSortGlassKey);
+    }
+    glassUp(field, &kFieldGlassKey);
+    glassUp(SGRFindByIdentifier(toolbar, @"Components.Header.UI.Toolbar.ButtonContainer", &kSortBoxKey), &kSortGlassKey);
     static BOOL logged;
     if (!logged && field.window) {
         logged = YES;

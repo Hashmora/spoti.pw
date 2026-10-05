@@ -5,125 +5,34 @@
 // bar is taller than Spotify's, Spotify is made to leave it the room (see "room for the glass bar").
 //
 // A tab picked on the system bar is passed on as a tap on the hidden Spotify item it mirrors, and the
-// system bar's selection follows whichever Spotify label is painted white. Navbar.x composes the
-// hidden row, so its order, hidden tabs and tabs of the mod's own carry over. Always on in the redesign.
+// system bar's selection follows whichever Spotify label is painted white, or a tab of the mod's own
+// while the page it opened is on the stack. Navbar.x composes the hidden row, so its order, hidden tabs
+// and tabs of the mod's own carry over. Always on in the redesign.
 //
 // Tree (trees/home.txt): NavigationUI_TabBarImpl.TabBarView > TabBarCompactView > UIStackView of
 //   ElementContentView<TabBarItemElement>, each with an SPTEncoreIconView and an SPTEncoreLabel.
 #import "Core/SGCore.h"
 #import "Navbar.h"
-#import "Redesigned/Kit/SGRGlass.h"
 #import "Redesigned/Kit/SGRTokens.h"
 #import "Settings/SGPage.h"
 #import "Headers/SPTEncoreIconView.h"
+#import "Shared/Player/PlayerState.h"
+#import "Redesigned/NowPlayingBar/NowPlayingBar.h"
 #import <objc/message.h>
 
-static char kBarKey, kHostKey, kNavGlassKey, kNavTintKey, kSelPillKey, kRetriesKey, kGlyphOverlayKey, kOutlineLiveKey, kFilledLiveKey, kCreateDiscKey, kGlyphsTakenKey;
-// The bar is a floating capsule, not a full-width slab.
-static const CGFloat kNavGlassMargin = 16;        // gap at each side
-static const CGFloat kNavGlassBottomMargin = 8;   // gap under it, and over it to the now playing card
-// The capsule itself, never the safe-area room under it: glassHeight() can be 83pt on a Face ID phone
-// (harness/tabbar/README.md) because it includes the home-indicator strip. 64pt is Telegram's pill (a 56pt
-// item row with 4pt inside, TabBarComponent.swift). Without labels it is shorter, and UIKit still lays the
-// icon out as if one sat below it, so the icon is nudged down by kNavIconOnlyImageShift (not yet checked
-// on a device: tune the two together).
-static const CGFloat kNavPlatterHeight = 64;
-static const CGFloat kNavPlatterHeightIconOnly = 52;
-static const CGFloat kNavIconOnlyImageShift = 6;
-static const CGFloat kNavItemSpacing = 4;
-static const CGFloat kNavItemWidth = 90;    // fixed, so the capsule hugs its items instead of stretching them
-static const CGFloat kSelPillInset = 3;     // gap between the selection pill and the capsule's edge
+static char kBarKey, kHostKey;
 static __weak UIView *sg_stockBar;
 static CGFloat sg_room, sg_glassHeight;   // see "room for the glass bar"
-
-// Components/TabSelectionRecognizer/Sources/TabSelectionRecognizer.swift, ported as-is: state goes to
-// Began the instant a finger touches down (no distance or duration threshold the way a pan or a long
-// press has), and Changed on every move after that, so a caller can follow the finger from frame one.
-@interface SGTabDragRecognizer : UIGestureRecognizer
-@property (nonatomic) CGPoint currentLocation;
-@property (nonatomic) BOOL moved;
-@end
-
-@implementation SGTabDragRecognizer
-
-- (instancetype)initWithTarget:(id)target action:(SEL)action {
-    self = [super initWithTarget:target action:action];
-    if (self) {
-        self.delaysTouchesBegan = NO;
-        self.delaysTouchesEnded = NO;
-        // Explicit even though YES is the default: UITabBar has its own internal touch handling for
-        // tapping items, and without this our recognizer and that internal handling can both react to
-        // the same touch, racing each other -- that race is what made the drag/tap register only
-        // sometimes.
-        self.cancelsTouchesInView = YES;
-    }
-    return self;
-}
-
-- (void)reset {
-    [super reset];
-    self.moved = NO;
-}
-
-- (void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
-    [super touchesBegan:touches withEvent:event];
-    self.currentLocation = [touches.anyObject locationInView:self.view];
-    self.state = UIGestureRecognizerStateBegan;
-}
-
-- (void)touchesMoved:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
-    [super touchesMoved:touches withEvent:event];
-    self.currentLocation = [touches.anyObject locationInView:self.view];
-    self.moved = YES;
-    self.state = UIGestureRecognizerStateChanged;
-}
-
-- (void)touchesEnded:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
-    [super touchesEnded:touches withEvent:event];
-    self.currentLocation = [touches.anyObject locationInView:self.view];
-    self.state = UIGestureRecognizerStateEnded;
-}
-
-- (void)touchesCancelled:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
-    [super touchesCancelled:touches withEvent:event];
-    self.state = UIGestureRecognizerStateCancelled;
-}
-
-@end
+static BOOL sg_inline;                     // see "the tab bar with the mini player"
 
 @interface SGRSystemTabBar : UITabBar <UITabBarDelegate, UIGestureRecognizerDelegate>
 @property (nonatomic, weak) UIView *stockBar;
 @property (nonatomic, copy) NSArray<UIView *> *sources;
 @property (nonatomic, weak) UILongPressGestureRecognizer *hold;
-@property (nonatomic, weak) UIGestureRecognizer *drag;
 @property (nonatomic) BOOL holding;
-// The last tab actually navigated to. Create is never this -- see isCreateSource -- so tapping/dragging
-// onto Create can always snap the bar's selection (and the pill) straight back to this instead of
-// resting on, or passing through, a "tab" that never really opened.
-@property (nonatomic, weak) UITabBarItem *lastRealItem;
-// Whichever tab was already selected when the current touch began. Tells dragged: on release whether
-// the gesture actually crossed onto a different tab (a real switch, already animated live as it
-// happened) or landed back on the one it started on (a tap, or a there-and-back drag) -- which gets an
-// icon bump instead of ever moving the pill, because the pill has nothing to move for.
-@property (nonatomic, weak) UITabBarItem *gestureStartItem;
-// Which of Spotify's own tabs (the one whose label is painted white) was open the moment Create was
-// tapped, and whether Create's menu is still to be seen off. Once it is gone, that tab against the one
-// Spotify has open then says whether the menu took the user to another tab.
-@property (nonatomic, weak) UIView *sourceBeforeCreate;
-@property (nonatomic) BOOL awaitingCreateClose;
 @end
 
 static void syncBar(UIView *stockBar);
-// Called only when Spotify's own navigation genuinely changed the selected controller from outside our
-// bar (a link, the side drawer) -- see the TabBarContainerImpl hook below. Every other caller goes
-// through plain syncBar, which trusts whatever tab our own tap/drag handling last confirmed
-// (SGRSystemTabBar.lastRealItem) over Spotify's isActive/label-color heuristic. That heuristic never
-// clears for a tab the mod added itself: Spotify's own navigation stack never touched it, so the
-// previously active *real* tab's label just stays white forever, and re-scanning it on every layout
-// pass kept snapping the selection (and the pill) back to that old tab.
-static void syncBarExternalChange(UIView *stockBar);
-static void syncBarCore(UIView *stockBar, BOOL rescanSelection);
-static void followCreateClose(UIView *stockBar);
 
 #pragma mark - reading Spotify's items
 
@@ -141,26 +50,6 @@ static NSArray<UIView *> *tabItems(UIView *tabBar) {
 // Navbar.x never reorders Spotify's row and appends the mod's own tabs after it, so Home stays first.
 static BOOL isHome(UIView *item, UIView *tabBar) {
     return item && item == SGRowIn(tabBar).arrangedSubviews.firstObject;
-}
-
-// Create never pushes a screen -- tapping it only pops CreateMenu's own option list open over whatever
-// is already on screen, and tapping anywhere dismisses that list again with nothing having navigated.
-// So it must never become the bar's real "selected" tab: the pill parking on it, or drifting toward
-// its slot, would be showing a screen that was never actually opened.
-//
-// The row's arranged subviews are Element's ElementContentView wrappers (trees/continuous/1.txt), and
-// CreateMenuTabBarItemView is two levels down inside one -- never the arranged subview itself. A plain
-// isKindOfClass: on the item was therefore always NO: Create counted as a real tab, the pill moved
-// onto it, lastRealItem became Create and nothing ever moved the selection back once its popover was
-// gone. So the item's whole subtree is searched, for the class and for Spotify's own id for it.
-static BOOL isCreateSource(UIView *source) {
-    if (!source) return NO;
-    __block BOOL found = NO;
-    SGForEachView(source, ^(UIView *v) {
-        if (found) return;
-        found = [NSStringFromClass(v.class) containsString:@"CreateMenuTabBarItemView"] || [v.accessibilityIdentifier isEqualToString:@"TabBar.Item.Create"];
-    });
-    return found;
 }
 
 static UILabel *labelIn(UIView *item) {
@@ -188,15 +77,6 @@ static BOOL isActive(UIView *item) {
     return white > 0.95;
 }
 
-// The tab of Spotify's own whose page is really open: the one whose label is painted white, Create
-// never counting. Nil when that tab is hidden from the bar.
-static UIView *activeStockSource(UIView *stockBar) {
-    for (UIView *item in tabItems(stockBar)) {
-        if (!isCreateSource(item) && isActive(item)) return item;
-    }
-    return nil;
-}
-
 static BOOL hasInk(UIImage *image) {
     CGImageRef cg = image.CGImage;
     size_t width = CGImageGetWidth(cg), height = CGImageGetHeight(cg);
@@ -218,57 +98,49 @@ static UIImage *renderLayer(CALayer *layer, CGSize size) {
     return hasInk(image) ? [image imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate] : nil;
 }
 
-// The two pictures of a tab, outline and filled, taken from Spotify's own icon view the first time it
-// has a size. UITabBar needs both up front, but Spotify's view only ever draws one of them. So isActive
-// is flipped, the other state drawn, and isActive put back, all inside one runloop turn, so nothing
-// reaches the screen. Without this the filled picture only turned up ~0.3 s after the first tap, once
-// Spotify had repainted the view itself.
-static void captureGlyphs(UIView *live, UITabBarItem *item) {
-    if (![live respondsToSelector:@selector(isActive)] || ![live respondsToSelector:@selector(setIsActive:)]) return;
-    SPTEncoreIconView *view = (SPTEncoreIconView *)live;
-    CGSize size = live.bounds.size;
-    BOOL was = [view isActive];
-    UIImage *now = renderLayer(live.layer, size);
-    [view setIsActive:!was];
-    [view layoutIfNeeded];
-    [live.layer displayIfNeeded];
-    UIImage *other = renderLayer(live.layer, size);
-    [view setIsActive:was];
-    [view layoutIfNeeded];
-    if (!now || !other || [UIImagePNGRepresentation(now) isEqualToData:UIImagePNGRepresentation(other)]) return;
-    item.image = was ? other : now;
-    item.selectedImage = was ? now : other;
-    objc_setAssociatedObject(item, &kFilledLiveKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    objc_setAssociatedObject(item, &kOutlineLiveKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+// The SPTEncoreIcon an icon view was built with. Encore keeps it in a Swift ivar with no getter.
+static id encoreIconOf(UIView *view) {
+    Ivar ivar = class_getInstanceVariable(view.class, "icon");
+    const char *type = ivar ? ivar_getTypeEncoding(ivar) : NULL;
+    return type && type[0] == '@' ? object_getIvar(view, ivar) : nil;
 }
 
-// Both pictures of a tab. Create has no filled variant (the two states draw the same), so it keeps the
-// picture Spotify's view shows, and takes a state's picture from the live view the first time it is
-// seen in that state, the way it always did.
-static void learnGlyphs(UIView *source, UITabBarItem *item) {
-    UIView *live = iconIn(source);
-    if (!live || live.bounds.size.width < 2) return;
+// Encore draws a tab's icon from one SPTEncoreIcon in two states: isActive picks its filled variant.
+// Both are drawn on an icon view of our own, off screen, so the images do not wait for Spotify's
+// views to lay out and paint, and UITabBar swaps image and selectedImage itself.
+static UIImage *glyphOf(UIView *item, BOOL active) {
+    UIView *live = iconIn(item);
+    if (!live) return nil;
     CGSize size = live.bounds.size;
-    if (!item.image) item.image = renderLayer(live.layer, size);
-    if (!item.selectedImage) item.selectedImage = renderLayer(live.layer, size);
-    if (!objc_getAssociatedObject(item, &kGlyphsTakenKey)) {
-        objc_setAssociatedObject(item, &kGlyphsTakenKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        captureGlyphs(live, item);
+    id icon = encoreIconOf(live);
+    Class viewClass = NSClassFromString(@"SPTEncoreIconView");
+    if (icon && viewClass) {
+        static NSCache<NSString *, UIImage *> *cache;
+        if (!cache) cache = [NSCache new];
+        NSString *key = [NSString stringWithFormat:@"%@ %d %@", [icon respondsToSelector:@selector(name)] ? [icon name] : icon, active, NSStringFromCGSize(size)];
+        UIImage *cached = [cache objectForKey:key];
+        if (cached) return cached;
+        SPTEncoreIconView *view = [[viewClass alloc] initWithIcon:icon];
+        view.frame = (CGRect){CGPointZero, size};
+        [view setForegroundColor:UIColor.whiteColor];
+        if ([view respondsToSelector:@selector(setActiveForegroundColor:)]) [view setActiveForegroundColor:UIColor.whiteColor];
+        if ([view respondsToSelector:@selector(setIsActive:)]) [view setIsActive:active];
+        [view layoutIfNeeded];
+        UIImage *image = renderLayer(view.layer, size);
+        if (image) {
+            [cache setObject:image forKey:key];
+            return image;
+        }
     }
-    BOOL active = [live respondsToSelector:@selector(isActive)] ? [(SPTEncoreIconView *)live isActive] : isActive(source);
-    const void *key = active ? &kFilledLiveKey : &kOutlineLiveKey;
-    if (objc_getAssociatedObject(item, key)) return;
-    UIImage *seen = renderLayer(live.layer, size);
-    if (!seen) return;
-    objc_setAssociatedObject(item, key, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    if (active) item.selectedImage = seen; else item.image = seen;
+    // Tabs of the mod's own draw a UIImageView, or an icon Encore would not draw off screen.
+    return size.width >= 2 ? renderLayer(live.layer, size) : nil;
 }
 
 #pragma mark - passing a tap on
 
 // NavigationUI_TabBarImpl's TabBarItemElementUI answers a tap recognizer (-handleTap), so the tap is
 // replayed through the recognizer's own target-action pairs, the same call a real touch ends in.
-static BOOL fireTapRecognizers(UIView *view) {
+BOOL SGRFireTapRecognizers(UIView *view) {
     Ivar targetsIvar = class_getInstanceVariable(UIGestureRecognizer.class, "_targets");
     if (!targetsIvar) return NO;
     BOOL fired = NO;
@@ -281,6 +153,7 @@ static BOOL fireTapRecognizers(UIView *view) {
             id target = object_getIvar(pair, targetIvar);
             SEL action = *(SEL *)((char *)(__bridge void *)pair + ivar_getOffset(actionIvar));
             if (!target || !action || ![target respondsToSelector:action]) continue;
+            SGLog(@"tab bar: tap -> %@ %@", NSStringFromClass([target class]), NSStringFromSelector(action));
             ((void (*)(id, SEL, id))objc_msgSend)(target, action, recognizer);
             fired = YES;
         }
@@ -291,238 +164,32 @@ static BOOL fireTapRecognizers(UIView *view) {
 static void forwardTap(UIView *item) {
     __block BOOL sent = NO;
     SGForEachView(item, ^(UIView *v) {
-        if (!sent) sent = fireTapRecognizers(v);
+        if (!sent) sent = SGRFireTapRecognizers(v);
     });
     SGForEachView(item, ^(UIView *v) {
         if (sent || ![v isKindOfClass:UIControl.class]) return;
+        SGLog(@"tab bar: tap -> control %@", NSStringFromClass(v.class));
         [(UIControl *)v sendActionsForControlEvents:UIControlEventTouchUpInside];
         sent = YES;
     });
-}
-
-// A tap (or a there-and-back drag) that ends back on the tab that was already open never moves the
-// pill -- selectedItem never changed, there's nothing for it to move to -- but it should still feel
-// like the tap registered. A small scale pulse on the icon itself stands in for that.
-static void bumpIcon(UITabBar *bar, UITabBarItem *item) {
-    if (!item) return;
-    __block UIView *iconView = nil;
-    SGForEachView(bar, ^(UIView *v) {
-        if (iconView || v.hidden || ![v isKindOfClass:UIImageView.class]) return;
-        UIImage *image = ((UIImageView *)v).image;
-        if (image && (image == item.image || image == item.selectedImage)) iconView = v;
-    });
-    if (!iconView) return;
-    // One continuous keyframe timeline, not two animateWithDuration calls chained through a completion
-    // handler: the ease-out scale-up and the separate spring scale-down have different velocity at the
-    // instant they hand off, and that mismatch is what read as a jerk. A single keyframe animation has
-    // no such seam.
-    [UIView animateKeyframesWithDuration:0.26 delay:0 options:UIViewKeyframeAnimationOptionCalculationModeCubic animations:^{
-        [UIView addKeyframeWithRelativeStartTime:0 relativeDuration:0.4 animations:^{
-            iconView.transform = CGAffineTransformMakeScale(1.12, 1.12);
-        }];
-        [UIView addKeyframeWithRelativeStartTime:0.4 relativeDuration:0.6 animations:^{
-            iconView.transform = CGAffineTransformIdentity;
-        }];
-    } completion:nil];
-}
-
-// UITabBar does not repaint an icon between its outline and filled bitmaps when the selection changes
-// on this bar: the selected tab is drawn right after the tabs are rebuilt (hiding or moving one in Mod
-// Settings) and never again after a tap. So the swap is not left to UIKit. Each item's glyph is drawn
-// by an image view of ours laid over the one UIKit draws in the item's UITabBarButton, showing
-// selectedImage (filled) on the selected item and image (outline) on the rest, and UIKit's own is
-// hidden. Buttons are matched to items by their order across the bar. Run from the bar's layout pass
-// and from the selection setter, so it follows both a resize and a tap or drag.
-// setItems: can leave a UITabBarButton behind for an item that is gone (seen as a second, unplaced
-// "Your Library" at the left of the bar after the tab list was rebuilt twice during launch). Every live
-// item owns exactly one button -- UITabBarItem's "view" -- so any other UITabBarButton is a leftover.
-// Only acts once every item has its button, so a bar still being built is never stripped.
-static void pruneStrayButtons(UITabBar *bar) {
-    NSMutableSet<UIView *> *owned = [NSMutableSet set];
-    for (UITabBarItem *item in bar.items) {
-        UIView *view = [item valueForKey:@"view"];
-        if (view) [owned addObject:view];
-    }
-    if (!bar.items.count || owned.count != bar.items.count) return;
-    for (UIView *v in [bar.subviews copy]) {
-        if ([NSStringFromClass(v.class) isEqualToString:@"UITabBarButton"] && ![owned containsObject:v]) [v removeFromSuperview];
-    }
-}
-
-static void paintGlyphs(UITabBar *bar) {
-    NSArray<UITabBarItem *> *items = bar.items;
-    NSMutableArray<UIView *> *buttons = [NSMutableArray array];
-    for (UIView *v in bar.subviews) {
-        if ([NSStringFromClass(v.class) isEqualToString:@"UITabBarButton"]) [buttons addObject:v];
-    }
-    if (!items.count || buttons.count != items.count) return;
-    [buttons sortUsingComparator:^NSComparisonResult(UIView *a, UIView *b) {
-        return [@(a.frame.origin.x) compare:@(b.frame.origin.x)];
-    }];
-    for (NSUInteger i = 0; i < items.count; i++) {
-        UITabBarItem *item = items[i];
-        UIView *button = buttons[i];
-        UIImageView *overlay = objc_getAssociatedObject(button, &kGlyphOverlayKey);
-        UIImageView *native = nil;
-        for (UIView *v in button.subviews) {
-            if (v != overlay && [v isKindOfClass:UIImageView.class] && v.bounds.size.width >= 2) { native = (UIImageView *)v; break; }
-        }
-        UIImage *want = (item == bar.selectedItem && item.selectedImage) ? item.selectedImage : item.image;
-        if (!native || !want) {
-            overlay.hidden = YES;
-            continue;
-        }
-        if (!overlay) {
-            overlay = [UIImageView new];
-            overlay.userInteractionEnabled = NO;
-            overlay.contentMode = UIViewContentModeCenter;
-            overlay.tintColor = UIColor.whiteColor;
-            objc_setAssociatedObject(button, &kGlyphOverlayKey, overlay, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        }
-        if (overlay.superview != button) [button addSubview:overlay];
-        // bounds + center, not frame: the overlay of Create is rotated while its menu is up, and assigning
-        // a frame to a transformed view scrambles it.
-        CGRect nativeFrame = native.frame;
-        CGPoint nativeCenter = CGPointMake(CGRectGetMidX(nativeFrame), CGRectGetMidY(nativeFrame));
-        if (!CGSizeEqualToSize(overlay.bounds.size, nativeFrame.size)) overlay.bounds = (CGRect){CGPointZero, nativeFrame.size};
-        if (!CGPointEqualToPoint(overlay.center, nativeCenter)) overlay.center = nativeCenter;
-        if (overlay.image != want) overlay.image = want;
-        overlay.hidden = NO;
-        native.hidden = YES;
-    }
-}
-
-// Spotify's own Create item turns its plus 45 degrees and puts a white disc behind it while the menu is
-// open. That runs on the hidden stock view, so the glass bar has to do the same on its own Create button.
-static void setCreateOpen(SGRSystemTabBar *bar, BOOL open) {
-    NSUInteger index = NSNotFound;
-    for (NSUInteger i = 0; i < bar.sources.count; i++) {
-        if (isCreateSource(bar.sources[i])) { index = i; break; }
-    }
-    if (index == NSNotFound || index >= bar.items.count) return;
-    NSMutableArray<UIView *> *buttons = [NSMutableArray array];
-    for (UIView *v in bar.subviews) {
-        if ([NSStringFromClass(v.class) isEqualToString:@"UITabBarButton"]) [buttons addObject:v];
-    }
-    if (buttons.count != bar.items.count) return;
-    [buttons sortUsingComparator:^NSComparisonResult(UIView *a, UIView *b) {
-        return [@(a.frame.origin.x) compare:@(b.frame.origin.x)];
-    }];
-    UIView *button = buttons[index];
-    UIImageView *overlay = objc_getAssociatedObject(button, &kGlyphOverlayKey);
-    if (!overlay) return;
-    UIView *disc = objc_getAssociatedObject(button, &kCreateDiscKey);
-    if (!disc) {
-        disc = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 40, 40)];
-        disc.userInteractionEnabled = NO;
-        disc.backgroundColor = UIColor.whiteColor;
-        disc.layer.cornerRadius = 20;
-        disc.alpha = 0;
-        objc_setAssociatedObject(button, &kCreateDiscKey, disc, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    }
-    if (disc.superview != button) [button insertSubview:disc belowSubview:overlay];
-    // Sized from the icon it sits behind (a third bigger), so it stays inside the pill with or without labels.
-    CGFloat discSize = round(overlay.bounds.size.height * 4.0 / 3.0);
-    if (fabs(disc.bounds.size.width - discSize) > 0.5) {
-        disc.bounds = CGRectMake(0, 0, discSize, discSize);
-        disc.layer.cornerRadius = discSize / 2;
-    }
-    disc.center = overlay.center;
-    if ((disc.alpha > 0.5) == open && (open || CGAffineTransformIsIdentity(overlay.transform))) return;
-    if (open) disc.transform = CGAffineTransformMakeScale(0.4, 0.4);
-    [UIView animateWithDuration:0.32 delay:0 usingSpringWithDamping:0.8 initialSpringVelocity:0
-        options:UIViewAnimationOptionBeginFromCurrentState animations:^{
-        disc.alpha = open ? 1 : 0;
-        disc.transform = open ? CGAffineTransformIdentity : CGAffineTransformMakeScale(0.4, 0.4);
-        overlay.transform = open ? CGAffineTransformMakeRotation(M_PI_4) : CGAffineTransformIdentity;
-        overlay.tintColor = open ? UIColor.blackColor : UIColor.whiteColor;
-    } completion:nil];
-}
-
-#pragma mark - the system bar
-
-@implementation SGRSystemTabBar
-
-- (void)layoutSubviews {
-    [super layoutSubviews];
-    pruneStrayButtons(self);
-    paintGlyphs(self);
-    // On the first taps after launch the pill was placed while the buttons were not yet where UIKit
-    // finally puts them, and nothing placed it again. Every layout pass re-checks it against the buttons.
-    UIView *stock = self.stockBar;
-    UIView *host = stock ? objc_getAssociatedObject(stock, &kHostKey) : nil;
-    UIView *pill = host ? objc_getAssociatedObject(host, &kSelPillKey) : nil;
-    CGFloat centerX = pill && !pill.hidden ? [self renderedCenterXForItem:self.selectedItem] : NAN;
-    if (!isnan(centerX) && pill.frame.size.width > 0) {
-        CGFloat wantX = self.frame.origin.x + centerX - pill.frame.size.width / 2;
-        if (fabs(pill.frame.origin.x - wantX) > 0.5) {
-            [UIView animateWithDuration:0.25 delay:0
-                options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionCurveEaseInOut
-                animations:^{ CGRect f = pill.frame; f.origin.x = wantX; pill.frame = f; } completion:nil];
-        }
-    }
-}
-
-- (void)setSelectedItem:(UITabBarItem *)item {
-    [super setSelectedItem:item];
-    paintGlyphs(self);
-}
-
-- (void)tabBar:(UITabBar *)tabBar didSelectItem:(UITabBarItem *)item {
-    NSUInteger index = [self.items indexOfObject:item];
-    if (index == NSNotFound || index >= self.sources.count) return;
-    UIView *source = self.sources[index];
-    if (isCreateSource(source)) {
-        // Just pops the menu open -- never a real navigation. The pill goes to Create while the menu is
-        // up (lastRealItem is left alone, so it knows where to come back to), and returns to the tab
-        // that was open once the menu is gone.
-        UIView *stockBar = self.stockBar;
-        self.sourceBeforeCreate = stockBar ? activeStockSource(stockBar) : nil;
-        forwardTap(source);
-        self.selectedItem = item;
-        setCreateOpen(self, YES);
-        if (stockBar) {
-            syncBar(stockBar);
-            followCreateClose(stockBar);
-        }
-        // UIKit's own internal touch handling can still win a race and snap selectedItem back to
-        // whatever it had before, on the very next runloop turn, if our gesture recognizer's
-        // cancelsTouchesInView didn't fully suppress it in time -- re-assert once more a beat later,
-        // after that would have already happened, so the pill doesn't silently lose the tug of war.
-        __weak typeof(self) weakSelf = self;
-        __weak UIView *weakStock = stockBar;
-        dispatch_async(dispatch_get_main_queue(), ^{
-            typeof(self) strongSelf = weakSelf;
-            UIView *stock = weakStock;
-            if (!strongSelf || !stock) return;
-            if (strongSelf.selectedItem != item) {
-                strongSelf.selectedItem = item;
-                syncBar(stock);
-            }
+    if (!sent) {
+        NSMutableString *out = [NSMutableString stringWithFormat:@"tab bar: nothing to tap in %@", NSStringFromClass(item.class)];
+        SGForEachView(item, ^(UIView *v) {
+            for (UIGestureRecognizer *r in v.gestureRecognizers) [out appendFormat:@"\n  %@ on %@", r, NSStringFromClass(v.class)];
         });
-        return;
+        SGLogLong(@"navbar", out);
     }
-    self.lastRealItem = item;
-    // Home tapped while on Home pops Spotify's stack, which would take Mod Settings straight off it.
-    if (!self.holding) forwardTap(source);
-    // Spotify repaints its labels a moment later; a tap it did not take snaps the selection back.
-    UIView *stockBar = self.stockBar;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.25 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        if (stockBar) syncBar(stockBar);
-    });
 }
 
-// UIKit's item views are private, so the item under a touch is the one whose title label or glyph is
-// nearest. With the labels hidden only the glyph is left; UIKit shows the item's own image instance.
-- (UITabBarItem *)itemAt:(CGPoint)point {
+static UITabBarItem *itemAtPoint(UITabBar *bar, CGPoint point) {
     __block UITabBarItem *nearest = nil;
     __block CGFloat best = CGFLOAT_MAX;
-    SGForEachView(self, ^(UIView *v) {
+    SGForEachView(bar, ^(UIView *v) {
         BOOL label = [v isKindOfClass:UILabel.class], glyph = [v isKindOfClass:UIImageView.class];
         if ((!label && !glyph) || v.bounds.size.width < 1) return;
-        CGFloat distance = fabs([v convertPoint:CGPointMake(CGRectGetMidX(v.bounds), 0) toView:self].x - point.x);
+        CGFloat distance = fabs([v convertPoint:CGPointMake(CGRectGetMidX(v.bounds), 0) toView:bar].x - point.x);
         if (distance >= best) return;
-        for (UITabBarItem *item in self.items) {
+        for (UITabBarItem *item in bar.items) {
             UIImage *image = glyph ? ((UIImageView *)v).image : nil;
             if (label ? ![((UILabel *)v).text isEqualToString:item.title] : !image || (image != item.image && image != item.selectedImage)) continue;
             best = distance;
@@ -533,39 +200,27 @@ static void setCreateOpen(SGRSystemTabBar *bar, BOOL open) {
     return nearest;
 }
 
-// The item's true on-screen x-center -- reading the actual rendered icon/label frame, the same way
-// itemAt: matches a touch point to an item, just run in reverse (item known, frame wanted). Used
-// instead of an assumed kNavItemWidth/kNavItemSpacing formula: UIKit's own centered fixed-width layout
-// doesn't line up with that formula pt for pt, and the gap compounds with every index -- why the pill
-// used to drift further right the further right the tab was, and rode straight past the last one.
-// NAN when the item's own views aren't in the hierarchy yet (still loading, or a stale item).
-- (CGFloat)renderedCenterXForItem:(UITabBarItem *)item {
-    if (!item) return NAN;
+#pragma mark - the system bar
+
+@implementation SGRSystemTabBar
+
+- (void)tabBar:(UITabBar *)tabBar didSelectItem:(UITabBarItem *)item {
     NSUInteger index = [self.items indexOfObject:item];
-    NSMutableArray<UIView *> *buttons = [NSMutableArray array];
-    for (UIView *v in self.subviews) {
-        if ([NSStringFromClass(v.class) isEqualToString:@"UITabBarButton"]) [buttons addObject:v];
-    }
-    if (index != NSNotFound && buttons.count == self.items.count && buttons.count) {
-        [buttons sortUsingComparator:^NSComparisonResult(UIView *a, UIView *b) {
-            return [@(a.frame.origin.x) compare:@(b.frame.origin.x)];
-        }];
-        if (buttons[index].bounds.size.width > 1) return CGRectGetMidX(buttons[index].frame);
-    }
-    __block CGRect unionFrame = CGRectNull;
-    SGForEachView(self, ^(UIView *v) {
-        BOOL label = [v isKindOfClass:UILabel.class], glyph = [v isKindOfClass:UIImageView.class];
-        if ((!label && !glyph) || v.bounds.size.width < 1) return;
-        if (glyph) {
-            UIImage *image = ((UIImageView *)v).image;
-            if (!image || (image != item.image && image != item.selectedImage)) return;
-        } else if (!item.title.length || ![((UILabel *)v).text isEqualToString:item.title]) {
-            return;
-        }
-        CGRect frame = [v convertRect:v.bounds toView:self];
-        unionFrame = CGRectIsNull(unionFrame) ? frame : CGRectUnion(unionFrame, frame);
+    if (index == NSNotFound || index >= self.sources.count) return;
+    SGRTabPicked(self.sources[index]);
+    // Home tapped while on Home pops Spotify's stack, which would take Mod Settings straight off it.
+    if (!self.holding) forwardTap(self.sources[index]);
+    // Spotify repaints its labels a moment later; a tap it did not take snaps the selection back.
+    UIView *stockBar = self.stockBar;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.25 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        if (stockBar) syncBar(stockBar);
     });
-    return CGRectIsNull(unionFrame) ? NAN : CGRectGetMidX(unionFrame);
+}
+
+// UIKit's item views are private, so the item under a touch is the one whose title label or glyph is
+// nearest. With the labels hidden only the glyph is left; UIKit shows the item's own image instance.
+- (UITabBarItem *)itemAt:(CGPoint)point {
+    return itemAtPoint(self, point);
 }
 
 // UIView asks itself this for its own recognizers too, so only the hold is answered here.
@@ -592,68 +247,57 @@ static void setCreateOpen(SGRSystemTabBar *bar, BOOL open) {
     }
 }
 
-// Resolves to whichever tab is nearest at every touch update, never a position in between: crossing
-// into a new tab's territory snaps the pill there immediately with one smooth animation, and release
-// decides which tab it lands on and actually switches Spotify's content -- the same call a plain tap
-// would have made through the delegate method.
-- (void)dragged:(SGTabDragRecognizer *)g {
-    UIView *stockBar = self.stockBar;
-    UITabBarItem *item = [self itemAt:g.currentLocation];
-    NSUInteger itemIndex = item ? [self.items indexOfObject:item] : NSNotFound;
-    BOOL itemIsCreate = itemIndex != NSNotFound && itemIndex < self.sources.count && isCreateSource(self.sources[itemIndex]);
-
-    if (g.state == UIGestureRecognizerStateBegan) {
-        self.gestureStartItem = self.selectedItem;
-    }
-
-    if (g.state == UIGestureRecognizerStateBegan || g.state == UIGestureRecognizerStateChanged) {
-        // Setting selectedItem alone does not make our own overlay bar relay out -- nothing hooks that
-        // property -- so without calling syncBar right here, the pill only actually moved once some
-        // unrelated Spotify UI event happened to trigger it later (typically only after the real
-        // navigation completed on release), which read as the pill starting its slide late, once the new
-        // tab's content was already on screen. Calling syncBar directly here moves it the instant WE
-        // decide the selection changed.
-        if (item && !itemIsCreate && item != self.selectedItem) {
-            self.selectedItem = item;
-            if (stockBar) syncBar(stockBar);
-        }
-    } else if (g.state == UIGestureRecognizerStateEnded) {
-        if (item) {
-            if (!itemIsCreate && item != self.selectedItem) {
-                self.selectedItem = item;
-                if (stockBar) syncBar(stockBar);
-            }
-            [self tabBar:self didSelectItem:item];
-            // Ended on the same tab the touch started on -- give the icon a bump instead, since the
-            // pill genuinely never moved (selectedItem never changed).
-            if (item == self.gestureStartItem) bumpIcon(self, item);
-        } else if (stockBar) {
-            syncBar(stockBar);
-        }
-        self.gestureStartItem = nil;
-    } else if (g.state == UIGestureRecognizerStateCancelled) {
-        if (stockBar) syncBar(stockBar);
-        self.gestureStartItem = nil;
-    }
-}
-
 @end
 
 // The system bar's own view in Spotify's bar. UIKit measures the system bar and lays it out by the safe
 // area of the view it stands in, and the room made under Spotify's bar is not the phone's: on a phone
 // with a home button it went under the platter as well, squeezing it to 49 pt. So this view hands the
 // bar the safe area without the room.
+//
+// It also draws the fade over the pages behind the bars. Spotify darkens whatever scrolls under its bar
+// with a TabBarGradientView reaching 112 pt above the bar's top (trees/continuous/5.txt:2200), but that
+// sits in the compact view hidden above, so it went with it: only the field behind a page (Kit/SGRField.h)
+// faded to black, and the rows, covers and text over it ran on bright under the now playing bar and the
+// glass. The fade stands under the glass bar, so it moves and goes away with the bar.
+static const CGFloat kFadeRise = 112;
+static const NSUInteger kFadeStops = 7;
+static const CGFloat kFadeDepth = 0.5;
+
 @interface SGRTabBarHost : UIView
 @end
 
-@implementation SGRTabBarHost
+@implementation SGRTabBarHost {
+    CAGradientLayer *_fade;
+}
+
+- (instancetype)initWithFrame:(CGRect)frame {
+    if (!(self = [super initWithFrame:frame])) return nil;
+    _fade = [CAGradientLayer layer];
+    NSNull *off = NSNull.null;
+    _fade.actions = @{@"bounds": off, @"position": off, @"frame": off};
+    // Clear to half black on a smoothstep, so there is no edge where it starts.
+    NSMutableArray *colors = [NSMutableArray array], *locations = [NSMutableArray array];
+    for (NSUInteger i = 0; i < kFadeStops; i++) {
+        CGFloat t = (CGFloat)i / (kFadeStops - 1);
+        [colors addObject:(id)[UIColor colorWithWhite:0 alpha:kFadeDepth * t * t * (3 - 2 * t)].CGColor];
+        [locations addObject:@(t)];
+    }
+    _fade.colors = colors;
+    _fade.locations = locations;
+    [self.layer insertSublayer:_fade atIndex:0];
+    return self;
+}
+
+- (void)layoutSubviews {
+    [super layoutSubviews];
+    CGRect bounds = self.bounds;
+    CGRect fade = CGRectMake(0, -kFadeRise, bounds.size.width, bounds.size.height + kFadeRise);
+    if (!CGRectEqualToRect(_fade.frame, fade)) _fade.frame = fade;
+}
+
 - (UIEdgeInsets)safeAreaInsets {
     UIEdgeInsets insets = [super safeAreaInsets];
-    // The host's own frame now stands kNavGlassBottomMargin above the screen's real safe area, which
-    // hands it that much *extra* raw inset on its own. Left alone, UITabBar would read that as more
-    // home-indicator padding to reserve and push the icon/label stack up, off-centre in the pill.
-    // Canceling it out here keeps the bar's internal vertical centering exactly as it was undocked.
-    insets.bottom = MAX(0, insets.bottom - sg_room - kNavGlassBottomMargin);
+    insets.bottom = MAX(0, insets.bottom - sg_room);
     return insets;
 }
 @end
@@ -675,6 +319,15 @@ static void holdHome(UIView *stockBar) {
         if ([recognizer isKindOfClass:SGRHomeHold.class]) return;
     }
     [home addGestureRecognizer:[[SGRHomeHold alloc] initWithTarget:SGRHomeHold.class action:@selector(held:)]];
+}
+
+static void logBarOnce(UITabBar *bar) {
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            SGLogLong(@"navbar", [NSString stringWithFormat:@"system tab bar %@\n%@", NSStringFromCGRect(bar.superview.frame), [bar recursiveDescription]]);
+        });
+    });
 }
 
 #pragma mark - room for the glass bar
@@ -719,94 +372,21 @@ static void makeRoom(UIViewController *container) {
     CGFloat height = glassHeight(bar, stockBar);
     // Spotify's regular width bar is a fixed 76 pt that ignores the inset.
     BOOL compact = container.traitCollection.horizontalSizeClass == UIUserInterfaceSizeClassCompact;
-    CGFloat room = compact ? MAX(0, ceil(height - kStockRow - inset)) : 0;
+    CGFloat room = compact && !sg_inline ? MAX(0, ceil(height - kStockRow - inset)) : 0;
     if (fabs(extra.bottom - room) < 0.5) return;
     sg_room = extra.bottom = room;
     container.additionalSafeAreaInsets = extra;
+    SGLog(@"tab bar: %.0f pt of room made under Spotify's bar for the glass bar's %.0f, over an inset of %.0f", room, height, inset);
 }
 
-// Create's menu closing is not announced to the bar: Create pushes nothing, so no selection event
-// follows it. This polls for the menu to be gone, then puts the selection where the page that is
-// really open says it belongs:
-//  - Spotify itself went to another tab while the menu was up (something picked in it opened a page
-//    there): the bar follows Spotify, as for a link.
-//  - Otherwise nothing moved, and the selection goes back to the tab the user was on, which may be a
-//    tab of the mod's own that Spotify's labels know nothing about.
-// A second look follows shortly after, since Spotify repaints its labels a moment after the change.
-// Matched loosely (contains, not exact-equal, and checked by class name too) on purpose: the sheet's
-// accessibilityIdentifier is read off a live view captured once by hand (trees/continuous/4.txt) and a
-// future Spotify build, an A/B flag, or a slightly different presentation path (from Search's "+" or a
-// long-press instead of the tab) could dress the same menu up under a different id, or leave it unset
-// altogether. Falling through to the class name and to "is anything at all presented over us" keeps
-// this from silently never firing again the way one exact string compare would.
-static BOOL createMenuIsUp(UIView *stockBar) {
-    __block BOOL up = NO;
-    SGForEachView(stockBar.window ?: stockBar, ^(UIView *v) {
-        if (up) return;
-        if ([v.accessibilityIdentifier isEqualToString:@"CreateMenu"]) up = YES;
-        else if ([NSStringFromClass(v.class) containsString:@"CreateMenuView"]) up = YES;
-    });
-    if (!up) up = containerOf(stockBar).presentedViewController != nil;
-    return up;
-}
-
-static void settleAfterCreate(UIView *stockBar) {
-    SGRSystemTabBar *bar = objc_getAssociatedObject(stockBar, &kBarKey);
-    if (!bar) return;
-    setCreateOpen(bar, NO);
-    UIView *open = activeStockSource(stockBar);
-    if (open && open != bar.sourceBeforeCreate) {
-        syncBarExternalChange(stockBar);
-        return;
-    }
-    if (bar.lastRealItem && bar.selectedItem != bar.lastRealItem) bar.selectedItem = bar.lastRealItem;
-    syncBar(stockBar);
-}
-
-// `seen`: the menu has been up at least once. The first look can come before it has appeared, so it
-// is waited for a little (ten looks, ~0.8 s) before the menu is taken to be gone; once seen, 560 looks
-// (~45 s) at most, then it is settled anyway rather than watched forever.
-// Polled every 0.08 s (was 0.3 s): the visible lag between the popover actually closing and the pill
-// coming back is bounded by this interval plus the settle-again delay below, and 0.3 s of it read as a
-// sluggish return on a real device. 0.08 s is fast enough to feel immediate without spamming the main
-// thread noticeably -- createMenuIsUp is a view-tree walk, not a layout pass.
-static void pollCreateClose(UIView *stockBar, NSUInteger attempt, BOOL seen) {
-    __weak UIView *weakStock = stockBar;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.08 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        UIView *stock = weakStock;
-        SGRSystemTabBar *bar = stock ? objc_getAssociatedObject(stock, &kBarKey) : nil;
-        if (!bar || !bar.awaitingCreateClose) return;
-        BOOL up = createMenuIsUp(stock);
-        if (up ? attempt < 560 : (!seen && attempt < 10)) {
-            pollCreateClose(stock, attempt + 1, seen || up);
-            return;
-        }
-        bar.awaitingCreateClose = NO;
-        settleAfterCreate(stock);
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.15 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            UIView *again = weakStock;
-            if (again) settleAfterCreate(again);
-        });
-    });
-}
-
-static void followCreateClose(UIView *stockBar) {
-    SGRSystemTabBar *bar = objc_getAssociatedObject(stockBar, &kBarKey);
-    if (!bar || bar.awaitingCreateClose) return;
-    bar.awaitingCreateClose = YES;
-    pollCreateClose(stockBar, 0, NO);
-}
+static void syncInline(UIView *stockBar) API_AVAILABLE(ios(26.0));
 
 static void syncBar(UIView *stockBar) {
-    syncBarCore(stockBar, NO);
-}
-
-static void syncBarExternalChange(UIView *stockBar) {
-    syncBarCore(stockBar, YES);
-}
-
-static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
     sg_stockBar = stockBar;
+    if (sg_inline) {
+        if (@available(iOS 26.0, *)) syncInline(stockBar);
+        return;
+    }
 
     SGRSystemTabBar *bar = objc_getAssociatedObject(stockBar, &kBarKey);
     if (!bar) {
@@ -816,60 +396,25 @@ static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
         // isEnabled]), so a phone in light mode had it light over Spotify's black. Spotify is dark whatever
         // the system is, and so is the bar.
         bar.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
-        // UITabBar's own chrome would sit in front of navGlass (below) and hide it: the glass is the bar's
-        // only background.
-        bar.backgroundColor = UIColor.clearColor;
-        UITabBarAppearance *appearance = [UITabBarAppearance new];
-        [appearance configureWithTransparentBackground];
-        // White icons and titles in every state, on the appearance itself: once a bar has one, its
-        // per-state colours are what UIKit paints with, and tintColor alone would not decide them.
-        for (UITabBarItemAppearance *layout in @[appearance.stackedLayoutAppearance, appearance.inlineLayoutAppearance, appearance.compactInlineLayoutAppearance]) {
-            for (UITabBarItemStateAppearance *state in @[layout.normal, layout.selected]) {
-                state.iconColor = UIColor.whiteColor;
-                state.titleTextAttributes = @{NSForegroundColorAttributeName: UIColor.whiteColor};
-            }
-        }
-        bar.standardAppearance = appearance;
-        bar.scrollEdgeAppearance = appearance;
         bar.delegate = bar;
         bar.stockBar = stockBar;
         UILongPressGestureRecognizer *hold = [[UILongPressGestureRecognizer alloc] initWithTarget:bar action:@selector(held:)];
         hold.delegate = bar;
         [bar addGestureRecognizer:hold];
         bar.hold = hold;
-        // Telegram's own drag-to-switch, not an approximation of it anymore: SGTabDragRecognizer above
-        // is TabSelectionRecognizer.swift ported directly.
-        SGTabDragRecognizer *drag = [[SGTabDragRecognizer alloc] initWithTarget:bar action:@selector(dragged:)];
-        drag.delegate = bar;
-        [bar addGestureRecognizer:drag];
-        bar.drag = drag;
         objc_setAssociatedObject(stockBar, &kBarKey, bar, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         SGRTabBarHost *host = [SGRTabBarHost new];
         [host addSubview:bar];
         objc_setAssociatedObject(stockBar, &kHostKey, host, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
-    // The active tab is told apart by its filled glyph and the selection pill, not by the accent colour.
-    bar.tintColor = UIColor.whiteColor;
-    // UIKit's own default unselected tint (a mid grey in dark mode) is what made the three inactive
-    // icons read as grey instead of white, next to the reference screenshot's fully white inactive
-    // icons. renderLayer makes every icon an always-template image, so tint color is the only thing
-    // that decides what color they actually draw in.
-    bar.unselectedItemTintColor = UIColor.whiteColor;
-    // Centered + a fixed narrow itemWidth, not .automatic's fill-the-frame stretch: three tabs used to
-    // spread edge to edge across whatever width the bar was given, which is the "solid navbar" layout
-    // this pill was never meant to inherit. With a fixed width UIKit centers the group instead of
-    // stretching it, and the visible capsule below is sized to match that group, not the screen.
-    bar.itemPositioning = UITabBarItemPositioningCentered;
-    // itemWidth is set below, once sources.count is known -- with few tabs it stays the full
-    // kNavItemWidth; past however many would overflow the platter's own max width, each slot narrows
-    // just enough for all of them to still fit at that same width.
-    bar.itemSpacing = kNavItemSpacing;
+    UIColor *accent = SGRAccent();
+    if (![bar.tintColor isEqual:accent]) bar.tintColor = accent;
     UIView *host = objc_getAssociatedObject(stockBar, &kHostKey);
 
     for (UIView *sub in stockBar.subviews) {
         if (sub == host) continue;
-        sub.alpha = 0;
-        sub.userInteractionEnabled = NO;
+        if (sub.alpha != 0) sub.alpha = 0;
+        if (sub.userInteractionEnabled) sub.userInteractionEnabled = NO;
     }
     stockBar.superview.layer.backgroundColor = NULL;
 
@@ -878,193 +423,498 @@ static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
     // An item with no title is drawn by UIKit as its glyph alone, centred, on a bar of the same height.
     BOOL hideLabels = SGHidden(SGRKeyNavbarHideLabels);
 
-    // Set once we actually rebuild bar.items below (add, remove, or pure reorder) -- read
-    // further down to decide whether the pill's geometry needs a fresh settled layout pass, not
-    // just when the platter's own frame size changed.
-    BOOL itemsRebuilt = NO;
     if (![sources isEqualToArray:bar.sources]) {
-        itemsRebuilt = YES;
-        // Which source view the current selection and lastRealItem point at, not which index -- a
-        // tab removed earlier in the list would shift every later index by one, and an index-based
-        // remap would hand the pill to the wrong tab.
-        NSUInteger oldSelIndex = [bar.items indexOfObject:bar.selectedItem];
-        UIView *oldSelSource = (oldSelIndex != NSNotFound && oldSelIndex < bar.sources.count) ? bar.sources[oldSelIndex] : nil;
-        NSUInteger oldLastIndex = [bar.items indexOfObject:bar.lastRealItem];
-        UIView *oldLastSource = (oldLastIndex != NSNotFound && oldLastIndex < bar.sources.count) ? bar.sources[oldLastIndex] : nil;
         NSMutableArray<UITabBarItem *> *items = [NSMutableArray array];
         for (UIView *source in sources) [items addObject:[[UITabBarItem alloc] initWithTitle:hideLabels ? nil : labelIn(source).text image:nil tag:items.count]];
         bar.sources = sources;
         [bar setItems:items animated:NO];
-        // setItems: tears down and rebuilds every private per-item view, not just the ones that
-        // actually changed -- so without forcing that rebuild to finish synchronously right here,
-        // renderedCenterXForItem below (which the selection pill's position comes from) can still see
-        // yesterday's layout, stale views included. Harmless on most passes since nothing reads
-        // positions until later in this same call, but on a tab *removal* specifically it is what kept
-        // the pill sitting over a slot that no longer has an icon in it.
-        [bar layoutIfNeeded];
-        // Re-thread the selection through the rebuild by the view it belonged to, found above.
-        if (oldSelSource) {
-            NSUInteger newSelIndex = [sources indexOfObject:oldSelSource];
-            if (newSelIndex != NSNotFound) bar.selectedItem = items[newSelIndex];
+        NSMutableString *out = [NSMutableString stringWithString:@"tab bar icons"];
+        for (UIView *source in sources) {
+            UIView *live = iconIn(source);
+            id icon = live ? encoreIconOf(live) : nil;
+            id variant = [icon respondsToSelector:NSSelectorFromString(@"active")] ? ((id (*)(id, SEL))objc_msgSend)(icon, NSSelectorFromString(@"active")) : nil;
+            [out appendFormat:@"\n  %@: %@ icon %@ active-variant %@ live-isActive %d label-white %d", labelIn(source).text, NSStringFromClass(live.class),
+                 [icon respondsToSelector:@selector(name)] ? [icon name] : icon, [variant respondsToSelector:@selector(name)] ? [variant name] : variant,
+                 [live respondsToSelector:@selector(isActive)] ? [(SPTEncoreIconView *)live isActive] : -1, isActive(source)];
         }
-        if (oldLastSource) {
-            NSUInteger newLastIndex = [sources indexOfObject:oldLastSource];
-            if (newLastIndex != NSNotFound) bar.lastRealItem = items[newLastIndex];
-        }
+        SGLogLong(@"navbar", out);
     }
 
     UITabBarItem *selected = nil;
+    UIView *current = SGRCurrentModTab();
+    NSUInteger modTab = current ? [sources indexOfObject:current] : NSNotFound;
     BOOL missing = NO;
     for (NSUInteger i = 0; i < sources.count; i++) {
         UITabBarItem *item = bar.items[i];
-        learnGlyphs(sources[i], item);
+        if (!item.image) item.image = glyphOf(sources[i], NO);
+        if (!item.selectedImage || item.selectedImage == item.image) item.selectedImage = glyphOf(sources[i], YES);
         missing |= !item.image || !item.selectedImage;
         NSString *title = hideLabels ? nil : labelIn(sources[i]).text;
         if (hideLabels ? item.title != nil : title.length && ![title isEqualToString:item.title]) item.title = title;
-        // UIKit still positions the icon as if a label sat under it even once the title is nil, so with
-        // labels hidden it reads high in the now-shorter pill (kNavPlatterHeightIconOnly below) instead
-        // of truly centred. Nudging it down by imageInsets makes up the difference; zero once labels
-        // come back, so the icon returns to UIKit's own icon+label centring untouched.
-        UIEdgeInsets wantInsets = hideLabels ? UIEdgeInsetsMake(kNavIconOnlyImageShift, 0, -kNavIconOnlyImageShift, 0) : UIEdgeInsetsZero;
-        if (!UIEdgeInsetsEqualToEdgeInsets(item.imageInsets, wantInsets)) item.imageInsets = wantInsets;
-        if (!selected && isActive(sources[i]) && !isCreateSource(sources[i])) selected = item;
+        if (!selected && (modTab != NSNotFound ? i == modTab : isActive(sources[i]))) selected = item;
     }
-    // Everywhere except a genuine external navigation change (rescanSelection == YES, see
-    // syncBarExternalChange), our own lastRealItem -- set the moment our tap/drag flow actually commits
-    // to a tab -- is trusted over this isActive scan. A tab the mod added itself never turns any
-    // source's label white the way Spotify's own tabs do, so without this, the previous *real* tab
-    // (still reading isActive here, since Spotify's own stack never left it) kept winning this scan and
-    // dragging the selection straight back to it on the very next layout pass.
-    // While Create's menu is up the pill stays on Create; settleAfterCreate decides where it goes after.
-    if ((rescanSelection && !bar.awaitingCreateClose) || !bar.lastRealItem) {
-        if (selected && bar.selectedItem != selected) bar.selectedItem = selected;
-        if (selected) bar.lastRealItem = selected;
-    }
-    // Glyphs of the selected and the other items are painted by paintGlyphs, from the bar's own layout.
-    paintGlyphs(bar);
+    if (selected && bar.selectedItem != selected) bar.selectedItem = selected;
     // An icon view Spotify has not built yet is looked for again shortly, not on the next touch.
-    // Kept on stockBar itself, not one counter shared by every bar for the whole life of the
-    // process -- that shared counter let a source that took a few tries early on spend the entire
-    // budget, leaving a *different*, later source (a tab added afterwards, say) with no image and
-    // no active/filled variant to swap to on selection, and nothing left to retry it with for the
-    // rest of the session.
-    NSNumber *retriesBox = objc_getAssociatedObject(stockBar, &kRetriesKey);
-    NSUInteger retries = retriesBox.unsignedIntegerValue;
-    if (missing) {
-        if (retries < 40) {
-            objc_setAssociatedObject(stockBar, &kRetriesKey, @(retries + 1), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.25 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                syncBar(stockBar);
-            });
-        }
-    } else if (retriesBox) {
-        // Every icon is in; the next source that comes up short gets its own fresh 40 tries
-        // instead of whatever this run happened to leave over.
-        objc_setAssociatedObject(stockBar, &kRetriesKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    static NSUInteger retries;
+    if (missing && retries++ < 40) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.25 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            syncBar(stockBar);
+        });
     }
 
     CGRect bounds = stockBar.bounds;
     CGFloat width = bounds.size.width;
-    // height is the *room*, not the pill: UIKit's own tab bar can ask for as much as 83pt here
-    // (harness/tabbar/README.md), most of which is the reserved home-indicator strip below the
-    // platter, not glass. host stays that tall so the room-making math elsewhere is untouched; only
-    // the visible pieces (bar, navGlass, navTint) are pinned to the fixed platter height below.
     CGFloat height = MAX(bounds.size.height, glassHeight(bar, stockBar));
-    // Lifted off the very bottom edge by kNavGlassBottomMargin, so the pill floats the way real
-    // Liquid Glass does on iOS 26+, instead of the legacy approximation's edge-to-edge slab.
-    CGRect frame = CGRectMake(0, CGRectGetMaxY(bounds) - height - kNavGlassBottomMargin, width, height);
+    CGRect frame = CGRectMake(0, CGRectGetMaxY(bounds) - height, width, height);
     if (!CGRectEqualToRect(host.frame, frame)) host.frame = frame;
-
-    // The pill's own width, not the bar's: with itemWidth/itemPositioning centered above, sources.count
-    // tabs take up exactly this much room, so the capsule hugs them and grows/shrinks with the tab
-    // count instead of always spanning edge to edge like the old solid navbar did.
-    // Past however many tabs kNavItemWidth's fixed 90pt would overflow the platter's own max width
-    // for, each slot narrows just enough for all of them to still fit at that same width -- not the
-    // width itself growing past what kNavGlassMargin leaves it. Below that count nothing changes.
-    CGFloat availableWidth = width - kNavGlassMargin * 2;
-    CGFloat naturalWidth = kNavItemWidth * sources.count + kNavItemSpacing * (sources.count - 1);
-    CGFloat itemWidth = naturalWidth > availableWidth
-        ? MAX(1, (availableWidth - kNavItemSpacing * (sources.count - 1)) / sources.count)
-        : kNavItemWidth;
-    if (bar.itemWidth != itemWidth) bar.itemWidth = itemWidth;
-    CGFloat contentWidth = MIN(availableWidth, naturalWidth);
-    CGFloat platterHeight = MIN(hideLabels ? kNavPlatterHeightIconOnly : kNavPlatterHeight, height);
-    // A small gap off host's top too, not just its bottom (kNavGlassBottomMargin): host's top edge sits
-    // right where the now-playing card's bottom edge is, so a platter pinned at y=0 touched the card
-    // directly with no breathing room between the two floating pieces.
-    CGFloat platterY = MIN(kNavGlassBottomMargin, MAX(0, height - platterHeight));
-    CGRect platterFrame = CGRectMake(floor((width - contentWidth) / 2), platterY, contentWidth, platterHeight);
-    BOOL frameChanged = !CGRectEqualToRect(bar.frame, platterFrame);
-    if (frameChanged) bar.frame = platterFrame;
-    // UIKit lays its private per-item buttons out lazily on the next runloop pass, not synchronously the
-    // instant frame (or items) changes -- so reading their rendered positions (renderedCenterXForItem,
-    // below) right after resizing the bar, e.g. when a tab was just added or removed, would still see
-    // yesterday's layout. Forcing it here is what a tab-count change was missing: the pill used to land
-    // exactly where the old item count put it, not where the new one actually renders.
-    // A pure reorder (same count, so the platter itself is the same size) still moved every
-    // button to a new slot in bar.items -- frameChanged alone missed that case, and
-    // renderedCenterXForItem below kept reading whichever stale button positions were still
-    // settled from before the reorder, which is what let the pill drift off to the side of the
-    // icon it was supposed to sit under.
-    if (frameChanged || itemsRebuilt) [bar layoutIfNeeded];
-
-    // A glass capsule behind the bar, as NowPlayingBar.x backs the mini player; radius half its height.
-    UIView *navGlass = SGGlassFor(host, &kNavGlassKey);
-    navGlass.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
-    CGRect glassFrame = platterFrame;
-    if (!CGRectEqualToRect(navGlass.frame, glassFrame)) navGlass.frame = glassFrame;
-    SGShapeGlass(navGlass, glassFrame.size.height / 2, NO);
-
-    UIView *navTint = SGRGlassFilm(host, &kNavTintKey, navGlass, glassFrame.size.height / 2);
-
-    // A dark capsule behind the selected icon only - the closest legacy stand-in for iOS 26+'s glass
-    // "selection bubble". Sits above the tint so it reads as a shadow in the material, below the
-    // (transparent) bar itself so the icon still draws on top of it.
-    // Solid black (not Telegram's ~10% white lens glow): over navTint's 16% white film,
-    // anything under ~50% alpha reads as washed-out grey instead of a clean black capsule.
-    UIView *selPill = SGLazyChild(host, &kSelPillKey, ^UIView *{
-        UIView *v = [UIView new];
-        v.userInteractionEnabled = NO;
-        v.backgroundColor = [UIColor colorWithWhite:0 alpha:0.55];
-        v.layer.cornerCurve = kCACornerCurveContinuous;
-        return v;
-    });
-    if (selPill.superview != host) [host insertSubview:selPill aboveSubview:navTint];
-    // bar.selectedItem updates the instant UIKit processes a real tap (or our own drag handler sets
-    // it), well before Spotify repaints the label isActive polls below -- keying the pill off that
-    // polled state was the ~1s lag between tapping a tab and the pill actually moving there. syncBar is
-    // now the pill's only writer -- dragged: no longer touches its frame directly -- so there is exactly
-    // one animation per selection change, never two fighting over the same frame.
-    NSUInteger selIndex = [bar.items indexOfObject:bar.selectedItem];
-    if (selIndex != NSNotFound && selIndex < sources.count) {
-        CGFloat pillWidth = itemWidth - kSelPillInset * 2;
-        CGFloat centerX = [bar renderedCenterXForItem:bar.selectedItem];
-        CGFloat slotX = isnan(centerX)
-            ? bar.frame.origin.x + selIndex * (itemWidth + kNavItemSpacing) + kSelPillInset
-            : bar.frame.origin.x + centerX - pillWidth / 2;
-        CGRect pillFrame = CGRectMake(slotX, bar.frame.origin.y + kSelPillInset, pillWidth, bar.frame.size.height - kSelPillInset * 2);
-        selPill.layer.cornerRadius = pillFrame.size.height / 2;
-        BOOL wasVisible = !selPill.hidden;
-        selPill.hidden = NO;
-        if (!CGRectEqualToRect(selPill.frame, pillFrame)) {
-            if (wasVisible && !CGRectIsEmpty(selPill.frame)) {
-                // Slides to the new slot instead of jumping -- the pill's one and only animation now,
-                // on a tap or a drag alike, with no raw finger-tracking step before it.
-                [UIView animateWithDuration:0.25 delay:0
-                    options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionCurveEaseInOut
-                    animations:^{ selPill.frame = pillFrame; } completion:nil];
-            } else {
-                selPill.frame = pillFrame;
-            }
-        }
-    } else {
-        selPill.hidden = YES;
-    }
-
+    if (!CGRectEqualToRect(bar.frame, host.bounds)) bar.frame = host.bounds;
     if (host.superview != stockBar) [stockBar addSubview:host];
     else if (stockBar.subviews.lastObject != host) [stockBar bringSubviewToFront:host];
+    logBarOnce(bar);
     makeRoom(containerOf(stockBar));
 }
+
+#pragma mark - the tab bar with the mini player
+
+// With the mini player on (SGRKeyInlinePlayer), the glass bar is a UITabBarController's instead, since
+// the bottom accessory and minimizing on scroll are the controller's: UIKit then draws the mini player
+// above the bar and, scrolled, moves it in between the first tab and the last, all of it its own
+// morph. The controller's pages are empty and clear; Spotify's pages stay where they are, under it.
+//
+// Minimizing needs no private API: UIKit watches the scroll view the selected page names for its
+// bottom edge (-setContentScrollView:forEdge:), and the one named is the page of Spotify's in front,
+// which need not be inside the controller (checked in the simulator, iOS 26.5, with a real drag).
+//
+// The controller's view covers TabBarContainerImpl's (SGRInlineHost), since the mini player stands
+// above Spotify's bar and a touch outside a view's bounds never reaches it; everything but the bar and
+// the accessory is passed through. The controller is not made a child of Spotify's container, whose
+// Swift code may count on the children it put there itself, so its appearance calls are made by hand.
+// Spotify's bar stays under it, invisible, and so does the room made for the other glass bar: none.
+
+
+@interface SGRInlinePage : UIViewController
+@end
+
+@interface SGRInlineHost : UIView
+@property (nonatomic, weak) UITabBarController *tabs;
+@end
+
+@interface SGRInlineTabs : UITabBarController <UITabBarControllerDelegate, UIGestureRecognizerDelegate, SGPlayerStateObserver>
+@property (nonatomic, weak) UIView *stockBar;
+@property (nonatomic, copy) NSArray<UIView *> *sources;
+@property (nonatomic, strong) UITabAccessory *accessory API_AVAILABLE(ios(26.0));
+@property (nonatomic) BOOL holding;
+@property (nonatomic, readonly) BOOL minimized;
+// The last touch on the bar went down on the minimized leading tab, and its tap went to the first tab
+// while UIKit selects the one under it.
+@property (nonatomic) BOOL touchedLead, leadRedirected;
+@end
+
+static __weak SGRInlineTabs *sg_inlineTabs;
+static __weak SGRInlineHost *sg_inlineHost;
+static __weak UIScrollView *sg_pageScroll;
+
+// Names Spotify's page in front to the page UIKit reads it from. UIKit looks the scroll view up when a
+// page is selected, not when a page names another one later (simulator: toggling the behaviour or an
+// appearance pass on the page do not do it), so the selection goes to another tab and back, unseen.
+static BOOL sg_flipping;
+static void searchPageScroll(void);
+
+static void nameScrollView(void) {
+    SGRInlineTabs *tabs = sg_inlineTabs;
+    UIViewController *page = tabs.selectedViewController;
+    UIScrollView *scroll = sg_pageScroll;
+    if (!page || !scroll.window) return;
+    if ([page contentScrollViewForEdge:NSDirectionalRectEdgeBottom] == scroll) return;
+    [page setContentScrollView:scroll forEdge:NSDirectionalRectEdgeAll];
+    if (sg_flipping || !tabs.viewIfLoaded.window) return;
+    if (@available(iOS 26.0, *)) {
+        UITab *selected = tabs.selectedTab;
+        UITab *other = nil;
+        for (UITab *tab in tabs.tabs) if (tab != selected && ![tab isKindOfClass:UISearchTab.class]) { other = tab; break; }
+        if (!selected || !other) return;
+        SGLog(@"tab bar: reselects %@ so UIKit reads the list", selected.title);
+        sg_flipping = YES;
+        [UIView performWithoutAnimation:^{
+            tabs.selectedTab = other;
+            tabs.selectedTab = selected;
+        }];
+        sg_flipping = NO;
+    }
+}
+
+@implementation SGRInlinePage
+- (void)loadView {
+    UIView *view = [UIView new];
+    view.backgroundColor = UIColor.clearColor;
+    view.userInteractionEnabled = NO;
+    self.view = view;
+}
+- (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+    nameScrollView();
+}
+@end
+
+@implementation SGRInlineHost
+// The bar's own view, anything in it and the accessory take a touch; the rest is Spotify's.
+- (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
+    UIView *hit = [super hitTest:point withEvent:event];
+    UITabBar *bar = self.tabs.tabBar;
+    // Expanded, the accessory is not inside the bar and UIKit's views around it are not named for it.
+    if (@available(iOS 26.0, *)) {
+        UIView *mini = self.tabs.bottomAccessory.contentView;
+        if (mini && [hit isDescendantOfView:mini]) return hit;
+    }
+    for (UIView *v = hit; v && v != self; v = v.superview) {
+        if (v == bar) return hit == bar ? nil : hit;
+        if ([NSStringFromClass(v.class) containsString:@"Accessory"]) return hit;
+    }
+    return nil;
+}
+@end
+
+
+@implementation SGRInlineTabs
+
+- (instancetype)init {
+    if (!(self = [super init])) return nil;
+    self.delegate = self;
+    self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
+    if (@available(iOS 26.0, *)) {
+        self.tabBarMinimizeBehavior = UITabBarMinimizeBehaviorOnScrollDown;
+        self.accessory = [[UITabAccessory alloc] initWithContentView:SGRMakeMiniPlayer()];
+        [self.accessory.contentView registerForTraitChanges:@[UITraitTabAccessoryEnvironment.class] withTarget:self action:@selector(minimizedChanged)];
+    }
+    SGAddPlayerStateObserver(self);
+    // Setting the controller up above can load its view, so viewDidLoad may have run with no accessory yet.
+    [self playerStateDidChange:SGPlayerState()];
+    return self;
+}
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    self.view.backgroundColor = UIColor.clearColor;
+    UILongPressGestureRecognizer *hold = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(held:)];
+    hold.delegate = self;
+    [self.tabBar addGestureRecognizer:hold];
+    UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(leadingTapped:)];
+    tap.delegate = self;
+    tap.cancelsTouchesInView = NO;
+    [self.tabBar addGestureRecognizer:tap];
+    [self playerStateDidChange:SGPlayerState()];
+}
+
+// The accessory is inline beside the minimized bar; with no track there is no accessory and no telling.
+- (BOOL)minimized {
+    if (@available(iOS 26.0, *)) return self.bottomAccessory.contentView.traitCollection.tabAccessoryEnvironment == UITabAccessoryEnvironmentInline;
+    return NO;
+}
+
+- (void)minimizedChanged {
+    SGLog(@"tab bar: %@", self.minimized ? @"minimized" : @"expanded");
+    if (self.stockBar) syncBar(self.stockBar);
+}
+
+// Between the first tab and the trailing circle.
+- (BOOL)isMiddle:(NSUInteger)index {
+    return index > 0 && index + 1 < self.sources.count;
+}
+
+// A tap on the minimized selected tab only expands the bar, with no shouldSelectTab.
+- (void)leadingTapped:(UITapGestureRecognizer *)tap {
+    SGLog(@"tab bar: the minimized leading tab takes the tap for %@", labelIn(self.sources.firstObject).text);
+    SGRTabPicked(self.sources.firstObject);
+    forwardTap(self.sources.firstObject);
+}
+
+// The mini player is there while Spotify has a track to show on its bar, paused or not.
+- (void)playerStateDidChange:(SPTPlayerState *)state {
+    if (@available(iOS 26.0, *)) {
+        BOOL track = SGURIString(state.track.URI).length > 0;
+        UITabAccessory *want = track ? self.accessory : nil;
+        if (self.bottomAccessory != want) [self setBottomAccessory:want animated:self.viewIfLoaded.window != nil];
+    }
+}
+
+- (BOOL)tabBarController:(UITabBarController *)controller shouldSelectTab:(UITab *)tab API_AVAILABLE(ios(26.0)) {
+    if (sg_flipping) return YES;
+    NSUInteger index = [self.tabs indexOfObject:tab];
+    self.leadRedirected = self.touchedLead && [self isMiddle:index];
+    if (self.leadRedirected) index = 0;
+    if (index < self.sources.count) SGRTabPicked(self.sources[index]);
+    // Home tapped while on Home pops Spotify's stack, which would take Mod Settings straight off it.
+    if (index < self.sources.count && !self.holding) forwardTap(self.sources[index]);
+    UIView *stockBar = self.stockBar;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.25 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        if (stockBar) syncBar(stockBar);
+    });
+    return YES;
+}
+
+- (void)tabBarController:(UITabBarController *)controller didSelectTab:(UITab *)tab previousTab:(UITab *)previous API_AVAILABLE(ios(26.0)) {
+    // Selecting another tab in here leaves UIKit lighting this one.
+    if (self.leadRedirected) {
+        self.leadRedirected = NO;
+        dispatch_async(dispatch_get_main_queue(), ^{ self.selectedTab = self.tabs.firstObject; });
+    }
+    nameScrollView();
+}
+
+// Held on Home, Mod Settings, as on the other glass bar.
+- (BOOL)gestureRecognizerShouldBegin:(UIGestureRecognizer *)recognizer {
+    if ([recognizer isKindOfClass:UITapGestureRecognizer.class]) return YES;
+    UIView *home = self.sources.firstObject;
+    if (!home || !isHome(home, self.stockBar)) return NO;
+    UITabBarItem *item = itemAtPoint(self.tabBar, [recognizer locationInView:self.tabBar]);
+    NSString *title = labelIn(home).text;
+    if (item && title.length && [item.title isEqualToString:title]) return YES;
+    if (@available(iOS 26.0, *)) return item && self.tabs.count && item.image == self.tabs.firstObject.image;
+    return NO;
+}
+
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)recognizer shouldReceiveTouch:(UITouch *)touch {
+    if (![recognizer isKindOfClass:UITapGestureRecognizer.class]) return YES;
+    self.touchedLead = NO;
+    if (@available(iOS 26.0, *)) {
+        UIView *mini = self.minimized ? self.bottomAccessory.contentView : nil;
+        self.touchedLead = mini.window && [touch locationInView:nil].x < CGRectGetMinX([mini convertRect:mini.bounds toView:nil]);
+        return self.touchedLead && [self isMiddle:[self.tabs indexOfObject:self.selectedTab]];
+    }
+    return NO;
+}
+
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)recognizer shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)other {
+    return YES;
+}
+
+- (void)held:(UILongPressGestureRecognizer *)hold {
+    if (hold.state == UIGestureRecognizerStateBegan) {
+        self.holding = YES;
+        SGOpenModSettings(self.tabBar);
+    } else if (hold.state != UIGestureRecognizerStateChanged) {
+        __weak typeof(self) weakSelf = self;
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            weakSelf.holding = NO;
+        });
+    }
+}
+
+@end
+
+static UIViewController *inlinePage(UITab *tab) API_AVAILABLE(ios(26.0)) {
+    return [SGRInlinePage new];
+}
+
+static void syncInline(UIView *stockBar) API_AVAILABLE(ios(26.0)) {
+    UIViewController *container = containerOf(stockBar);
+    if (!container.isViewLoaded) return;
+
+    SGRInlineTabs *tabs = sg_inlineTabs;
+    SGRInlineHost *host = sg_inlineHost;
+    if (!tabs) {
+        tabs = [SGRInlineTabs new];
+        tabs.stockBar = stockBar;
+        host = [SGRInlineHost new];
+        host.tabs = tabs;
+        // The host holds the controller: nothing else of Spotify's or UIKit's does.
+        objc_setAssociatedObject(host, &kBarKey, tabs, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        sg_inlineTabs = tabs;
+        sg_inlineHost = host;
+    }
+    tabs.stockBar = stockBar;
+    tabs.tabBar.tintColor = SGRAccent();
+
+    for (UIView *sub in stockBar.subviews) {
+        sub.alpha = 0;
+        sub.userInteractionEnabled = NO;
+    }
+    stockBar.superview.layer.backgroundColor = NULL;
+
+    UIView *view = container.view;
+    if (!CGRectEqualToRect(host.frame, view.bounds)) {
+        SGLog(@"tab bar: host frame %@ -> %@", NSStringFromCGRect(host.frame), NSStringFromCGRect(view.bounds));
+        host.frame = view.bounds;
+    }
+    if (host.superview != view) {
+        [tabs beginAppearanceTransition:YES animated:NO];
+        [view addSubview:host];
+        tabs.view.frame = host.bounds;
+        tabs.view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+        [host addSubview:tabs.view];
+        [tabs endAppearanceTransition];
+        SGLog(@"tab bar: the mini player's tab bar controller is up over %@", NSStringFromCGRect(view.bounds));
+        dispatch_async(dispatch_get_main_queue(), ^{ searchPageScroll(); });
+    } else if (view.subviews.lastObject != host) {
+        [view bringSubviewToFront:host];
+    }
+    // A page that hides Spotify's bar hides this one too.
+    BOOL hidden = stockBar.hidden || stockBar.superview.hidden || stockBar.alpha < 0.01 || !stockBar.window;
+    if (host.hidden != hidden) {
+        SGLog(@"tab bar: %@ with Spotify's bar", hidden ? @"hidden" : @"shown");
+        host.hidden = hidden;
+    }
+
+    NSArray<UIView *> *sources = tabItems(stockBar);
+    if (!sources.count) return;
+    BOOL hideLabels = SGHidden(SGRKeyNavbarHideLabels);
+
+    if (![sources isEqualToArray:tabs.sources]) {
+        NSMutableArray<UITab *> *list = [NSMutableArray array];
+        for (UIView *source in sources) {
+            NSString *title = hideLabels ? @"" : (labelIn(source).text ?: @"");
+            UITab *tab;
+            // UIKit keeps a search tab in its own circle beside the minimized bar, so the last tab of the
+            // Navbar order is one, whichever it is.
+            if (sources.count > 1 && source == sources.lastObject) {
+                UISearchTab *search = [[UISearchTab alloc] initWithViewControllerProvider:^UIViewController *(UITab *t) { return inlinePage(t); }];
+                search.title = title;
+                search.image = glyphOf(source, NO);
+                search.automaticallyActivatesSearch = NO;
+                tab = search;
+            } else {
+                NSString *identifier = [NSString stringWithFormat:@"spotifyglass.tab.%lu", (unsigned long)list.count];
+                tab = [[UITab alloc] initWithTitle:title image:glyphOf(source, NO) identifier:identifier
+                            viewControllerProvider:^UIViewController *(UITab *t) { return inlinePage(t); }];
+            }
+            [list addObject:tab];
+        }
+        tabs.sources = sources;
+        tabs.tabs = list;
+        SGLog(@"tab bar: %lu tabs on the mini player's bar, %@ in the trailing circle", (unsigned long)list.count, labelIn(sources.lastObject).text);
+    }
+
+    // Spotify's selected tab shows its filled icon, as UITabBarItem's selectedImage did on the other bar.
+    // Minimized, UIKit leads with the selected tab, or with the last one picked while the trailing one is
+    // selected. The middle tabs all wear the first tab's glyph, unlit, so the first is what leads.
+    UITab *selected = nil;
+    UIView *current = SGRCurrentModTab();
+    NSUInteger modTab = current ? [sources indexOfObject:current] : NSNotFound;
+    BOOL missing = NO;
+    static UIImage *leadFrom, *lead;
+    UIImage *leadGlyph = tabs.minimized ? glyphOf(sources.firstObject, NO) : nil;
+    if (leadGlyph != leadFrom) {
+        leadFrom = leadGlyph;
+        lead = [leadGlyph imageWithTintColor:UIColor.whiteColor renderingMode:UIImageRenderingModeAlwaysOriginal];
+    }
+    for (NSUInteger i = 0; i < sources.count && i < tabs.tabs.count; i++) {
+        UITab *tab = tabs.tabs[i];
+        BOOL active = modTab != NSNotFound ? i == modTab : isActive(sources[i]);
+        if (active && !selected) selected = tab;
+        UIImage *image = glyphOf(sources[i], active);
+        missing |= !image;
+        if (lead && [tabs isMiddle:i]) image = lead;
+        if (image && tab.image != image) tab.image = image;
+    }
+    if (selected && tabs.selectedTab != selected) {
+        SGLog(@"tab bar: selection follows Spotify to %@", selected.title);
+        tabs.selectedTab = selected;
+    }
+    if (!sg_pageScroll.window) searchPageScroll();
+    static NSUInteger retries;
+    if (missing && retries++ < 40) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.25 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            syncBar(stockBar);
+        });
+    }
+    nameScrollView();
+}
+
+// The scroll view UIKit should minimize the bar by is Spotify's page in front: a vertical list over most
+// of the screen inside the tab bar container, the innermost when one holds another. Horizontal pagers
+// are left out. Spotify's first page is on screen before the bar is, so the container is searched once
+// the bar is up; later pages are taken as they come on screen, and whichever list a finger starts
+// dragging up or down is taken on the spot, in case the guess was another.
+static BOOL isPageScroll(UIScrollView *scroll) {
+    SGRInlineHost *host = sg_inlineHost;
+    UIView *container = host.superview;
+    if (!container || !scroll.window || scroll.hidden || scroll.pagingEnabled) return NO;
+    if (![scroll isDescendantOfView:container] || [scroll isDescendantOfView:host]) return NO;
+    return scroll.bounds.size.height >= container.bounds.size.height * 0.5;
+}
+
+static void takePageScroll(UIScrollView *scroll, NSString *why) {
+    if (sg_pageScroll == scroll) return;
+    sg_pageScroll = scroll;
+    static NSUInteger logged;
+    if (logged++ < 20) SGLog(@"tab bar: follows %@ %p %@ (%@)", NSStringFromClass(scroll.class), scroll, NSStringFromCGRect(scroll.frame), why);
+    nameScrollView();
+}
+
+static void considerScrollView(UIScrollView *scroll) {
+    if (!isPageScroll(scroll)) return;
+    UIScrollView *current = sg_pageScroll;
+    if (current == scroll) return;
+    if (current.window && [current isDescendantOfView:scroll]) return;
+    takePageScroll(scroll, @"came on screen");
+}
+
+static void searchPageScroll(void) {
+    UIView *container = sg_inlineHost.superview;
+    if (!container) return;
+    // The bar lays out often; a page with no list is searched at most once a second.
+    static CFTimeInterval last;
+    CFTimeInterval now = CACurrentMediaTime();
+    if (now - last < 1) return;
+    last = now;
+    NSMutableArray<UIView *> *queue = [NSMutableArray arrayWithObject:container];
+    NSUInteger found = 0;
+    while (queue.count) {
+        UIView *view = queue.firstObject;
+        [queue removeObjectAtIndex:0];
+        if (view == sg_inlineHost || view.hidden || view.alpha < 0.01) continue;
+        if ([view isKindOfClass:UIScrollView.class] && isPageScroll((UIScrollView *)view)) {
+            found++;
+            considerScrollView((UIScrollView *)view);
+        }
+        [queue addObjectsFromArray:view.subviews];
+    }
+    static NSUInteger logged;
+    if (!sg_pageScroll.window && logged++ < 5) SGLog(@"tab bar: no page list found to minimize by (%lu looked at)", (unsigned long)found);
+}
+
+@interface SGRScrollDrag : NSObject
+@end
+
+@implementation SGRScrollDrag
++ (void)dragged:(UIPanGestureRecognizer *)pan {
+    UIScrollView *scroll = (UIScrollView *)pan.view;
+    if (pan.state == UIGestureRecognizerStateEnded && scroll == sg_pageScroll) {
+        static NSUInteger logged;
+        UIEdgeInsets inset = scroll.adjustedContentInset;
+        if (logged++ < 40) SGLog(@"tab bar: drag ended on the followed list, offset %.0f, inset top %.0f bottom %.0f, content %.0f of %.0f, page names it %d",
+                                 scroll.contentOffset.y, inset.top, inset.bottom, scroll.contentSize.height, scroll.bounds.size.height,
+                                 [sg_inlineTabs.selectedViewController contentScrollViewForEdge:NSDirectionalRectEdgeBottom] == scroll);
+    }
+    if (pan.state != UIGestureRecognizerStateBegan) return;
+    if (![scroll isKindOfClass:UIScrollView.class] || scroll == sg_pageScroll || !isPageScroll(scroll)) return;
+    CGPoint velocity = [pan velocityInView:scroll];
+    if (fabs(velocity.y) <= fabs(velocity.x)) return;
+    takePageScroll(scroll, @"dragged");
+}
+@end
+
+static char kDragKey;
+
+%group SGRInlinePlayerScroll
+%hook UIScrollView
+- (void)didMoveToWindow {
+    %orig;
+    if (!self.window) return;
+    if (!objc_getAssociatedObject(self, &kDragKey)) {
+        objc_setAssociatedObject(self, &kDragKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        [self.panGestureRecognizer addTarget:SGRScrollDrag.class action:@selector(dragged:)];
+    }
+    considerScrollView(self);
+    // A page arriving in a transition may not have its size yet.
+    __weak UIScrollView *weakSelf = self;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIScrollView *scroll = weakSelf;
+        if (scroll) considerScrollView(scroll);
+    });
+}
+%end
+%end
 
 #pragma mark - hooks
 
@@ -1074,25 +924,38 @@ static UIView *tabBarOf(UIView *item) {
     return nil;
 }
 
+// Set while the bar lays its items out itself, so each item's pass leaves the work to the bar's one.
+static BOOL sg_barPass, sg_itemsLaidOut;
+
 %hook _TtC23NavigationUI_TabBarImpl10TabBarView
 - (void)layoutSubviews {
     %orig;
     SGRComposeTabBar((UIView *)self);
+    sg_barPass = YES;
+    sg_itemsLaidOut = NO;
     for (UIView *sub in ((UIView *)self).subviews) {
         if (![sub isKindOfClass:SGRTabBarHost.class]) [sub layoutIfNeeded];
     }
+    sg_barPass = NO;
+    if (sg_itemsLaidOut) SGRComposeTabBar((UIView *)self);
     holdHome((UIView *)self);
     syncBar((UIView *)self);
+    SGRLogTabBarRow((UIView *)self);
 }
 %end
 
 // The bar's own pass runs before Spotify has filled the row; the items lay out as they arrive.
 static void itemDidLayOut(UIView *item) {
+    if (sg_barPass) {
+        sg_itemsLaidOut = YES;
+        return;
+    }
     UIView *bar = tabBarOf(item);
     if (!bar) return;
     SGRComposeTabBar(bar);
     holdHome(bar);
     syncBar(bar);
+    SGRLogTabBarRow(bar);
 }
 
 %hook _TtC23NavigationUI_TabBarImpl21TabBarItemElementView
@@ -1109,19 +972,22 @@ static void itemDidLayOut(UIView *item) {
 }
 %end
 
+// A page pushed or popped decides whether a tab of the mod's own is the one lit.
+%hook SPNavigationController
+- (void)navigationController:(UINavigationController *)controller didShowViewController:(UIViewController *)page animated:(BOOL)animated {
+    %orig;
+    UIView *bar = sg_stockBar;
+    if (bar) syncBar(bar);
+}
+%end
+
 // A tab changed from elsewhere (a link, the side drawer) repaints the labels without a layout pass.
 %hook _TtC23NavigationUI_TabBarImpl19TabBarContainerImpl
 - (void)setSelectedViewController:(UIViewController *)controller {
     %orig;
-    // Spotify repaints its labels a moment after the controller changes, so the first look can still
-    // find the old tab painted white; the second, once it has.
     dispatch_async(dispatch_get_main_queue(), ^{
         UIView *bar = sg_stockBar;
-        if (bar) syncBarExternalChange(bar);
-    });
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.25 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        UIView *bar = sg_stockBar;
-        if (bar) syncBarExternalChange(bar);
+        if (bar) syncBar(bar);
     });
 }
 // The message bar coming or going changes the view's safe area before Spotify lays the bar out for it,
@@ -1134,11 +1000,16 @@ static void itemDidLayOut(UIView *item) {
 
 %ctor {
     if (!SGRedesignedUI()) return;
+    // Below iOS 26 the bar is the fork's (TabBarLegacy.x); this one is for the system's own glass.
+    if (SGBelowIOS26()) return;
+    if (@available(iOS 26.0, *)) sg_inline = SGRInlinePlayer();
     %init;
+    if (sg_inline) %init(SGRInlinePlayerScroll);
     SGRequireClasses(@[
         @"_TtC23NavigationUI_TabBarImpl10TabBarView",
         @"_TtC23NavigationUI_TabBarImpl21TabBarItemElementView",
         @"_TtC25CreateMenu_TabBarItemImpl24CreateMenuTabBarItemView",
         @"_TtC23NavigationUI_TabBarImpl19TabBarContainerImpl",
+        @"SPNavigationController",
     ]);
 }
