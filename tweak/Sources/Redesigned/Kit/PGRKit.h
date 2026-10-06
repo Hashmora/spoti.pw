@@ -1,6 +1,7 @@
 // The Redesign Kit: what every part of the redesign (Redesigned/<Part>/) builds on, so the screens share
 // one look and nothing is hand-rolled per screen. A screen imports this and Core/PGCore.h.
 //
+//     PGRedesign.h   Redesigned UI, the one switch, and the flags the redesigned screens force
 //     PGRTokens.h    colours, type, spacing, radii, motion, the accessibility settings
 //     PGRPalette.h   the artwork's edge colour, the field colour and the pre-blurred bitmaps
 //     PGRField.h     the artwork field behind a page
@@ -18,6 +19,7 @@
 //
 // Every hook file of the redesign starts its %ctor with `if (!PGRedesignedUI()) return;` and every one
 // of Native/ with `if (!PGNativeUI()) return;` (Core/PGUIMode.h), so the two looks never run together.
+#import "PGRedesign.h"
 #import "PGRTokens.h"
 #import "PGRPalette.h"
 #import "PGRField.h"

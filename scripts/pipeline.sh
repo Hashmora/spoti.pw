@@ -66,12 +66,6 @@ MOD_VERSION="$(cat "$ROOT/version.txt" 2>/dev/null || true)"
 OUT="${OUT:-$ROOT/out/spoti.pw-$MOD_VERSION.ipa}"
 echo "==> spoti.pw $MOD_VERSION on Spotify $SPOTIFY_VERSION -> $OUT"
 
-# The flag table is generated rather than committed, so it always matches the IPA being built.
-if [ ! -f "$ROOT/tweak/Sources/Shared/Flags/SGFlagList.m" ]; then
-  echo "==> extracting the flag table (once, about 40 s)"
-  "$ROOT/scripts/extract-flags.py" "$IN"
-fi
-
 echo "==> building tweak"
 export THEOS
 # Theos resolves its toolchain through `xcrun -sdk iphoneos`, which needs full Xcode. With only the
@@ -87,7 +81,8 @@ echo "    $TWEAK_DEB"
 
 FILES=("$TWEAK_DEB")
 if [ "$WITH_FLEX" = 1 ]; then
-  if [ -f "$FLEX_DEB" ]; then FILES+=("$FLEX_DEB"); else echo "==> no FLEX: $FLEX_DEB is missing (git checkout 85a8646^ -- vendor/)"; fi
+  [ -f "$FLEX_DEB" ] || { echo "FLEX requested but $FLEX_DEB is missing (pass --no-flex to build without it)" >&2; exit 1; }
+  FILES+=("$FLEX_DEB")
 fi
 
 echo "==> injecting"

@@ -253,6 +253,7 @@ def main():
         lines.append(f'    {{"{key}", SGFlag{kind}, {signed(value)}, {signed(lower)}, {signed(upper)}}},')
     lines += ['};', 'const NSUInteger SGFlagCount = sizeof(SGFlagTable) / sizeof(*SGFlagTable);', '']
     out = ROOT / 'tweak/Sources/Shared/Flags/SGFlagList.m'
+    out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text('\n'.join(lines))
     typed = sum(1 for f in flags.values() if f[0] != 'Unknown')
     print(f'{out.relative_to(ROOT)}: {len(flags)} flags, {typed} with a type and default')
