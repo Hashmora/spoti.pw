@@ -6,7 +6,8 @@
 //
 // The drawer is SideDrawer_ECMKit.SideDrawerContainer holding SideDrawer_ListPageImpl.ListViewController,
 // whose list is a SideDrawer_ListPageImpl SideDrawerListCollectionView. The row goes into that list in a strip of
-// contentInset above the first item, the same place the Mod Settings row of spoti.pw sits.
+// contentInset above the first item, where the Mod Settings row of spoti.pw sits as well: the row stacks above
+// any other row it finds there rather than taking the same place.
 // Nothing happens from iOS 26, where there is no glass of ours to switch.
 #import "Core/PGCore.h"
 
@@ -121,6 +122,24 @@ static UIScrollView *drawerList(UIView *root) {
     return nil;
 }
 
+// Rows of other tweaks (spoti.pw's Mod Settings) sit in the same strip above the list's first item. They are
+// plain views of the list that lie wholly above its content (negative y), span the list and are neither
+// cells nor the scroll indicators. The highest of them is returned (0 when there is none), so this row
+// stacks above it instead of over it, whichever of the two tweaks laid its row out first.
+static CGFloat foreignStripTop(UIScrollView *scroll, UIView *ours) {
+    CGFloat top = 0, width = CGRectGetWidth(scroll.bounds);
+    for (UIView *view in scroll.subviews) {
+        if (view == ours || view.hidden || view.alpha < 0.01) continue;
+        if ([view isKindOfClass:UICollectionReusableView.class]) continue;   // cells and section headers
+        if (hasName(NSStringFromClass(view.class), @"ScrollIndicator")) continue;
+        CGRect frame = view.frame;
+        if (CGRectGetHeight(frame) < 1 || CGRectGetWidth(frame) < width * 0.6) continue;
+        if (CGRectGetMinY(frame) >= 0 || CGRectGetMaxY(frame) > 1) continue;
+        top = MIN(top, CGRectGetMinY(frame));
+    }
+    return top;
+}
+
 static void placeRow(UIViewController *vc) {
     UIScrollView *scroll = drawerList(vc.view);
     if (!scroll) {
@@ -136,16 +155,22 @@ static void placeRow(UIViewController *vc) {
     if (row.superview != scroll) [scroll addSubview:row];
     [row syncFromStore];
 
-    // A strip of inset above the first item is where the row lives; Spotify may set the inset again, so a
-    // missing strip is put back.
-    if (scroll.contentInset.top < kRowHeight - 0.5) {
+    // The row goes right above whatever other rows the strip already holds, and the strip grows to take it.
+    // The inset is raised to what is needed, never added to, so another tweak that sizes the strip the same
+    // way finds it already big enough and the two do not pile up.
+    CGFloat y = foreignStripTop(scroll, row) - kRowHeight;
+    if (scroll.contentInset.top < -y - 0.5) {
         UIEdgeInsets inset = scroll.contentInset;
         BOOL atTop = scroll.contentOffset.y <= -scroll.adjustedContentInset.top + 1;
-        inset.top += kRowHeight;
+        inset.top = -y;
         scroll.contentInset = inset;
         if (atTop) scroll.contentOffset = CGPointMake(scroll.contentOffset.x, -scroll.adjustedContentInset.top);
     }
-    row.frame = CGRectMake(0, -kRowHeight, CGRectGetWidth(scroll.bounds), kRowHeight);
+    CGRect frame = CGRectMake(0, y, CGRectGetWidth(scroll.bounds), kRowHeight);
+    if (!CGRectEqualToRect(row.frame, frame)) {
+        row.frame = frame;
+        PGLog(@"drawer: Glass UI row at y=%.0f, inset top %.0f", y, scroll.contentInset.top);
+    }
     [scroll bringSubviewToFront:row];
 }
 
@@ -154,14 +179,20 @@ static void placeRow(UIViewController *vc) {
     %orig;
     if (!PGRedesignAvailable() || !hasName(NSStringFromClass(self.class), @"SideDrawer")) return;
     placeRow(self);
-    // Spotify fills the drawer in after it appears and may reset the inset as it does.
+    // Spotify, and any tweak beside this one, fill the drawer in after it appears and may reset the inset as
+    // they do; the row is placed again, and finds the other rows where they ended up.
     __weak UIViewController *weakSelf = self;
-    for (NSNumber *delay in @[@0.4, @1.2]) {
+    for (NSNumber *delay in @[@0.4, @1.2, @2.5]) {
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
             UIViewController *vc = weakSelf;
             if (vc.viewIfLoaded.window) placeRow(vc);
         });
     }
+}
+- (void)viewDidLayoutSubviews {
+    %orig;
+    if (!PGRedesignAvailable() || !hasName(NSStringFromClass(self.class), @"SideDrawer")) return;
+    if (self.viewIfLoaded.window) placeRow(self);   // changes nothing when the row already sits right
 }
 %end
 

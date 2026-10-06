@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Builds the pureglass tweak and injects it into a decrypted Spotify IPA.
+# Builds the pureglass tweak and injects it (plus FLEX, when vendor/ has it) into a decrypted Spotify IPA.
 #
-#   scripts/pipeline.sh <decrypted.ipa> [-o out.ipa] [--install] [--name N] [--icon P.png]   (or: make build / make install)
+#   scripts/pipeline.sh <decrypted.ipa> [-o out.ipa] [--no-flex] [--install] [--name N] [--icon P.png]   (or: make build / make install)
 #
 # --install hands the result to install.sh (sign with your certificate, push to the plugged-in iPhone).
 #
@@ -13,6 +13,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 THEOS="${THEOS:-$HOME/theos}"
+FLEX_DEB="$ROOT/vendor/com.hopeless.autoflex_0.0.1_iphoneos-arm.deb"
 # The bundle id is left alone by default, the way EeveeSpotify and the YouTube mods leave it. Rewriting
 # it only works when it ends up equal to the App ID of the profile that signs the IPA, and this build
 # has no idea what that profile will be -- it is picked later, in Feather or whatever else the person
@@ -23,12 +24,13 @@ THEOS="${THEOS:-$HOME/theos}"
 BUNDLE_ID="${BUNDLE_ID:-}"
 mkdir -p "$ROOT/out"
 
-IN="" OUT="" INSTALL=0 NAME="" ICON=""
+IN="" OUT="" WITH_FLEX=1 INSTALL=0 NAME="" ICON=""
 while [ $# -gt 0 ]; do
   case "$1" in
     -o) OUT="$2"; shift 2 ;;
     --name) NAME="$2"; shift 2 ;;
     --icon) ICON="$2"; shift 2 ;;
+    --no-flex) WITH_FLEX=0; shift ;;
     --install) INSTALL=1; shift ;;
     -h|--help) sed -n '2,11p' "$0"; exit 0 ;;
     *) IN="$1"; shift ;;
@@ -84,6 +86,9 @@ TWEAK_DEB="$(ls -t "$ROOT"/tweak/packages/*.deb | head -1)"
 echo "    $TWEAK_DEB"
 
 FILES=("$TWEAK_DEB")
+if [ "$WITH_FLEX" = 1 ]; then
+  if [ -f "$FLEX_DEB" ]; then FILES+=("$FLEX_DEB"); else echo "==> no FLEX: $FLEX_DEB is missing (git checkout 85a8646^ -- vendor/)"; fi
+fi
 
 echo "==> injecting"
 # -w drops the Watch app: its companion-app key would still name com.spotify.client and block the install.

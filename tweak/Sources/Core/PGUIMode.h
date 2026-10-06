@@ -10,5 +10,5 @@
 
 BOOL PGRedesignAvailable(void);
 BOOL PGRedesignedUI(void);
-// The stored switch rather than the launch's, for the flag forcer's "locked" answer.
+// The stored switch rather than the launch's.
 BOOL PGRedesignedUIStored(void);

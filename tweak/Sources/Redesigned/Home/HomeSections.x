@@ -176,13 +176,6 @@ BOOL PGRHomeSectionCollapsed(UIView *cell) {
 }
 
 %ctor {
-    // Registered whatever the switch says: the flag rows elsewhere lock to these while it is on.
-    PGRedesignForceFlags(@"home", @{
-        // The badge on the DJ card.
-        @"ios-home-evopage-impl.dj_mdc_beta_badge_enabled": @NO,
-        // The prompt field for Spotify's AI on Home.
-        @"ios-home-evopage-impl.interactive_entrypoint_enabled": @NO,
-    });
     if (!PGRedesignedUI()) return;
     %init;
     PGRequireClasses(@[

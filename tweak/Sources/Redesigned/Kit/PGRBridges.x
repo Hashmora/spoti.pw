@@ -4,7 +4,6 @@
 #import "Core/PGCore.h"
 #import "Shared/Player/PlayerEvents.h"
 #import "PGRBridges.h"
-#import "PGRedesign.h"
 #import "PGRRestyle.h"
 
 #pragma mark - now playing artwork
