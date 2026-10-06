@@ -12,7 +12,9 @@ include $(THEOS)/makefiles/common.mk
 TWEAK_NAME := pureglass
 
 # Every source under Sources/, so a new file needs no Makefile edit.
-pureglass_FILES := $(shell find Sources -name '*.m' -o -name '*.x' | sort)
+# SGFlagList.m is written by scripts/extract-flags.py for a flags page that no longer exists, and it imports a
+# header that is gone, so it is left out.
+pureglass_FILES := $(filter-out Sources/Shared/Flags/SGFlagList.m,$(shell find Sources -name '*.m' -o -name '*.x' | sort))
 pureglass_CFLAGS := -fobjc-arc -ISources -DPG_VERSION=\"$(PG_VERSION)\"
 pureglass_FRAMEWORKS := UIKit QuartzCore CoreImage CoreText
 # Runtime swizzling instead of Substrate so the dylib has no extra dependency inside the IPA.
