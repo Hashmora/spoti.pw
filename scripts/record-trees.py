@@ -38,7 +38,7 @@ DEFAULT_SCREENS = [
 ]
 
 TIMESTAMP = re.compile(r"^[A-Z][a-z]{2} +\d+ \d\d:\d\d:\d\d\.\d+ ")
-TAG = re.compile(r"\[spotifyglass\] (.*)$")
+TAG = re.compile(r"\[pureglass\] (.*)$")
 PART = re.compile(r"^(.*) (\d+)/(\d+)$")
 PAGE = re.compile(r"<((?:Home_|Browse_|Search_|Library_|Create|NowPlaying_Scroll|Playlist|Album|Artist|Queue|Lyrics|Settings)[A-Za-z_]*\.[A-Za-z]+)")
 
