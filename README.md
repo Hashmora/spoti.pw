@@ -22,8 +22,9 @@ are concealed (`Redesigned/Kit/PGRForeign.x`), except on the player screen.
 ## Build
 
 ```sh
-make release            # IPA from ipa/*.ipa (or IPA=path.ipa) -> out/pureglass-<version>.ipa
-make install            # the same, signed with .signing.env and pushed to the phone on USB
+make release            # IPA without FLEX from ipa/*.ipa (or IPA=path.ipa) -> out/pureglass-<version>.ipa
+make build              # same, but with FLEX injected too (for debugging)
+make install            # release build (no FLEX), signed with .signing.env and pushed to the phone on USB; FLEX=1 to include FLEX
 make log                # the tweak's log lines from the phone
 ```
 
