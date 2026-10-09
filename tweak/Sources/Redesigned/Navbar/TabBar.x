@@ -13,6 +13,7 @@
 #import "Core/PGCore.h"
 #import "Navbar.h"
 #import "Redesigned/Kit/PGRGlass.h"
+#import "Redesigned/Kit/PGRForeign.h"
 #import "Redesigned/Kit/PGRTokens.h"
 #import "Headers/SPTEncoreIconView.h"
 #import <objc/message.h>
@@ -618,14 +619,23 @@ static void setCreateOpen(PGRSystemTabBar *bar, BOOL open) {
 @end
 
 @implementation PGRTabBarHost
-// spoti.pw's tab bar pass hides and disables every sibling of its own host, this one included. The host
-// is never hidden or disabled by anything of ours, so what is asked of it from outside is refused.
+// spoti.pw's tab bar pass hides and disables every sibling of its own host, this one included, so what that
+// tweak asks of the host is refused. Anything else goes through: the player's stand-in (BarTransition.x)
+// takes the real bar out of sight with an alpha while it moves, and this used to refuse that too, so the real
+// bar stood still under the stand-in as it slid away: two tab bars, one moving and one not.
 - (void)setAlpha:(CGFloat)alpha {
-    [super setAlpha:1];
+    if (PGRCalledFromForeign(__builtin_return_address(0))) alpha = 1;
+    [super setAlpha:alpha];
+}
+
+- (void)setHidden:(BOOL)hidden {
+    if (hidden && PGRCalledFromForeign(__builtin_return_address(0))) return;
+    [super setHidden:hidden];
 }
 
 - (void)setUserInteractionEnabled:(BOOL)enabled {
-    [super setUserInteractionEnabled:YES];
+    if (!enabled && PGRCalledFromForeign(__builtin_return_address(0))) return;
+    [super setUserInteractionEnabled:enabled];
 }
 
 - (UIEdgeInsets)safeAreaInsets {
@@ -851,7 +861,7 @@ static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
     NSArray<UIView *> *sources = tabItems(stockBar);
     if (!sources.count) return;
     // An item with no title is drawn by UIKit as its glyph alone, centred, on a bar of the same height.
-    BOOL hideLabels = PGHidden(PGRKeyNavbarHideLabels);
+    BOOL hideLabels = PGRNavbarLabelsHidden();
 
     // Set once we actually rebuild bar.items below (add, remove, or pure reorder) -- read
     // further down to decide whether the pill's geometry needs a fresh settled layout pass, not

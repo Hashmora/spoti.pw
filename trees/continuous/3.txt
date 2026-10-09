@@ -1,0 +1,893 @@
+# screen: 3
+# recorded: 2026-10-09 23:49 via usb
+# 889 lines, pages: NowPlaying_ScrollImpl.NPVBackgroundViewController, NowPlaying_ScrollImpl.NPVScrollViewController, NowPlaying_ScrollImpl.NPVTapToScrollViewController
+# tree:
+== window ContainerUI_RootUIInternalImpl.MainWindow level 0
+ContainerUI_RootUIInternalImpl.MainWindow {{0, 0}, {390, 844}} bg=#000000@1.00 id=spotify-main-window
+  UITransitionView {{0, 0}, {390, 844}}
+    UIDropShadowView {{0, 0}, {390, 844}} r=47.3
+  SPTSnackbarAnimationView {{0, 0}, {390, 844}}
+  AVRoutePickerView {{0, 0}, {0, 0}} a=0.00
+    UIButton {{0, 1.8}, {0, 0}} id=AirPlay a11y="AirPlay"
+  UITransitionView {{0, 0}, {390, 844}}
+    UIView {{0, 0}, {390, 844}}
+      _TtCE14Encore_CoreKitO16EncoreFoundation6Encore14LayoutOnlyView {{0, 0}, {390, 844}}
+        UIView {{0, 0}, {390, 844}} clips id=SPTNowPlayingViewContainerViewController
+          _TtGC13Element_UIKit11ElementViewVV19NowPlaying_ViewImpl26NowPlayingContainerElement5PropsS3_Os5Never_ {{0, 0}, {390, 844}}
+            UIView {{0, 0}, {390, 844}}
+              UIView {{0, 0}, {390, 844}}
+                UIView {{0, 0}, {390, 844}}
+                  UICollectionView {{0, 0}, {390, 844}} clips id=scrolling_npv_collection_view_accessibility_identifier
+                    Element_List.SupplementaryItemView {{0, 0}, {390, 844}}
+                      _TtGC13Element_UIKit18ElementContentViewV12Element_List14ItemIdentifierVS1_P10$10f4e251c19SimpleUIViewElement_ {{0, 0}, {390, 844}}
+                        _TtGC13Element_UIKit11ElementViewT_T_Os5Never_ {{0, 0}, {390, 844}}
+                          UIView {{0, 0}, {390, 844}}
+                            UIView {{0, 0}, {390, 844}}
+                              UIView {{0, 0}, {390, 844}} id=SPTNowPlayingView
+                                UIView {{0, 0}, {390, 844}}
+                                  NowPlaying_ContentLayerPlatformImpl.AccessibleCollectionView {{0, 0}, {390, 844}} clips id=nowplaying-contentlayer-collectionview
+                                    NowPlaying_ContentLayersImpl.CoverArtCellImpl {{1953120, 0}, {390, 844}} hidden clips id=nowplaying-contentlayer-cell-5008
+                                      UIView {{0, 0}, {390, 844}}
+                                        SPTContentLayerOverlayView {{0, 0}, {390, 844}} a=0.00
+                                          LegacyUI_ECMCoreKit.GradientView {{0, 0}, {390, 844}}
+                                          LegacyUI_ECMCoreKit.GradientView {{0, 0}, {390, 844}} a=0.00
+                                        UIView {{0, 95.000000000000028}, {390, 415.66666666666669}}
+                                          CreativeWorkCommons_CoverArtTiltKit.CoverArtTiltView {{24, 37}, {342, 342}} a11y="Inspect cover art"
+                                            SGRShadowPlate {{0, 0}, {342, 342}}
+                                            _TtGC13Element_UIKit11ElementViewV22NowPlaying_ElementsAPI21ImageDataElementInputP_P__ {{0, 0}, {342, 342}} r=12.0 clips
+                                              _TtC22NowPlaying_ElementsKitP33_1D6A1393FEB35D7207F503DA17E7748E14ImageViewProxy {{0, 0}, {342, 342}}
+                                                _TtCE15Encore_MediaKitO16EncoreFoundation6Encore9ImageView {{0, 0}, {342, 342}} clips id=Encore.ImageView
+                                                  UIImageView {{0, 0}, {342, 342}} img=342x342
+                                                  _TtCCE15Encore_MediaKitO16EncoreFoundation6Encore9ImageView15PlaceholderView {{0, 0}, {342, 342}} a=0.00
+                                                    SPTEncoreIconView {{139, 139}, {64, 64}} id=Encore.IconView
+                                        _TtGC13Element_UIKit11ElementViewT_P_P__ {{28.000000000000014, 136}, {209.33333333333334, 34}}
+                                          UIView {{-20, 0}, {209.33333333333334, 34}} bg=#000000@0.50 r=4.0 a=0.00 clips
+                                            UIStackView {{8, 8}, {193.33333333333334, 18}}
+                                              SPTEncoreIconView {{0, 3}, {12, 12}} id=Encore.IconView
+                                              SPTEncoreLabel {{20, 0}, {173.33333333333334, 18}} id=Encore.Label
+                                                UILabel {{0, 0}, {173.33333333333334, 18}} id=Encore.Label-internal "Includes promotional content" 13pt #FFFFFF@1.00
+                                    NowPlaying_ContentLayersImpl.CoverArtCellImpl {{1953900, 0}, {390, 844}} hidden clips id=nowplaying-contentlayer-cell-5010
+                                      UIView {{0, 0}, {390, 844}}
+                                        SPTContentLayerOverlayView {{0, 0}, {390, 844}} a=0.00
+                                          LegacyUI_ECMCoreKit.GradientView {{0, 0}, {390, 844}}
+                                          LegacyUI_ECMCoreKit.GradientView {{0, 0}, {390, 844}} a=0.00
+                                        UIView {{0, 95.000000000000028}, {390, 415.66666666666669}}
+                                          CreativeWorkCommons_CoverArtTiltKit.CoverArtTiltView {{24, 37}, {342, 342}} a11y="Inspect cover art"
+                                            SGRShadowPlate {{0, 0}, {342, 342}}
+                                            _TtGC13Element_UIKit11ElementViewV22NowPlaying_ElementsAPI21ImageDataElementInputP_P__ {{0, 0}, {342, 342}} r=12.0 clips
+                                              _TtC22NowPlaying_ElementsKitP33_1D6A1393FEB35D7207F503DA17E7748E14ImageViewProxy {{0, 0}, {342, 342}}
+                                                _TtCE15Encore_MediaKitO16EncoreFoundation6Encore9ImageView {{0, 0}, {342, 342}} clips id=Encore.ImageView
+                                                  UIImageView {{0, 0}, {342, 342}} a=0.00
+                                                  _TtCCE15Encore_MediaKitO16EncoreFoundation6Encore9ImageView15PlaceholderView {{0, 0}, {342, 342}}
+                                                    SPTEncoreIconView {{139, 139}, {64, 64}} id=Encore.IconView
+                                    NowPlaying_ContentLayersImpl.CoverArtCellImpl {{1953510, 0}, {390, 844}} hidden clips id=nowplaying-contentlayer-cell-5009
+                                      UIView {{0, 0}, {390, 844}}
+                                        SPTContentLayerOverlayView {{0, 0}, {390, 844}} a=0.00
+                                          LegacyUI_ECMCoreKit.GradientView {{0, 0}, {390, 844}}
+                                          LegacyUI_ECMCoreKit.GradientView {{0, 0}, {390, 844}} a=0.00
+                                        UIView {{0, 95.000000000000028}, {390, 440.66666666666669}}
+                                          CreativeWorkCommons_CoverArtTiltKit.CoverArtTiltView {{24, 49.333333333333343}, {342, 342}} a11y="Inspect cover art"
+                                            SGRShadowPlate {{0, 0}, {342, 342}}
+                                            _TtGC13Element_UIKit11ElementViewV22NowPlaying_ElementsAPI21ImageDataElementInputP_P__ {{0, 0}, {342, 342}} r=12.0 clips
+                                              _TtC22NowPlaying_ElementsKitP33_1D6A1393FEB35D7207F503DA17E7748E14ImageViewProxy {{0, 0}, {342, 342}}
+                                                _TtCE15Encore_MediaKitO16EncoreFoundation6Encore9ImageView {{0, 0}, {342, 342}} clips id=Encore.ImageView
+                                                  UIImageView {{0, 0}, {342, 342}} a=0.00
+                                                  _TtCCE15Encore_MediaKitO16EncoreFoundation6Encore9ImageView15PlaceholderView {{0, 0}, {342, 342}}
+                                                    SPTEncoreIconView {{139, 139}, {64, 64}} id=Encore.IconView
+                                    Endless_DJMusicImpl.DJMContentLayerCell {{1950000, 0}, {390, 844}} bg=#0A59B8@1.00 clips id=nowplaying-contentlayer-cell-5000
+                                      UIView {{0, 0}, {390, 844}}
+                                        Endless_ECMKit.DJBackgroundImageView {{0, 0}, {390, 844}} clips
+                                          UIImageView {{0, 0}, {390, 844}}
+                                        Endless_AIDJVisualizationKit.VisualizationView {{94.666666666666671, 215}, {200.66666666666666, 200.66666666666666}}
+                                          Endless_AIDJVisualizationKit.DJSpeakingView {{0, 0}, {200.66666666666666, 200.66666666666666}}
+                                          Endless_AIDJVisualizationKit.DJThinkingView {{0, 0}, {200.66666666666666, 200.66666666666666}} a=0.00
+                                          Endless_AIDJVisualizationKit.UserSpeakingView {{0, 0}, {200.66666666666666, 200.66666666666666}} a=0.00
+                                        UIView {{0, 95.000000000000028}, {390, 440.66666666666669}} hidden
+                                    Endless_DJMusicImpl.DJMContentLayerCell {{1950000, 0}, {390, 844}} bg=#0A59B8@1.00 a=0.00 hidden clips id=nowplaying-contentlayer-cell-5000
+                                      UIView {{0, 0}, {390, 844}}
+                                        Endless_ECMKit.DJBackgroundImageView {{0, 0}, {390, 844}} clips
+                                          UIImageView {{0, 0}, {390, 844}}
+                                        UIView {{0, 95.000000000000028}, {390, 440.66666666666669}} hidden
+                                    _UIScrollViewScrollIndicator {{1950384, 98.000000000000028}, {3, 434.66666666666669}} a=0.00
+                                      UIView {{0, 0}, {3, 434.66666666666669}} bg=#FFFFFF@0.50 r=1.5
+                                  _TtGC13Element_UIKit11ElementViewT_VV25NowPlaying_VisualSkipImpl21VisualGesturesElement5StateOS2_5Event_ {{0, 95.000000000000028}, {390, 440.66666666666669}} hidden
+                                    NowPlaying_VisualSkipImpl.VisualGesturesView {{0, 0}, {390, 440.66666666666669}} hidden
+                                      _TtC25NowPlaying_VisualSkipImplP33_EB498069F6D7C37146A58880D70DB7E418SpeedIndicatorView {{0, 0}, {0, 0}} bg=#000000@0.70 r=8.0 hidden
+                                        SPTEncoreLabel {{0, 0}, {0, 0}} id=Encore.Label
+                                          UILabel {{0, 0}, {0, 0}} id=Encore.Label-internal "(null)" 17pt #FFFFFF@1.00
+                                _TtC19NowPlaying_ViewImplP33_3E5EBAB9299803D7EB47D116DD65DB2A15PassThroughView {{0, 0}, {390, 844}}
+                                  _TtGC13Element_UIKit11ElementViewVSo23NSDirectionalEdgeInsetsP_P__ {{0, 0}, {390, 844}} hidden
+                                    UIView {{0, 0}, {390, 844}} a=0.00 hidden
+                                      NowPlaying_MixingTransitionImpl.MixingBackgroundView {{0, 0}, {390, 844}}
+                                        UIVisualEffectView {{0, 0}, {390, 844}}
+                                        UIView {{0, 0}, {390, 844}} bg=#0858B8@0.60
+                                        UIStackView {{0, 0}, {390, 844}}
+                                          NowPlaying_MixingTransitionImpl.NPVGradientView {{0, 0}, {390, 844}}
+                                          UIView {{0, 844}, {390, 0}}
+                                            NowPlaying_MixingTransitionImpl.NPVGradientView {{0, 0}, {390, 0}}
+                                            NowPlaying_MixingTransitionImpl.NPVGradientView {{0, 0}, {390, 0}}
+                                          UIView {{0, 844}, {390, 0}}
+                                          NowPlaying_MixingTransitionImpl.NPVGradientView {{0, 0}, {390, 1688}}
+                                      UIView {{0, 95.000000000000028}, {390, 440.66666666666669}}
+                                        NowPlaying_ECMKit.MaskView {{24, 49.333333333333343}, {342, 342}} hidden clips
+                                          _TtCE15Encore_MediaKitO16EncoreFoundation6Encore9ImageView {{0, 0}, {342, 342}} id=Encore.ImageView
+                                            UIImageView {{0, 0}, {342, 342}} a=0.00
+                                            _TtCCE15Encore_MediaKitO16EncoreFoundation6Encore9ImageView15PlaceholderView {{0, 0}, {342, 342}}
+                                              SPTEncoreIconView {{139, 139}, {64, 64}} id=Encore.IconView
+                                UIStackView {{0, 47}, {390, 48}}
+                                  UIView {{0, 0}, {390, 48}}
+                                    UIStackView {{12, 0}, {366, 48}}
+                                      _TtGC13Element_UIKit11ElementViewV22NowPlaying_ElementsAPI25CloseControlsElementPropsP_P__ {{0, 0}, {48, 48}}
+                                        UIStackView {{0, 0}, {48, 48}}
+                                          _TtGC13Element_UIKit11ElementViewT_P_P__ {{-48, 0}, {48, 48}} hidden
+                                            _TtCCE16Encore_ButtonKitO16EncoreFoundation6Encore6Button8Tertiary {{0, 0}, {48, 48}} id=now-playing-toggle-button a11y="Expand the Now Playing View"
+                                              UIView {{0, 0}, {48, 48}}
+                                                _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{12, 12}, {24, 24}} id=Encore.StackView
+                                                  _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{0, 0}, {24, 24}} id=Encore.StackView
+                                                    SPTEncoreIconView {{0, 0}, {24, 24}} id=Encore.IconView
+                                          _TtGC13Element_UIKit11ElementViewT_P_P__ {{0, 0}, {48, 48}}
+                                            _TtCCE16Encore_ButtonKitO16EncoreFoundation6Encore6Button8Tertiary {{0, 0}, {48, 48}} id=now-playing-minimize-button a11y="Close the Now Playing View"
+                                              UIView {{0, 0}, {48, 48}}
+                                                _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{12, 12}, {24, 24}} id=Encore.StackView
+                                                  _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{0, 0}, {24, 24}} id=Encore.StackView
+                                                    SPTEncoreIconView {{0, 0}, {24, 24}} id=Encore.IconView
+                                      _TtGC13Element_UIKit11ElementViewT_P_P__ {{164.66666666666666, 0}, {37, 48}}
+                                        LegacyUI_ECMCoreKit.AutoLayoutStackView {{0, 0}, {37, 48}} id=now-playing-navigation-unit-title-label
+                                          UIView {{0, 0}, {37, 48}}
+                                            _TtC19LegacyUI_ECMCoreKitP33_7AC6ABDB5A3E514EA5239D6986C3C90912EncoreButton {{0, 0}, {37, 48}}
+                                              _TtCO19LegacyUI_ECMCoreKit5Views12MarqueeLabel {{0, 0}, {37, 48}} clips
+                                                LegacyUI_ECMCoreKit.MarqueeLabelFadeMaskView {{0, 0}, {37, 48}} masked
+                                                  SPTEncoreLabel {{10, 15}, {17, 18}} id=Encore.Label
+                                                    UILabel {{0, 0}, {17, 18}} id=Encore.Label-internal "DJ" 13pt #FFFFFF@1.00
+                                              UIButtonLabel {{0, 0}, {0, 0}} hidden "(null)" 18pt #000000@1.00
+                                            _TtCO19LegacyUI_ECMCoreKit5Views12MarqueeLabel {{0, 0}, {153.66666666666666, 18}} hidden clips
+                                              LegacyUI_ECMCoreKit.MarqueeLabelFadeMaskView {{0, 0}, {153.66666666666666, 18}} masked
+                                                SPTEncoreLabel {{10, 0}, {133.66666666666666, 18}} id=Encore.Label
+                                                  UILabel {{0, 0}, {133.66666666666666, 18}} id=Encore.Label-internal "Based on your request" 13pt #FFFFFF@1.00
+                                      _TtGC13Element_UIKit11ElementViewSbP_P__ {{318, 0}, {48, 48}}
+                                        _TtCCE16Encore_ButtonKitO16EncoreFoundation6Encore6Button8Tertiary {{0, 0}, {48, 48}} id=Context menu a11y="Open the Context Menu"
+                                          UIView {{0, 0}, {48, 48}}
+                                            _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{12, 12}, {24, 24}} id=Encore.StackView
+                                              _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{0, 0}, {24, 24}} id=Encore.StackView
+                                                SPTEncoreIconView {{0, 0}, {24, 24}} id=Encore.IconView
+                                UIStackView {{0, 535.66666666666663}, {390, 249.33333333333334}} id=npv.bottomStackView
+                                  UIView {{0, 0}, {390, 64}}
+                                    UIStackView {{24, 8}, {352, 48}}
+                                      _TtGC13Element_UIKit11ElementViewV22NowPlaying_ElementsAPI14TrackInfoInputP_P__ {{352, 0}, {0, 51}} hidden
+                                        _TtC22NowPlaying_ElementsKitP33_30CB9B98194BF0B33817EB0CCEECFB5922TrackInfoContainerView {{0, 0}, {0, 51}}
+                                          UIView {{0, 0}, {0, 51}}
+                                            _TtCE14Encore_TextKitO16EncoreFoundation6Encore12MarqueeLabel {{0, 0}, {0, 29}} clips id=now-playing-title-label
+                                              UILabel {{0, 0}, {82.333333333333329, 29}} "Up next" 24pt #FFFFFF@1.00
+                                            UIStackView {{0, 29}, {0, 22}} hidden
+                                              SPTEncoreIconView {{0, 0}, {12, 12}} hidden id=Encore.IconView
+                                              SPTEncoreIconView {{0, 0}, {12, 12}} hidden id=Encore.IconView
+                                              UIView {{0, 0}, {12, 12}} hidden
+                                                SPTEncoreLabel {{0, 0}, {12, 12}} bg=#B3B3B3@1.00 r=2.0 clips id=Components.UI.ExplicitIcon
+                                                  UILabel {{0, 0}, {12, 12}} id=Components.UI.ExplicitIcon-internal "E" 10pt #000000@1.00
+                                              UIView {{0, 0}, {12, 12}} hidden
+                                                SPTEncoreLabel {{0, 0}, {12, 12}} r=6.0 clips id=Components.UI.19andOverIcon
+                                                  UILabel {{0, 0}, {12, 12}} id=Components.UI.19andOverIcon-internal "19" 8pt #B3B3B3@1.00
+                                              NowPlaying_ECMKit.SpeedBadgeIconView {{0, 0}, {12, 12}} hidden id=now-playing-speed-badge
+                                                UIImageView {{0, 0}, {12, 12}} id=now-playing-speed-badge-icon img=12x12
+                                              SPTEncoreIconView {{0, 0}, {12, 12}} hidden id=Encore.IconView
+                                            _TtCE14Encore_TextKitO16EncoreFoundation6Encore12MarqueeLabel {{0, 29}, {0, 22}} clips id=now-playing-subtitle-label
+                                              UILabel {{0, 0}, {33, 22}} "DJ X" 16pt #FFFFFF@0.70
+                                      _TtGC13Element_UIKit11ElementViewT_P_P__ {{352, 1.3333333333333712}, {48, 48}} hidden
+                                        UIButton {{0, 0}, {48, 48}} hidden id=Components.UI.AddToButton a11y="Add to playlist"
+                                          _TtGC16Encore_MotionKit25StateMicroInteractionViewO28EncoreConsumerMobile_BaseKit16AddToButtonState_ {{-13.333333333333314, -13.333333333333371}, {74.666666666666671, 74.666666666666671}}
+                                            Lottie.LottieAnimationView {{0, 0}, {74.666666666666671, 74.666666666666671}} clips
+                                          UIButtonLabel {{0, 0}, {0, 0}} hidden "(null)" 18pt #000000@1.00
+                                    _TtGC13Element_UIKit11ElementViewOV19Endless_ElementsKit30AIDJRecordingDisclaimerElement5PropsP_P__ {{36, 14}, {318, 36}} hidden
+                                      _TtC19Endless_ElementsKitP33_ABC3B6B09B089007E6492336DCA0FEB636AIDJRecordingDisclaimerElementUIView {{0, 0}, {318, 36}}
+                                        SPTEncoreLabel {{0, 0}, {318, 36}} id=Encore.Label
+                                          UILabel {{0, 0}, {318, 36}} id=Encore.Label-internal "You’re talking with an AI DJ. Do not include sensitive data." 13pt #FFFFFF@0.70
+                                  UIView {{0, 64}, {390, 41.333333333333336}}
+                                    _TtGC13Element_UIKit11ElementViewT_P_P__ {{24, 0}, {342, 41.333333333333336}} hidden
+                                      LegacyUI_ECMCoreKit.AutoLayoutStackView {{0, 0}, {342, 41.333333333333336}} id=Components.UI.ProgressBarUnitNowPlaying
+                                        UIView {{0, 0}, {342, 41.333333333333336}}
+                                          UIView {{0, 0}, {342, 10}}
+                                          _TtCO17NowPlaying_ECMKit11ProgressBar6Slider {{-2, 10}, {346, 17}} id=SPTNowPlayingSliderV2 a11y="Track position"
+                                            _UISlideriOSVisualElement {{0, 0}, {346, 17}} a=0.50
+                                              UIView {{3, 5}, {340, 7}} clips
+                                                UIImageView {{0, 0}, {340, 7}} clips img=7x7
+                                              UIView {{3, 5}, {0, 7}} clips
+                                                UIImageView {{0, 0}, {340, 7}} clips img=7x7
+                                              UISliderImageView {{0, 9}, {0, 0}} img=0x0
+                                            NowPlaying_ECMKit.SliderBufferingAnimationView {{0, 5}, {346, 7}} hidden
+                                              UIView {{0, 0}, {0, 7}} bg=#FFFFFF@1.00
+                                          NowPlaying_ECMKit.PassThroughStackView {{0, 25.999999999999996}, {342, 15.333333333333334}}
+                                            SPTEncoreLabel {{0, 0}, {25.333333333333332, 15.333333333333334}} id=now-playing-time-take-label
+                                              UILabel {{0, 0}, {25.333333333333332, 15.333333333333334}} id=now-playing-time-take-label-internal "–:––" 11pt #FFFFFF@0.70
+                                            UIView {{25.333333333333343, 0}, {291.33333333333331, 15.333333333333334}}
+                                            SPTEncoreLabel {{316.66666666666669, 0}, {25.333333333333332, 15.333333333333334}} id=now-playing-time-remaning-label
+                                              UILabel {{0, 0}, {25.333333333333332, 15.333333333333334}} id=now-playing-time-remaning-label-internal "–:––" 11pt #FFFFFF@0.70
+                                          UIView {{0, 0}, {33.666666666666664, 23.333333333333332}} hidden
+                                            LegacyUI_ECMCoreKit.AutoLayoutStackView {{0, 4.0000000000000009}, {33.666666666666664, 15.333333333333334}}
+                                              UIView {{0, 0}, {33.666666666666664, 15.333333333333334}}
+                                                UIView {{0, 7.6666666666667425}, {0, 0}}
+                                                LegacyUI_ECMCoreKit.AutoLayoutStackView {{0, 0}, {33.666666666666664, 15.333333333333334}}
+                                                  UIView {{0, 0}, {33.666666666666664, 15.333333333333334}}
+                                                    UIView {{0, 3}, {9, 9}} bg=#ED2C3F@1.00 r=4.5 clips
+                                                    SPTEncoreLabel {{13.000000000000002, 0}, {20.666666666666668, 15.333333333333334}} id=Encore.Label
+                                                      UILabel {{0, 0}, {20.666666666666668, 15.333333333333334}} id=Encore.Label-internal "Live" 11pt #B3B3B3@1.00
+                                  SPTNowPlayingHeadUnitView {{0, 105.33333333333337}, {390, 88}} id=SPTNowPlayingPlaylistHeadUnitView
+                                    EncoreConsumerMobile_BaseKit.PlayButtonView {{163, 16}, {64, 64}} id=SPTNowPlayingPlayButton
+                                      EncoreConsumerMobile_BaseKit.MixedPlayButtonDecorationView {{0, 0}, {64, 64}}
+                                        EncoreConsumerMobile_BaseKit.HoleView {{-8.6666666666666572, -8.6666666666666288}, {81.333333333333329, 81.333333333333329}} hidden
+                                        EncoreConsumerMobile_BaseKit.GlowRingView {{-16, -16}, {96, 96}} hidden
+                                          UIImageView {{0, 0}, {96, 96}} img=96x96
+                                        EncoreConsumerMobile_BaseKit.GreenRingView {{-16, -16}, {96, 96}} hidden
+                                      _TtC28EncoreConsumerMobile_BaseKitP33_BBC54DE3D84AB371D20602D20A59917015CondensedButton {{0, 0}, {64, 64}} a11y="Pause"
+                                        UIImageView {{0, 0}, {64, 64}} clips img=64x64
+                                        EncoreConsumerMobile_BaseKit.BrushedMetalView {{0, 0}, {64, 64}} r=32.0 hidden clips
+                                        _TtC19LegacyUI_ECMCoreKitP33_0AD51B0D3CEB360ACF8EFC61B6327ADC11SpinnerView {{16, 16}, {32, 32}} hidden
+                                          UIImageView {{0, 0}, {20, 20}} img=20x20
+                                      UIView {{0, 0}, {0, 0}} a=0.00 hidden
+                                        UIImageView {{0, 0}, {0, 0}}
+                                    _TtC19LegacyUI_ECMCoreKitP33_7AC6ABDB5A3E514EA5239D6986C3C90912EncoreButton {{256.66666666666669, 16}, {56, 56}} id=SPTNowPlayingNextTrackButton a11y="Next track"
+                                      UIImageView {{10, 10}, {36, 36}} clips img=36x36
+                                    _TtC19LegacyUI_ECMCoreKitP33_7AC6ABDB5A3E514EA5239D6986C3C90912EncoreButton {{77.666666666666671, 16}, {56, 56}} a=0.50 id=SPTNowPlayingPreviousTrackButton a11y="Previous track"
+                                      UIImageView {{10, 10}, {36, 36}} clips img=36x36
+                                  Endless_DJMusicImpl.DJMFooterUnitView {{0, 193.33333333333337}, {390, 56}}
+                                    _TtGC13Element_UIKit11ElementViewT_P_P__ {{282, 6}, {44, 44}} a=0.00
+                                      _TtC19LegacyUI_ECMCoreKitP33_7AC6ABDB5A3E514EA5239D6986C3C90912EncoreButton {{0, 0}, {44, 44}} id=ShareButtonNowPlayingView a11y="Share"
+                                        UIImageView {{13, 13}, {18, 18}} clips img=18x18
+                                    _TtGC13Element_UIKit11ElementViewVV19Endless_ElementsKit17AIDJButtonElement5PropsP_P__ {{326, 4}, {48, 48}}
+                                      _TtC19LegacyUI_ECMCoreKitP33_7AC6ABDB5A3E514EA5239D6986C3C90912EncoreButton {{0, 0}, {48, 48}} id=Components.UI.NeffleButtonNowPlayingContainerView
+                                        _TtC14Endless_ECMKitP33_BB7A0DB27AABC902F6CECCE000CD9B1820AutoCornerRadiusView {{0, 0}, {48, 48}} bg=#0A59B8@1.00 r=24.0
+                                        _TtC19LegacyUI_ECMCoreKitP33_7AC6ABDB5A3E514EA5239D6986C3C90912EncoreButton {{0, 0}, {48, 48}} id=Components.UI.NeffleButtonNowPlaying a11y="Change DJ set"
+                                          UIImageView {{0, 0}, {48, 48}} clips img=48x48
+                                          UIView {{22, 38}, {4, 4}} bg=#37F200@1.00 r=2.0 hidden clips
+                                          SPTEncoreLabel {{24, 44}, {0, 0}} id=Encore.Label
+                                            UILabel {{0, 0}, {0, 0}} id=Encore.Label-internal "" 17pt #FFFFFF@1.00
+                                        UIView {{0, 0}, {48, 48}} hidden
+                                          _TtC19LegacyUI_ECMCoreKitP33_0AD51B0D3CEB360ACF8EFC61B6327ADC11SpinnerView {{12, 12}, {24, 24}} hidden
+                                            UIImageView {{0, 0}, {20, 20}} img=20x20
+                                        UIButtonLabel {{0, 0}, {0, 0}} hidden "(null)" 18pt #000000@1.00
+                                    _TtGC13Element_UIKit11ElementViewT_P_P__ {{16, 4}, {174, 48}}
+                                      Connect_EntryPointsImpl.ConnectButtonOutputSwitcherViewHolder {{0, 0}, {174, 48}} id=Components.ConnectButtonOutputSwitcher
+                                        _TtC19LegacyUI_ECMCoreKitP33_7AC6ABDB5A3E514EA5239D6986C3C90912EncoreButton {{0, 0}, {174, 48}} id=Components.ConnectButtonOutputSwitcher a11y="Devices Available"
+                                          UIView {{0, 0}, {174, 48}}
+                                            UIView {{0, 0}, {174, 48}}
+                                              LegacyUI_ECMCoreKit.AutoLayoutStackView {{16, 0}, {142, 48}}
+                                                UIView {{0, 14.333333333333371}, {142, 19}}
+                                                  UIView {{0, 0}, {19, 19}}
+                                                    UIImageView {{0, 0}, {19, 19}} img=19x19
+                                                  _TtCO19LegacyUI_ECMCoreKit5Views12MarqueeLabel {{19, 2.0000000000000009}, {123, 15.333333333333334}} clips
+                                                    LegacyUI_ECMCoreKit.MarqueeLabelFadeMaskView {{0, 0}, {123, 15.333333333333332}} masked
+                                                      SPTEncoreLabel {{8, 0}, {107, 15.333333333333334}} id=Encore.Label
+                                                        UILabel {{0, 0}, {107, 15.333333333333334}} id=Encore.Label-internal "Andrew’s AirPods Pro" 11pt #37F200@1.00
+                                          UIButtonLabel {{0, 0}, {0, 0}} hidden "(null)" 18pt #000000@1.00
+                                    _TtGC13Element_UIKit11ElementViewT_P_P__ {{195, 28}, {0, 0}} a=0.00 hidden
+                                      UIView {{0, 0}, {0, 0}} hidden
+                                UIView {{0, 785}, {390, 59}}
+                                SGRFooterReach {{0, 785}, {390, 27}}
+                    Element_List.CollectionViewCell {{16, 814}, {358, 0}} bg=#2A2A2A@1.00 r=16.0 hidden clips
+                      _TtGC13Element_UIKit18ElementContentViewV12Element_List14ItemIdentifierGCS_14AnyBaseElementO20NowPlaying_ScrollAPI20NowPlayingScrollDataOS_9NeedsData__ {{0, 0}, {358, 0}}
+                        _TtGC13Element_UIKit11ElementViewO20NowPlaying_ScrollAPI20NowPlayingScrollDataP_P__ {{0, 0}, {358, 0}}
+                          _TtC14Creator_ECMKitP33_9A9A9C9886A2DEDE51521D11F82E7F9026CreatorBiographyCardLayout {{0, 0}, {358, 0}} bg=#282828@1.00 r=16.0 clips
+                            UIView {{0, 0}, {358, 238.66666666666666}} clips
+                              _TtCE15Encore_MediaKitO16EncoreFoundation6Encore9ImageView {{0, -59.666666666666657}, {358, 358}} id=Encore.ImageView
+                                UIImageView {{0, 0}, {358, 358}} img=358x358
+                                _TtCCE15Encore_MediaKitO16EncoreFoundation6Encore9ImageView15PlaceholderView {{0, 0}, {358, 358}} a=0.00
+                                  SPTEncoreIconView {{147, 147}, {64, 64}} id=Encore.IconView
+                            LegacyUI_ECMCoreKit.GradientView {{0, -59.666666666666664}, {358, 179}}
+                            SPTEncoreLabel {{16, 16}, {326, 22}} id=Components.UI.CreatorBiographyCard.HeaderLabel
+                              UILabel {{0, 0}, {326, 22}} id=Components.UI.CreatorBiographyCard.HeaderLabel-internal "About the artist" 16pt #FFFFFF@1.00
+                            UIView {{0, -32}, {358, 32}} bg=#282828@1.00
+                              _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{16, 16}, {326, 0}} id=Encore.StackView
+                                UIView {{0, 0}, {326, 32}}
+                                  _TtCE16Encore_LayoutKitO16EncoreFoundation6Encore7ListRow {{0, 0}, {127.66666666666667, 32}} id=Encore.ListRow a11y="#116 in Top Artists, The Police, 41M monthly listeners"
+                                    _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore15PassthroughView {{0, 0}, {127.66666666666667, 32}}
+                                      _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{0, 0}, {127.66666666666667, 32}} id=Encore.StackView
+                                        _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{0, 0}, {127.66666666666667, 32}} id=Encore.StackView
+                                          _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{0, 0}, {127.66666666666667, 32}} id=Encore.StackView
+                                            SPTEncoreLabel {{0, 0}, {127.66666666666667, 18}} id=Encore.Label
+                                              UILabel {{0, 0}, {127.66666666666667, 18}} id=Encore.Label-internal "#116 in Top Artists" 13pt #FFFFFF@1.00
+                                            SPTEncoreLabel {{0, 22}, {127.66666666666667, 6}} id=Encore.Label
+                                              UILabel {{0, 0}, {127.66666666666667, 6}} id=Encore.Label-internal "The Police ￼" 20pt #FFFFFF@1.00
+                                            SPTEncoreLabel {{0, 32}, {127.66666666666667, 0}} id=Encore.Label
+                                              UILabel {{0, 0}, {127.66666666666667, 0}} id=Encore.Label-internal "41M monthly listeners" 13pt #B3B3B3@1.00
+                                  _TtGC13Element_UIKit15LazyElementViewV10Foundation3URL_ {{253.66666666666671, 0}, {72.333333333333329, 32}}
+                                    _TtGC13Element_UIKit11ElementViewV10Foundation3URLP_P__ {{0, 0}, {72.333333333333329, 32}}
+                                      UIStackView {{0, 0}, {72.333333333333329, 32}}
+                                        _TtGC13Element_UIKit15LazyElementViewV10Foundation3URL_ {{0, 0}, {72.333333333333329, 32}}
+                                          _TtGC13Element_UIKit11ElementViewV10Foundation3URLP_P__ {{0, 0}, {72.333333333333329, 32}}
+                                            UIStackView {{0, 0}, {72.333333333333329, 32}}
+                                              _TtCCE16Encore_ButtonKitO16EncoreFoundation6Encore6Button9Secondary {{0, 0}, {72.333333333333329, 32}} hidden id=Curation.FollowButtonElementKit.FollowButton a11y="Follow"
+                                                UIView {{0, 0}, {72.333333333333329, 32}}
+                                                  _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{16.000000000000004, 4}, {40.333333333333336, 24}} id=Encore.StackView
+                                                    _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{0, 0}, {40.333333333333336, 24}} id=Encore.StackView
+                                                      SPTEncoreLabel {{0, 3}, {40.333333333333336, 18}} id=Encore.Label
+                                                        UILabel {{0, 0}, {40.333333333333336, 18}} id=Encore.Label-internal "Follow" 13pt #FFFFFF@1.00
+                                              _TtC19LegacyUI_ECMCoreKitP33_7AC6ABDB5A3E514EA5239D6986C3C90912EncoreButton {{72.333333333333314, 0}, {44, 32}} hidden id=Curation.FollowButtonElementKit.BanUndoButton a11y="Artist is banned, tap to unban"
+                                                UIImageView {{10, 4}, {24, 24}} clips img=24x24
+                                        _TtGC13Element_UIKit15LazyElementViewV10Foundation3URL_ {{72.333333333333314, -8}, {48, 48}} hidden
+                                          _TtGC13Element_UIKit11ElementViewV10Foundation3URLP_P__ {{0, 0}, {48, 48}}
+                                            UIButton {{0, 0}, {48, 48}} id=Components.UI.AddToButton a11y="Add"
+                                              _TtGC16Encore_MotionKit25StateMicroInteractionViewO28EncoreConsumerMobile_BaseKit16AddToButtonState_ {{-4, -4}, {56, 56}}
+                                                Lottie.LottieAnimationView {{0, 0}, {56, 56}} clips
+                                              UIButtonLabel {{0, 0}, {0, 0}} hidden "(null)" 18pt #000000@1.00
+                                _TtC19LegacyUI_ECMCoreKitP33_7AC6ABDB5A3E514EA5239D6986C3C90912EncoreButton {{0, 44}, {326, 0}}
+                                  _TtCOOOE16PodcastUI_ECMKitO19LegacyUI_ECMCoreKit10Components25ExpandableDescriptionUnit2UI7Private13ContainerView {{0, 0}, {326, 0}} id=Components.UI.CreatorBiographyCard.BiographyLabel
+                                    _TtCOOOE16PodcastUI_ECMKitO19LegacyUI_ECMCoreKit10Components25ExpandableDescriptionUnit2UI7Private19DescriptionTextView {{0, 0}, {326, 0}} id=Components.UI.ExpandableDescriptionUnit
+                                      _UITextLayoutView {{0, 0}, {0, 0}}
+                                      UIView {{0, 0}, {326, 0}}
+                                      _UITextContainerView {{0, 0}, {326, 0}}
+                                        _UITextLayoutCanvasView {{0, 0}, {326, 0}}
+                                          _UITextLayoutFragmentView {{-12, 0}, {358, 56}}
+                                      _UIScrollViewScrollIndicator {{320, -39}, {3, 36}} a=0.00
+                                        UIView {{0, 0}, {3, 36}} bg=#FFFFFF@0.50 r=1.5
+                                      _UIScrollViewScrollIndicator {{3, -6}, {320, 3}} a=0.00
+                                        UIView {{0, 0}, {320, 3}} bg=#FFFFFF@0.50 r=1.5
+                                  UIButtonLabel {{0, 0}, {0, 0}} hidden "(null)" 18pt #000000@1.00
+                            _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{16, 202.66666666666666}, {326, 20}} hidden id=Encore.StackView
+                              UIView {{0, 0}, {32, 20}} bg=#000000@0.54 r=4.0 clips
+                                _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{8, 4}, {16, 12}} id=Encore.StackView
+                                  SPTEncoreIconView {{0, 0}, {12, 12}} id=Encore.IconView
+                                  SPTEncoreLabel {{16, 6}, {0, 0}} id=Encore.Label
+                                    UILabel {{0, 0}, {0, 0}} id=Encore.Label-internal "(null)" 17pt #FFFFFF@1.00
+                              UIView {{32, 0}, {294, 20}}
+                    Element_List.CollectionViewCell {{16, 838}, {358, 0}} bg=#2A2A2A@1.00 r=16.0 hidden clips
+                      _TtGC13Element_UIKit18ElementContentViewV12Element_List14ItemIdentifierGCS_14AnyBaseElementO20NowPlaying_ScrollAPI20NowPlayingScrollDataOS_6NoData__ {{0, 0}, {358, 0}}
+                        _TtGC13Element_UIKit11ElementViewO20NowPlaying_ScrollAPI20NowPlayingScrollDataP_P__ {{0, 0}, {358, 0}}
+                          UIView {{0, 0}, {358, 0}} id=song-dna-npv-card
+                            SongDNA_CommonKit.LinearGradientView {{0, 0}, {358, 0}} bg=#933328@1.00
+                            _TtGC13Element_UIKit11ElementViewT_T_OV17SongDNA_CommonKit18SongDNALogoElement5Event_ {{16, 16}, {130.66666666666666, 0}}
+                              UIView {{0, 0}, {130.66666666666666, 0}}
+                                UIImageView {{0, 0}, {91, 0}} img=91x18
+                                _TtCE13Encore_TagKitO16EncoreFoundation6Encore3Tag {{99, -19.333333333333332}, {31.666666666666668, 19.333333333333332}}
+                                  SPTEncoreLabel {{4, 2.0000000000000009}, {23.666666666666668, 15.333333333333334}} id=Encore.Label
+                                    UILabel {{0, 0}, {23.666666666666668, 15.333333333333334}} id=Encore.Label-internal "Beta" 11pt #000000@1.00
+                            SongDNA_NPVCardElementKit.ProportionalSpacingStackView {{37.666666666666657, -193.66666666666666}, {282.66666666666669, 133.66666666666666}}
+                              _TtGC13Element_UIKit18ElementContentViewV12Element_List14ItemIdentifierV25SongDNA_NPVCardElementKit11CardElement_ {{0, 0}, {121.66666666666667, 133.66666666666666}}
+                                _TtGC13Element_UIKit11ElementViewVV25SongDNA_NPVCardElementKit11CardElement5PropsVS2_5StateOS2_5Event_ {{0, 0}, {121.66666666666667, 133.66666666666666}}
+                                  UIView {{0, 0}, {121.66666666666667, 133.66666666666666}}
+                                    SongDNA_CommonKit.MediaView {{0, 0}, {121.66666666666667, 121.66666666666667}}
+                                      SongDNA_CommonKit.AvatarView {{0, 0}, {121.66666666666667, 121.66666666666667}} r=60.8 clips
+                                        _TtCC17SongDNA_CommonKit10AvatarViewP33_215D139ADB0BFFD59F9A3CCA79E3252D12GradientView {{0, 0}, {121.66666666666667, 121.66666666666667}}
+                                        _TtCE14Encore_FaceKitO16EncoreFoundation6Encore10AvatarView {{36.666666666666664, 37}, {48, 48}}
+                                          SPTEncoreLabel {{14.833333333333334, 4.6666666666666679}, {18.333333333333332, 38.666666666666664}} id=Encore.Label
+                                            UILabel {{0, 0}, {18.333333333333332, 38.666666666666664}} id=Encore.Label-internal "T" 32pt #FFFFFF@1.00
+                                          _TtCCE14Encore_FaceKitO16EncoreFoundation6Encore10AvatarView9ImageView {{0, 0}, {48, 48}} r=24.0 clips id=Encore.ImageView
+                                            UIImageView {{0, 0}, {0, 0}} a=0.00 clips
+                                        _TtCE15Encore_MediaKitO16EncoreFoundation6Encore9ImageView {{0, 0}, {121.66666666666667, 121.66666666666667}} id=Encore.ImageView
+                                          UIImageView {{0, 0}, {121.66666666666667, 121.66666666666667}} img=122x122
+                                          _TtCCE15Encore_MediaKitO16EncoreFoundation6Encore9ImageView15PlaceholderView {{0, 0}, {121.66666666666667, 121.66666666666667}} a=0.00 hidden
+                                    SPTEncoreLabel {{0, 133.66666666666666}, {121.66666666666667, 0}} id=Encore.Label
+                                      UILabel {{0, 0}, {121.66666666666667, 0}} id=Encore.Label-internal "The Police" 13pt #FFFFFF@1.00
+                                    SPTEncoreLabel {{0, 133.66666666666666}, {121.66666666666667, 0}} id=Encore.Label
+                                      UILabel {{0, 0}, {121.66666666666667, 0}} id=Encore.Label-internal "Main Artist + 2 more" 11pt #FFFFFF@1.00
+                              _TtGC13Element_UIKit18ElementContentViewV12Element_List14ItemIdentifierV25SongDNA_NPVCardElementKit11CardElement_ {{161.33333333333334, 0}, {121.33333333333333, 133.66666666666666}}
+                                _TtGC13Element_UIKit11ElementViewVV25SongDNA_NPVCardElementKit11CardElement5PropsVS2_5StateOS2_5Event_ {{0, 0}, {121.33333333333333, 133.66666666666666}}
+                                  UIView {{0, 0}, {121.33333333333333, 133.66666666666666}}
+                                    SongDNA_CommonKit.MediaView {{0, 0}, {121.33333333333333, 121.66666666666667}}
+                                      SongDNA_CommonKit.AvatarView {{0, 0}, {121.33333333333333, 121.66666666666667}} r=60.7 clips
+                                        _TtCC17SongDNA_CommonKit10AvatarViewP33_215D139ADB0BFFD59F9A3CCA79E3252D12GradientView {{0, 0}, {121.33333333333333, 121.66666666666667}}
+                                        _TtCE14Encore_FaceKitO16EncoreFoundation6Encore10AvatarView {{36.666666666666657, 37}, {48, 48}}
+                                          SPTEncoreLabel {{14.666666666666666, 4.6666666666666679}, {18.666666666666668, 38.666666666666664}} id=Encore.Label
+                                            UILabel {{0, 0}, {18.666666666666668, 38.666666666666664}} id=Encore.Label-internal "S" 32pt #FFFFFF@1.00
+                                          _TtCCE14Encore_FaceKitO16EncoreFoundation6Encore10AvatarView9ImageView {{0, 0}, {48, 48}} r=24.0 clips id=Encore.ImageView
+                                            UIImageView {{0, 0}, {0, 0}} a=0.00 clips
+                                        _TtCE15Encore_MediaKitO16EncoreFoundation6Encore9ImageView {{0, 0}, {121.33333333333333, 121.66666666666667}} id=Encore.ImageView
+                                          UIImageView {{0, 0}, {121.33333333333333, 121.66666666666667}} img=121x122
+                                          _TtCCE15Encore_MediaKitO16EncoreFoundation6Encore9ImageView15PlaceholderView {{0, 0}, {121.33333333333333, 121.66666666666667}} a=0.00 hidden
+                                    SPTEncoreLabel {{0, 133.66666666666666}, {121.33333333333333, 0}} id=Encore.Label
+                                      UILabel {{0, 0}, {121.33333333333333, 0}} id=Encore.Label-internal "Sting" 13pt #FFFFFF@1.00
+                                    SPTEncoreLabel {{0, 133.66666666666666}, {121.33333333333333, 0}} id=Encore.Label
+                                      UILabel {{0, 0}, {121.33333333333333, 0}} id=Encore.Label-internal "Composer + 1 more" 11pt #FFFFFF@1.00
+                            _TtCE16Encore_LayoutKitO16EncoreFoundation6Encore7ListRow {{4, -48}, {350, 32}} id=Encore.ListRow a11y="Every Breath You Take, 6 contributors"
+                              _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore15PassthroughView {{12, 8}, {326, 16}}
+                                _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{0, 0}, {326, 16}} id=Encore.StackView
+                                  _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{0, 0}, {326, 8}} id=Encore.StackView
+                                    _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{0, 0}, {235.33333333333334, 8}} id=Encore.StackView
+                                      SPTEncoreLabel {{0, 0}, {235.33333333333334, 4}} id=Encore.Label
+                                        UILabel {{0, 0}, {235.33333333333334, 4}} id=Encore.Label-internal "Every Breath You Take" 20pt #FFFFFF@1.00
+                                      SPTEncoreLabel {{0, 8}, {235.33333333333334, 0}} id=Encore.Label
+                                        UILabel {{0, 0}, {235.33333333333334, 0}} id=Encore.Label-internal "6 contributors" 13pt #B3B3B3@1.00
+                                    _TtCCE16Encore_ButtonKitO16EncoreFoundation6Encore6Button9Secondary {{247.33333333333329, 0}, {78.666666666666671, 8}} id=Encore.Button.Secondary a11y="Explore"
+                                      UIView {{0, 0}, {78.666666666666671, 8}}
+                                        _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{15.999999999999996, 4}, {46.666666666666664, 0}} id=Encore.StackView
+                                          _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{0, 0}, {46.666666666666664, 0}} id=Encore.StackView
+                                            SPTEncoreLabel {{0, 0}, {46.666666666666664, 0}} id=Encore.Label
+                                              UILabel {{0, 0}, {46.666666666666664, 0}} id=Encore.Label-internal "Explore" 13pt #FFFFFF@1.00
+                                  SPTEncoreLabel {{0, 16}, {326, 0}} id=Encore.Label
+                                    UILabel {{0, 0}, {326, 0}} id=Encore.Label-internal "Discover the people behind the song." 13pt #B3B3B3@1.00
+                    Element_List.CollectionViewCell {{16, 862}, {358, 0}} hidden clips
+                      _TtGC13Element_UIKit18ElementContentViewV12Element_List14ItemIdentifierGCS_14AnyBaseElementO20NowPlaying_ScrollAPI20NowPlayingScrollDataOS_9NeedsData__ {{0, 0}, {358, 0}}
+                        _TtGC13Element_UIKit11ElementViewO20NowPlaying_ScrollAPI20NowPlayingScrollDataP_P__ {{0, 0}, {358, 0}}
+                          UIView {{0, 0}, {358, 0}}
+                            UIStackView {{0, 0}, {358, 24}}
+                              _TtGC13Element_UIKit11ElementViewV22Home_HeadingElementKit12HeadingPropsP_P__ {{0, 0}, {358, 16}}
+                                UIView {{0, 0}, {358, 16}} id=Components.UI.SectionHeadingHome
+                                  LegacyUI_ECMCoreKit.AutoLayoutStackView {{16, 16}, {326, 0}}
+                                    UIView {{0, 0}, {326, 0}}
+                                      _TtCOOOE11Home_ECMKitO19LegacyUI_ECMCoreKit10Components18SectionHeadingHome2UI7Private28NoIntrinsicContentSizeButton {{0, 0}, {54, 0}} a11y="Credits"
+                                        LegacyUI_ECMCoreKit.AutoLayoutStackView {{0, 0}, {54, 0}}
+                                          UIView {{0, 0}, {54, 0}}
+                                            _TtC19LegacyUI_ECMCoreKitP33_3DFE6A8953CA91BDEBA7A38450631F5815ImageViewHolder {{0, 0}, {48, 48}} hidden clips
+                                              _TtC19LegacyUI_ECMCoreKitP33_3DFE6A8953CA91BDEBA7A38450631F5815EncoreImageView {{0, 0}, {48, 48}}
+                                              UIView {{0, 0}, {48, 48}} bg=#1F1F1F@1.00
+                                                UIImageView {{0, 0}, {48, 48}} img=48x48
+                                            SPTEncoreIconView {{0, 0}, {36, 36}} hidden id=Encore.IconView
+                                            LegacyUI_ECMCoreKit.AutoLayoutStackView {{0, 0}, {54, 0}}
+                                              UIView {{0, 0}, {54, 0}}
+                                                SPTEncoreLabel {{0, 0}, {0, 0}} hidden id=Encore.Label
+                                                  UILabel {{0, 0}, {0, 0}} id=Encore.Label-internal "(null)" 17pt #FFFFFF@1.00
+                                                SPTEncoreLabel {{0, 0}, {54, 0}} id=Encore.Label
+                                                  UILabel {{0, 0}, {54, 0}} a=0.00 id=Encore.Label-internal "Credits" 16pt #FFFFFF@1.00
+                                                SPTEncoreLabel {{0, 0}, {0, 0}} hidden id=Encore.Label
+                                                  UILabel {{0, 0}, {0, 0}} id=Encore.Label-internal "(null)" 17pt #FFFFFF@1.00
+                                        UIButtonLabel {{0, 0}, {0, 0}} hidden "(null)" 18pt #000000@1.00
+                                        UILabel {{192.66666666666666, 0}, {75, 26.333333333333332}} a=0.00 "Credits" 22pt #FFFFFF@1.00
+                                        UILabel {{192.66666666666666, 0}, {75, 26.333333333333332}} a=0.00 "Credits" 22pt #FFFFFF@1.00
+                                      SPTEncoreLabel {{0, 0}, {0, 0}} hidden id=Encore.Label
+                                        UILabel {{0, 0}, {0, 0}} id=Encore.Label-internal "(null)" 17pt #FFFFFF@1.00
+                                      UIView {{0, 0}, {0, 0}} hidden
+                                      _TtCCE16Encore_ButtonKitO16EncoreFoundation6Encore6Button8Tertiary {{0, 0}, {32, 32}} hidden id=Encore.Button.Tertiary
+                                        UIView {{0, 0}, {32, 32}}
+                                          _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{16, 8}, {0, 16}} id=Encore.StackView
+                                            _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{0, 0}, {0, 16}} id=Encore.StackView
+                                      UIView {{53.999999999999986, 0}, {209.66666666666666, 0}}
+                                      _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore15PassthroughView {{263.66666666666669, 0}, {62.333333333333336, 0}}
+                                        _TtCCE16Encore_ButtonKitO16EncoreFoundation6Encore6Button8Tertiary {{12.000000000000004, -16}, {50.333333333333336, 32}} id=Components.UI.NavigationButtonHome a11y="Show all"
+                                          UIView {{0, 0}, {50.333333333333336, 32}}
+                                            _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{0, 4}, {50.333333333333336, 24}} id=Encore.StackView
+                                              _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{0, 0}, {50.333333333333336, 24}} id=Encore.StackView
+                                                SPTEncoreLabel {{0, 3}, {50.333333333333336, 18}} id=Encore.Label
+                                                  UILabel {{0, 0}, {50.333333333333336, 18}} id=Encore.Label-internal "Show all" 13pt #37F200@1.00
+                              _TtGC13Element_UIKit11ElementViewV25Creator_CreditsElementAPI19CreditsElementPropsP_P__ {{0, 24}, {358, 0}}
+                                UIStackView {{0, 0}, {358, 0}}
+                                  _TtGC13Element_UIKit18ElementContentViewV12Element_List14ItemIdentifierGCS_10AnyElementVO26Creator_AgentRowElementKit8AgentRow5Props__ {{0, 0}, {358, 0}}
+                                    _TtGC13Element_UIKit11ElementViewVO26Creator_AgentRowElementKit8AgentRow5PropsP_P__ {{0, 0}, {358, 0}}
+                                      _TtGCE28EncoreConsumerMobile_BaseKitOO19LegacyUI_ECMCoreKit10Components2UI7Control__CE16Encore_LayoutKitO16EncoreFoundation6Encore7ListRow_ {{0, -48}, {358, 48}} a11y="The Police, Main Artist, Recording Arranger, Producer"
+                                        _TtCE16Encore_LayoutKitO16EncoreFoundation6Encore7ListRow {{0, 0}, {358, 48}} id=Encore.ListRow a11y="The Police, Main Artist, Recording Arranger, Producer"
+                                          _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore15PassthroughView {{16, 8}, {326, 32}}
+                                            _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{0, 0}, {326, 32}} id=Encore.StackView
+                                              _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{0, 0}, {326, 32}} id=Encore.StackView
+                                                _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{0, 0}, {241.66666666666666, 32}} id=Encore.StackView
+                                                  SPTEncoreLabel {{0, 0}, {241.66666666666666, 22}} id=Encore.Label
+                                                    UILabel {{0, 0}, {241.66666666666666, 22}} id=Encore.Label-internal "The Police" 16pt #FFFFFF@1.00
+                                                  SPTEncoreLabel {{0, 26}, {241.66666666666666, 6}} id=Encore.Label
+                                                    UILabel {{0, 0}, {241.66666666666666, 6}} id=Encore.Label-internal "Main Artist • Recording Arranger • Producer" 13pt #B3B3B3@1.00
+                                                _TtGC13Element_UIKit11ElementViewV10Foundation3URLP_P__ {{253.66666666666671, 0}, {72.333333333333329, 32}}
+                                                  UIStackView {{0, 0}, {72.333333333333329, 32}}
+                                                    _TtCCE16Encore_ButtonKitO16EncoreFoundation6Encore6Button9Secondary {{0, 0}, {72.333333333333329, 32}} hidden id=Curation.FollowButtonElementKit.FollowButton a11y="Follow"
+                                                      UIView {{0, 0}, {72.333333333333329, 32}}
+                                                        _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{16.000000000000004, 4}, {40.333333333333336, 24}} id=Encore.StackView
+                                                          _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{0, 0}, {40.333333333333336, 24}} id=Encore.StackView
+                                                            SPTEncoreLabel {{0, 3}, {40.333333333333336, 18}} id=Encore.Label
+                                                              UILabel {{0, 0}, {40.333333333333336, 18}} id=Encore.Label-internal "Follow" 13pt #FFFFFF@1.00
+                                                    _TtC19LegacyUI_ECMCoreKitP33_7AC6ABDB5A3E514EA5239D6986C3C90912EncoreButton {{72.333333333333314, 0}, {44, 32}} hidden id=Curation.FollowButtonElementKit.BanUndoButton a11y="Artist is banned, tap to unban"
+                                                      UIImageView {{10, 4}, {24, 24}} clips img=24x24
+                                  _TtGC13Element_UIKit18ElementContentViewV12Element_List14ItemIdentifierGCS_10AnyElementVO26Creator_AgentRowElementKit8AgentRow5Props__ {{0, 0}, {358, 0}}
+                                    _TtGC13Element_UIKit11ElementViewVO26Creator_AgentRowElementKit8AgentRow5PropsP_P__ {{0, 0}, {358, 20}}
+                                      _TtGCE28EncoreConsumerMobile_BaseKitOO19LegacyUI_ECMCoreKit10Components2UI7Control__CE16Encore_LayoutKitO16EncoreFoundation6Encore7ListRow_ {{0, 0}, {358, 20}} a11y="Sting, Composer, Lyricist"
+                                        _TtCE16Encore_LayoutKitO16EncoreFoundation6Encore7ListRow {{0, 0}, {358, 20}} id=Encore.ListRow a11y="Sting, Composer, Lyricist"
+                                          _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore15PassthroughView {{16, 8}, {326, 4}}
+                                            _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{0, 0}, {326, 4}} id=Encore.StackView
+                                              _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{0, 0}, {326, 4}} id=Encore.StackView
+                                                _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{0, 0}, {326, 4}} id=Encore.StackView
+                                                  SPTEncoreLabel {{0, 0}, {326, 0}} id=Encore.Label
+                                                    UILabel {{0, 0}, {326, 0}} id=Encore.Label-internal "Sting" 16pt #FFFFFF@1.00
+                                                  SPTEncoreLabel {{0, 4}, {326, 0}} id=Encore.Label
+                                                    UILabel {{0, 0}, {326, 0}} id=Encore.Label-internal "Composer • Lyricist" 13pt #B3B3B3@1.00
+                                  _TtGC13Element_UIKit18ElementContentViewV12Element_List14ItemIdentifierGCS_10AnyElementVO26Creator_AgentRowElementKit8AgentRow5Props__ {{0, -20}, {358, 20}}
+                                    _TtGC13Element_UIKit11ElementViewVO26Creator_AgentRowElementKit8AgentRow5PropsP_P__ {{0, 0}, {358, 20}}
+                                      _TtGCE28EncoreConsumerMobile_BaseKitOO19LegacyUI_ECMCoreKit10Components2UI7Control__CE16Encore_LayoutKitO16EncoreFoundation6Encore7ListRow_ {{0, 0}, {358, 20}} a11y="Hugh Padgham, Producer, Engineer"
+                                        _TtCE16Encore_LayoutKitO16EncoreFoundation6Encore7ListRow {{0, 0}, {358, 20}} id=Encore.ListRow a11y="Hugh Padgham, Producer, Engineer"
+                                          _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore15PassthroughView {{16, 8}, {326, 4}}
+                                            _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{0, 0}, {326, 4}} id=Encore.StackView
+                                              _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{0, 0}, {326, 4}} id=Encore.StackView
+                                                _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{0, 0}, {326, 4}} id=Encore.StackView
+                                                  SPTEncoreLabel {{0, 0}, {326, 0}} id=Encore.Label
+                                                    UILabel {{0, 0}, {326, 0}} id=Encore.Label-internal "Hugh Padgham" 16pt #FFFFFF@1.00
+                                                  SPTEncoreLabel {{0, 4}, {326, 0}} id=Encore.Label
+                                                    UILabel {{0, 0}, {326, 0}} id=Encore.Label-internal "Producer • Engineer" 13pt #B3B3B3@1.00
+                    Element_List.CollectionViewCell {{16, 790}, {358, 0}} bg=#2A2A2A@1.00 r=16.0 hidden clips
+                      _TtGC13Element_UIKit18ElementContentViewV12Element_List14ItemIdentifierGCS_14AnyBaseElementO20NowPlaying_ScrollAPI20NowPlayingScrollDataOS_6NoData__ {{0, 0}, {358, 0}}
+                        _TtGC13Element_UIKit11ElementViewO20NowPlaying_ScrollAPI20NowPlayingScrollDataP_P__ {{0, 0}, {358, 0}}
+                          LegacyUI_ECMCoreKit.InteractableLayoutBackingButton {{0, 0}, {358, 0}} r=16.0 clips id=Components.UI.OnTourEventCard a11y="event: Live event near you, Shaboozey, date: Oct 27, 2026 at 7:30 PM, Greek Theatre, Los Angeles"
+                            UIView {{0, 0}, {358, 0}}
+                            LegacyUI_ECMCoreKit.AutoLayoutStackView {{0, 0}, {358, 0}} r=16.0 clips id=Components.UI.OnTourEventCard
+                              UIView {{0, 0}, {358, 0}}
+                                UIView {{0, 0}, {358, 0}}
+                                  _TtC19LegacyUI_ECMCoreKitP33_3DFE6A8953CA91BDEBA7A38450631F5815ImageViewHolder {{0, 0}, {358, 238.66666666666666}} clips id=Components.UI.OnTourEventCard.artwork
+                                    _TtC19LegacyUI_ECMCoreKitP33_3DFE6A8953CA91BDEBA7A38450631F5815EncoreImageView {{0, 0}, {358, 238.66666666666666}} img=498x213
+                                    UIView {{0, 0}, {358, 238.66666666666666}} bg=#1F1F1F@1.00 hidden
+                                      SPTEncoreIconView {{89.666666666666686, 59.666666666666664}, {179, 119.33333333333333}} id=Encore.IconView
+                                    LegacyUI_ECMCoreKit.GradientView {{0, -100}, {358, 338.66666666666669}}
+                                  LegacyUI_ECMCoreKit.AutoLayoutStackView {{0, 0}, {358, 0}}
+                                    UIView {{0, 0}, {358, 0}}
+                                      UIView {{0, 0}, {358, 0}}
+                                        LegacyUI_ECMCoreKit.AutoLayoutStackView {{16, 16}, {326, 12}}
+                                          UIView {{0, 0}, {326, 12}}
+                                            SPTEncoreLabel {{0, 0}, {142.66666666666666, 12}} id=Components.UI.OnTourEventCard.title
+                                              UILabel {{0, 0}, {142.66666666666666, 12}} id=Components.UI.OnTourEventCard.title-internal "Live event near you" 16pt #FFFFFF@1.00
+                                            UIView {{142.66666666666663, 0}, {135.33333333333334, 12}}
+                                            LegacyUI_ECMCoreKit.AutoLayoutStackView {{278, 0}, {48, 12}} id=Components.UI.OnTourEventCard.seeAllButton
+                                              UIView {{0, 0}, {48, 12}}
+                                                UIView {{0, 0}, {48, 12}}
+                                                  _TtC19LegacyUI_ECMCoreKitP33_7AC6ABDB5A3E514EA5239D6986C3C90912EncoreButton {{4, 0}, {40, 12}}
+                                                    UIButtonLabel {{0, -3}, {40, 18}} "See all" 13pt #FFFFFF@0.70
+                                      UIView {{0, 0}, {358, 0}}
+                                UIView {{0, 0}, {358, 0}} bg=#1F1F1F@1.00
+                                  LegacyUI_ECMCoreKit.AutoLayoutStackView {{16, 16}, {326, 0}} bg=#1F1F1F@1.00
+                                    UIView {{0, -8}, {326, 16}}
+                                      LegacyUI_ECMCoreKit.AutoLayoutStackView {{0, 0}, {161.66666666666666, 16}}
+                                        UIView {{0, 0}, {161.66666666666666, 16}}
+                                          SPTEncoreLabel {{0, 0}, {99.333333333333329, 12}} id=Encore.Label
+                                            UILabel {{0, 0}, {99.333333333333329, 12}} id=Encore.Label-internal "Shaboozey" 20pt #FFFFFF@1.00
+                                          SPTEncoreLabel {{0, 16}, {138.33333333333334, 0}} id=Encore.Label
+                                            UILabel {{0, 0}, {138.33333333333334, 0}} id=Encore.Label-internal "Oct 27, 2026 at 7:30 PM" 13pt #FFFFFF@1.00
+                                          SPTEncoreLabel {{0, 16}, {161.66666666666666, 0}} id=Components.UI.OnTourEventCard.subtitle
+                                            UILabel {{0, 0}, {161.66666666666666, 0}} id=Components.UI.OnTourEventCard.subtitle-internal "Greek Theatre, Los Angeles" 13pt #B3B3B3@1.00
+                                      UIView {{161.66666666666666, 4}, {85, 8}}
+                                      LegacyUI_ECMCoreKit.AutoLayoutStackView {{246.66666666666671, 0}, {79.333333333333329, 16}}
+                                        UIView {{0, 0}, {79.333333333333329, 16}}
+                                          LiveEvents_ECMKit.RoundedButton {{0, 0}, {79.333333333333329, 16}} r=8.0 clips a11y="Save, not selected"
+                                            LegacyUI_ECMCoreKit.AutoLayoutStackView {{12.000000000000004, 8}, {55.333333333333336, 0}}
+                                              UIView {{0, 0}, {55.333333333333336, 0}}
+                                                UIImageView {{0, 0}, {16, 0}} img=16x16
+                                                SPTEncoreLabel {{26, 0}, {29.333333333333332, 0}} id=Encore.Label
+                                                  UILabel {{0, 0}, {29.333333333333332, 0}} id=Encore.Label-internal "Save" 13pt #FFFFFF@1.00
+                                            UIButtonLabel {{0, 0}, {0, 0}} hidden "(null)" 18pt #000000@1.00
+                                          LegacyUI_ECMCoreKit.AutoLayoutStackView {{0, 0}, {101.66666666666667, 34}} hidden id=Components.UI.OnTourEventCard.actions
+                                            UIView {{0, 0}, {101.66666666666667, 34}}
+                                              LegacyUI_ECMCoreKit.CallToActionButton {{0, 0}, {101.66666666666667, 34}} r=17.0 clips
+                                                UIButtonLabel {{16, 8}, {70, 18}} "Find tickets" 13pt #FFFFFF@1.00
+                            UIButtonLabel {{0, 0}, {0, 0}} hidden "(null)" 18pt #000000@1.00
+                    Element_List.CollectionViewCell {{16, 790}, {358, 0}} bg=#2A2A2A@1.00 r=16.0 hidden clips
+                      _TtGC13Element_UIKit18ElementContentViewV12Element_List14ItemIdentifierGCS_14AnyBaseElementO20NowPlaying_ScrollAPI20NowPlayingScrollDataOS_6NoData__ {{0, 0}, {358, 0}}
+                        _TtGC13Element_UIKit11ElementViewO20NowPlaying_ScrollAPI20NowPlayingScrollDataP_P__ {{0, 0}, {358, 0}}
+                          UIView {{0, 0}, {358, 0}}
+                            SPTEncoreLabel {{16, 16}, {326, 0}} id=Encore.Label
+                              UILabel {{0, 0}, {326, 0}} id=Encore.Label-internal "Discover more about Metro Boomin" 16pt #FFFFFF@1.00
+                            UIStackView {{4, -256}, {350, 240}}
+                              _TtGC13Element_UIKit18ElementContentViewV12Element_List14ItemIdentifierGV23ListContent_ResourceKit18AnyResourceElementV43RelatedContentRecommendations_RowElementAPI15RowElementProps__ {{0, 0}, {350, 80}}
+                                _TtGC13Element_UIKit11ElementViewV43RelatedContentRecommendations_RowElementAPI15RowElementPropsP_P__ {{0, 0}, {350, 80}}
+                                  _TtCE16Encore_LayoutKitO16EncoreFoundation6Encore7ListRow {{0, 0}, {350, 80}} id=RelatedContentRecommendations.RowElementUI a11y="Metro Boomin x Nelk Boys | Ep. 68, Episode, FULL SEND PODCAST"
+                                    _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore15PassthroughView {{12, 8}, {326, 64}}
+                                      _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{0, 0}, {326, 64}} id=Encore.StackView
+                                        _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{0, 0}, {326, 64}} id=Encore.StackView
+                                          _TtCE15Encore_MediaKitO16EncoreFoundation6Encore9ImageView {{0, 0}, {64, 64}} id=Encore.ImageView
+                                            UIImageView {{0, 0}, {64, 64}} img=64x64
+                                            _TtCCE15Encore_MediaKitO16EncoreFoundation6Encore9ImageView15PlaceholderView {{0, 0}, {64, 64}} a=0.00
+                                              SPTEncoreIconView {{16, 16}, {32, 32}} id=Encore.IconView
+                                          _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{76, 10}, {250, 44}} id=Encore.StackView
+                                            SPTEncoreLabel {{0, 0}, {250, 22}} id=Encore.Label
+                                              UILabel {{0, 0}, {250, 22}} id=Encore.Label-internal "Metro Boomin x Nelk Boys | Ep. 68" 16pt #FFFFFF@1.00
+                                            _TtC44RelatedContentRecommendations_RowElementImplP33_051DFB45D744C91DF44205D5F9AC2DDC12SubtitleView {{0, 26}, {250, 18}}
+                                              UIStackView {{0, 0}, {250, 18}}
+                                                SPTEncoreLabel {{-12, 3}, {12, 12}} bg=#B3B3B3@1.00 r=2.0 hidden clips id=Components.UI.ExplicitIcon
+                                                  UILabel {{0, 0}, {12, 12}} id=Components.UI.ExplicitIcon-internal "E" 10pt #000000@1.00
+                                                SPTEncoreLabel {{-12, 3}, {12, 12}} r=6.0 hidden clips id=Components.UI.19andOverIcon
+                                                  UILabel {{0, 0}, {12, 12}} id=Components.UI.19andOverIcon-internal "19" 8pt #B3B3B3@1.00
+                                                SPTEncoreLabel {{0, 0}, {250, 18}} id=Encore.Label
+                                                  UILabel {{0, 0}, {250, 18}} id=Encore.Label-internal "Episode • FULL SEND PODCAST" 13pt #B3B3B3@1.00
+                                          _TtGC13Element_UIKit11ElementViewV10Foundation3URLP_P__ {{0, 0}, {48, 48}} hidden
+                                            UIButton {{0, 0}, {48, 48}} hidden id=Components.UI.AddToButton a11y="Add"
+                                              _TtGC16Encore_MotionKit25StateMicroInteractionViewO28EncoreConsumerMobile_BaseKit16AddToButtonState_ {{-4, -4}, {56, 56}}
+                                                Lottie.LottieAnimationView {{0, 0}, {56, 56}} clips
+                                              UIButtonLabel {{0, 0}, {0, 0}} hidden "(null)" 18pt #000000@1.00
+                              _TtGC13Element_UIKit18ElementContentViewV12Element_List14ItemIdentifierGV23ListContent_ResourceKit18AnyResourceElementV43RelatedContentRecommendations_RowElementAPI15RowElementProps__ {{0, 80}, {350, 80}}
+                                _TtGC13Element_UIKit11ElementViewV43RelatedContentRecommendations_RowElementAPI15RowElementPropsP_P__ {{0, 0}, {350, 80}}
+                                  _TtCE16Encore_LayoutKitO16EncoreFoundation6Encore7ListRow {{0, 0}, {350, 80}} id=RelatedContentRecommendations.RowElementUI a11y="Ep. 26 | How Metro Boomin Used Twitter, ATL Collabs and A$AP Yams' Advice to Take Over, Explicit, Episode, The RapCaviar Podcast"
+                                    _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore15PassthroughView {{12, 8}, {326, 64}}
+                                      _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{0, 0}, {326, 64}} id=Encore.StackView
+                                        _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{0, 0}, {326, 64}} id=Encore.StackView
+                                          _TtCE15Encore_MediaKitO16EncoreFoundation6Encore9ImageView {{0, 0}, {64, 64}} id=Encore.ImageView
+                                            UIImageView {{0, 0}, {64, 64}} img=64x64
+                                            _TtCCE15Encore_MediaKitO16EncoreFoundation6Encore9ImageView15PlaceholderView {{0, 0}, {64, 64}} a=0.00
+                                              SPTEncoreIconView {{16, 16}, {32, 32}} id=Encore.IconView
+                                          _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{76, 0}, {250, 64}} id=Encore.StackView
+                                            SPTEncoreLabel {{0, 0}, {250, 42}} id=Encore.Label
+                                              UILabel {{0, 0}, {250, 42}} id=Encore.Label-internal "Ep. 26 | How Metro Boomin Used Twitter, ATL Collabs and A$AP Yams' Advice to Take Over" 16pt #FFFFFF@1.00
+                                            _TtC44RelatedContentRecommendations_RowElementImplP33_051DFB45D744C91DF44205D5F9AC2DDC12SubtitleView {{0, 46}, {250, 18}}
+                                              UIStackView {{0, 0}, {250, 18}}
+                                                SPTEncoreLabel {{0, 3}, {12, 12}} bg=#B3B3B3@1.00 r=2.0 clips id=Components.UI.ExplicitIcon
+                                                  UILabel {{0, 0}, {12, 12}} id=Components.UI.ExplicitIcon-internal "E" 10pt #000000@1.00
+                                                SPTEncoreLabel {{14, 3}, {12, 12}} r=6.0 hidden clips id=Components.UI.19andOverIcon
+                                                  UILabel {{0, 0}, {12, 12}} id=Components.UI.19andOverIcon-internal "19" 8pt #B3B3B3@1.00
+                                                SPTEncoreLabel {{16, 0}, {234, 18}} id=Encore.Label
+                                                  UILabel {{0, 0}, {234, 18}} id=Encore.Label-internal "Episode • The RapCaviar Podcast" 13pt #B3B3B3@1.00
+                                          _TtGC13Element_UIKit11ElementViewV10Foundation3URLP_P__ {{0, 0}, {48, 48}} hidden
+                                            UIButton {{0, 0}, {48, 48}} hidden id=Components.UI.AddToButton a11y="Add"
+                                              _TtGC16Encore_MotionKit25StateMicroInteractionViewO28EncoreConsumerMobile_BaseKit16AddToButtonState_ {{-4, -4}, {56, 56}}
+                                                Lottie.LottieAnimationView {{0, 0}, {56, 56}} clips
+                                              UIButtonLabel {{0, 0}, {0, 0}} hidden "(null)" 18pt #000000@1.00
+                              _TtGC13Element_UIKit18ElementContentViewV12Element_List14ItemIdentifierGV23ListContent_ResourceKit18AnyResourceElementV43RelatedContentRecommendations_RowElementAPI15RowElementProps__ {{0, 160}, {350, 80}}
+                                _TtGC13Element_UIKit11ElementViewV43RelatedContentRecommendations_RowElementAPI15RowElementPropsP_P__ {{0, 0}, {350, 80}}
+                                  _TtCE16Encore_LayoutKitO16EncoreFoundation6Encore7ListRow {{0, 0}, {350, 80}} id=RelatedContentRecommendations.RowElementUI a11y="MILLION DOLLAZ WORTH OF GAME EPISODE 135: FEATURING METRO BOOMIN, Explicit, Episode, Million Dollaz Worth Of Game"
+                                    _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore15PassthroughView {{12, 8}, {326, 64}}
+                                      _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{0, 0}, {326, 64}} id=Encore.StackView
+                                        _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{0, 0}, {326, 64}} id=Encore.StackView
+                                          _TtCE15Encore_MediaKitO16EncoreFoundation6Encore9ImageView {{0, 0}, {64, 64}} id=Encore.ImageView
+                                            UIImageView {{0, 0}, {64, 64}} img=64x64
+                                            _TtCCE15Encore_MediaKitO16EncoreFoundation6Encore9ImageView15PlaceholderView {{0, 0}, {64, 64}} a=0.00
+                                              SPTEncoreIconView {{16, 16}, {32, 32}} id=Encore.IconView
+                                          _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{76, 0}, {250, 64}} id=Encore.StackView
+                                            SPTEncoreLabel {{0, 0}, {250, 42}} id=Encore.Label
+                                              UILabel {{0, 0}, {250, 42}} id=Encore.Label-internal "MILLION DOLLAZ WORTH OF GAME EPISODE 135: FEATURING METRO BOOMIN" 16pt #FFFFFF@1.00
+                                            _TtC44RelatedContentRecommendations_RowElementImplP33_051DFB45D744C91DF44205D5F9AC2DDC12SubtitleView {{0, 46}, {250, 18}}
+                                              UIStackView {{0, 0}, {250, 18}}
+                                                SPTEncoreLabel {{0, 3}, {12, 12}} bg=#B3B3B3@1.00 r=2.0 clips id=Components.UI.ExplicitIcon
+                                                  UILabel {{0, 0}, {12, 12}} id=Components.UI.ExplicitIcon-internal "E" 10pt #000000@1.00
+                                                SPTEncoreLabel {{14, 3}, {12, 12}} r=6.0 hidden clips id=Components.UI.19andOverIcon
+                                                  UILabel {{0, 0}, {12, 12}} id=Components.UI.19andOverIcon-internal "19" 8pt #B3B3B3@1.00
+                                                SPTEncoreLabel {{16, 0}, {234, 18}} id=Encore.Label
+                                                  UILabel {{0, 0}, {234, 18}} id=Encore.Label-internal "Episode • Million Dollaz Worth Of Game" 13pt #B3B3B3@1.00
+                                          _TtGC13Element_UIKit11ElementViewV10Foundation3URLP_P__ {{0, 0}, {48, 48}} hidden
+                                            UIButton {{0, 0}, {48, 48}} hidden id=Components.UI.AddToButton a11y="Add"
+                                              _TtGC16Encore_MotionKit25StateMicroInteractionViewO28EncoreConsumerMobile_BaseKit16AddToButtonState_ {{-4, -4}, {56, 56}}
+                                                Lottie.LottieAnimationView {{0, 0}, {56, 56}} clips
+                                              UIButtonLabel {{0, 0}, {0, 0}} hidden "(null)" 18pt #000000@1.00
+                    Element_List.CollectionViewCell {{16, 814}, {358, 0}} bg=#2A2A2A@1.00 r=16.0 hidden clips
+                      _TtGC13Element_UIKit18ElementContentViewV12Element_List14ItemIdentifierGCS_14AnyBaseElementO20NowPlaying_ScrollAPI20NowPlayingScrollDataOS_6NoData__ {{0, 0}, {358, 0}}
+                        _TtGC13Element_UIKit11ElementViewO20NowPlaying_ScrollAPI20NowPlayingScrollDataP_P__ {{0, 0}, {358, 0}}
+                          Lyrics_CardElementImpl.CardView {{0, 0}, {358, 0}} id=lyrics-card-view
+                            UIStackView {{16, 0}, {326, 48}}
+                              Lyrics_CardElementImpl.CardHeaderView {{0, 0}, {326, 38}}
+                                SPTEncoreLabel {{0, 16}, {230, 22}} id=Encore.Label
+                                  UILabel {{0, 0}, {230, 22}} id=Encore.Label-internal "Lyrics" 16pt #FFFFFF@1.00
+                                UIStackView {{238, 5}, {88, 44}}
+                                  _TtGC22Lyrics_CardElementImpl20ContainerElementViewVVS_19HeaderButtonElement5Props_ {{0, 22}, {0, 0}} hidden
+                                  _TtGC22Lyrics_CardElementImpl20ContainerElementViewVVS_19HeaderButtonElement5Props_ {{0, 22}, {0, 0}} hidden
+                                  _TtGC22Lyrics_CardElementImpl20ContainerElementViewVVS_19HeaderButtonElement5Props_ {{0, 0}, {44, 44}}
+                                    _TtGC13Element_UIKit11ElementViewVV22Lyrics_CardElementImpl19HeaderButtonElement5PropsP_P__ {{0, 0}, {44, 44}}
+                                      _TtC19LegacyUI_ECMCoreKitP33_7AC6ABDB5A3E514EA5239D6986C3C90912EncoreButton {{0, 0}, {44, 44}} id=lyrics-share-button a11y="Share Lyrics"
+                                        UIImageView {{6, 6}, {32, 32}} clips img=32x32
+                                  _TtGC22Lyrics_CardElementImpl20ContainerElementViewVVS_19HeaderButtonElement5Props_ {{44, 0}, {44, 44}}
+                                    _TtGC13Element_UIKit11ElementViewVV22Lyrics_CardElementImpl19HeaderButtonElement5PropsP_P__ {{0, 0}, {44, 44}}
+                                      _TtC19LegacyUI_ECMCoreKitP33_7AC6ABDB5A3E514EA5239D6986C3C90912EncoreButton {{0, 0}, {44, 44}} id=lyrics-expand-button a11y="Open full screen lyrics"
+                                        UIImageView {{6, 6}, {32, 32}} clips img=32x32
+                              Lyrics_CardElementImpl.CardContentView {{0, 48}, {326, 0}}
+                                UIStackView {{0, 0}, {326, 0}}
+                                  _TtGC22Lyrics_CardElementImpl21ContainerRecreateViewVS_15LyricsTextState_ {{0, 0}, {326, 0}}
+                                    _TtGC13Element_UIKit11ElementViewV21Lyrics_TextElementAPI22LyricsTextElementPropsP_P__ {{0, 0}, {326, 0}}
+                                      Lyrics_TextElementImpl.LyricsTextView {{0, 0}, {326, 0}} masked
+                                        Lyrics_TextElementImpl.SelfSizingTableView {{0, 0}, {326, 0}} clips id=lyrics-table-view
+                                          Lyrics_TextElementImpl.LyricsCell {{0, 0}, {326, 45}}
+                                            UITableViewCellContentView {{0, 0}, {326, 45}}
+                                              UIView {{0, 0}, {326, 37}} r=16.0
+                                                Lyrics_TextElementImpl.LyricsLabelsView {{0, 0}, {326, 29}}
+                                                  UIStackView {{0, 0}, {326, 29}}
+                                                    SPTEncoreLabel {{0, 0}, {326, 29}} id=Encore.Label
+                                                      UILabel {{0, 0}, {326, 29}} id=Encore.Label-internal "Metro!" 24pt #000000@1.00
+                                                    SPTEncoreLabel {{0, 29}, {326, 0}} hidden id=Encore.Label
+                                                      UILabel {{0, 0}, {326, 0}} id=Encore.Label-internal "(null)" 17pt #FFFFFF@1.00
+                                  _TtGC22Lyrics_CardElementImpl20ContainerElementViewV30Lyrics_InlineMessageElementAPI18InlineMessageProps_ {{0, 0}, {326, 0}} hidden
+                                  _TtGC22Lyrics_CardElementImpl20ContainerElementViewVVS_23ShowLyricsButtonElement5Props_ {{0, 0}, {326, 0}} hidden
+                    Element_List.CollectionViewCell {{16, 838}, {358, 0}} bg=#2A2A2A@1.00 r=16.0 hidden clips
+                      _TtGC13Element_UIKit18ElementContentViewV12Element_List14ItemIdentifierGCS_14AnyBaseElementO20NowPlaying_ScrollAPI20NowPlayingScrollDataOS_6NoData__ {{0, 0}, {358, 0}}
+                        _TtGC13Element_UIKit11ElementViewO20NowPlaying_ScrollAPI20NowPlayingScrollDataP_P__ {{0, 0}, {358, 0}}
+                          UIView {{0, 0}, {358, 0}} bg=#282828@1.00
+                            _TtGC13Element_UIKit11ElementViewVV27Martini_NPVCardProviderImpl28ContentStoryCardErrorElement5PropsS3_OS2_5Event_ {{16, 54}, {326, 286}} hidden id=ContentStoryCardErrorElement
+                              UIView {{0, 0}, {326, 286}}
+                                SPTEncoreLabel {{0, 0}, {326, 44}} id=Encore.Label
+                                  UILabel {{0, 0}, {326, 44}} id=Encore.Label-internal "Something went wrong pulling up the song info. Tap below to try again." 16pt #B3B3B3@1.00
+                                _TtCCE16Encore_ButtonKitO16EncoreFoundation6Encore6Button9Secondary {{239.66666666666666, 254}, {86.333333333333329, 32}} id=Encore.Button.Secondary a11y="Try again"
+                                  UIView {{0, 0}, {86.333333333333329, 32}}
+                                    _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{16.000000000000032, 4}, {54.333333333333336, 24}} id=Encore.StackView
+                                      _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{0, 0}, {54.333333333333336, 24}} id=Encore.StackView
+                                        SPTEncoreLabel {{0, 3}, {54.333333333333336, 18}} id=Encore.Label
+                                          UILabel {{0, 0}, {54.333333333333336, 18}} id=Encore.Label-internal "Try again" 13pt #FFFFFF@1.00
+                            UIStackView {{16, 16}, {326, 22}}
+                              SPTEncoreLabel {{0, 0}, {114, 22}} id=section-title
+                                UILabel {{0, 0}, {114, 22}} id=section-title-internal "About the song" 16pt #FFFFFF@1.00
+                              UIView {{122.00000000000001, 1.3333333333333321}, {31.666666666666668, 19.333333333333332}} bg=#37F200@1.00 r=4.0 clips
+                                UIView {{0, 2.0000000000000009}, {31.666666666666668, 15.333333333333334}}
+                                  SPTEncoreLabel {{4, 0}, {23.666666666666668, 15.333333333333334}} id=Encore.Label
+                                    UILabel {{0, 0}, {23.666666666666668, 15.333333333333334}} id=Encore.Label-internal "Beta" 11pt #292929@1.00
+                              UIView {{161.66666666666663, 0}, {164.33333333333334, 22}}
+                              WatchFeed_ECMKit.CoolPageControl {{326, 8}, {24, 6}} hidden
+                                UIStackView {{0, 0}, {24, 6}}
+                                  _TtCC16WatchFeed_ECMKit15CoolPageControlP33_9844F252D789C3F4A12AF21F486E030E11DotDashView {{0, 0}, {24, 6}} bg=#FFFFFF@1.00 r=3.0 clips
+                              UIStackView {{326, -11}, {88, 44}} hidden id=NextPreviousButtonsStackView
+                                _TtCCE16Encore_ButtonKitO16EncoreFoundation6Encore6Button8Tertiary {{0, 0}, {44, 44}} id=PreviousStoryButton a11y="Previous story"
+                                  UIView {{0, 0}, {44, 44}} a=0.30
+                                    _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{14, 8}, {16, 28}} id=Encore.StackView
+                                      _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{0, 0}, {16, 28}} id=Encore.StackView
+                                        SPTEncoreIconView {{0, 6}, {16, 16}} id=Encore.IconView
+                                _TtCCE16Encore_ButtonKitO16EncoreFoundation6Encore6Button8Tertiary {{44, 0}, {44, 44}} id=NextStoryButton a11y="Next story"
+                                  UIView {{0, 0}, {44, 44}} a=0.30
+                                    _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{14, 8}, {16, 28}} id=Encore.StackView
+                                      _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{0, 0}, {16, 28}} id=Encore.StackView
+                                        SPTEncoreIconView {{0, 6}, {16, 16}} id=Encore.IconView
+                            _TtGC13Element_UIKit11ElementViewV16Martini_ModelKit12ContributionP_P__ {{0, 46}, {358, 32}} hidden
+                              UIView {{0, 0}, {358, 32}}
+                                _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{16, 8}, {326, 16}} id=Encore.StackView
+                                  UIView {{0, 0}, {40, 16}}
+                                    UIView {{16, 8}, {8, 0}}
+                                      _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{4, 0}, {0, 0}} id=Encore.StackView
+                                        _TtC14Martini_ECMKitP33_3F26815D9455529CEBD8A875C262D23E18MessageLoadingView {{0, 0}, {0, 0}}
+                                          UIView {{-26, -16}, {52, 32}}
+                            Martini_NPVCardProviderImpl.AccessibleStoryCollectionView {{0, 46}, {358, 242}} clips
+                              _UICollectionViewOrthogonalScrollView {{0, 0}, {358, 242}}
+                                Element_List.CollectionViewCell {{0, 0}, {358, 242}}
+                                  _TtGC13Element_UIKit18ElementContentViewV12Element_List14ItemIdentifierGVS_22IdentifiableElementBoxV27Martini_NPVCardProviderImpl19ContentStoryElement__ {{0, 0}, {358, 242}}
+                                    _TtGC13Element_UIKit11ElementViewVV27Martini_NPVCardProviderImpl19ContentStoryElement5PropsVS2_5StateOS2_5Event_ {{0, 0}, {358, 242}}
+                                      UIView {{0, 0}, {358, 242}} id=ContentStoryElementUI
+                                        UIStackView {{0, 0}, {358, 173.33333333333334}} a=0.00
+                                          UIView {{0, 0}, {358, 0}} hidden
+                                            SPTEncoreIconView {{16, -8}, {16, 16}} id=Encore.IconView
+                                            SPTEncoreLabel {{36, 0}, {52, 0}} id=Encore.Label
+                                              UILabel {{0, 0}, {52, 0}} id=Encore.Label-internal "Trending" 13pt #539DF5@1.00
+                                          _TtGC13Element_UIKit11ElementViewVV27Martini_NPVCardProviderImpl21AgentStoryTextElement5PropsS3_OS2_5Event_ {{0, 0}, {358, 132}}
+                                            UIView {{0, 0}, {358, 132}}
+                                              SPTEncoreLabel {{16, 0}, {326, 132}} id=Encore.Label
+                                                UILabel {{0, 0}, {326, 132}} id=Encore.Label-internal "The track Raindrops (Insane) brings back the trippy, cloud-rap vibes that Travis Scott was all about during his Rodeo days. It's like a throwback to that psychedelic sound he was known for, showing he's still got that style in his arsenal." 16pt #B3B3B3@1.00
+                                          _TtGC13Element_UIKit11ElementViewV18Martini_ElementAPI25InlineSourcesElementPropsP_P__ {{0, 140}, {358, 33.333333333333336}}
+                                            UIView {{0, 0}, {358, 33.333333333333336}}
+                                              Martini_ElementImpl.InlineSourcesContainer {{16, 0}, {326, 33.333333333333336}}
+                                                Martini_ElementImpl.InlineSource {{0, 8}, {91.666666666666671, 17.333333333333336}}
+                                                  UIView {{0, 0}, {91.666666666666671, 17.333333333333332}} bg=#FFFFFF@0.10 r=3.0 clips
+                                                  SPTEncoreLabel {{4, 1.0000000000000009}, {83.666666666666671, 15.333333333333334}} id=Encore.Label
+                                                    UILabel {{0, 0}, {83.666666666666671, 15.333333333333334}} id=Encore.Label-internal "en.wikipedia.org" 11pt #B3B3B3@1.00
+                                                  UIView {{0, -7.3333333333333428}, {91.666666666666671, 32}}
+                              _UIScrollViewScrollIndicator {{352, -39}, {3, 36}} a=0.00
+                                UIView {{0, 0}, {3, 36}} bg=#FFFFFF@0.50 r=1.5
+                            UIStackView {{0, 300}, {342, 40}} id=ButtonStackView
+                              _TtGC13Element_UIKit11ElementViewV18Martini_ElementAPI25AgentFeedbackElementPropsP_P__ {{0, 0}, {84, 40}}
+                                UIView {{0, 0}, {84, 40}}
+                                  UIStackView {{12, 4}, {72, 32}}
+                                    UIStackView {{0, 0}, {72, 32}} clips
+                                      _TtCCE16Encore_ButtonKitO16EncoreFoundation6Encore6Button8Tertiary {{-32, 0}, {32, 32}} hidden id=Encore.Button.Tertiary a11y="Copy message"
+                                        UIView {{0, 0}, {32, 32}}
+                                          _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{8, 8}, {16, 16}} id=Encore.StackView
+                                            _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{0, 0}, {16, 16}} id=Encore.StackView
+                                              SPTEncoreIconView {{0, 0}, {16, 16}} id=Encore.IconView
+                                      _TtCCE16Encore_ButtonKitO16EncoreFoundation6Encore6Button8Tertiary {{-32, 0}, {32, 32}} hidden id=Encore.Button.Tertiary a11y="Regenerate response"
+                                        UIView {{0, 0}, {32, 32}}
+                                          _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{8, 8}, {16, 16}} id=Encore.StackView
+                                            _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{0, 0}, {16, 16}} id=Encore.StackView
+                                              SPTEncoreIconView {{0, 0}, {16, 16}} id=Encore.IconView
+                                      _TtCCE16Encore_ButtonKitO16EncoreFoundation6Encore6Button8Tertiary {{0, 0}, {32, 32}} id=Encore.Button.Tertiary a11y="Provide positive feedback"
+                                        UIView {{0, 0}, {32, 32}}
+                                          _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{8, 8}, {16, 16}} id=Encore.StackView
+                                            _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{0, 0}, {16, 16}} id=Encore.StackView
+                                              SPTEncoreIconView {{0, 0}, {16, 16}} id=Encore.IconView
+                                      _TtCCE16Encore_ButtonKitO16EncoreFoundation6Encore6Button8Tertiary {{40, 0}, {32, 32}} id=Encore.Button.Tertiary a11y="Provide negative feedback"
+                                        UIView {{0, 0}, {32, 32}}
+                                          _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{8, 8}, {16, 16}} id=Encore.StackView
+                                            _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{0, 0}, {16, 16}} id=Encore.StackView
+                                              SPTEncoreIconView {{0, 0}, {16, 16}} id=Encore.IconView
+                                      _TtCCE16Encore_ButtonKitO16EncoreFoundation6Encore6Button8Tertiary {{72, 0}, {32, 32}} hidden id=Encore.Button.Tertiary
+                                        UIView {{0, 0}, {32, 32}}
+                                          _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{8, 8}, {16, 16}} id=Encore.StackView
+                                            _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{0, 0}, {16, 16}} id=Encore.StackView
+                                              SPTEncoreIconView {{0, 0}, {16, 16}} id=Encore.IconView
+                                    UIView {{72, 16}, {0, 0}} hidden
+                                    UIStackView {{72, 0.66666666666668739}, {0, 30.666666666666668}} hidden
+                                      SPTEncoreLabel {{0, 0}, {0, 15.333333333333334}} id=Encore.Label
+                                        UILabel {{0, 0}, {0, 15.333333333333334}} id=Encore.Label-internal "AI can make mistakes." 11pt #B3B3B3@1.00
+                                      SPTEncoreLabel {{0, 15.333333333333314}, {0, 15.333333333333334}} id=Encore.Label
+                                        UILabel {{0, 0}, {0, 15.333333333333334}} id=Encore.Label-internal "May contain 3rd party info." 11pt #B3B3B3@1.00
+                              UIView {{84, 0}, {258, 40}}
+                              _TtGC13Element_UIKit11ElementViewVV27Martini_NPVCardProviderImpl20SeeMoreButtonElement5PropsS3_OS2_5Event_ {{310, 4}, {32, 32}} hidden id=SeeMoreButtonElement
+                                UIView {{0, 0}, {32, 32}}
+                                  _TtCCE16Encore_ButtonKitO16EncoreFoundation6Encore6Button9Secondary {{0, 0}, {32, 32}} r=16.0 clips id=Components.UI.SeeMoreButtonElement a11y="See more"
+                                    UIView {{0, 0}, {32, 32}}
+                                      _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{16, 4}, {0, 24}} id=Encore.StackView
+                                        _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore9StackView {{0, 0}, {0, 24}} id=Encore.StackView
+                                          SPTEncoreLabel {{0, 3}, {0, 18}} id=Encore.Label
+                                            UILabel {{0, 0}, {0, 18}} id=Encore.Label-internal "See more" 13pt #FFFFFF@1.00
+                            SPTEncoreLabel {{16, 352}, {326, 15.333333333333334}} id=Encore.Label
+                              UILabel {{0, 0}, {326, 15.333333333333334}} id=Encore.Label-internal "Summarized from 3rd-party sources" 11pt #B3B3B3@1.00
+                    UIView {{0, 0}, {390, 844}} bg=#0858B8@1.00
+                      UIStackView {{0, 0}, {390, 844}} hidden
+                        NowPlaying_ScrollImpl.NPVGradientView {{0, 0}, {390, 844}}
+                        UIView {{0, 844}, {390, 0}}
+                          NowPlaying_ScrollImpl.NPVGradientView {{0, 0}, {390, 0}}
+                          NowPlaying_ScrollImpl.NPVGradientView {{0, 0}, {390, 0}} bg=#000000@1.00 a=0.00
+                        UIView {{0, 844}, {390, 0}} bg=#000000@1.00
+                      SGRArtworkField {{0, 0}, {390, 844}}
+                    _UIScrollViewScrollIndicator {{44.333333333333343, 837.66666666666663}, {301, 3}} a=0.00
+                      UIView {{0, 0}, {301, 3}} bg=#FFFFFF@0.50 r=1.5
+                  UIView {{8, 795}, {374, 49}} hidden
+          _TtCE19Encore_StackViewKitO16EncoreFoundation6Encore15PassthroughView {{0, 0}, {390, 110.33333333333333}} id=now-playing-sticky-header
+            UIStackView {{0, 47}, {390, 0}} hidden
+            UIStackView {{0, 47}, {390, 63.333333333333336}} hidden
+              PGLegacyGlassView {{0, -47}, {390, 110.33333333333333}} clips
+                UIView {{0, 0}, {390, 110.33333333333333}}
+              UIStackView {{0, 0}, {390, 61.333333333333336}}
+                UIView {{0, 0}, {390, 61.333333333333336}}
+                _TtGC13Element_UIKit11ElementViewV22NowPlaying_ElementsAPI17VideoElementPropsP_P__ {{-83.666666666666671, 4.6666666666666643}, {99.666666666666671, 56}} hidden
+                  SPTVideoSurfaceImpl {{0, 0}, {99.666666666666671, 56}} r=2.0 hidden clips
+                _TtGC13Element_UIKit11ElementViewT_P_P__ {{16, 8.0000000000000036}, {310, 49.333333333333336}}
+                  UIStackView {{0, 0}, {310, 49.333333333333336}}
+                    UIStackView {{0, 0}, {310, 22}} id=ScrollStickyHeader.ContentView
+                      _TtCE14Encore_TextKitO16EncoreFoundation6Encore12MarqueeLabel {{0, 0}, {310, 22}} clips id=Encore.MarqueeLabel
+                        UILabel {{0, 0}, {101.33333333333333, 22}} "Up next • DJ X" 16pt #FFFFFF@1.00
+                      _TtCE14Encore_TextKitO16EncoreFoundation6Encore12MarqueeLabel {{0, 22}, {310, 0}} hidden clips id=Encore.MarqueeLabel
+                        UILabel {{0, 0}, {0, 0}} "" 17pt #FFFFFF@1.00
+                      UIView {{0, 22}, {310, 8}} hidden
+                    UIView {{0, 22}, {127, 27.333333333333332}}
+                      Connect_EntryPointsImpl.ConnectStateView {{-4, 4.0000000000000009}, {131, 15.333333333333334}}
+                        UIView {{0, 0}, {131, 15.333333333333334}}
+                          UIStackView {{0, 0}, {131, 15.333333333333334}}
+                            UIView {{0, 0}, {16, 15.333333333333334}}
+                              UIImageView {{4, 1.6666666666666714}, {12, 12}} img=12x12
+                            _TtCO19LegacyUI_ECMCoreKit5Views12MarqueeLabel {{16, 0}, {115, 15.333333333333334}} clips
+                              LegacyUI_ECMCoreKit.MarqueeLabelFadeMaskView {{0, 0}, {115, 15.333333333333332}} masked
+                                SPTEncoreLabel {{4, 0}, {107, 15.333333333333334}} id=Encore.Label
+                                  UILabel {{0, 0}, {107, 15.333333333333334}} id=Encore.Label-internal "Andrew’s AirPods Pro" 11pt #37F200@1.00
+                _TtGC13Element_UIKit11ElementViewT_P_P__ {{330, 8.6666666666666643}, {48, 48}} hidden
+                  UIButton {{0, 0}, {48, 48}} hidden id=Components.UI.AddToButton a11y="Add to playlist"
+                    _TtGC16Encore_MotionKit25StateMicroInteractionViewO28EncoreConsumerMobile_BaseKit16AddToButtonState_ {{-4, -4}, {56, 56}}
+                      Lottie.LottieAnimationView {{0, 0}, {56, 56}} clips
+                    UIButtonLabel {{0, 0}, {0, 0}} hidden "(null)" 18pt #000000@1.00
+                _TtGC13Element_UIKit11ElementViewT_P_P__ {{334, 8.6666666666666643}, {48, 48}}
+                  UIView {{0, 0}, {48, 48}}
+                    UIView {{0, 0}, {48, 48}}
+                      EncoreConsumerMobile_BaseKit.PlayButtonView {{0, 0}, {48, 48}} id=SPTNowPlayingPlayButton
+                        EncoreConsumerMobile_BaseKit.MixedPlayButtonDecorationView {{0, 0}, {48, 48}}
+                          EncoreConsumerMobile_BaseKit.HoleView {{-6.6666666666666856, -6.6666666666666679}, {61.333333333333336, 61.333333333333336}} hidden
+                          EncoreConsumerMobile_BaseKit.GlowRingView {{-15, -15}, {78, 78}} hidden
+                            UIImageView {{0, 0}, {78, 78}} img=78x78
+                          EncoreConsumerMobile_BaseKit.GreenRingView {{-15, -15}, {78, 78}} hidden
+                        _TtC28EncoreConsumerMobile_BaseKitP33_BBC54DE3D84AB371D20602D20A59917015CondensedButton {{0, 0}, {48, 48}} a11y="Pause"
+                          EncoreConsumerMobile_BaseKit.BrushedMetalView {{0, 0}, {48, 48}} r=24.0 hidden clips
+                          UIImageView {{0, 0}, {48, 48}} r=24.0 clips img=48x48
+                          _TtC19LegacyUI_ECMCoreKitP33_0AD51B0D3CEB360ACF8EFC61B6327ADC11SpinnerView {{12, 12}, {24, 24}} hidden
+                            UIImageView {{0, 0}, {20, 20}} img=20x20
+                          UIButtonLabel {{0, 0}, {0, 0}} hidden "(null)" 18pt #000000@1.00
+                        UIView {{0, 0}, {0, 0}} a=0.00 hidden
+                          UIImageView {{0, 0}, {0, 0}}
+              _TtGC13Element_UIKit11ElementViewT_P_P__ {{0, 61.333333333333329}, {390, 2}}
+                UIView {{0, 0}, {390, 2}} id=Components.UI.ProgressBarUnitNowPlaying
+                  _TtCO17NowPlaying_ECMKit11ProgressBar6Slider {{-2, 0}, {394, 2}} id=SPTNowPlayingSliderV2 a11y="Track position"
+                    _UISlideriOSVisualElement {{0, 0}, {394, 2}}
+                      UIView {{3, 0}, {388, 2}} clips
+                        UIImageView {{0, 0}, {388, 2}} clips img=2x2
+                      UIView {{3, 0}, {0, 2}} clips
+                        UIImageView {{0, 0}, {388, 2}} clips img=2x2
+                      UISliderImageView {{0, 1}, {0, 0}} img=0x0
+                    NowPlaying_ECMKit.SliderBufferingAnimationView {{0, 0}, {394, 2}} hidden
+                      UIView {{0, 0}, {394, 2}} bg=#FFFFFF@1.00 a=0.00
+            UIView {{0, 0}, {390, 47}} a=0.00
+              UIView {{0, 0}, {390, 47}}
+  UIView {{0, 0}, {390, 844}} id=MainWindowAnimationView
+== window UITextEffectsWindow level 10
+UITextEffectsWindow {{0, 0}, {390, 844}}
+  UIInputSetContainerView {{0, 0}, {390, 844}} clips
+    UIInputSetHostView {{0, 844}, {390, 0}}
+    UIEditingOverlayGestureView {{0, 0}, {390, 844}}
+== view controllers
+<ContainerUI_RootUIInternalImpl.RootViewController 0x114245200>, state: disappeared, view: <_TtCE14Encore_CoreKitO16EncoreFoundation6Encore14LayoutOnlyView: 0x11442b780> not in the window
+   | <ClientChrome_ChromeContainerKit.ClientChromeViewController 0x122543ca0>, state: disappeared, view: <_TtCE14Encore_CoreKitO16EncoreFoundation6Encore14LayoutOnlyView: 0x122544090> not in the window
+   |    | <MainUI_TabBarUIImpl.PrimaryContentContainer 0x1152d8c00>, state: disappeared, view: <_TtC19MainUI_TabBarUIImplP33_FD252D04A07ACEB7AD27A83269E8CFAF19TouchForwardingView: 0x119828340> not in the window
+   |    |    | <MainUI_TabBarUIImpl.InnerContainer 0x119828700>, state: disappeared, view: <UIView: 0x122262e20> not in the window
+   |    |    |    | <MainUI_TabBarUIImpl.MainUIContainer 0x11530b600>, state: disappeared, view: <UIView: 0x122544220> not in the window
+   |    |    |    |    | <NavigationUI_TabBarImpl.TabBarContainerImpl 0x114abf400>, state: disappeared, view: <UIView: 0x12253f250> not in the window
+   |    |    |    |    |    | <SPNavigationController 0x11891e200>, state: disappeared, view: <UILayoutContainerView: 0x123a5de60> not in the window
+   |    |    |    |    |    |    | <Navigation_PageAPIIntegrationImpl.MusicAppPageHostingViewController 0x118956600>, state: disappeared, view: <_TtCE14Encore_CoreKitO16EncoreFoundation6Encore14LayoutOnlyView: 0x12313aeb0> not in the window
+   |    |    |    |    |    |    |    | <Tome_PageLoaderViewImpl.SPTMusicClientPageLoaderView 0x11888d600>, state: disappeared, view: <UIView: 0x12319fb00> not in the window
+   |    |    |    |    |    |    |    |    | <YourLibrary_YourLibraryXImpl.YourLibraryViewController 0x114ae8200>, state: disappeared, view: <UIView: 0x1255d7310> not in the window
+   |    | <LimitedExperienceIndicator_MessageBarRuntime.MessageBarViewController 0x122582490>, state: disappeared, view: <LimitedExperienceIndicator_MessageBarRuntime.LimitedExperienceIndicatorBar: 0x12257f8f0> not in the window
+   |    | <SPTBannerViewController 0x122583cb0>, state: disappeared, view: <UIView: 0x122584090> not in the window
+   |    | <NowPlaying_BarPageImpl.CompactNowPlayingViewController 0x1149ba000>, state: disappeared, view: <_TtC22NowPlaying_BarPageImplP33_CCC0D2EEA6D4725EECD8965E8C38C86D20TouchPassthroughView: 0x1222ad750> not in the window
+   |    |    | <Navigation_PageAPIIntegrationImpl.MusicAppPageHostingViewController 0x1152edc00>, state: disappeared, view: <_TtCE14Encore_CoreKitO16EncoreFoundation6Encore14LayoutOnlyView: 0x1144c34a0> not in the window
+   |    |    |    | <NowPlaying_BarImpl.NowPlayingBarContainerViewController 0x1152f0a00>, state: disappeared, view: <UIView: 0x12254c4a0> not in the window
+   |    |    |    |    | <NowPlaying_BarImpl.NowPlayingBarViewController 0x1152fb000>, state: disappeared, view: <UIView: 0x12254c630> not in the window
+   |    |    |    |    |    | <NowPlaying_BarImpl.ContentViewControllerImplementation 0x114b23e00>, state: disappeared, view: <UIView: 0x1142fcef0> not in the window
+   |    |    |    |    |    |    | <NowPlaying_BarImpl.DurationViewController 0x1222bc770>, state: disappeared, view: <UIView: 0x12255c690> not in the window
+   + <NowPlaying_ViewPageImpl.NowPlayingOverlayContainer 0x1149b6200>, state: appeared, view: <UIView: 0x136b31360>, presented with: <_UIFullscreenPresentationController: 0x140d37ff0>
+   |    | <Navigation_PageAPIIntegrationImpl.MusicAppPageHostingViewController 0x114b26c00>, state: appeared, view: <_TtCE14Encore_CoreKitO16EncoreFoundation6Encore14LayoutOnlyView: 0x136b314f0>
+   |    |    | <NowPlaying_ViewImpl.NowPlayingViewContainerViewController 0x115627e00>, state: appeared, view: <UIView: 0x136b31880>
+   |    |    |    | <NowPlaying_ViewImpl.StickyHeaderViewControllerImpl 0x1156ea200>, state: appeared, view: <_TtCE19Encore_StackViewKitO16EncoreFoundation6Encore15PassthroughView: 0x136b38160>
+   |    |    |    | <NowPlaying_ScrollImpl.NPVScrollViewController 0x11551a200>, state: appeared, view: <UIView: 0x136b37d60>
+   |    |    |    |    | <NowPlaying_ScrollImpl.NPVBackgroundViewController 0x1190b8800>, state: appeared, view: <UIView: 0x136b4a200>
+   |    |    |    |    | <NowPlaying_ScrollImpl.NPVTapToScrollViewController 0x136c205f0>, state: appeared, view: <UIView: 0x136b4b680>
+   |    |    |    |    | <NowPlaying_ViewImpl.NowPlayingScrollHeader 0x136c8ad10>, state: appeared, view: <UIView: 0x136c8ab40>
+   |    |    |    |    |    | <NowPlaying_ViewImpl.NowPlayingViewController 0x1190a6800>, state: appeared, view: <UIView: 0x136b31a10>
+   |    |    |    |    |    |    | <NowPlaying_ContentLayerPlatformImpl.ContentLayerViewController 0x114c03000>, state: appeared, view: <UIView: 0x1365f2820>
+   |    |    |    |    |    |    | <UIViewController 0x136c5fdd0>, state: appeared, view: <_TtC19NowPlaying_ViewImplP33_3E5EBAB9299803D7EB47D116DD65DB2A15PassThroughView: 0x136c60180>
+   |    |    |    |    |    |    | <Endless_DJMusicImpl.DJMHeaderElementsUnitViewController 0x12703da00>, state: appeared, view: <UIView: 0x136c427d0>
+   |    |    |    |    |    |    | <Endless_DJMusicImpl.DJMInformationUnitViewController 0x12732fc00>, state: appeared, view: <UIView: 0x136c71e00>
+   |    |    |    |    |    |    | <Endless_DJMusicImpl.DJMDurationElementsUnit 0x115493000>, state: appeared, view: <UIView: 0x136c59b00>
+   |    |    |    |    |    |    | <Endless_DJMusicImpl.DJMHeadUnitViewController 0x136c63e40>, state: appeared, view: <SPTNowPlayingHeadUnitView: 0x136b55ca0>
+   |    |    |    |    |    |    | <Endless_DJMusicImpl.DJMFooterUnitViewController 0x115333600>, state: appeared, view: <Endless_DJMusicImpl.DJMFooterUnitView: 0x123a9c5f0>
+== mod
+stock no
+pureglass.legacyGlass = 1

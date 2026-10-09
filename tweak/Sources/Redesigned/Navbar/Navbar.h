@@ -8,6 +8,12 @@
 // Icons only on the glass bar. Off unless set; applies as soon as the bar lays out again.
 #define PGRKeyNavbarHideLabels @"pureglass.redesign.navbar.hideLabels"
 
+// What the Navbar page of Mod Settings says, whichever tweak's page it is: spoti.pw's own is the page there is
+// (SGRNavbarPage), and it writes under that tweak's prefix, so with it in the app these read its keys and
+// fall back on this tweak's own (PGRKeyNavbar...) while it has none. See NavbarLayout.m.
+BOOL PGRNavbarEnabled(void);
+BOOL PGRNavbarLabelsHidden(void);
+
 extern NSString *const PGRNavbarID;      // NSString, the entry's identity
 extern NSString *const PGRNavbarTitle;   // NSString, the name in the settings list and under the icon
 extern NSString *const PGRNavbarURI;     // NSString, the mod's own tabs only: what a tap opens
@@ -18,6 +24,8 @@ void PGRSetNavbarLayout(NSArray<NSDictionary *> *layout);
 // Spotify's own tabs in Spotify's order, as Navbar.x last saw them on the bar.
 NSArray<NSString *> *PGRNavbarStock(void);
 void PGRSetNavbarStock(NSArray<NSString *> *stock);
+// Hands the same list to the other tweak's Navbar page when it has one (NavbarLayout.m).
+void PGRMirrorNavbarStock(NSArray<NSString *> *stock);
 // What a tab of the mod's own opens: its URI as typed or pasted, share links made spotify: URIs, and
 // the URIs of presets that never opened (spotify:collection:playlists, up to 0.20) moved to the ones
 // that replaced them, so a tab saved back then works without being added again.

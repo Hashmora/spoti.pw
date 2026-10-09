@@ -5,8 +5,10 @@
 // whole of how that is kept:
 //
 //   1. A view of the other tweak that this one has a class of its own for is concealed when it comes into a
-//      window (the hook in PGRForeign.x). Not on the player screen, where this tweak draws nothing and the
-//      other one's extras (its lyrics button, its shadow plates) are all there is.
+//      window (the hook in PGRForeign.x). Not on the player screen, where this tweak draws only the glass
+//      circles behind the header's buttons (NowPlaying/PlayerHeaderGlass.x, which evicts the other one's grey
+//      pane under rule 2) and the AI DJ's own controls (NowPlaying/DJPlayer.x), and the other one's extras (its
+//      lyrics button, its shadow plates) are all there is.
 //   2. A UIVisualEffectView laid over one of this tweak's glass panes is concealed (PGREvictTwinPanes, and the
 //      hook for one that arrives after the pane).
 //   3. This tweak's header info cannot be concealed by the other tweak's own sweep. Both tweaks add their
@@ -32,6 +34,9 @@ void PGRConcealForeign(UIView *view);
 // cover it: the other tweak's own pane over the same box. Safe to call on every layout pass; `pane` has its
 // final frame by then.
 void PGREvictTwinPanes(UIView *pane);
+
+// Whether the other tweak is in this app at all.
+BOOL PGRForeignTweakPresent(void);
 
 // Whether the code that is calling (`returnAddress` is __builtin_return_address(0) of the callee) belongs to
 // the other tweak's image. NO when there is no such tweak.

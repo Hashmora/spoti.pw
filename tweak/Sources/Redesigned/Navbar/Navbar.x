@@ -16,6 +16,7 @@
 //   at y 12.5 over an SPTEncoreLabel at y 35.
 #import "Core/PGCore.h"
 #import "Navbar.h"
+#import "Redesigned/Kit/PGRForeign.h"
 #import "Headers/SPTEncoreIconView.h"
 #import "Shared/Navigation/Links.h"
 #import <objc/message.h>
@@ -173,7 +174,8 @@ void PGRComposeTabBar(UIView *tabBar) {
 
     NSMutableDictionary<NSString *, UIView *> *stockViews = [NSMutableDictionary dictionary];
     for (UIView *item in stack.arrangedSubviews) {
-        if ([item isKindOfClass:PGRTabItemView.class]) continue;
+        // Not the other tweak's own items either (its tabs of the mod's own): concealed, and not Spotify's.
+        if ([item isKindOfClass:PGRTabItemView.class] || PGRIsForeignOverlay(item)) continue;
         NSString *ident = stockID(item);
         if (stockViews[ident]) continue;
         stockViews[ident] = item;
@@ -182,13 +184,14 @@ void PGRComposeTabBar(UIView *tabBar) {
         if (![pg_stockOrder containsObject:ident]) [pg_stockOrder addObject:ident];
     }
     if (pg_stockOrder && ![pg_stockOrder isEqualToArray:PGRNavbarStock()]) PGRSetNavbarStock(pg_stockOrder);
+    PGRMirrorNavbarStock(pg_stockOrder);
 
     NSMutableDictionary<NSString *, PGRTabItemView *> *custom = customItems(stack);
     NSMutableArray<UIView *> *wanted = [NSMutableArray array];
     NSMutableSet<NSString *> *placed = [NSMutableSet set];
     NSMutableSet<NSString *> *keep = [NSMutableSet set];
 
-    if (PGEnabled(PGRKeyNavbar)) {
+    if (PGRNavbarEnabled()) {
         for (NSDictionary *entry in PGRNavbarLayout()) {
             NSString *ident = entry[PGRNavbarID];
             if (![ident isKindOfClass:NSString.class] || [placed containsObject:ident]) continue;
@@ -316,9 +319,24 @@ void PGRRefreshTabBar(void) {
     [pg_navbarRoot setNeedsLayout];
 }
 
+// The Navbar page of the other tweak writes its keys and lays out its own bar, which is out of the row: this
+// one lays out again when what the page says has changed, instead of waiting for a touch.
+static NSString *navbarSignature(void) {
+    return [NSString stringWithFormat:@"%d|%d|%@", PGRNavbarEnabled(), PGRNavbarLabelsHidden(), PGRNavbarLayout()];
+}
+
 %ctor {
     if (!PGRedesignedUI()) return;
     %init;
+    static NSString *seen;
+    [NSNotificationCenter.defaultCenter addObserverForName:NSUserDefaultsDidChangeNotification object:nil
+                                                     queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *note) {
+        if (!PGRForeignTweakPresent()) return;
+        NSString *now = navbarSignature();
+        if ([now isEqualToString:seen]) return;
+        seen = now;
+        PGRRefreshTabBar();
+    }];
     PGRequireClasses(@[
         @"SPTEncoreIcon",
         @"SPTEncoreIconView",

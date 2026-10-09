@@ -27,6 +27,10 @@ static const char *foreignImage(void) {
     return path;
 }
 
+BOOL PGRForeignTweakPresent(void) {
+    return foreignImage() != NULL;
+}
+
 BOOL PGRCalledFromForeign(void *returnAddress) {
     const char *foreign = foreignImage();
     if (!foreign || !returnAddress) return NO;

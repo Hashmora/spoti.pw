@@ -57,6 +57,17 @@ static BOOL isStickyHeaderPaint(UIView *view) {
     return NO;
 }
 
+// The paint of an artist's navigation bar and of the HeaderForegroundView around it, the colour of the page
+// that Spotify fills the pinned header with as it scrolls. The bar's own pass clears the bar; this is the rest.
+static BOOL isArtistBarPaint(UIView *view) {
+    for (UIView *v = view; v; v = v.superview) {
+        NSString *name = NSStringFromClass(v.class);
+        if ([name containsString:@"HeaderForegroundView"] || [name hasSuffix:@"HeaderNavigationBar"]) return YES;
+        if (v == pgr_artistRoot) return NO;
+    }
+    return NO;
+}
+
 %hook CALayer
 - (void)setBackgroundColor:(CGColorRef)color {
     if (color && CGColorGetAlpha(color) > 0.5) {
@@ -87,6 +98,8 @@ static BOOL isStickyHeaderPaint(UIView *view) {
             } else if (isStickyHeaderPaint(view)) {
                 color = NULL;
             } else if (PGIsInside(view, pgr_lyricsPageRoot)) {
+                color = NULL;
+            } else if (PGIsVisibleColor(color) && PGIsInside(view, pgr_artistRoot) && isArtistBarPaint(view)) {
                 color = NULL;
             } else if (PGIsBaseSurface(color) && (PGIsInside(view, pgr_playlistRoot) || PGIsInside(view, pgr_albumRoot) || PGIsInside(view, pgr_artistRoot))) {
                 color = NULL;

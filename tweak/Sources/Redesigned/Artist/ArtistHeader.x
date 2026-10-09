@@ -39,7 +39,7 @@ static const CGFloat kMinCover = 80, kMinHero = 120;
 static const CGFloat kBar = 100, kFade = 150;
 
 static char kInfoKey, kHeroKey, kHeroHeightKey, kContainerHeightKey, kRowWatchedKey;
-static char kTitleKey, kMetaKey, kShuffleKey, kPlayKey, kFollowKey, kArtworkKey, kBarKey, kMoreKey, kMoreButtonKey;
+static char kScrimKey, kScrimAtKey, kTitleKey, kMetaKey, kShuffleKey, kPlayKey, kFollowKey, kArtworkKey, kBarKey, kMoreKey, kMoreButtonKey;
 
 #pragma mark - Spotify's views
 
@@ -242,6 +242,24 @@ static UIView *keepBar(UIView *header) {
     return foreground;
 }
 
+// The colour Spotify puts under the header as it scrolls, which a playlist's header has none of (Playlist/
+// PlaylistHeader.x's applyScrims): the 124pt LiquidGlass.gradientContainer tinted for the page, the
+// gradients of the header's own views, and the paint of the bar's parent, HeaderForegroundView, which the
+// bar's own pass (Playlist/PlaylistBar.x) leaves. Blanked and not hidden, as the rest of this header is. The
+// gradients are looked for at most four times a second: this pass runs on every step of a scroll.
+static void blankScrims(UIView *container, UIView *header, UIView *foreground) {
+    blank(PGRFindByIdentifier(container, @"LiquidGlass.gradientContainer", &kScrimKey));
+    if (foreground && PGIsVisibleColor(foreground.layer.backgroundColor)) foreground.backgroundColor = UIColor.clearColor;
+
+    CFTimeInterval now = CACurrentMediaTime();
+    if (now - [objc_getAssociatedObject(header, &kScrimAtKey) doubleValue] < 0.25) return;
+    objc_setAssociatedObject(header, &kScrimAtKey, @(now), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    PGForEachView(header, ^(UIView *v) {
+        if (v.layer.mask || ![NSStringFromClass(v.class) containsString:@"GradientView"]) return;
+        v.layer.mask = [CALayer layer];
+    });
+}
+
 static void applyHeader(UIView *header) {
     UIView *container = containerOf(header);
     UIView *artwork = PGRFindByIdentifier(header, @"Components.Header.UI.ArtworkImage", &kArtworkKey);
@@ -251,6 +269,7 @@ static void applyHeader(UIView *header) {
     for (UIView *sub in header.subviews) {
         if (sub != bar) blank(sub);
     }
+    blankScrims(container, header, bar);
 
     PGRHeaderInfo *info = objc_getAssociatedObject(container, &kInfoKey);
     if (!info) {
