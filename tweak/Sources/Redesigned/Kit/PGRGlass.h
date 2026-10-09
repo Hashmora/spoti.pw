@@ -42,6 +42,9 @@ UIView *PGRGlassSheetChrome(UIView *content);
 // The body PGRGlassSheetChrome puts on a sheet's pane (heavier blur, dark tint, hairline rim), for a sheet
 // the mod presents itself and that has no "sheet-view" to find (the Genius meanings sheet).
 void PGRThickenSheetGlass(UIView *glass, CGFloat cornerRadius);
+// A black layer over the body PGRThickenSheetGlass gives a pane, for menus whose white text the light body
+// leaves too little contrast to read. Call it after PGRThickenSheetGlass.
+void PGRDimSheetGlass(UIView *glass, CGFloat alpha);
 
 // Whether `view` is chrome of the sheet rooted at `root` (pgr_sheetChromeRoot) rather than a row or card
 // inside the sheet's own list.

@@ -12,6 +12,8 @@
 
 // The corners UIKit cuts a menu with.
 static const CGFloat kMenuRadius = 14;
+// The black laid over the glass: the light body alone leaves white labels too little contrast.
+static const CGFloat kMenuDim = 0.42;
 static char kMenuGlassKey;
 
 // The clipping view holding UIKit's blur: the menu's own surface.
@@ -36,6 +38,7 @@ static void glassMenu(UIView *list) {
     if (!CGRectEqualToRect(glass.frame, platter.bounds)) glass.frame = platter.bounds;
     PGShapeGlass(glass, kMenuRadius, NO);
     PGRThickenSheetGlass(glass, kMenuRadius);
+    PGRDimSheetGlass(glass, kMenuDim);
 
     for (UIView *sub in platter.subviews) {
         if (object_getClass(sub) == UIVisualEffectView.class && !PGIsOwned(sub) && !sub.hidden) sub.hidden = YES;

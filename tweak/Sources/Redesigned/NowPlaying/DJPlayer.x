@@ -34,7 +34,10 @@
 #import "Redesigned/Kit/PGRKit.h"
 #import "Redesigned/NowPlaying/NowPlayingClasses.h"
 #import "Shared/Navigation/Links.h"
+#import <dlfcn.h>
 
+// The lyrics' room: this far under the safe area's top, and this far over the bottom stack.
+static const CGFloat kLyricsTop = 56, kLyricsBottom = 8;
 static const CGFloat kSkipGlyphSize = 32, kPlayGlyphSize = 44, kFooterGlyphSize = 20;
 // Where the four footer glyphs sit, as parts of the footer's width: Lyrics, Connect, Queue, the DJ button.
 static const CGFloat kSlots[4] = {0.2, 0.4, 0.6, 0.8};
@@ -52,6 +55,7 @@ static NSString *const kPlayerScreenIdentifier = @"SPTNowPlayingViewContainerVie
 
 static char kPrevKey, kNextKey, kPlayKey, kGlyphKey;
 static char kShareKey, kConnectKey, kDJKey, kLyricsKey, kQueueKey, kReachKey, kLyricsFindKey;
+static char kLyricsStageKey, kStackFindKey, kCoversFindKey;
 
 static __weak UIView *pg_playView, *pg_controlsHost, *pg_footerHost;
 static __weak UIButton *pg_playButton;
@@ -224,16 +228,105 @@ static UIView *lyricsExpandButton(UIView *from) {
     return PGRFindByIdentifier(root ?: from.window, @"lyrics-expand-button", &kLyricsFindKey);
 }
 
+// The lyrics are the other tweak's (spoti.pw's SGRKaraokeView, the Apple Music style lines the ordinary player
+// shows), taken from its image at run time: this tweak has no lyrics of its own, and the AI DJ's player is the
+// one screen they never reached, so its Lyrics glyph opened Spotify's own full screen page. With the other
+// tweak not in the app, that is still what it does.
+static Class karaokeClass(void) {
+    return NSClassFromString(@"SGRKaraokeView");
+}
+
+// Whether the track has lines for that view to show, asked of the other tweak's own functions. YES when they
+// cannot be found, since the view then decides for itself.
+static BOOL karaokeHasLines(void) {
+    static NSString *(*playing)(void);
+    static id (*lines)(NSString *);
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        playing = (NSString *(*)(void))dlsym(RTLD_DEFAULT, "SGKaraokePlayingTrack");
+        lines = (id (*)(NSString *))dlsym(RTLD_DEFAULT, "SGKaraokeLinesForTrack");
+    });
+    if (!playing || !lines) return YES;
+    NSString *track = playing();
+    return track && lines(track) != nil;
+}
+
+static UIView *playerRoot(UIView *from) {
+    for (UIView *v = from; v; v = v.superview) {
+        if ([v.accessibilityIdentifier isEqualToString:@"SPTNowPlayingView"]) return v;
+    }
+    return nil;
+}
+
+static BOOL pg_lyricsUp;
+
+// From under the header to over the title unit at the top of the bottom stack, so the title, the controls and
+// the footer stay Spotify's and stay where they are; the cover list goes while the lines are up.
+static void placeLyricsStage(UIView *stage, UIView *root) {
+    UIView *stack = PGRFindByIdentifier(root, @"npv.bottomStackView", &kStackFindKey);
+    CGFloat top = root.safeAreaInsets.top + kLyricsTop;
+    CGFloat bottom = stack ? CGRectGetMinY([stack.superview convertRect:stack.frame toView:root]) : root.bounds.size.height * 0.62;
+    CGRect frame = CGRectMake(0, top, root.bounds.size.width, MAX(0, bottom - top - kLyricsBottom));
+    if (!CGRectEqualToRect(stage.frame, frame)) stage.frame = frame;
+    if (root.subviews.lastObject != stage) [root bringSubviewToFront:stage];
+    UIView *covers = PGRFindByIdentifier(root, @"nowplaying-contentlayer-collectionview", &kCoversFindKey);
+    if (covers && covers.alpha != 0) covers.alpha = 0;
+}
+
+static void refreshLyricsStage(UIView *footer) {
+    if (!pg_lyricsUp) return;
+    UIView *root = playerRoot(footer);
+    UIView *stage = root ? objc_getAssociatedObject(root, &kLyricsStageKey) : nil;
+    if (stage) placeLyricsStage(stage, root);
+}
+
 static void refreshLyrics(void) {
     PGRGlyphButton *lyrics = pg_lyricsButton;
     UIView *host = pg_footerHost;
     if (!lyrics || !host) return;
-    BOOL has = lyricsExpandButton(host) != nil;
+    BOOL has = lyricsExpandButton(host) != nil || (karaokeClass() && karaokeHasLines());
     if (lyrics.enabled != has) lyrics.enabled = has;
+}
+
+static void setLyricsUp(BOOL up, UIView *footer, UIView *root) {
+    UIView *stage = objc_getAssociatedObject(root, &kLyricsStageKey);
+    if (!stage) {
+        stage = [UIView new];
+        UIView *lines = [[karaokeClass() alloc] initWithFrame:CGRectZero];
+        lines.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+        [stage addSubview:lines];
+        objc_setAssociatedObject(root, &kLyricsStageKey, stage, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    pg_lyricsUp = up;
+    PGRGlyphButton *button = pg_lyricsButton;
+    button.glyph.tintColor = up ? PGRPrimary() : PGRSecondary();
+    UIView *covers = PGRFindByIdentifier(root, @"nowplaying-contentlayer-collectionview", &kCoversFindKey);
+    if (up) {
+        if (stage.superview != root) [root addSubview:stage];
+        placeLyricsStage(stage, root);
+        UIView *lines = stage.subviews.firstObject;
+        lines.frame = stage.bounds;
+        if ([lines respondsToSelector:@selector(syncSiblings)]) [lines performSelector:@selector(syncSiblings)];
+        stage.alpha = 0;
+        [UIView animateWithDuration:0.25 animations:^{ stage.alpha = 1; }];
+    } else {
+        [UIView animateWithDuration:0.18 animations:^{
+            stage.alpha = 0;
+            covers.alpha = 1;
+        } completion:^(BOOL finished) {
+            if (!pg_lyricsUp && finished) [stage removeFromSuperview];
+        }];
+    }
+    PGLog(@"AI DJ player: lyrics %@ in the player (the other tweak's view)", up ? @"up" : @"down");
 }
 
 static void openLyrics(void) {
     UIView *host = pg_footerHost;
+    UIView *root = host ? playerRoot(host) : nil;
+    if (root && karaokeClass() && (pg_lyricsUp || karaokeHasLines())) {
+        setLyricsUp(!pg_lyricsUp, host, root);
+        return;
+    }
     UIView *button = host ? lyricsExpandButton(host) : nil;
     if (button) PGRActivate(button);
 }
@@ -328,6 +421,7 @@ static void styleFooter(UIViewController *unit) {
     lyrics.center = CGPointMake(slot(0), middleY);
     pg_lyricsButton = lyrics;
     refreshLyrics();
+    refreshLyricsStage(host);
 
     // Connect: the glyph alone, its device name gone, at the second place.
     UIView *connect = PGRFindByIdentifier(host, @"Components.ConnectButtonOutputSwitcher", &kConnectKey);

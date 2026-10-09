@@ -82,6 +82,25 @@ static BOOL handles(UIView *bar) {
     return headerVC ? !isLikedSongs(headerVC) : isDressedAlbumOrArtist(bar);
 }
 
+// The artist's bar sits in the header's HeaderForegroundView, and what Spotify fills the pinned header with as
+// the page scrolls is on that view and on full-width views beside the name, not only on the bar's own
+// gradient: a solid band of the page's colour behind the capsule. Cleared here, on every pass like the rest.
+static void clearArtistBand(UIView *bar, UIView *title) {
+    UIView *foreground = bar.superview;
+    if (!foreground || ![NSStringFromClass(foreground.class) containsString:@"HeaderForegroundView"]) return;
+    if (PGIsVisibleColor(foreground.layer.backgroundColor)) foreground.backgroundColor = UIColor.clearColor;
+    for (UIView *host in @[foreground, bar]) {
+        for (UIView *sub in host.subviews) {
+            if (sub == bar || sub == title) continue;
+            if ([NSStringFromClass(sub.class) containsString:@"GradientView"]) {
+                hideScrim(sub);
+            } else if (sub.bounds.size.width >= bar.bounds.size.width * 0.9 && PGIsVisibleColor(sub.layer.backgroundColor)) {
+                sub.backgroundColor = UIColor.clearColor;
+            }
+        }
+    }
+}
+
 static void apply(UIView *bar) {
     if (!handles(bar)) return;
 
@@ -92,6 +111,7 @@ static void apply(UIView *bar) {
 
     UILabel *text = nil;
     UIView *title = titleIn(bar, &text);
+    if (PGRArtistPageOf(bar)) clearArtistBand(bar, title);
     if (!title || title.bounds.size.width < 1) return;
     // Spotify centres the name in the 64pt below the bar's top, 2pt under the pinned buttons' middle. The
     // label is moved by a transform, which Auto Layout never writes -- but the bar's layout may set the label's

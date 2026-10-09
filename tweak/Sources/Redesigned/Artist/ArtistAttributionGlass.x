@@ -11,7 +11,9 @@ static NSString *const kSheetController = @"_TtC32Artist_ArtistAttributionPageIm
 
 static void chrome(UIViewController *controller) {
     UIView *root = controller.viewIfLoaded;
-    if (root) PGRGlassSheetChrome(root);
+    if (!root) return;
+    UIView *glass = PGRGlassSheetChrome(root);
+    if (glass) PGRDimSheetGlass(glass, 0.42);
 }
 
 %hook _TtC32Artist_ArtistAttributionPageImpl42ArtistAttributionBottomSheetViewController
