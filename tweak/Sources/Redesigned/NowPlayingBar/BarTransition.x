@@ -60,6 +60,7 @@ static UIVisualEffectView *copyPane(UIView *pane) {
     UIVisualEffect *effect = platter ? PGGlassEffect() : ((UIVisualEffectView *)pane).effect;
     UIVisualEffectView *glass = [[UIVisualEffectView alloc] initWithEffect:effect];
     glass.userInteractionEnabled = NO;
+    PGMarkOwned(glass);
     // The effect does not carry the appearance the pane was drawn in, dark for both bars, and the stand-in
     // would give the copy the system's.
     glass.overrideUserInterfaceStyle = pane.traitCollection.userInterfaceStyle;

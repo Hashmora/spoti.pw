@@ -127,6 +127,7 @@ static PGRSearchCardParts *partsIn(UIView *box, UIView *content) {
         glass.userInteractionEnabled = NO;
         glass.accessibilityElementsHidden = YES;
         glass.layer.zPosition = -1;
+        PGMarkOwned(glass);
         parts.glass = glass;
         parts.color = nil;
     }

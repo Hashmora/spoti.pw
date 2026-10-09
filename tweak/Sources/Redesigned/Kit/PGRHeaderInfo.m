@@ -5,6 +5,7 @@
 #import "PGRActionRow.h"
 #import "PGRRestyle.h"
 #import "PGRTokens.h"
+#import "PGRForeign.h"
 
 const CGFloat PGRHeaderInfoBottom = 14;
 const CGFloat PGRHeaderInfoTitleRise = 56;
@@ -37,6 +38,11 @@ static BOOL setText(UILabel *label, NSString *text) {
     PGRPlayCapsule *_play;
     __weak UIView *_creatorLink;
 }
+
+// spoti.pw's header puts its own info into the same block of Spotify's and conceals every other subview of
+// it, this one among them, as this tweak's does to its: with both installed neither info was drawn (hidden
+// and masked in trees/continuous/3.txt and 4.txt). Its sweep cannot reach this view.
+PGR_STEADY_VIEW
 
 - (instancetype)initWithFrame:(CGRect)frame {
     if (!(self = [super initWithFrame:frame])) return nil;

@@ -15,7 +15,9 @@ It is a tweak of its own and can be injected next to another one in the same IPA
 `pureglass.dylib`, every class, symbol and preference key starts with `PG`/`pureglass` and none is shared.
 With Glass UI on, this tweak is the only one that keeps a tab bar: if spoti.pw's Redesigned UI is on
 too, its glass tab bar is taken out of the row (`dropForeignBar` in `TabBar.x`). Its other redesigned
-screens are still restyled by both.
+screens are no longer drawn twice either: with Glass UI on, spoti.pw's views that this tweak has a class of its
+own for (`SGRHeaderInfo`, `SGRMirrorButton`, `SGRArtworkField`...) and its glass panes laid over this tweak's
+are concealed (`Redesigned/Kit/PGRForeign.x`), except on the player screen.
 
 ## Build
 

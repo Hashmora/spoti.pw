@@ -7,6 +7,7 @@
 __weak UIView *pgr_nowPlayingRoot = nil;
 __weak UIView *pgr_nowPlayingCard = nil;
 __weak UIView *pgr_lyricsPageRoot = nil;
+__weak UIView *pgr_stickyHeaderRoot = nil;
 __weak UIView *pgr_playlistRoot = nil;
 __weak UIView *pgr_albumRoot = nil;
 __weak UIView *pgr_artistRoot = nil;
@@ -44,6 +45,18 @@ static BOOL isLibraryHeader(UIView *view) {
     return [NSStringFromClass(view.class) hasSuffix:@"YourLibraryHeaderView"];
 }
 
+// Inside the player's pinned header, but not inside the glass this tweak put in it: the glass's own tint and
+// rim are painted views too.
+static BOOL isStickyHeaderPaint(UIView *view) {
+    UIView *root = pgr_stickyHeaderRoot;
+    if (!root) return NO;
+    for (UIView *v = view; v; v = v.superview) {
+        if ([v isKindOfClass:UIVisualEffectView.class] || [v isKindOfClass:PGLegacyGlassView.class]) return NO;
+        if (v == root) return YES;
+    }
+    return NO;
+}
+
 %hook CALayer
 - (void)setBackgroundColor:(CGColorRef)color {
     if (color && CGColorGetAlpha(color) > 0.5) {
@@ -61,7 +74,7 @@ static BOOL isLibraryHeader(UIView *view) {
             if (isNeutralTint(color)) color = NULL;
         }
     }
-    if (color && (pgr_nowPlayingRoot || pgr_lyricsPageRoot || pgr_playlistRoot || pgr_albumRoot || pgr_artistRoot || pgr_sheetChromeRoot)) {
+    if (color && (pgr_nowPlayingRoot || pgr_stickyHeaderRoot || pgr_lyricsPageRoot || pgr_playlistRoot || pgr_albumRoot || pgr_artistRoot || pgr_sheetChromeRoot)) {
         UIView *view = (UIView *)self.delegate;
         if ([view isKindOfClass:UIView.class] && view.layer == self && !PGKeepsColor(view)) {
             if (PGIsInside(view, pgr_nowPlayingRoot)) {
@@ -70,6 +83,8 @@ static BOOL isLibraryHeader(UIView *view) {
                     UIView *bar = pgr_nowPlayingRoot;
                     dispatch_async(dispatch_get_main_queue(), ^{ [bar.superview setNeedsLayout]; });
                 }
+                color = NULL;
+            } else if (isStickyHeaderPaint(view)) {
                 color = NULL;
             } else if (PGIsInside(view, pgr_lyricsPageRoot)) {
                 color = NULL;

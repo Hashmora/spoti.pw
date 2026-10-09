@@ -44,6 +44,16 @@ BOOL PGHasClass(UIView *root, NSString *marker) {
     return found;
 }
 
+static char kOwnedKey;
+
+void PGMarkOwned(UIView *view) {
+    objc_setAssociatedObject(view, &kOwnedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+}
+
+BOOL PGIsOwned(UIView *view) {
+    return objc_getAssociatedObject(view, &kOwnedKey) != nil;
+}
+
 BOOL PGKeepsColor(UIView *view) {
     return [view isKindOfClass:UIImageView.class] || [view isKindOfClass:UILabel.class] || view.bounds.size.height <= 4;
 }

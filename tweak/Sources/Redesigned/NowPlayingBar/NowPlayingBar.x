@@ -13,6 +13,7 @@
 //   progress line 370x2 at the bottom. The glass pane goes on the container's view.
 #import "Core/PGCore.h"
 #import "Redesigned/Kit/PGRGlass.h"
+#import "Redesigned/Kit/PGRForeign.h"
 #import "Redesigned/Kit/PGRRepaint.h"
 #import "NowPlayingBar.h"
 
@@ -122,6 +123,9 @@ static void styleNowPlayingBar(UIViewController *container) {
     pg_cardGlass = glass;
     glass.frame = frame;
     PGShapeGlass(glass, radius, NO);
+    // spoti.pw's own glass card over the same bar: sized from the bar's content, 80pt tall, 16pt over the top
+    // and 7 under the bottom of this one, which drew as a second, taller bar behind the first.
+    PGREvictTwinPanes(glass);
 
     PGRGlassFilm(container.view, &kTintKey, glass, radius);
 

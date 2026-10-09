@@ -1,4 +1,5 @@
 #import "PGBackdrop.h"
+#import "PGViewTree.h"
 
 // Small enough that no shape of the cover survives the scaling back up, large enough to keep the
 // colours where they were in it.
@@ -40,6 +41,7 @@ UIView *PGBackdropMake(CGRect frame, CGFloat bottomAlpha) {
     UIVisualEffectView *blur = [[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemUltraThinMaterialDark]];
     blur.frame = backdrop.bounds;
     blur.autoresizingMask = fill;
+    PGMarkOwned(blur);
     [backdrop addSubview:blur];
 
     PGScrimView *scrim = [[PGScrimView alloc] initWithFrame:backdrop.bounds];

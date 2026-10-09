@@ -1,5 +1,6 @@
 #import "Core/PGCore.h"
 #import "PGRGlass.h"
+#import "PGRForeign.h"
 #import "PGRTokens.h"
 #import "PGRRestyle.h"
 #import "PGRRepaint.h"
@@ -35,6 +36,7 @@ static UIView *newShape(PGRGlassMode mode) {
     }
     shape.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
     shape.userInteractionEnabled = NO;
+    PGMarkOwned(shape);
     return shape;
 }
 
@@ -108,6 +110,8 @@ static UIView *glassInside(UIView *control, const void *key, CGSize size, BOOL c
     keepFilm(shape, prominent, mode);
     CGPoint middle = CGPointMake(CGRectGetMidX(control.bounds), CGRectGetMidY(control.bounds));
     if (!CGPointEqualToPoint(shape.center, middle)) shape.center = middle;
+    // The other tweak's own pane over the same box (a search field, a sort button) is taken out for good.
+    PGREvictTwinPanes(shape);
     return shape;
 }
 

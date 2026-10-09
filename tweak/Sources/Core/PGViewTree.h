@@ -13,6 +13,11 @@ UIStackView *PGRowIn(UIView *host);
 // Whether any view under `root` has `marker` in its class name.
 BOOL PGHasClass(UIView *root, NSString *marker);
 
+// A view this tweak made itself, which PGREvictTwinPanes (Redesigned/Kit/PGRForeign.h) must not take for
+// another tweak's. Set where a UIVisualEffectView is made; nothing else reads it.
+void PGMarkOwned(UIView *view);
+BOOL PGIsOwned(UIView *view);
+
 // Artwork, glyphs, text and thin lines (progress bar) keep their colour, everything else goes clear.
 BOOL PGKeepsColor(UIView *view);
 void PGStripBackgrounds(UIView *view);

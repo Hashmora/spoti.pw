@@ -23,6 +23,7 @@ static UIView *newPane(void) {
         glass = [[UIVisualEffectView alloc] initWithEffect:PGGlassEffect()];
     }
     glass.userInteractionEnabled = NO;
+    PGMarkOwned(glass);
     // A pane goes in at index 0, but a host that rebuilds its content puts that in at index 0 too
     // and the pane would end up over it. Depth keeps a pane behind whatever the host draws.
     glass.layer.zPosition = -1;

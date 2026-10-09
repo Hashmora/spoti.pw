@@ -5,6 +5,10 @@
 extern __weak UIView *pgr_nowPlayingRoot;   // Redesigned/NowPlayingBar/NowPlayingBar.x, the bar
 extern __weak UIView *pgr_nowPlayingCard;   // the bar's painted card, learnt from the album-colour paint
 extern __weak UIView *pgr_lyricsPageRoot;   // Redesigned/Lyrics/LyricsPage.x
+// Redesigned/NowPlaying/StickyHeader.x, the player's pinned header (now-playing-sticky-header). Spotify paints
+// it with the album's colour and a 60% black over it, opaque, on every track; everything it paints inside
+// goes clear here so the glass behind the header shows.
+extern __weak UIView *pgr_stickyHeaderRoot;
 // Redesigned/Playlist/PlaylistField.x, the playlist page. Only the base surface Spotify paints the page,
 // its list and its rows with goes clear here: the artwork field is underneath, and the greys of a
 // placeholder or a badge are what still has to read against it.
