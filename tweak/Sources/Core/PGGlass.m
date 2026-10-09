@@ -1,4 +1,5 @@
 #import "PGGlass.h"
+#import "PGViewTree.h"
 #import "PGRuntime.h"
 
 // +effectWithStyle: is the only initialiser UIGlassEffect has; a bare -init leaves the material
