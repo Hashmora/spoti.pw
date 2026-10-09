@@ -20,6 +20,7 @@
 #import "Headers/SPTEncoreIconView.h"
 #import "Shared/Navigation/Links.h"
 #import <objc/message.h>
+#import <stdatomic.h>
 
 static const CGFloat kIconSize = 24;
 static const CGFloat kIconTop = 12.5;
@@ -328,14 +329,22 @@ static NSString *navbarSignature(void) {
 %ctor {
     if (!PGRedesignedUI()) return;
     %init;
+    // queue:nil, not mainQueue: with mainQueue the thread that writes the defaults blocks until main has run the
+    // block, and main may itself be waiting on that thread (performSelector:onThread:waitUntilDone:), which
+    // deadlocks the launch. The block only schedules the work and returns; main does it, at most once per burst.
     static NSString *seen;
+    static _Atomic BOOL scheduled;
     [NSNotificationCenter.defaultCenter addObserverForName:NSUserDefaultsDidChangeNotification object:nil
-                                                     queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *note) {
+                                                     queue:nil usingBlock:^(NSNotification *note) {
         if (!PGRForeignTweakPresent()) return;
-        NSString *now = navbarSignature();
-        if ([now isEqualToString:seen]) return;
-        seen = now;
-        PGRRefreshTabBar();
+        if (atomic_exchange(&scheduled, YES)) return;
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            atomic_store(&scheduled, NO);
+            NSString *now = navbarSignature();
+            if ([now isEqualToString:seen]) return;
+            seen = now;
+            PGRRefreshTabBar();
+        });
     }];
     PGRequireClasses(@[
         @"SPTEncoreIcon",
