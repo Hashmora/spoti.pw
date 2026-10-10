@@ -105,16 +105,33 @@ static void glassInside(UIViewController *unit, NSArray<NSArray<NSString *> *> *
     }
 }
 
+static void glassHeader(UIViewController *unit) {
+    static const void *keys[] = {&kCloseKey, &kMoreKey};
+    glassInside(unit, @[@[@"now-playing-minimize-button", @"mobile-nowplaying-close-button"], @[@"Context menu"]], keys);
+}
+
 %hook _TtC20NowPlaying_ModesImpl18HeaderElementsUnit
 - (void)viewDidLayoutSubviews {
     %orig;
-    static const void *keys[] = {&kCloseKey, &kMoreKey};
-    glassInside((UIViewController *)self, @[@[@"now-playing-minimize-button", @"mobile-nowplaying-close-button"], @[@"Context menu"]], keys);
+    glassHeader((UIViewController *)self);
 }
+%end
+
+// The AI DJ's player has a header unit of its own with the same two buttons, which the circles never reached
+// (trees/continuous/3.txt).
+%group SGRDJHeaderHooks
+%hook SGRDJHeaderUnit
+- (void)viewDidLayoutSubviews {
+    %orig;
+    glassHeader((UIViewController *)self);
+}
+%end
 %end
 
 %ctor {
     if (!SGRedesignedUI()) return;
     %init;
+    Class djHeader = SGRDJClass(@"DJMHeaderElementsUnitViewController");
+    if (djHeader) { %init(SGRDJHeaderHooks, SGRDJHeaderUnit = djHeader); }
     SGRequireClasses(@[@"_TtC20NowPlaying_ModesImpl18HeaderElementsUnit"]);
 }

@@ -713,10 +713,9 @@ static void replace(void) {
 }
 %end
 
-%hook _TtC20NowPlaying_ModesImpl23InformationElementsUnit
-- (void)viewDidLayoutSubviews {
-    %orig;
-    UIViewController *unit = (UIViewController *)self;
+// The ordinary player's units and the AI DJ's (DJMInformationUnitViewController, DJMDurationElementsUnit, which
+// hold the same title row and progress bar) are measured the same way, so the DJ's player has these lyrics too.
+static void informationUnitLaidOut(UIViewController *unit) {
     sg_info = unit;
     UIView *host = unit.viewIfLoaded;
     // The title and the artist are two labels of one arranged element view, which is what moves.
@@ -732,14 +731,42 @@ static void replace(void) {
     }
     replace();
 }
+
+static void durationUnitLaidOut(UIViewController *unit) {
+    sg_duration = unit;
+    replace();
+}
+
+%hook _TtC20NowPlaying_ModesImpl23InformationElementsUnit
+- (void)viewDidLayoutSubviews {
+    %orig;
+    informationUnitLaidOut((UIViewController *)self);
+}
 %end
 
 %hook _TtC20NowPlaying_ModesImpl19DurationElementUnit
 - (void)viewDidLayoutSubviews {
     %orig;
-    sg_duration = (UIViewController *)self;
-    replace();
+    durationUnitLaidOut((UIViewController *)self);
 }
+%end
+
+%group SGRDJInformationHooks
+%hook SGRDJInformationUnit
+- (void)viewDidLayoutSubviews {
+    %orig;
+    informationUnitLaidOut((UIViewController *)self);
+}
+%end
+%end
+
+%group SGRDJDurationHooks
+%hook SGRDJDurationUnit
+- (void)viewDidLayoutSubviews {
+    %orig;
+    durationUnitLaidOut((UIViewController *)self);
+}
+%end
 %end
 
 // The chips over the title (Switch to video and whatever else a track brings) sit in the middle of the
@@ -822,6 +849,10 @@ static SGRPlayerLyricsWatcher *sg_watcher;
 %ctor {
     if (!SGRedesignedUI()) return;
     %init;
+    Class djInformation = SGRDJClass(@"DJMInformationUnitViewController");
+    if (djInformation) { %init(SGRDJInformationHooks, SGRDJInformationUnit = djInformation); }
+    Class djDuration = SGRDJClass(@"DJMDurationElementsUnit");
+    if (djDuration) { %init(SGRDJDurationHooks, SGRDJDurationUnit = djDuration); }
     sg_watcher = [SGRPlayerLyricsWatcher new];
     SGAddPlayerStateObserver(sg_watcher);
     // In the background the controls stay up; back in front the clock starts again.

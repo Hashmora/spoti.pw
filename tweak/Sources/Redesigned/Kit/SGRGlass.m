@@ -285,6 +285,29 @@ void SGRThickenSheetGlass(UIView *glass, CGFloat cornerRadius) {
     if (rim.superview == host && host.subviews.lastObject != rim) [host bringSubviewToFront:rim];
 }
 
+static char kSheetDimKey;
+
+void SGRDimSheetGlass(UIView *glass, CGFloat alpha) {
+    UIView *host = [glass isKindOfClass:UIVisualEffectView.class] ? ((UIVisualEffectView *)glass).contentView
+                 : [glass isKindOfClass:SGLegacyGlassView.class] ? ((SGLegacyGlassView *)glass).contentView
+                 : glass;
+    UIView *dim = SGLazyChild(host, &kSheetDimKey, ^UIView *{
+        UIView *view = [UIView new];
+        view.userInteractionEnabled = NO;
+        view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+        return view;
+    });
+    UIColor *tint = SGRReduceTransparency() ? UIColor.blackColor : [UIColor colorWithWhite:0 alpha:alpha];
+    if (![dim.backgroundColor isEqual:tint]) dim.backgroundColor = tint;
+    if (!CGRectEqualToRect(dim.frame, host.bounds)) dim.frame = host.bounds;
+    // Over the body, under the rim.
+    UIView *body = objc_getAssociatedObject(host, &kSheetBodyKey);
+    if (dim.superview != host) [host addSubview:dim];
+    if (body.superview == host) [host insertSubview:dim aboveSubview:body];
+    UIView *rim = objc_getAssociatedObject(host, &kSheetRimKey);
+    if (rim.superview == host) [host bringSubviewToFront:rim];
+}
+
 UIView *SGRGlassSheetChrome(UIView *content) {
     static char kSheetChromeGlassKey;
     for (UIView *v = content; v; v = v.superview) {

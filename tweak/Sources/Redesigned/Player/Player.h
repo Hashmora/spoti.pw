@@ -86,6 +86,18 @@ void SGRPlayerToggleLyrics(void);
 // Called by PlayerLyrics.x whenever either of those two changed, so the footer's lyrics glyph follows
 // (PlayerFooter.x). It returns at once when nothing changed.
 void SGRPlayerLyricsChanged(void);
+// The lyrics glyph of the footer, made on first ask in `host` and kept there; the ordinary player's footer
+// (PlayerFooter.x) and the AI DJ's (DJPlayer.x) share it, so its symbol, tint and dimming follow
+// SGRPlayerLyricsChanged in both.
+@class SGRGlyphButton;
+SGRGlyphButton *SGRPlayerLyricsGlyphIn(UIView *host);
+// An Endless_DJMusicImpl class of the AI DJ's player by its Swift name, under the mangled spelling or the
+// dotted one the trees print; nil when the app has neither.
+static inline Class SGRDJClass(NSString *name) {
+    NSString *module = @"Endless_DJMusicImpl";
+    NSString *mangled = [NSString stringWithFormat:@"_TtC%lu%@%lu%@", (unsigned long)module.length, module, (unsigned long)name.length, name];
+    return NSClassFromString(mangled) ?: NSClassFromString([NSString stringWithFormat:@"%@.%@", module, name]);
+}
 // The controls under the lines fade a few seconds after the last touch while the lyrics play, and the
 // lines grow down into their room (PlayerLyrics.x). On until switched off; a scroll through the lines
 // hides them either way.
