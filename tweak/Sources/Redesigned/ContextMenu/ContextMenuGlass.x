@@ -65,6 +65,8 @@ static void glassMenu(UIView *list) {
 
 %ctor {
     if (!SGRedesignedUI()) return;
+    // iOS 26 draws its own Liquid Glass on menus; the mod's pane would cover it.
+    if (@available(iOS 26.0, *)) return;
     %init;
     SGRequireClasses(@[@"_UIContextMenuListView"]);
 }

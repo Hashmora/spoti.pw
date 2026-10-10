@@ -103,8 +103,11 @@ typedef NS_ENUM(NSInteger, SGRSplitSection) {
     [super viewDidLoad];
     self.tableView.editing = YES;
     self.tableView.allowsSelectionDuringEditing = YES;
-    _intro = SGNote(@"Tabs here sit apart from the others at the right end of the bar, the way the Music "
-                    "app sets Search apart. They are not on the bar's own list.");
+    _intro = SGNote(SGRLegacyTabBarOn()
+                    ? @"The tab here sits apart from the others at the right end of the bar, the way the Music "
+                       "app sets Search apart. Only one can: adding another replaces it. It is not on the bar's own list."
+                    : @"Tabs here sit apart from the others at the right end of the bar, the way the Music "
+                       "app sets Search apart. They are not on the bar's own list.");
     self.tableView.tableHeaderView = _intro;
     [self load];
 }
@@ -201,11 +204,14 @@ typedef NS_ENUM(NSInteger, SGRSplitSection) {
         SGPresentAddTabSheet(self, tabPresets(), ^(NSDictionary *tab) {
             typeof(self) page = weakSelf;
             if (!page) return;
+            // One round button below iOS 26: a new split tab takes the place of the one there.
+            if (SGRLegacyTabBarOn()) [page->_split removeAllObjects];
             [page->_split addObject:tabEntry(tab)];
             [page save];
         });
     } else if (path.section == SGRSplitSectionStock) {
         NSString *ident = _stock[(NSUInteger)path.row];
+        if (SGRLegacyTabBarOn()) [_split removeAllObjects];
         [_split addObject:@{SGRNavbarID: ident, SGRNavbarTitle: ident}];
         [self save];
     }
@@ -281,6 +287,11 @@ static NSArray<UITabBarItem *> *itemsFor(NSArray<NSDictionary *> *entries, BOOL 
     NSMutableArray<NSDictionary *> *main = [NSMutableArray array], *apart = [NSMutableArray array];
     for (NSDictionary *entry in shown) if (![splitStock containsObject:entry[SGRNavbarID]]) [main addObject:entry];
     if (custom) [apart addObjectsFromArray:SGRNavbarSplit()];
+    // The fallback bar folds the split tab into the capsule when the bar is this short (TabBarLegacy.x).
+    if (SGRLegacyTabBarOn() && main.count + apart.count <= SGRLegacyFoldLimit) {
+        [main addObjectsFromArray:apart];
+        [apart removeAllObjects];
+    }
     if (!main.count) {
         main = shown;
         apart = [NSMutableArray array];

@@ -38,6 +38,9 @@ void SGRRefreshTabBar(void);
 // YES below iOS 26 when the redesign is on: the tab bar is then TabBarLegacy.x's capsule, drawn on a plain blur or on
 // legacy glass by the Legacy Liquid Glass switch, not TabBar.x's system bar. Decided once, at launch.
 BOOL SGRLegacyTabBarOn(void);
+// On that bar the split tab joins the capsule while the bar is expanded when the bar has this many tabs or fewer
+// (the split one counted), and stands on its round button only while it is minimized.
+#define SGRLegacyFoldLimit 3
 // TabBarLegacy.x's own minimized bar, the same three as below for the capsule bar: TabBar.x's functions hand over
 // to them where SGRLegacyTabBarOn() says that bar is the one in place.
 BOOL SGRLegacyTabBarMinimized(void);

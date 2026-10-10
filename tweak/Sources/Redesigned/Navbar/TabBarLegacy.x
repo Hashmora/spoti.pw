@@ -120,6 +120,12 @@ static CGRect sg_leadFrame, sg_trailFrame;
 @property (nonatomic, weak) UIView *apartSource;
 @property (nonatomic, strong) UITabBarItem *apartItem;
 @property (nonatomic) BOOL apartSelected;
+// A short bar (SGRLegacyFoldLimit tabs or fewer) holds the split tab in the capsule while it is expanded, and the
+// round button shows only when it is minimized. `apartItem` is then the capsule's own item for it (one of `items`),
+// the capsule's selection says whether its page is open (apartSelected stays NO), and lastLeadItem is the tab the
+// leading circle falls back to while that item is the open one.
+@property (nonatomic) BOOL folded;
+@property (nonatomic, weak) UITabBarItem *lastLeadItem;
 @property (nonatomic, weak) UILongPressGestureRecognizer *hold;
 @property (nonatomic, weak) UIGestureRecognizer *drag;
 @property (nonatomic) BOOL holding;
@@ -539,7 +545,7 @@ static void paintGlyphs(UITabBar *bar) {
 // open. That runs on the hidden stock view, so the glass bar has to do the same on its own Create button.
 static void setCreateOpen(SGRLegacyTabBar *bar, BOOL open) {
     // Create on the apart tab's own button: that button does it, and the capsule has no Create.
-    if (bar.apartSource && isCreateSource(bar.apartSource)) {
+    if (bar.apartSource && isCreateSource(bar.apartSource) && (!bar.folded || sg_minimized)) {
         UIView *stock = bar.stockBar;
         UIView *barHost = stock ? objc_getAssociatedObject(stock, &kHostKey) : nil;
         SGRLegacyCircle *trail = barHost ? objc_getAssociatedObject(barHost, &kTrailKey) : nil;
@@ -1003,6 +1009,8 @@ static void followCreateClose(UIView *stockBar) {
 // Whether `item` can stand on the leading circle: a real tab of the capsule, not Create.
 static BOOL leadsCompact(SGRLegacyTabBar *bar, UITabBarItem *item) {
     NSUInteger index = item ? [bar.items indexOfObject:item] : NSNotFound;
+    // The folded split tab has the trailing circle.
+    if (bar.folded && item == bar.apartItem) return NO;
     return index < bar.sources.count && !isCreateSource(bar.sources[index]);
 }
 
@@ -1045,8 +1053,10 @@ static void placeCompact(UIView *stockBar, SGRLegacyTabBar *bar, UIView *host, N
                          UIView *navGlass, UIView *navTint, UIView *selPill) {
     UIView *trailSource = bar.apartSource;
     UITabBarItem *trailItem = bar.apartItem;
-    // One tab has nothing to shrink to: the capsule's tabs and the apart one make two at least.
-    BOOL compact = sg_minimized && sources.count + (trailSource ? 1 : 0) >= 2;
+    BOOL folded = bar.folded && trailSource;
+    // One tab has nothing to shrink to: the capsule's tabs and the apart one make two at least (a folded one is
+    // among the capsule's).
+    BOOL compact = sg_minimized && sources.count + (trailSource && !folded ? 1 : 0) >= 2;
 
     // As tall as the now playing card beside them, round, and centered on the capsule's row.
     CGRect card = SGRNowPlayingCardFrameIn(host, NULL);
@@ -1059,6 +1069,7 @@ static void placeCompact(UIView *stockBar, SGRLegacyTabBar *bar, UIView *host, N
 
     UITabBarItem *leadItem = leadsCompact(bar, bar.selectedItem) ? bar.selectedItem : nil;
     if (!leadItem && leadsCompact(bar, bar.lastRealItem)) leadItem = bar.lastRealItem;
+    if (!leadItem && leadsCompact(bar, bar.lastLeadItem)) leadItem = bar.lastLeadItem;
     if (!leadItem) {
         for (UITabBarItem *item in bar.items) {
             if (leadsCompact(bar, item)) {
@@ -1067,15 +1078,16 @@ static void placeCompact(UIView *stockBar, SGRLegacyTabBar *bar, UIView *host, N
             }
         }
     }
+    bar.lastLeadItem = leadItem;
     // Filled where the tab is open; on the apart button when that tab is, and then not on the leading one.
-    BOOL trailSelected = trailSource && bar.apartSelected && !isCreateSource(trailSource);
+    BOOL trailSelected = trailSource && (folded ? bar.selectedItem == trailItem : bar.apartSelected) && !isCreateSource(trailSource);
     UIImage *leadImage = leadItem ? (!trailSelected && leadItem.selectedImage ? leadItem.selectedImage : leadItem.image) : nil;
     UIImage *trailImage = trailItem ? (trailSelected && trailItem.selectedImage ? trailItem.selectedImage : trailItem.image) : nil;
 
     SGRLegacyCircle *lead = objc_getAssociatedObject(host, &kLeadKey);
     SGRLegacyCircle *trail = objc_getAssociatedObject(host, &kTrailKey);
     if (compact && !lead) lead = makeCircle(host, &kLeadKey);
-    if (trailSource && !trail) trail = makeCircle(host, &kTrailKey);
+    if (trailSource && (!folded || compact) && !trail) trail = makeCircle(host, &kTrailKey);
     [UIView performWithoutAnimation:^{
         placeCircle(lead, sg_leadFrame, host);
     }];
@@ -1107,13 +1119,16 @@ static void placeCompact(UIView *stockBar, SGRLegacyTabBar *bar, UIView *host, N
             trail.onTap = ^{
                 UIView *stock = weakStock;
                 SGRLegacyTabBar *legacy = stock ? objc_getAssociatedObject(stock, &kBarKey) : nil;
-                [legacy tapApart];
+                // Folded, the tab is one of the capsule's: tapped as the capsule's own would be.
+                if (legacy.folded) tapItem(stock, legacy.apartItem);
+                else [legacy tapApart];
             };
         }
     }
 
     [lead setShown:compact];
-    [trail setShown:trailSource != nil];
+    // The apart tab's button is there in both states, but a folded one only while minimized: expanded, it is in the capsule.
+    [trail setShown:trailSource != nil && (!folded || compact)];
     SGRShowGlass(navGlass, !compact);
     navTint.alpha = compact ? 0 : 1;
     selPill.alpha = compact ? 0 : 1;
@@ -1270,14 +1285,19 @@ static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
     if (!allSources.count) return;
     // The apart tab is on a button of its own, so the capsule holds the others.
     UIView *apartSource = trailingSource(allSources);
+    // With few tabs the apart one is not set apart while the bar is expanded: it is the capsule's last tab, and
+    // only the minimized bar gives it its round button (placeCompact).
+    BOOL fold = apartSource && allSources.count <= SGRLegacyFoldLimit;
     NSMutableArray<UIView *> *capsuleSources = [allSources mutableCopy];
-    if (apartSource) [capsuleSources removeObject:apartSource];
+    if (apartSource && !fold) [capsuleSources removeObject:apartSource];
     NSArray<UIView *> *sources = capsuleSources;
-    if (apartSource != bar.apartSource || (apartSource && !bar.apartItem)) {
+    if (apartSource != bar.apartSource || (apartSource && !fold && !bar.apartItem) || fold != bar.folded) {
         bar.apartSource = apartSource;
-        bar.apartItem = apartSource ? [[UITabBarItem alloc] initWithTitle:labelIn(apartSource).text image:nil tag:-1] : nil;
+        // Folded, the item is the capsule's own, taken below once the capsule has its items.
+        bar.apartItem = apartSource && !fold ? [[UITabBarItem alloc] initWithTitle:labelIn(apartSource).text image:nil tag:-1] : nil;
         if (!apartSource) bar.apartSelected = NO;
     }
+    BOOL wasFolded = bar.folded;
     // An item with no title is drawn by UIKit as its glyph alone, centred, on a bar of the same height.
     BOOL hideLabels = SGHidden(SGRKeyNavbarHideLabels);
 
@@ -1314,7 +1334,19 @@ static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
             NSUInteger newLastIndex = [sources indexOfObject:oldLastSource];
             if (newLastIndex != NSNotFound) bar.lastRealItem = items[newLastIndex];
         }
+        // The split tab changing between the capsule and its own button keeps its page open.
+        if (wasFolded && !fold && oldSelSource && oldSelSource == apartSource) bar.apartSelected = YES;
+        if (!wasFolded && fold && bar.apartSelected && items.count) {
+            bar.apartSelected = NO;
+            bar.selectedItem = items.lastObject;
+            bar.lastRealItem = items.lastObject;
+        }
     }
+    if (fold) {
+        NSUInteger apartIndex = [sources indexOfObject:apartSource];
+        bar.apartItem = apartIndex < bar.items.count ? bar.items[apartIndex] : nil;
+    }
+    bar.folded = fold;
 
     UITabBarItem *selected = nil;
     BOOL missing = NO;
@@ -1332,7 +1364,7 @@ static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
         if (!UIEdgeInsetsEqualToEdgeInsets(item.imageInsets, wantInsets)) item.imageInsets = wantInsets;
         if (!selected && isActive(sources[i]) && !isCreateSource(sources[i])) selected = item;
     }
-    if (apartSource) {
+    if (apartSource && !fold) {
         learnGlyphs(apartSource, bar.apartItem);
         missing |= !bar.apartItem.image || !bar.apartItem.selectedImage;
     }
@@ -1349,7 +1381,7 @@ static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
     }
     // The apart tab's page being the open one, from Spotify's own labels, when a link or the drawer opened it. A
     // tab of the mod's own never paints one, and is known from its button's tap alone.
-    if (rescanSelection && !bar.awaitingCreateClose && !selected && apartSource && !isCreateSource(apartSource) && isActive(apartSource)) bar.apartSelected = YES;
+    if (rescanSelection && !bar.awaitingCreateClose && !selected && apartSource && !fold && !isCreateSource(apartSource) && isActive(apartSource)) bar.apartSelected = YES;
     // With the apart tab open the capsule has no tab selected (no pill).
     if (bar.apartSelected && !bar.awaitingCreateClose && bar.selectedItem) bar.selectedItem = nil;
     // Glyphs of the selected and the other items are painted by paintGlyphs, from the bar's own layout.
@@ -1395,7 +1427,8 @@ static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
     // width itself growing past what kNavGlassMargin leaves it. Below that count nothing changes.
     CGFloat platterHeight = MIN(hideLabels ? kNavPlatterHeightIconOnly : kNavPlatterHeight, height);
     // The apart tab's button stands beside the capsule, as high as it is, and the two are centered together.
-    CGFloat apartRoom = apartSource ? platterHeight + SGRGrid : 0;
+    BOOL separate = apartSource && !fold;
+    CGFloat apartRoom = separate ? platterHeight + SGRGrid : 0;
     CGFloat availableWidth = width - kNavGlassMargin * 2 - apartRoom;
     CGFloat naturalWidth = kNavItemWidth * sources.count + kNavItemSpacing * (sources.count - 1);
     CGFloat itemWidth = naturalWidth > availableWidth
@@ -1409,7 +1442,7 @@ static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
     CGFloat platterY = MIN(kNavGlassBottomMargin, MAX(0, height - platterHeight));
     CGFloat groupX = floor((width - contentWidth - apartRoom) / 2);
     CGRect platterFrame = CGRectMake(groupX, platterY, contentWidth, platterHeight);
-    CGRect apartFrame = apartSource ? CGRectMake(groupX + contentWidth + SGRGrid, platterY, platterHeight, platterHeight) : CGRectZero;
+    CGRect apartFrame = separate ? CGRectMake(groupX + contentWidth + SGRGrid, platterY, platterHeight, platterHeight) : CGRectZero;
     BOOL frameChanged = !CGRectEqualToRect(bar.frame, platterFrame);
     if (frameChanged) bar.frame = platterFrame;
     // UIKit lays its private per-item buttons out lazily on the next runloop pass, not synchronously the

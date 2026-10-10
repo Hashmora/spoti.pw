@@ -140,7 +140,11 @@ static void hideCounted(UIView *view) {
     NSUInteger count = [sg_hiddenCounts objectForKey:view].unsignedIntegerValue;
     [sg_hiddenCounts setObject:@(count + 1) forKey:view];
     if (count) return;
-    [sg_savedAlpha setObject:@(view.alpha) forKey:view];
+    // A bar already faded out when the stand-in takes it (Spotify fades the real bar itself as the player opens
+    // or closes) must not have that faded alpha saved, or the restore would put back an invisible bar and the
+    // tab bar would be gone after the player closes. A bar is only ever hidden by us to be shown whole again.
+    CGFloat alpha = view.alpha;
+    [sg_savedAlpha setObject:@(alpha > 0.5 ? alpha : 1) forKey:view];
     [UIView performWithoutAnimation:^{ view.alpha = kHiddenAlpha; }];
 }
 

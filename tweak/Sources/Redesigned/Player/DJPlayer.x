@@ -70,7 +70,7 @@ static SGRGlyphView *glyphFor(UIView *owner, NSString *symbol, CGFloat size) {
 
 // On top inside `host` and centred by the autoresizing mask as well as here: the unit lays out before the
 // buttons in it have a size, so a centre set then is the middle of nothing.
-static void keepOnTop(UIView *view, UIView *host) {
+static void keepOnTop(UIView *view, UIView *host, CGFloat dy) {
     if (view.superview != host) {
         view.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleRightMargin
                               | UIViewAutoresizingFlexibleTopMargin | UIViewAutoresizingFlexibleBottomMargin;
@@ -78,7 +78,20 @@ static void keepOnTop(UIView *view, UIView *host) {
     } else if (host.subviews.lastObject != view) {
         [host bringSubviewToFront:view];
     }
-    view.center = CGPointMake(CGRectGetMidX(host.bounds), CGRectGetMidY(host.bounds));
+    view.center = CGPointMake(CGRectGetMidX(host.bounds), CGRectGetMidY(host.bounds) + dy);
+}
+
+// How far below its own middle a previous/next glyph must sit to share a line with the play glyph. Spotify's
+// head unit puts the 56pt skip buttons and the 64pt play view on one top edge (y=16), so their middles are
+// 44 and 48 apart by 4pt, and the glyphs, centred in their buttons, would be too. Measured in the unit's
+// coordinates so it follows whatever sizes the unit lays out with; 0 until both are in place.
+static CGFloat skipDrop(UIView *host, UIView *button) {
+    UIView *play = SGRFindByIdentifier(host, @"SPTNowPlayingPlayButton", &kPlayKey);
+    if (!play || !button.superview || !play.superview) return 0;
+    CGFloat skipMid = [host convertPoint:CGPointMake(0, CGRectGetMidY(button.frame)) fromView:button.superview].y;
+    CGFloat playMid = [host convertPoint:CGPointMake(0, CGRectGetMidY(play.frame)) fromView:play.superview].y;
+    CGFloat dy = playMid - skipMid;
+    return fabs(dy) < 12 ? dy : 0;
 }
 
 static void skipGlyph(UIView *host, NSString *identifier, const void *findKey, NSString *symbol) {
@@ -88,7 +101,7 @@ static void skipGlyph(UIView *host, NSString *identifier, const void *findKey, N
     for (UIView *sub in button.subviews) {
         if (sub != glyph && [sub isKindOfClass:UIImageView.class]) SGRSuppress(sub);
     }
-    keepOnTop(glyph, button);
+    keepOnTop(glyph, button, skipDrop(host, button));
 }
 
 static BOOL spinnerShowing(UIButton *button) {
@@ -148,7 +161,7 @@ static void playGlyph(UIView *host) {
         }
     }
     SGRGlyphView *glyph = glyphFor(play, symbolFor(state.isPaused), kPlayGlyphSize);
-    keepOnTop(glyph, button);
+    keepOnTop(glyph, button, 0);
     sg_playView = play;
     sg_playButton = button;
     sg_playGlyph = glyph;
