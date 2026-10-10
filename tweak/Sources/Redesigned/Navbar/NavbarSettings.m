@@ -53,22 +53,31 @@ static NSMutableArray<NSMutableDictionary *> *navbarEntries(void) {
 }
 
 // A tab of the mod's own carries an identity of its own, so the same page can sit on the bar twice
-// and renaming one does not shuffle the order.
-static void appendTab(NSDictionary *tab) {
+// and renaming one does not shuffle the order. Returns that identity.
+static NSString *appendTab(NSDictionary *tab) {
     NSMutableDictionary *entry = [@{SGRNavbarID: NSUUID.UUID.UUIDString, SGRNavbarTitle: tab[SGTabTitle],
                                     SGRNavbarURI: tab[SGTabURI], SGRNavbarIcon: tab[SGTabIcon]} mutableCopy];
     entry[SGRNavbarIconSet] = tab[SGTabIconSet];
     SGRSetNavbarLayout([navbarEntries() arrayByAddingObject:entry]);
     SGRRefreshTabBar();
+    return entry[SGRNavbarID];
 }
 
-// Split tabs: a switch per tab of the bar, on to set it apart at the trailing end.
+// Split tabs: the tabs set apart at the trailing end of the bar. Any tab can be added here the way one is added
+// to the bar (the same Add a Tab sheet), and a tab already on the bar is moved over by a tap, shown again if it
+// was hidden. The delete control brings a tab back among the others.
+typedef NS_ENUM(NSInteger, SGRSplitSection) {
+    SGRSplitSectionApart,
+    SGRSplitSectionAdd,
+    SGRSplitSectionBar,
+    SGRSplitSectionCount,
+};
+
 @interface SGRSplitTabsPage : SGPage
 @end
 
 @implementation SGRSplitTabsPage {
-    NSArray<NSDictionary *> *_entries;
-    NSMutableSet<NSString *> *_split;
+    NSMutableArray<NSMutableDictionary *> *_entries;
     UIView *_intro;
 }
 
@@ -80,11 +89,12 @@ static void appendTab(NSDictionary *tab) {
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    _intro = SGNote(@"Tabs switched on here sit apart from the others at the right end of the bar, the way the Music "
-                    "app sets Search apart. Hidden tabs stay hidden.");
+    self.tableView.editing = YES;
+    self.tableView.allowsSelectionDuringEditing = YES;
+    _intro = SGNote(@"Tabs here sit apart from the others at the right end of the bar, the way the Music "
+                    "app sets Search apart. Add a tab, or move one over from the bar.");
     self.tableView.tableHeaderView = _intro;
     _entries = navbarEntries();
-    _split = [NSMutableSet setWithArray:SGRNavbarSplit()];
 }
 
 - (void)viewWillLayoutSubviews {
@@ -97,16 +107,53 @@ static void appendTab(NSDictionary *tab) {
     SGInsetForBars(self.tableView);
 }
 
+// The tabs set apart, and the others, each in the order of the bar's list.
+- (NSArray<NSMutableDictionary *> *)entriesApart:(BOOL)apart {
+    NSSet<NSString *> *split = [NSSet setWithArray:SGRNavbarSplit()];
+    NSMutableArray<NSMutableDictionary *> *list = [NSMutableArray array];
+    for (NSMutableDictionary *entry in _entries) if ([split containsObject:entry[SGRNavbarID]] == apart) [list addObject:entry];
+    return list;
+}
+
+- (NSMutableDictionary *)entryAt:(NSIndexPath *)path {
+    return [self entriesApart:path.section == SGRSplitSectionApart][(NSUInteger)path.row];
+}
+
+- (void)reload {
+    _entries = navbarEntries();
+    SGRRefreshTabBar();
+    [self.tableView reloadData];
+}
+
+- (void)setApart:(NSString *)ident {
+    NSMutableArray<NSString *> *split = [SGRNavbarSplit() mutableCopy];
+    if (![split containsObject:ident]) [split addObject:ident];
+    SGRSetNavbarSplit(split);
+    [self reload];
+}
+
+- (NSInteger)numberOfSectionsInTableView:(UITableView *)table {
+    return SGRSplitSectionCount;
+}
+
 - (NSInteger)tableView:(UITableView *)table numberOfRowsInSection:(NSInteger)section {
-    return (NSInteger)_entries.count;
+    if (section == SGRSplitSectionAdd) return 1;
+    return (NSInteger)[self entriesApart:section == SGRSplitSectionApart].count;
+}
+
+- (NSString *)headerFor:(NSInteger)section {
+    if (section == SGRSplitSectionApart) return [self entriesApart:YES].count ? @"Apart, on the right" : nil;
+    if (section == SGRSplitSectionBar) return [self entriesApart:NO].count ? @"On the bar" : nil;
+    return nil;
 }
 
 - (UIView *)tableView:(UITableView *)table viewForHeaderInSection:(NSInteger)section {
-    return SGSectionHeader(table, @"Tabs");
+    NSString *title = [self headerFor:section];
+    return title ? SGSectionHeader(table, title) : nil;
 }
 
 - (CGFloat)tableView:(UITableView *)table heightForHeaderInSection:(NSInteger)section {
-    return SGSectionHeaderHeight();
+    return [self headerFor:section] ? SGSectionHeaderHeight() : SGSectionGap;
 }
 
 - (CGFloat)tableView:(UITableView *)table heightForFooterInSection:(NSInteger)section {
@@ -115,26 +162,53 @@ static void appendTab(NSDictionary *tab) {
 
 - (UITableViewCell *)tableView:(UITableView *)table cellForRowAtIndexPath:(NSIndexPath *)path {
     UITableViewCell *cell = SGDequeueCell(table, @"split");
-    NSDictionary *entry = _entries[(NSUInteger)path.row];
-    BOOL apart = [_split containsObject:entry[SGRNavbarID]];
-    NSString *where = [entry[SGRNavbarHidden] boolValue] ? @"Hidden" : apart ? @"Apart, on the right" : @"With the others";
-    SGFillCell(cell, entry[SGRNavbarTitle], where, nil, nil);
-    UISwitch *toggle = [UISwitch new];
-    toggle.onTintColor = SGGreen();
-    toggle.on = apart;
-    toggle.tag = path.row;
-    [toggle addTarget:self action:@selector(toggled:) forControlEvents:UIControlEventValueChanged];
-    cell.accessoryView = toggle;
+    if (path.section == SGRSplitSectionAdd) {
+        SGFillCell(cell, @"Add a tab", nil, SGRAccent(), nil);
+        cell.accessibilityTraits = UIAccessibilityTraitButton;
+        return cell;
+    }
+    NSDictionary *entry = [self entryAt:path];
+    BOOL hidden = [entry[SGRNavbarHidden] boolValue];
+    SGFillCell(cell, entry[SGRNavbarTitle], hidden ? @"Hidden" : nil, nil, nil);
+    cell.accessibilityHint = path.section == SGRSplitSectionBar ? @"Moves the tab to the right end of the bar" : nil;
     return cell;
 }
 
-- (void)toggled:(UISwitch *)toggle {
-    NSString *ident = _entries[(NSUInteger)toggle.tag][SGRNavbarID];
-    if (toggle.on) [_split addObject:ident];
-    else [_split removeObject:ident];
-    SGRSetNavbarSplit(_split.allObjects);
-    SGRRefreshTabBar();
-    [self.tableView reloadRowsAtIndexPaths:@[[NSIndexPath indexPathForRow:toggle.tag inSection:0]] withRowAnimation:UITableViewRowAnimationNone];
+- (BOOL)tableView:(UITableView *)table canEditRowAtIndexPath:(NSIndexPath *)path {
+    return path.section == SGRSplitSectionApart;
+}
+
+- (UITableViewCellEditingStyle)tableView:(UITableView *)table editingStyleForRowAtIndexPath:(NSIndexPath *)path {
+    return path.section == SGRSplitSectionApart ? UITableViewCellEditingStyleDelete : UITableViewCellEditingStyleNone;
+}
+
+- (BOOL)tableView:(UITableView *)table shouldIndentWhileEditingRowAtIndexPath:(NSIndexPath *)path {
+    return NO;
+}
+
+- (void)tableView:(UITableView *)table commitEditingStyle:(UITableViewCellEditingStyle)style forRowAtIndexPath:(NSIndexPath *)path {
+    if (style != UITableViewCellEditingStyleDelete || path.section != SGRSplitSectionApart) return;
+    NSString *ident = [self entryAt:path][SGRNavbarID];
+    NSMutableArray<NSString *> *split = [SGRNavbarSplit() mutableCopy];
+    [split removeObject:ident];
+    SGRSetNavbarSplit(split);
+    [self reload];
+}
+
+- (void)tableView:(UITableView *)table didSelectRowAtIndexPath:(NSIndexPath *)path {
+    [table deselectRowAtIndexPath:path animated:YES];
+    if (path.section == SGRSplitSectionAdd) {
+        __weak typeof(self) weakSelf = self;
+        SGPresentAddTabSheet(self, tabPresets(), ^(NSDictionary *tab) {
+            [weakSelf setApart:appendTab(tab)];
+        });
+    } else if (path.section == SGRSplitSectionBar) {
+        // A hidden tab would stay off the bar, apart or not, so it is shown as it moves.
+        NSMutableDictionary *entry = [self entryAt:path];
+        entry[SGRNavbarHidden] = nil;
+        SGRSetNavbarLayout(_entries);
+        [self setApart:entry[SGRNavbarID]];
+    }
 }
 
 @end

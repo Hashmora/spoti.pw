@@ -43,6 +43,7 @@ static const CGFloat kNavPlatterHeight = 64;
 static const CGFloat kNavPlatterHeightIconOnly = 52;
 static const CGFloat kNavIconOnlyImageShift = 6;
 static const CGFloat kNavItemSpacing = 4;
+static const CGFloat kNavCircleSide = 48;   // the compact bar's circles before the now playing card has a radius to follow
 static const CGFloat kNavItemWidth = 90;    // fixed, so the capsule hugs its items instead of stretching them
 static const CGFloat kSelPillInset = 3;     // gap between the selection pill and the capsule's edge
 static __weak UIView *sg_stockBar;
@@ -150,14 +151,20 @@ static void followCreateClose(UIView *stockBar);
 @interface SGRLegacyCircle : UIControl
 @property (nonatomic, strong, readonly) UIImageView *glyph;
 @property (nonatomic, copy) void (^onTap)(void);
+// The tab the circle stands for, and whether that is Create.
+@property (nonatomic, weak) UITabBarItem *item;
+@property (nonatomic) BOOL holdsCreate;
 // Shows or hides the circle; asked for inside an animation it moves in that animation.
 - (void)setShown:(BOOL)shown;
+// Create's menu open: the plus turns 45 degrees onto a white disc, as on the capsule's own Create button.
+- (void)setCreateOpen:(BOOL)open;
 @end
 
 @implementation SGRLegacyCircle {
     UIView *_pane;
     UIView *_film;
-    BOOL _shown, _configured;
+    UIView *_disc;
+    BOOL _shown, _configured, _open;
 }
 
 - (instancetype)initWithFrame:(CGRect)frame {
@@ -184,7 +191,15 @@ static void followCreateClose(UIView *stockBar);
     if (!CGRectEqualToRect(_pane.frame, bounds)) _pane.frame = bounds;
     SGShapeGlass(_pane, radius, NO);
     SGRGlassFilm(self, &kCircleFilmKey, _pane, radius);
-    _glyph.frame = bounds;
+    // bounds and center, not frame: the glyph is turned while Create's menu is up.
+    _glyph.bounds = (CGRect){CGPointZero, bounds.size};
+    _glyph.center = CGPointMake(CGRectGetMidX(bounds), CGRectGetMidY(bounds));
+    if (_disc) {
+        CGFloat size = MIN(round(_glyph.image.size.height * 4.0 / 3.0), bounds.size.height - 8);
+        _disc.bounds = CGRectMake(0, 0, size, size);
+        _disc.layer.cornerRadius = size / 2;
+        _disc.center = _glyph.center;
+    }
 }
 
 - (void)setShown:(BOOL)shown {
@@ -196,6 +211,28 @@ static void followCreateClose(UIView *stockBar);
     _glyph.alpha = shown ? 1 : 0;
     self.transform = shown ? CGAffineTransformIdentity : CGAffineTransformMakeScale(0.6, 0.6);
     self.userInteractionEnabled = shown;
+}
+
+- (void)setCreateOpen:(BOOL)open {
+    if (_open == open) return;
+    _open = open;
+    if (!_disc) {
+        _disc = [[UIView alloc] initWithFrame:CGRectZero];
+        _disc.userInteractionEnabled = NO;
+        _disc.backgroundColor = UIColor.whiteColor;
+        _disc.alpha = 0;
+        _disc.transform = CGAffineTransformMakeScale(0.4, 0.4);
+        [self insertSubview:_disc belowSubview:_glyph];
+    }
+    [self setNeedsLayout];
+    [self layoutIfNeeded];
+    [UIView animateWithDuration:0.32 delay:0 usingSpringWithDamping:0.8 initialSpringVelocity:0
+        options:UIViewAnimationOptionBeginFromCurrentState animations:^{
+        self->_disc.alpha = open ? 1 : 0;
+        self->_disc.transform = open ? CGAffineTransformIdentity : CGAffineTransformMakeScale(0.4, 0.4);
+        self->_glyph.transform = open ? CGAffineTransformMakeRotation(M_PI_4) : CGAffineTransformIdentity;
+        self->_glyph.tintColor = open ? UIColor.blackColor : UIColor.whiteColor;
+    } completion:nil];
 }
 
 - (void)tapped {
@@ -479,6 +516,11 @@ static void setCreateOpen(SGRLegacyTabBar *bar, BOOL open) {
         if (isCreateSource(bar.sources[i])) { index = i; break; }
     }
     if (index == NSNotFound || index >= bar.items.count) return;
+    // Minimized, Create stands on the trailing circle, which does the same.
+    UIView *stock = bar.stockBar;
+    UIView *barHost = stock ? objc_getAssociatedObject(stock, &kHostKey) : nil;
+    SGRLegacyCircle *trail = barHost ? objc_getAssociatedObject(barHost, &kTrailKey) : nil;
+    if (trail.holdsCreate) [trail setCreateOpen:open];
     NSMutableArray<UIView *> *buttons = [NSMutableArray array];
     for (UIView *v in bar.subviews) {
         if ([NSStringFromClass(v.class) isEqualToString:@"UITabBarButton"]) [buttons addObject:v];
@@ -842,6 +884,8 @@ static void settleAfterCreate(UIView *stockBar) {
     setCreateOpen(bar, NO);
     UIView *open = activeStockSource(stockBar);
     if (open && open != bar.sourceBeforeCreate) {
+        // The menu took Spotify to another tab: that brings the full bar back, as any other tab does.
+        SGRLegacySetTabBarMinimized(NO, YES);
         syncBarExternalChange(stockBar);
         return;
     }
@@ -903,16 +947,15 @@ static BOOL leadsCompact(SGRLegacyTabBar *bar, UITabBarItem *item, UITabBarItem 
     return index < bar.sources.count && item != trailItem && !isCreateSource(bar.sources[index]);
 }
 
-// The trailing circle's tab, opened the way the bar's own tap would: Create pops its menu, the rest are
-// picked and passed on to Spotify, which brings the full bar back (the hook on setSelectedViewController).
-static void tapTrailing(UIView *stockBar) {
+// A circle's tab, tapped the way the bar's own tap would: Create pops its menu, the rest are picked and passed
+// on to Spotify. A tab that was already open just gets the tap (Home scrolls to its top); another one brings the
+// full bar back (the hook on setSelectedViewController). The leading circle never brings it back by itself:
+// only a scroll up does.
+static void tapItem(UIView *stockBar, UITabBarItem *item) {
     SGRLegacyTabBar *bar = stockBar ? objc_getAssociatedObject(stockBar, &kBarKey) : nil;
-    UIView *source = nil;
-    for (UIView *candidate in bar.sources) if (SGRTabIsApart(candidate)) source = candidate;
-    NSUInteger index = source ? [bar.sources indexOfObject:source] : NSNotFound;
-    if (index >= bar.items.count) return;
-    UITabBarItem *item = bar.items[index];
-    if (!isCreateSource(source)) bar.selectedItem = item;
+    NSUInteger index = item ? [bar.items indexOfObject:item] : NSNotFound;
+    if (index >= bar.sources.count) return;
+    if (!isCreateSource(bar.sources[index])) bar.selectedItem = item;
     [bar tabBar:bar didSelectItem:item];
 }
 
@@ -952,9 +995,14 @@ static void placeCompact(UIView *stockBar, SGRLegacyTabBar *bar, UIView *host, N
     }
     if (apartCount >= sources.count) trailSource = nil;
 
-    CGFloat side = platter.size.height;
-    sg_leadFrame = CGRectMake(kNavGlassMargin, platter.origin.y, side, side);
-    sg_trailFrame = trailSource ? CGRectMake(CGRectGetWidth(host.bounds) - kNavGlassMargin - side, platter.origin.y, side, side) : CGRectZero;
+    // As round as the now playing card beside them (its corner radius is half their side), centered on the
+    // capsule's row.
+    CGFloat cardRadius = 0;
+    SGRNowPlayingCardFrameIn(host, &cardRadius);
+    CGFloat side = MIN(cardRadius > 0 ? cardRadius * 2 : kNavCircleSide, platter.size.height);
+    CGFloat circleY = platter.origin.y + (platter.size.height - side) / 2;
+    sg_leadFrame = CGRectMake(kNavGlassMargin, circleY, side, side);
+    sg_trailFrame = trailSource ? CGRectMake(CGRectGetWidth(host.bounds) - kNavGlassMargin - side, circleY, side, side) : CGRectZero;
 
     NSUInteger trailIndex = trailSource ? [bar.sources indexOfObject:trailSource] : NSNotFound;
     UITabBarItem *trailItem = trailIndex < bar.items.count ? bar.items[trailIndex] : nil;
@@ -981,17 +1029,26 @@ static void placeCompact(UIView *stockBar, SGRLegacyTabBar *bar, UIView *host, N
         placeCircle(lead, sg_leadFrame, host);
         placeCircle(trail, sg_trailFrame, host);
     }];
+    NSUInteger leadIndex = leadItem ? [bar.items indexOfObject:leadItem] : NSNotFound;
+    __weak UIView *weakStock = stockBar;
     if (lead) {
         if (lead.glyph.image != leadImage) lead.glyph.image = leadImage;
-        lead.accessibilityLabel = @"Shows all tabs";
-        if (!lead.onTap) lead.onTap = ^{ SGRLegacySetTabBarMinimized(NO, YES); };
+        lead.item = leadItem;
+        lead.accessibilityLabel = leadIndex < sources.count ? labelIn(sources[leadIndex]).text : nil;
+        if (!lead.onTap) {
+            __weak SGRLegacyCircle *weakLead = lead;
+            lead.onTap = ^{ tapItem(weakStock, weakLead.item); };
+        }
     }
     if (trail) {
         if (trail.glyph.image != trailImage) trail.glyph.image = trailImage;
+        trail.item = trailItem;
+        trail.holdsCreate = trailSource && isCreateSource(trailSource);
+        if (!trail.holdsCreate) [trail setCreateOpen:NO];
         trail.accessibilityLabel = trailSource ? labelIn(trailSource).text : nil;
         if (!trail.onTap) {
-            __weak UIView *weakStock = stockBar;
-            trail.onTap = ^{ tapTrailing(weakStock); };
+            __weak SGRLegacyCircle *weakTrail = trail;
+            trail.onTap = ^{ tapItem(weakStock, weakTrail.item); };
         }
     }
 
@@ -1395,9 +1452,11 @@ static void itemDidLayOut(UIView *item) {
     // Spotify repaints its labels a moment after the controller changes, so the first look can still
     // find the old tab painted white; the second, once it has.
     dispatch_async(dispatch_get_main_queue(), ^{
-        // Another tab brings the minimized bar back (HIG, Tab bars).
-        SGRLegacySetTabBarMinimized(NO, YES);
+        // Another tab brings the minimized bar back (HIG, Tab bars). Create's menu stands under the compact bar
+        // and hides nothing of it, so the bar stays while the menu is up (settleAfterCreate looks again after).
         UIView *bar = sg_stockBar;
+        SGRLegacyTabBar *legacy = bar ? objc_getAssociatedObject(bar, &kBarKey) : nil;
+        if (!(sg_minimized && legacy.awaitingCreateClose)) SGRLegacySetTabBarMinimized(NO, YES);
         if (bar) syncBarExternalChange(bar);
     });
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.25 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
