@@ -29,3 +29,9 @@ BOOL SGLegacyGlassAvailable(void);
 @property (nonatomic) CGFloat blurRadius;
 
 @end
+
+// The thin white highlight the system's glass draws along its rim: bright at the top-left and the bottom-right
+// corners and gone along the rest. Kept as one sublayer of `host`, made on the first call and set to `bounds`
+// and `radius` on every one; a pane draws its own (SGLegacyGlassView) and a film over a pane calls this too, as it
+// covers the pane's. Does nothing on iOS 26 and later, where the system's glass has its own.
+void SGLegacyGlassSpecular(CALayer *host, CGRect bounds, CGFloat radius);

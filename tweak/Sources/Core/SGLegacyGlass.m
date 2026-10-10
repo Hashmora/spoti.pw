@@ -340,6 +340,49 @@ static id SGMakeGlassMesh(CGSize size, CGFloat radius) {
     return transform;
 }
 
+#pragma mark - the rim's highlight
+
+static const CGFloat kSpecularWidth = 1.0;
+static NSString *const kSpecularName = @"sg.specular";
+
+void SGLegacyGlassSpecular(CALayer *host, CGRect bounds, CGFloat radius) {
+    if (@available(iOS 26.0, *)) return;
+    if (!host || bounds.size.width < 2 || bounds.size.height < 2) return;
+    CAGradientLayer *rim = nil;
+    for (CALayer *sub in host.sublayers) {
+        if ([sub.name isEqualToString:kSpecularName]) rim = (CAGradientLayer *)sub;
+    }
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    if (!rim) {
+        rim = [CAGradientLayer layer];
+        rim.name = kSpecularName;
+        // Corner to corner: the two ends are the highlights, the middle stretch is clear.
+        rim.startPoint = CGPointMake(0, 0);
+        rim.endPoint = CGPointMake(1, 1);
+        rim.locations = @[@0, @0.28, @0.72, @1];
+        rim.colors = @[(id)[UIColor colorWithWhite:1 alpha:0.75].CGColor,
+                       (id)[UIColor colorWithWhite:1 alpha:0].CGColor,
+                       (id)[UIColor colorWithWhite:1 alpha:0].CGColor,
+                       (id)[UIColor colorWithWhite:1 alpha:0.55].CGColor];
+        // Over everything else in the host: a one point line, and the film or content under it must not hide it.
+        rim.zPosition = 100;
+        CAShapeLayer *line = [CAShapeLayer layer];
+        line.fillColor = nil;
+        line.strokeColor = UIColor.whiteColor.CGColor;
+        line.lineWidth = kSpecularWidth;
+        rim.mask = line;
+        [host addSublayer:rim];
+    }
+    rim.frame = bounds;
+    CAShapeLayer *line = (CAShapeLayer *)rim.mask;
+    line.frame = rim.bounds;
+    CGRect inset = CGRectInset(rim.bounds, kSpecularWidth / 2, kSpecularWidth / 2);
+    CGFloat r = MAX(0, MIN(radius - kSpecularWidth / 2, MIN(inset.size.width, inset.size.height) / 2));
+    line.path = [UIBezierPath bezierPathWithRoundedRect:inset cornerRadius:r].CGPath;
+    [CATransaction commit];
+}
+
 #pragma mark - SGLegacyGlassView
 
 @implementation SGLegacyGlassView {
@@ -390,6 +433,7 @@ static id SGMakeGlassMesh(CGSize size, CGFloat radius) {
     CGSize size = self.bounds.size;
     CGFloat radius = _capsule ? MIN(size.width, size.height) / 2 : _cornerRadius;
     if (CGSizeEqualToSize(size, _meshSize) && radius == _meshRadius) return;
+    SGLegacyGlassSpecular(self.layer, self.bounds, radius);
     _meshSize = size;
     _meshRadius = radius;
 

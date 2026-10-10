@@ -33,8 +33,8 @@ void SGRShowGlass(UIView *shape, BOOL shown);
 // cleared and made a capsule, and a glass capsule goes inside it. Safe to call on every pass.
 UIView *SGRGlassFlatBox(UIView *box, const void *key);
 
-// The dark film over a floating bar's glass, with a denser blur under it (the tab bar's platter, the now
-// playing card), without which the bar disappears into Spotify's near-black chrome. Made once under `key`, kept just above `glass`
+// The faint white film over a floating bar's glass (the tab bar's platter, the now playing card), without
+// which the bar disappears into Spotify's near-black chrome. Made once under `key`, kept just above `glass`
 // and on its frame, with corners of `radius`.
 UIView *SGRGlassFilm(UIView *host, const void *key, UIView *glass, CGFloat radius);
 

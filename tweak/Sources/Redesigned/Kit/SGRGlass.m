@@ -140,33 +140,20 @@ UIView *SGRGlassFlatBox(UIView *box, const void *key) {
     return SGRGlassCapsuleInside(box, key, size, NO);
 }
 
-// The legacy glass of a small control blurs at radius 2 and the old 16% white film over it left the bars
-// nearly transparent: the page under the tab bar and the now playing card came through sharp and the labels
-// on them were hard to read. A bar blurs like a sheet does and carries a dark body, so its glyphs and text sit
-// on something even whatever is behind. Under Reduce Transparency the body is the solid fill alone.
-static const CGFloat kBarBlur = 10;
-
 UIView *SGRGlassFilm(UIView *host, const void *key, UIView *glass, CGFloat radius) {
     UIView *film = SGLazyChild(host, key, ^UIView *{
         UIView *view = [UIView new];
+        view.backgroundColor = [UIColor colorWithWhite:1 alpha:0.16];
         view.userInteractionEnabled = NO;
         view.layer.cornerCurve = kCACornerCurveContinuous;
         view.layer.masksToBounds = YES;
         return view;
     });
-    // The dense body is the fallback's: on iOS 26 and later the pane is the system's own glass, and the faint
-    // white film stays as it was.
-    BOOL system = NO;
-    if (@available(iOS 26.0, *)) system = YES;
-    UIColor *body = system ? [UIColor colorWithWhite:1 alpha:0.16]
-                  : SGRReduceTransparency() ? SGRSolidGlassFill() : [UIColor colorWithWhite:0.06 alpha:0.52];
-    if (![film.backgroundColor isEqual:body]) film.backgroundColor = body;
-    if (!system && [glass isKindOfClass:SGLegacyGlassView.class] && ((SGLegacyGlassView *)glass).blurRadius < kBarBlur) {
-        ((SGLegacyGlassView *)glass).blurRadius = kBarBlur;
-    }
     if (film.superview != host) [host insertSubview:film aboveSubview:glass];
     if (!CGRectEqualToRect(film.frame, glass.frame)) film.frame = glass.frame;
     if (film.layer.cornerRadius != radius) film.layer.cornerRadius = radius;
+    // The film covers its pane, and with it the pane's own highlight, so the film carries one.
+    if ([glass isKindOfClass:SGLegacyGlassView.class]) SGLegacyGlassSpecular(film.layer, film.bounds, radius);
     return film;
 }
 
