@@ -54,7 +54,7 @@ static NSMutableArray<NSMutableDictionary *> *navbarEntries(void) {
 
 // A tab of the mod's own carries an identity of its own, so the same page can sit on the bar twice
 // and renaming one does not shuffle the order.
-static NSDictionary *tabEntry(NSDictionary *tab) {
+static NSMutableDictionary *tabEntry(NSDictionary *tab) {
     NSMutableDictionary *entry = [@{SGRNavbarID: NSUUID.UUID.UUIDString, SGRNavbarTitle: tab[SGTabTitle],
                                     SGRNavbarURI: tab[SGTabURI], SGRNavbarIcon: tab[SGTabIcon]} mutableCopy];
     entry[SGRNavbarIconSet] = tab[SGTabIconSet];
