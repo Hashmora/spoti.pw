@@ -304,7 +304,9 @@ static void applyHeader(UIView *header) {
     // with the photo: pinned there it is the same button in the same place on the album and the playlist,
     // and the page keeps it however far down the list one is (issue #57).
     UIView *more = SGRFindByIdentifier(header, @"Components.UI.ContextMenuButton*", &kMoreKey);
-    SGRPinnedMore(SGRArtistPageOf(container), &kMoreButtonKey, more);
+    UIView *page = SGRArtistPageOf(container);
+    SGRPinnedMore(page, &kMoreButtonKey, more);
+    SGRPinnedBack(page, header);
 
     // Collapsing, the text would pass over Spotify's bar with the name in it: it goes over the last kFade of
     // the collapse, from the header's own height, which this pass runs on every step of. More stays: it is

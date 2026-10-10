@@ -625,6 +625,7 @@ static void setMinimized(BOOL minimized, BOOL animated);
 static NSUInteger sg_request;
 
 void SGRSetTabBarMinimized(BOOL minimized, BOOL animated) {
+    if (SGRLegacyTabBarOn()) return;   // the legacy bar (TabBarLegacy.x) has no minimized state
     NSUInteger request = ++sg_request;
     if (!animated) {
         [UIView performWithoutAnimation:^{ setMinimized(minimized, NO); }];
@@ -913,7 +914,7 @@ static void itemDidLayOut(UIView *item) {
 %end
 
 %ctor {
-    if (!SGRedesignedUI()) return;
+    if (!SGRedesignedUI() || SGRLegacyTabBarOn()) return;   // below iOS 26 with legacy glass, TabBarLegacy.x is the bar
     %init;
     SGRequireClasses(@[
         @"_TtC23NavigationUI_TabBarImpl10TabBarView",

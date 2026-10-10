@@ -56,7 +56,7 @@ static CGFloat height(float rms) {
 - (instancetype)initWithFrame:(CGRect)frame {
     if (!(self = [super initWithFrame:frame])) return nil;
     // Glass over the card's flat gray shows little of itself, so a light wash gives the track its shape.
-    UIVisualEffectView *glass = SGGlassFor(self, @selector(initWithFrame:));
+    UIView *glass = SGGlassFor(self, @selector(initWithFrame:));
     glass.userInteractionEnabled = NO;
     self.backgroundColor = [UIColor colorWithWhite:1 alpha:0.1];
     _fill = [UIView new];

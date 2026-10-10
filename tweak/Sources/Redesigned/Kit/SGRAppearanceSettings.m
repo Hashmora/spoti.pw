@@ -11,6 +11,22 @@ static NSArray<NSString *> *presets(void) {
     return @[@"Spotify", @"Apple Music", @"Custom"];
 }
 
+// A switch where the device has the private APIs legacy glass leans on (SGLegacyGlassAvailable()); where
+// it has not, a row that says so, and panes stay a plain blur.
+static SGModRow *legacyGlassRow(void) {
+    if (SGLegacyGlassAvailable()) {
+        SGModRow *row = SGOptionRow(@"Legacy Liquid Glass", @"An approximation of iOS 26's glass for the navbar and round buttons, on this iOS.", SGKeyLegacyGlass);
+        return SGWithSymbol(row, @"cube.transparent");
+    }
+    NSString *reason = [NSString stringWithFormat:@"This phone (iOS %@) doesn't have the private APIs it leans on, so glass panes stay a plain blur.", UIDevice.currentDevice.systemVersion];
+    SGModRow *row = SGStatActionRow(@"Legacy Liquid Glass", nil, ^NSString *{ return @"Unavailable"; }, ^{
+        UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Legacy Liquid Glass" message:reason preferredStyle:UIAlertControllerStyleAlert];
+        [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleCancel handler:nil]];
+        [SGTopController() presentViewController:alert animated:YES completion:nil];
+    });
+    return SGWithSymbol(row, @"cube.transparent");
+}
+
 static NSInteger preset(void) {
     NSInteger rgb = SGInt(SGRKeyAccent, SGRDefaultAccent);
     if (rgb < 0 || rgb > 0xFFFFFF) return 0;
@@ -36,8 +52,8 @@ NSArray<SGModRow *> *SGRAppearanceRows(void) {
         });
     });
     colour.swatch = ^UIColor *{ return SGColorRGB(SGRAccentRGB()); };
-    return @[
-        SGWithSymbol(menu, @"paintpalette"),
-        SGWithSymbol(colour, @"eyedropper"),
-    ];
+    NSMutableArray<SGModRow *> *rows = [NSMutableArray arrayWithObjects:SGWithSymbol(menu, @"paintpalette"), SGWithSymbol(colour, @"eyedropper"), nil];
+    // From iOS 26 the system draws the glass itself and there is nothing for the switch to do, so no row.
+    if (@available(iOS 26.0, *)) {} else [rows addObject:legacyGlassRow()];
+    return rows;
 }

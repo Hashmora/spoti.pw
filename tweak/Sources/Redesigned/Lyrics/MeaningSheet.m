@@ -2,10 +2,32 @@
 #import "Settings/SGPageStyle.h"
 #import "MeaningSheet.h"
 #import "Redesigned/Kit/SGRTokens.h"
+#import "Core/SGGlass.h"
+#import "Redesigned/Kit/SGRGlass.h"
 
 static const CGFloat kSide = 24, kTop = 28, kGap = 12;
 // The footer's row is drawn 22pt tall; its buttons take touches over 44, centered on it.
 static const CGFloat kRow = 22, kTouch = 44;
+// The sheet's corners: the screen's own radius at every detent. A page sheet is only 10 pt round at the medium
+// detent and grows to the screen's radius as it is pulled to the large one (trees 2026-10-05: r=10 on the
+// container at medium, r=47.3 inside it), so left alone the corners were small until dragged up. 16, the
+// radius of Spotify's own sheets, was tried and read as always small; this keeps the big one throughout.
+static const CGFloat kScreenRadiusFallback = 47;
+
+static CGFloat sheetRadius(void) {
+    static CGFloat radius;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        radius = kScreenRadiusFallback;
+        @try {
+            id value = [UIScreen.mainScreen valueForKey:@"_displayCornerRadius"];
+            if ([value respondsToSelector:@selector(doubleValue)] && [value doubleValue] > 0) radius = [value doubleValue];
+        } @catch (__unused NSException *e) {}
+    });
+    return radius;
+}
+
+static char kMeaningGlassKey;
 
 static NSString *authorName(SGLyricsMeaningAuthor author) {
     switch (author) {
@@ -42,6 +64,7 @@ static NSString *authorSymbol(SGLyricsMeaningAuthor author) {
     UISheetPresentationController *sheet = self.sheetPresentationController;
     sheet.detents = @[UISheetPresentationControllerDetent.mediumDetent, UISheetPresentationControllerDetent.largeDetent];
     sheet.prefersGrabberVisible = YES;
+    if (@available(iOS 16.0, *)) sheet.preferredCornerRadius = sheetRadius();
     sheet.prefersScrollingExpandsWhenScrolledToEdge = YES;
     // On the landscape lyrics (compact height) the sheet would otherwise cover the whole screen with no
     // grabber and nothing to pull down; edge attached it is a card on the bottom edge, inside the safe area.
@@ -78,10 +101,16 @@ static NSString *authorSymbol(SGLyricsMeaningAuthor author) {
 - (void)viewDidLoad {
     [super viewDidLoad];
     // From iOS 26 a sheet short of full height is Liquid Glass, which the system draws and turns opaque
-    // itself at the large detent and under Reduce Transparency; a fill here would cover it.
+    // itself at the large detent and under Reduce Transparency; a fill here would cover it. Below 26 the
+    // sheet gets legacy glass.
     if (@available(iOS 26.0, *)) {
     } else {
-        self.view.backgroundColor = UIColor.systemBackgroundColor;
+        self.view.backgroundColor = UIColor.clearColor;
+        UIView *glass = SGGlassFor(self.view, &kMeaningGlassKey);
+        glass.frame = self.view.bounds;
+        glass.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+        SGShapeGlass(glass, sheetRadius(), NO);
+        SGRThickenSheetGlass(glass, sheetRadius());
     }
     _scroll = [[UIScrollView alloc] initWithFrame:self.view.bounds];
     _scroll.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;

@@ -29,9 +29,12 @@ NSURL *SGRNavbarTabURL(NSString *uri);
 
 // Navbar.x, called from the tab bar's layout passes in TabBar.x.
 void SGRComposeTabBar(UIView *tabBar);
-void SGRLogTabBarRow(UIView *tabBar);
 // Lays the bar out again after the Navbar page changes something, so it does not wait for a touch.
 void SGRRefreshTabBar(void);
+
+// YES below iOS 26 when the redesign is on with Legacy Liquid Glass: the tab bar is then TabBarLegacy.x's glass
+// capsule, not TabBar.x's system bar. Decided once, at launch.
+BOOL SGRLegacyTabBarOn(void);
 // Whether a tab of the composed row is one of the split tabs at its trailing end, for TabBar.x's second bar.
 BOOL SGRTabIsApart(UIView *item);
 // The tab of the mod's own whose page is on screen, which the glass bar shows selected; nil when none is.

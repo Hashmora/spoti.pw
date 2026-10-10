@@ -1,24 +1,29 @@
 #import "Core/SGCore.h"
 #import "SGRGlass.h"
 #import "SGRTokens.h"
+#import "SGRRestyle.h"
+#import "SGRRepaint.h"
 
+// The redesign runs below iOS 26 only (SGRedesignAvailable()), so there is no system glass to use: a shape
+// is the legacy approximation when it is on, a thin material blur when it is not, and a solid fill under
+// Reduce Transparency.
 typedef NS_ENUM(NSInteger, SGRGlassMode) {
-    SGRGlassModeGlass,
+    SGRGlassModeLegacy,
     SGRGlassModeBlur,
     SGRGlassModeSolid,
 };
 
 static SGRGlassMode glassMode(void) {
     if (SGRReduceTransparency()) return SGRGlassModeSolid;
-    if (@available(iOS 26.0, *)) return SGRGlassModeGlass;
+    if (SGUseLegacyGlass()) return SGRGlassModeLegacy;
     return SGRGlassModeBlur;
 }
 
 static UIView *newShape(SGRGlassMode mode) {
     UIView *shape;
     switch (mode) {
-        case SGRGlassModeGlass:
-            shape = [[UIVisualEffectView alloc] initWithEffect:SGGlassEffect()];
+        case SGRGlassModeLegacy:
+            shape = [[SGLegacyGlassView alloc] initWithFrame:CGRectZero];
             break;
         case SGRGlassModeBlur:
             shape = [[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemThinMaterialDark]];
@@ -48,7 +53,9 @@ static void keepFilm(UIView *shape, BOOL prominent, SGRGlassMode mode) {
         film.hidden = YES;
         return;
     }
-    UIView *content = [shape isKindOfClass:UIVisualEffectView.class] ? ((UIVisualEffectView *)shape).contentView : shape;
+    UIView *content = [shape isKindOfClass:UIVisualEffectView.class] ? ((UIVisualEffectView *)shape).contentView
+                     : [shape isKindOfClass:SGLegacyGlassView.class] ? ((SGLegacyGlassView *)shape).contentView
+                     : shape;
     if (!film) {
         film = [UIView new];
         film.backgroundColor = [UIColor colorWithWhite:1 alpha:0.14];
@@ -119,4 +126,180 @@ void SGRShowGlass(UIView *shape, BOOL shown) {
     } else {
         shape.alpha = shown ? 1 : 0;
     }
+}
+
+#pragma mark - flat boxes and floating films
+
+UIView *SGRGlassFlatBox(UIView *box, const void *key) {
+    CGSize size = box.bounds.size;
+    if (!box || size.width < 1 || size.height < 1) return nil;
+    if (box.backgroundColor != UIColor.clearColor) box.backgroundColor = UIColor.clearColor;
+    if (box.layer.cornerRadius != size.height / 2) box.layer.cornerRadius = size.height / 2;
+    if (box.layer.cornerCurve != kCACornerCurveContinuous) box.layer.cornerCurve = kCACornerCurveContinuous;
+    if (!box.layer.masksToBounds) box.layer.masksToBounds = YES;
+    return SGRGlassCapsuleInside(box, key, size, NO);
+}
+
+UIView *SGRGlassFilm(UIView *host, const void *key, UIView *glass, CGFloat radius) {
+    UIView *film = SGLazyChild(host, key, ^UIView *{
+        UIView *view = [UIView new];
+        view.backgroundColor = [UIColor colorWithWhite:1 alpha:0.16];
+        view.userInteractionEnabled = NO;
+        view.layer.cornerCurve = kCACornerCurveContinuous;
+        view.layer.masksToBounds = YES;
+        return view;
+    });
+    if (film.superview != host) [host insertSubview:film aboveSubview:glass];
+    if (!CGRectEqualToRect(film.frame, glass.frame)) film.frame = glass.frame;
+    if (film.layer.cornerRadius != radius) film.layer.cornerRadius = radius;
+    return film;
+}
+
+#pragma mark - a sheet's own chrome
+
+// Whether `view` is sheet chrome rather than a row or card in the sheet's own list: it sits under `root`
+// (sgr_sheetChromeRoot) with no scroll view between. The same footprint stripSheetChrome clears, so a
+// view built after the first strip (the queue's footer) is cleared on its own repaint all the same.
+BOOL SGRIsSheetChromeArea(UIView *view, UIView *root) {
+    if (!root) return NO;
+    for (UIView *v = view; v; v = v.superview) {
+        if (v != view && [v isKindOfClass:UIScrollView.class]) return NO;
+        if (v == root) return YES;
+    }
+    return NO;
+}
+
+// A card the sheet draws on purpose, not a wrapper's leftover grey: the device picker's "this device" card
+// and its Connect button (SwiftUI._UIGraphicsView with a fill and a radius, trees/continuous 2026-10-05).
+// They are the sheet's content, and cleared they leave the picker a bare list with nothing marking the
+// device that is playing.
+BOOL SGRIsSheetCard(UIView *view) {
+    if ([NSStringFromClass(view.class) hasPrefix:@"SwiftUI"]) return YES;
+    return view.layer.cornerRadius >= 1 && view.bounds.size.height > 4 && view.bounds.size.width < 380;
+}
+
+// The device picker's cards are SwiftUI shapes painted an opaque #292929, which on the glass are the one
+// grey left in the sheet. They become a translucent white, the same family as the Connect button's 10%.
+CGColorRef SGRSheetCardFill(void) {
+    static CGColorRef fill;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ fill = CGColorRetain([UIColor colorWithWhite:1 alpha:0.12].CGColor); });
+    return fill;
+}
+
+BOOL SGRIsSwiftUICard(UIView *view) {
+    return [NSStringFromClass(view.class) hasPrefix:@"SwiftUI"];
+}
+
+static void tintCard(UIView *view) {
+    if (SGRIsSwiftUICard(view) && SGRIsSheetSurface(view.layer.backgroundColor)) view.layer.backgroundColor = SGRSheetCardFill();
+}
+
+static void clearFill(UIView *view) {
+    tintCard(view);
+    if (!SGKeepsColor(view) && !SGRIsSheetCard(view) && SGIsVisibleColor(view.layer.backgroundColor)) view.layer.backgroundColor = NULL;
+}
+
+// The opaque dark grey Spotify paints a sheet's rows and wrappers with (#1F1F1F, trees/continuous 2026-10-05:
+// the queue's QueueCell, TrackRowQueue.Cell, SessionModifiersView and the ⋯ menu's table). Not SGIsBaseSurface:
+// that stops at 0.10 for the #121212 page black, and this grey is 0.12.
+BOOL SGRIsSheetSurface(CGColorRef color) {
+    if (!color || CFGetTypeID(color) != CGColorGetTypeID() || CGColorGetAlpha(color) < 0.95) return NO;
+    const CGFloat *c = CGColorGetComponents(color);
+    size_t n = CGColorGetNumberOfComponents(color);
+    if (n == 2) return c[0] <= 0.20;
+    if (n < 3) return NO;
+    return c[0] <= 0.20 && fabs(c[0] - c[1]) < 0.02 && fabs(c[1] - c[2]) < 0.02;
+}
+
+// A row of the sheet's own list: every view nearly as wide as the sheet that carries the grey goes clear, the
+// cell itself and the stacks the element framework wraps its content in. Narrow ones stay (an avatar's
+// placeholder square, a badge): they are their own paint, not a band.
+static const CGFloat kSheetBandShare = 0.75;
+
+static void clearListPaint(UIView *view, CGFloat wide, int depth) {
+    if (!view || depth > 12 || wide < 1) return;   // wide 0: the sheet is not laid out yet; the next pass does it
+    tintCard(view);
+    if (!SGKeepsColor(view) && !SGRIsSheetCard(view) && view.bounds.size.width >= wide && SGRIsSheetSurface(view.layer.backgroundColor)) {
+        // Written through the view so its own backgroundColor and the layer say the same thing.
+        view.backgroundColor = UIColor.clearColor;
+    }
+    for (UIView *sub in view.subviews) clearListPaint(sub, wide, depth + 1);
+}
+
+void SGRClearSheetCellPaint(UIView *cell, UIView *root) {
+    if (!cell || !root) return;
+    clearListPaint(cell, root.bounds.size.width * kSheetBandShare, 0);
+}
+
+// Walked from the pane outward rather than by identifier, since sheets wrap their content a varying
+// number of levels deep (the queue one, the ⋯ menu seven: its table sat one past the old cap of six and
+// kept its grey). Any opaque fill goes: before the first list nothing here is a card, whatever grey
+// Spotify paints it with. A scroll view or table is cleared itself, and so are the bands its rows paint
+// (clearListPaint); its rows are otherwise left as every other list in the redesign leaves them
+// (SGRRestyle.h). Gives up well down rather than walk into a sheet this has never seen.
+static void stripSheetChrome(UIView *view, UIView *skip, CGFloat wide, int depth) {
+    if (!view || view == skip || depth > 14) return;
+    clearFill(view);
+    if ([view isKindOfClass:UIScrollView.class]) {
+        for (UIView *sub in view.subviews) clearListPaint(sub, wide, 0);
+        return;
+    }
+    for (UIView *sub in view.subviews) stripSheetChrome(sub, skip, wide, depth + 1);
+}
+
+// A sheet is a big pane, and the glass of a small control is too thin for one: the page under it came through
+// nearly sharp (blur 2) and took the eye off the sheet. So the pane blurs far more and carries a dark body
+// and a hairline edge, which is what tells it from a plain blur -- the rim catching light, over a body dense
+// enough to hold the content. Under Reduce Transparency the body is the solid fill alone.
+static const CGFloat kSheetBlur = 10;
+static char kSheetBodyKey, kSheetRimKey;
+
+void SGRThickenSheetGlass(UIView *glass, CGFloat cornerRadius) {
+    if ([glass isKindOfClass:SGLegacyGlassView.class]) ((SGLegacyGlassView *)glass).blurRadius = kSheetBlur;
+    UIView *host = [glass isKindOfClass:UIVisualEffectView.class] ? ((UIVisualEffectView *)glass).contentView
+                 : [glass isKindOfClass:SGLegacyGlassView.class] ? ((SGLegacyGlassView *)glass).contentView
+                 : glass;
+    UIView *body = SGLazyChild(host, &kSheetBodyKey, ^UIView *{
+        UIView *view = [UIView new];
+        view.userInteractionEnabled = NO;
+        view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+        return view;
+    });
+    UIColor *tint = SGRReduceTransparency() ? SGRSolidGlassFill() : [UIColor colorWithWhite:1 alpha:0.24];
+    if (![body.backgroundColor isEqual:tint]) body.backgroundColor = tint;
+    if (!CGRectEqualToRect(body.frame, host.bounds)) body.frame = host.bounds;
+    // The rim: one point of light along the top edge, fading down the sides, drawn over the body.
+    UIView *rim = SGLazyChild(host, &kSheetRimKey, ^UIView *{
+        UIView *view = [UIView new];
+        view.userInteractionEnabled = NO;
+        view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+        view.layer.borderWidth = 1.0 / UIScreen.mainScreen.scale;
+        view.layer.borderColor = [UIColor colorWithWhite:1 alpha:0.28].CGColor;
+        view.layer.cornerCurve = kCACornerCurveContinuous;
+        return view;
+    });
+    if (!CGRectEqualToRect(rim.frame, host.bounds)) rim.frame = host.bounds;
+    if (rim.layer.cornerRadius != cornerRadius) rim.layer.cornerRadius = cornerRadius;
+    if (body.superview == host && host.subviews.firstObject != body) [host sendSubviewToBack:body];
+    if (rim.superview == host && host.subviews.lastObject != rim) [host bringSubviewToFront:rim];
+}
+
+UIView *SGRGlassSheetChrome(UIView *content) {
+    static char kSheetChromeGlassKey;
+    for (UIView *v = content; v; v = v.superview) {
+        if (![v.accessibilityIdentifier isEqualToString:@"sheet-view"]) continue;
+        UIView *glass = SGGlassFor(v, &kSheetChromeGlassKey);
+        glass.frame = v.bounds;
+        glass.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+        SGShapeGlass(glass, v.layer.cornerRadius, NO);
+        SGRThickenSheetGlass(glass, v.layer.cornerRadius);
+        if (v.layer.backgroundColor) v.layer.backgroundColor = NULL;
+        CGFloat wide = v.bounds.size.width * kSheetBandShare;
+        for (UIView *sub in v.subviews) stripSheetChrome(sub, glass, wide, 0);
+        // Spotify repaints the grey on later passes; SGRRepaint.x keeps clearing it under this root.
+        if (sgr_sheetChromeRoot != v) sgr_sheetChromeRoot = v;
+        return glass;
+    }
+    return nil;
 }

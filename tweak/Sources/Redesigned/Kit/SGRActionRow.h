@@ -79,3 +79,12 @@ UIView *SGRPinnedMoreRecentPage(void);
 // The pinned ⋯ itself, tapped within that window, or nil: what the redesign's system menu opens from
 // (Redesigned/ContextMenu).
 SGRMirrorButton *SGRPinnedMoreRecentButton(void);
+
+// The mirror of SGRPinnedMore at the leading edge: one glass circle, the same size and inset, in place of
+// Spotify's own back button, which is hidden. Resizing and glassing Spotify's box in place fought the
+// header's collapse animation on every scroll (it lagged, clipped and sat off-centre from the ⋯ opposite),
+// so every header pins this independent button instead.
+//
+// `searchRoot` is where Spotify's back button (Components.Header.UI.BackButton) is looked for; until it is
+// found the pinned button stays hidden. Kept on `page`, and cheap to call on every pass.
+SGRMirrorButton *SGRPinnedBack(UIView *page, UIView *searchRoot);

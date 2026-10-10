@@ -16,3 +16,15 @@ extern __weak UIView *sgr_playlistRoot;
 extern __weak UIView *sgr_albumRoot;
 // Redesigned/Artist/ArtistField.x, the artist page, kept clear the same way and for the same reason.
 extern __weak UIView *sgr_artistRoot;
+// Kit/SGRGlass.h's SGRGlassSheetChrome: the "sheet-view" pane it glassed (the ⋯ context menu, the queue,
+// and the now-playing bar's pop-art track info, one component under all three). Any opaque fill its
+// chrome repaints outside the sheet's own list (SGRIsSheetChromeArea) is cleared here on every repaint,
+// not just the pass that first found it -- Spotify draws it back in on its own later (device 2026-09-26),
+// and a view built only after that first pass (the queue's own footer, device 2026-09-27) never gets a
+// first strip at all without this.
+extern __weak UIView *sgr_sheetChromeRoot;
+
+// Defined in Redesigned/Library/LibraryHeader.x, declared here because the repaint hook is lower than the
+// part: a library filter chip's fill was just painted (selected, deselected, pressed), so its glass is brought
+// in line with the paint -- shown over a clear fill, hidden under a selected colour -- without a layout pass.
+void SGRLibraryChipPainted(UIView *chip);
