@@ -32,6 +32,7 @@
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
 #import "Shared/Navigation/Links.h"
+#import "Shared/Navigation/TabIcons.h"
 #import "Shared/Player/PlayerState.h"
 #import "Player.h"
 
@@ -221,6 +222,29 @@ static SGRGlyphButton *glyphButtonIn(UIView *host, const void *key, NSString *sy
     return button;
 }
 
+// Spotify's own queue glyph (SPTEncoreIcon "queue", what the main player's queue button and the Queue tab
+// draw) over the Kit button's list.bullet, which is only what the button is made with. The button keeps its
+// touch and large content viewer; the glyph is its icon's stand-in, so the symbol hides rather than goes. With
+// no Encore (the class gone, or no such glyph) SGTabIconView answers a star symbol, and the bullet list stays.
+static char kEncoreQueueKey;
+static const CGFloat kQueueIconSize = 24;
+
+static void useSpotifyQueueIcon(SGRGlyphButton *button) {
+    UIView *icon = objc_getAssociatedObject(button, &kEncoreQueueKey);
+    if (!icon) {
+        UIView *made = SGTabIconView(@"queue", NO, SGRPrimary());
+        if (!made || [made isKindOfClass:UIImageView.class]) return;
+        icon = made;
+        icon.userInteractionEnabled = NO;
+        icon.isAccessibilityElement = NO;
+        objc_setAssociatedObject(button, &kEncoreQueueKey, icon, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        [button addSubview:icon];
+    }
+    button.glyph.hidden = YES;
+    icon.bounds = CGRectMake(0, 0, kQueueIconSize, kQueueIconSize);
+    icon.center = CGPointMake(CGRectGetMidX(button.bounds), CGRectGetMidY(button.bounds));
+}
+
 #pragma mark lower down
 
 // Moved down, the row is drawn partly below the bottom stack it is arranged in, and UIKit does not look into a
@@ -330,6 +354,7 @@ static void styleFooter(UIViewController *unit) {
     });
     queue.bounds = CGRectMake(0, 0, 44, 44);
     queue.center = CGPointMake(slot(2), middleY);
+    useSpotifyQueueIcon(queue);
 
     // The DJ button at the last place. Connect's view reaches a long way to the right of its glyph, so the
     // DJ's goes above it in the stack, or Connect would take its touches.

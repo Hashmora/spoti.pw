@@ -288,8 +288,19 @@ static NSArray<UITabBarItem *> *itemsFor(NSArray<NSDictionary *> *entries, BOOL 
     for (NSDictionary *entry in shown) if (![splitStock containsObject:entry[SGRNavbarID]]) [main addObject:entry];
     if (custom) [apart addObjectsFromArray:SGRNavbarSplit()];
     // The fallback bar folds the split tab into the capsule when the bar is this short (TabBarLegacy.x).
-    if (SGRLegacyTabBarOn() && main.count + apart.count <= SGRLegacyFoldLimit) {
-        [main addObjectsFromArray:apart];
+    // The split tab stands where the tab list puts it, as on the bar.
+    if (SGRLegacyTabBarOn() && main.count && apart.count && main.count + apart.count <= SGRLegacyFoldLimit) {
+        NSSet<NSString *> *apartIDs = [NSSet setWithArray:[apart valueForKey:SGRNavbarID]];
+        NSMutableArray<NSDictionary *> *merged = [NSMutableArray array];
+        NSMutableSet<NSString *> *mergedIDs = [NSMutableSet set];
+        for (NSDictionary *entry in shown) {
+            NSString *ident = entry[SGRNavbarID];
+            if ([splitStock containsObject:ident] && ![apartIDs containsObject:ident]) continue;
+            [merged addObject:entry];
+            if (ident) [mergedIDs addObject:ident];
+        }
+        for (NSDictionary *entry in apart) if (![mergedIDs containsObject:entry[SGRNavbarID]]) [merged addObject:entry];
+        main = merged;
         [apart removeAllObjects];
     }
     if (!main.count) {

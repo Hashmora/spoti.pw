@@ -1338,8 +1338,11 @@ static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
         if (wasFolded && !fold && oldSelSource && oldSelSource == apartSource) bar.apartSelected = YES;
         if (!wasFolded && fold && bar.apartSelected && items.count) {
             bar.apartSelected = NO;
-            bar.selectedItem = items.lastObject;
-            bar.lastRealItem = items.lastObject;
+            // The split tab is the capsule's own at whatever place the settings gave it.
+            NSUInteger at = [sources indexOfObject:apartSource];
+            UITabBarItem *own = at < items.count ? items[at] : items.lastObject;
+            bar.selectedItem = own;
+            bar.lastRealItem = own;
         }
     }
     if (fold) {

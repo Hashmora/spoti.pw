@@ -310,6 +310,23 @@ void SGRDimSheetGlass(UIView *glass, CGFloat alpha) {
     if (rim.superview == host) [host bringSubviewToFront:rim];
 }
 
+// The radius of the Genius meanings sheet: the screen's own corner radius, which the system sheet takes for its
+// top corners. Every sheet the mod glasses takes the same one, so none of them has Spotify's smaller 12 or 16.
+static const CGFloat kSheetRadiusFallback = 47;
+
+CGFloat SGRSheetCornerRadius(void) {
+    static CGFloat radius;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        radius = kSheetRadiusFallback;
+        @try {
+            id value = [UIScreen.mainScreen valueForKey:@"_displayCornerRadius"];
+            if ([value respondsToSelector:@selector(doubleValue)] && [value doubleValue] > 0) radius = [value doubleValue];
+        } @catch (__unused NSException *e) {}
+    });
+    return radius;
+}
+
 UIView *SGRGlassSheetChrome(UIView *content) {
     static char kSheetChromeGlassKey;
     for (UIView *v = content; v; v = v.superview) {
@@ -317,8 +334,13 @@ UIView *SGRGlassSheetChrome(UIView *content) {
         UIView *glass = SGGlassFor(v, &kSheetChromeGlassKey);
         glass.frame = v.bounds;
         glass.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-        SGShapeGlass(glass, v.layer.cornerRadius, NO);
-        SGRThickenSheetGlass(glass, v.layer.cornerRadius);
+        // Top corners only: the bottom of a sheet is off the screen's edge.
+        CGFloat radius = SGRSheetCornerRadius();
+        if (v.layer.cornerRadius != radius) v.layer.cornerRadius = radius;
+        v.layer.cornerCurve = kCACornerCurveContinuous;
+        v.layer.maskedCorners = kCALayerMinXMinYCorner | kCALayerMaxXMinYCorner;
+        SGShapeGlass(glass, radius, NO);
+        SGRThickenSheetGlass(glass, radius);
         if (v.layer.backgroundColor) v.layer.backgroundColor = NULL;
         CGFloat wide = v.bounds.size.width * kSheetBandShare;
         for (UIView *sub in v.subviews) stripSheetChrome(sub, glass, wide, 0);

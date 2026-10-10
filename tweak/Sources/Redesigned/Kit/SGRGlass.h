@@ -44,6 +44,8 @@ UIView *SGRGlassFilm(UIView *host, const void *key, UIView *glass, CGFloat radiu
 // at that list and leaves its rows alone. Also records the sheet in sgr_sheetChromeRoot (SGRRepaint.h), whose
 // hook keeps the fill clear when Spotify paints it back.
 UIView *SGRGlassSheetChrome(UIView *content);
+// The top corner radius of every sheet the mod glasses: the screen's, as the Genius meanings sheet has it.
+CGFloat SGRSheetCornerRadius(void);
 // The body SGRGlassSheetChrome puts on a sheet's pane (heavier blur, dark tint, hairline rim), for a sheet
 // the mod presents itself and that has no "sheet-view" to find (the Genius meanings sheet).
 void SGRThickenSheetGlass(UIView *glass, CGFloat cornerRadius);
