@@ -610,6 +610,7 @@ static void syncBar(UIView *stockBar) {
 // bars get their new items and are laid out where they are going at once; then every view of theirs goes back
 // to where it was and moves on one spring with the card (see "one move"); nothing fades a bar's glass.
 BOOL SGRTabBarMinimized(void) {
+    if (SGRLegacyTabBarOn()) return SGRLegacyTabBarMinimized();
     return sg_minimized;
 }
 
@@ -625,7 +626,7 @@ static void setMinimized(BOOL minimized, BOOL animated);
 static NSUInteger sg_request;
 
 void SGRSetTabBarMinimized(BOOL minimized, BOOL animated) {
-    if (SGRLegacyTabBarOn()) return;   // the legacy bar (TabBarLegacy.x) has no minimized state
+    if (SGRLegacyTabBarOn()) { SGRLegacySetTabBarMinimized(minimized, animated); return; }   // the capsule bar (TabBarLegacy.x) minimizes itself
     NSUInteger request = ++sg_request;
     if (!animated) {
         [UIView performWithoutAnimation:^{ setMinimized(minimized, NO); }];
@@ -825,6 +826,7 @@ static void setMinimized(BOOL minimized, BOOL animated) {
 }
 
 CGRect SGRTabBarInlineSlot(UIView *host, CGFloat height) {
+    if (SGRLegacyTabBarOn()) return SGRLegacyTabBarInlineSlot(host, height);
     UIView *stockBar = sg_stockBar;
     UIView *bar = stockBar ? objc_getAssociatedObject(stockBar, &kBarKey) : nil;
     UIView *apartBar = stockBar ? objc_getAssociatedObject(stockBar, &kApartBarKey) : nil;

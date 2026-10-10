@@ -33,9 +33,14 @@ void SGRLogTabBarRow(UIView *tabBar);
 // Lays the bar out again after the Navbar page changes something, so it does not wait for a touch.
 void SGRRefreshTabBar(void);
 
-// YES below iOS 26 when the redesign is on with Legacy Liquid Glass: the tab bar is then TabBarLegacy.x's glass
-// capsule, not TabBar.x's system bar. Decided once, at launch.
+// YES below iOS 26 when the redesign is on: the tab bar is then TabBarLegacy.x's capsule, drawn on a plain blur or on
+// legacy glass by the Legacy Liquid Glass switch, not TabBar.x's system bar. Decided once, at launch.
 BOOL SGRLegacyTabBarOn(void);
+// TabBarLegacy.x's own minimized bar, the same three as below for the capsule bar: TabBar.x's functions hand over
+// to them where SGRLegacyTabBarOn() says that bar is the one in place.
+BOOL SGRLegacyTabBarMinimized(void);
+void SGRLegacySetTabBarMinimized(BOOL minimized, BOOL animated);
+CGRect SGRLegacyTabBarInlineSlot(UIView *host, CGFloat height);
 // Whether a tab of the composed row is one of the split tabs at its trailing end, for TabBar.x's second bar.
 BOOL SGRTabIsApart(UIView *item);
 // The tab of the mod's own whose page is on screen, which the glass bar shows selected; nil when none is.

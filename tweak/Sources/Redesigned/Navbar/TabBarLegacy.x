@@ -1,11 +1,18 @@
-// Tab bar below iOS 26, for the redesign with "Legacy Liquid Glass" on: Spotify's own bar stays where it is
-// but goes invisible, and a system UITabBar sits on top of it as a floating glass capsule with a selection
-// pill, drag-to-switch and Create's menu handled (ported from the legacy-glass branch).
+// Tab bar below iOS 26, for the redesign: Spotify's own bar stays where it is but goes invisible, and a system
+// UITabBar sits on top of it as a floating capsule with a selection pill, drag-to-switch and Create's menu
+// handled (ported from the legacy-glass branch). The capsule is drawn on SGGlassFor's pane, so with Legacy
+// Liquid Glass off it is the plain dark blur every other pane of the redesign falls back to, and with it on it
+// is SGLegacyGlassView. Nothing here depends on which one it is.
 //
-// TabBar.x is the other bar: on iOS 26+ UIKit draws real Liquid Glass for it and this file stays out.
-// The hooks here are in a group that only runs where SGRLegacyTabBarOn() says so, and TabBar.x's own
-// hooks do not run then, so exactly one of the two bars is ever in place. The switch is read once at
-// launch, so changing it in Mod Settings takes effect on the next launch.
+// TabBar.x is the other bar: on iOS 26+ UIKit draws real Liquid Glass for it and this file stays out. Below 26
+// its system bar has no platters to hang the minimized bar's circles on, and drew them as bare slabs of
+// blur. The hooks here are in a group that only runs where SGRLegacyTabBarOn() says so, and TabBar.x's own
+// hooks do not run then, so exactly one of the two bars is ever in place. The glass kind is read once at
+// launch, so changing the switch in Mod Settings takes effect on the next launch.
+//
+// A page scrolled down minimizes the bar to a circle holding the open tab at the leading end, a circle at
+// the trailing end when tabs are set apart (Split tabs), and the now playing card between them, as TabBar.x
+// does on 26. See "compact".
 //
 // A tab picked on the system bar is passed on as a tap on the hidden Spotify item it mirrors, and the
 // system bar's selection follows whichever Spotify label is painted white. Navbar.x composes the
@@ -17,11 +24,13 @@
 #import "Navbar.h"
 #import "Redesigned/Kit/SGRGlass.h"
 #import "Redesigned/Kit/SGRTokens.h"
+#import "Redesigned/NowPlayingBar/NowPlayingBar.h"
 #import "Settings/SGPage.h"
 #import "Headers/SPTEncoreIconView.h"
 #import <objc/message.h>
 
 static char kBarKey, kHostKey, kNavGlassKey, kNavTintKey, kSelPillKey, kRetriesKey, kGlyphOverlayKey, kOutlineLiveKey, kFilledLiveKey, kCreateDiscKey, kGlyphsTakenKey;
+static char kCirclePaneKey, kCircleFilmKey, kLeadKey, kTrailKey;
 // The bar is a floating capsule, not a full-width slab.
 static const CGFloat kNavGlassMargin = 16;        // gap at each side
 static const CGFloat kNavGlassBottomMargin = 8;   // gap under it, and over it to the now playing card
@@ -38,6 +47,9 @@ static const CGFloat kNavItemWidth = 90;    // fixed, so the capsule hugs its it
 static const CGFloat kSelPillInset = 3;     // gap between the selection pill and the capsule's edge
 static __weak UIView *sg_stockBar;
 static CGFloat sg_room, sg_glassHeight;   // see "room for the glass bar"
+// See "compact". The circles' frames in the host's coordinates, the trailing one empty when no tab is set apart.
+static BOOL sg_minimized;
+static CGRect sg_leadFrame, sg_trailFrame;
 
 // Components/TabSelectionRecognizer/Sources/TabSelectionRecognizer.swift, ported as-is: state goes to
 // Began the instant a finger touches down (no distance or duration threshold the way a pan or a long
@@ -127,6 +139,70 @@ static void syncBar(UIView *stockBar);
 static void syncBarExternalChange(UIView *stockBar);
 static void syncBarCore(UIView *stockBar, BOOL rescanSelection);
 static void followCreateClose(UIView *stockBar);
+
+#pragma mark - the compact bar's circles
+
+// A round control of the compact bar: a glass circle with one tab's glyph on it. The glass is SGGlassFor's, so
+// it is a legacy glass pane with Legacy Liquid Glass on and a plain blur without it, and comes and goes by its
+// effect (SGRShowGlass), never by an alpha on the control, which UIKit draws a blur wrongly under. The control
+// is scaled while it is away, so it grows in as the bar minimizes; its size and place are set by bounds and
+// center, since a frame is undefined under a transform.
+@interface SGRLegacyCircle : UIControl
+@property (nonatomic, strong, readonly) UIImageView *glyph;
+@property (nonatomic, copy) void (^onTap)(void);
+// Shows or hides the circle; asked for inside an animation it moves in that animation.
+- (void)setShown:(BOOL)shown;
+@end
+
+@implementation SGRLegacyCircle {
+    UIView *_pane;
+    UIView *_film;
+    BOOL _shown, _configured;
+}
+
+- (instancetype)initWithFrame:(CGRect)frame {
+    if (!(self = [super initWithFrame:frame])) return nil;
+    self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
+    _pane = SGGlassFor(self, &kCirclePaneKey);
+    _pane.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
+    _film = SGRGlassFilm(self, &kCircleFilmKey, _pane, 0);
+    _glyph = [UIImageView new];
+    _glyph.userInteractionEnabled = NO;
+    _glyph.contentMode = UIViewContentModeCenter;
+    _glyph.tintColor = UIColor.whiteColor;
+    [self addSubview:_glyph];
+    self.isAccessibilityElement = YES;
+    self.accessibilityTraits = UIAccessibilityTraitButton;
+    [self addTarget:self action:@selector(tapped) forControlEvents:UIControlEventTouchUpInside];
+    return self;
+}
+
+- (void)layoutSubviews {
+    [super layoutSubviews];
+    CGRect bounds = self.bounds;
+    CGFloat radius = bounds.size.height / 2;
+    if (!CGRectEqualToRect(_pane.frame, bounds)) _pane.frame = bounds;
+    SGShapeGlass(_pane, radius, NO);
+    SGRGlassFilm(self, &kCircleFilmKey, _pane, radius);
+    _glyph.frame = bounds;
+}
+
+- (void)setShown:(BOOL)shown {
+    if (_configured && _shown == shown) return;
+    _configured = YES;
+    _shown = shown;
+    SGRShowGlass(_pane, shown);
+    _film.alpha = shown ? 1 : 0;
+    _glyph.alpha = shown ? 1 : 0;
+    self.transform = shown ? CGAffineTransformIdentity : CGAffineTransformMakeScale(0.6, 0.6);
+    self.userInteractionEnabled = shown;
+}
+
+- (void)tapped {
+    if (self.onTap) self.onTap();
+}
+
+@end
 
 #pragma mark - reading Spotify's items
 
@@ -659,6 +735,13 @@ static void setCreateOpen(SGRLegacyTabBar *bar, BOOL open) {
     insets.bottom = MAX(0, insets.bottom - sg_room - kNavGlassBottomMargin);
     return insets;
 }
+
+// Minimized, the host still spans the screen, and its bare part between the circles is where the now playing
+// card stands: a touch there goes on to the card instead of stopping here.
+- (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
+    UIView *hit = [super hitTest:point withEvent:event];
+    return sg_minimized && hit == self ? nil : hit;
+}
 @end
 
 @interface SGRLegacyHomeHold : UILongPressGestureRecognizer
@@ -798,6 +881,196 @@ static void followCreateClose(UIView *stockBar) {
     if (!bar || bar.awaitingCreateClose) return;
     bar.awaitingCreateClose = YES;
     pollCreateClose(stockBar, 0, NO);
+}
+
+#pragma mark - compact
+
+// A page scrolled down minimizes the bar (TabBarMinimize.x), the way the Music app's does and the way TabBar.x's
+// does on iOS 26: the capsule gives way to a circle at the leading end holding the tab that is open, which
+// brings the whole bar back, and to a circle at the trailing end holding the last tab set apart (Split tabs),
+// when there is one, and the now playing card takes the room between them (NowPlayingBar.x asks
+// SGRLegacyTabBarInlineSlot for it). Without a split tab the card runs on to the margin.
+//
+// The system bar underneath is not rebuilt: it keeps its items, goes clear and takes no touches, so the full
+// bar is back as it was, selection and all. The circles are controls of the host with a glass pane of their
+// own (SGRLegacyCircle), the capsule's glass goes by its effect, and all of it moves in the one SGRMotionBar
+// spring that moves the card. The panes come from SGGlassFor, so this is the same for a plain blur and for
+// legacy glass.
+
+// Whether `item` can stand on the leading circle: a real tab, not Create, and not the one on the trailing circle.
+static BOOL leadsCompact(SGRLegacyTabBar *bar, UITabBarItem *item, UITabBarItem *trailItem) {
+    NSUInteger index = item ? [bar.items indexOfObject:item] : NSNotFound;
+    return index < bar.sources.count && item != trailItem && !isCreateSource(bar.sources[index]);
+}
+
+// The trailing circle's tab, opened the way the bar's own tap would: Create pops its menu, the rest are
+// picked and passed on to Spotify, which brings the full bar back (the hook on setSelectedViewController).
+static void tapTrailing(UIView *stockBar) {
+    SGRLegacyTabBar *bar = stockBar ? objc_getAssociatedObject(stockBar, &kBarKey) : nil;
+    UIView *source = nil;
+    for (UIView *candidate in bar.sources) if (SGRTabIsApart(candidate)) source = candidate;
+    NSUInteger index = source ? [bar.sources indexOfObject:source] : NSNotFound;
+    if (index >= bar.items.count) return;
+    UITabBarItem *item = bar.items[index];
+    if (!isCreateSource(source)) bar.selectedItem = item;
+    [bar tabBar:bar didSelectItem:item];
+}
+
+static SGRLegacyCircle *makeCircle(UIView *host, const void *key) {
+    SGRLegacyCircle *circle = (SGRLegacyCircle *)SGLazyChild(host, key, ^UIView *{ return [SGRLegacyCircle new]; });
+    // Made away, so it comes in with the bar's motion rather than being there at once.
+    [UIView performWithoutAnimation:^{
+        [host addSubview:circle];
+        [circle setShown:NO];
+    }];
+    return circle;
+}
+
+static void placeCircle(SGRLegacyCircle *circle, CGRect frame, UIView *host) {
+    if (!circle || CGRectIsEmpty(frame)) return;
+    if (circle.superview != host) [host addSubview:circle];
+    CGPoint center = CGPointMake(CGRectGetMidX(frame), CGRectGetMidY(frame));
+    if (!CGSizeEqualToSize(circle.bounds.size, frame.size)) circle.bounds = (CGRect){CGPointZero, frame.size};
+    if (!CGPointEqualToPoint(circle.center, center)) circle.center = center;
+    [circle layoutIfNeeded];
+}
+
+// Lays the bar out for the state it is in, called from every pass of syncBarCore with the capsule's frame:
+// the capsule, its film, the selection pill and the system bar for the full bar, the circles for the compact
+// one. Inside an animation the change moves in it.
+static void placeCompact(UIView *stockBar, SGRLegacyTabBar *bar, UIView *host, NSArray<UIView *> *sources, CGRect platter,
+                         UIView *navGlass, UIView *navTint, UIView *selPill) {
+    BOOL compact = sg_minimized && sources.count >= 2;
+
+    // The last tab set apart. With nothing but split tabs the bar has one group and no tab is apart (Navbar.x).
+    UIView *trailSource = nil;
+    NSUInteger apartCount = 0;
+    for (UIView *source in sources) {
+        if (!SGRTabIsApart(source)) continue;
+        trailSource = source;
+        apartCount++;
+    }
+    if (apartCount >= sources.count) trailSource = nil;
+
+    CGFloat side = platter.size.height;
+    sg_leadFrame = CGRectMake(kNavGlassMargin, platter.origin.y, side, side);
+    sg_trailFrame = trailSource ? CGRectMake(CGRectGetWidth(host.bounds) - kNavGlassMargin - side, platter.origin.y, side, side) : CGRectZero;
+
+    NSUInteger trailIndex = trailSource ? [bar.sources indexOfObject:trailSource] : NSNotFound;
+    UITabBarItem *trailItem = trailIndex < bar.items.count ? bar.items[trailIndex] : nil;
+    UITabBarItem *leadItem = leadsCompact(bar, bar.selectedItem, trailItem) ? bar.selectedItem : nil;
+    if (!leadItem && leadsCompact(bar, bar.lastRealItem, trailItem)) leadItem = bar.lastRealItem;
+    if (!leadItem) {
+        for (UITabBarItem *item in bar.items) {
+            if (leadsCompact(bar, item, trailItem)) {
+                leadItem = item;
+                break;
+            }
+        }
+    }
+    // Filled where the tab is open; on the trailing circle when that tab is, and then not on the leading one.
+    BOOL trailSelected = trailItem && trailItem == bar.selectedItem && !isCreateSource(trailSource);
+    UIImage *leadImage = leadItem ? (!trailSelected && leadItem.selectedImage ? leadItem.selectedImage : leadItem.image) : nil;
+    UIImage *trailImage = trailItem ? (trailSelected && trailItem.selectedImage ? trailItem.selectedImage : trailItem.image) : nil;
+
+    SGRLegacyCircle *lead = objc_getAssociatedObject(host, &kLeadKey);
+    SGRLegacyCircle *trail = objc_getAssociatedObject(host, &kTrailKey);
+    if (compact && !lead) lead = makeCircle(host, &kLeadKey);
+    if (compact && trailSource && !trail) trail = makeCircle(host, &kTrailKey);
+    [UIView performWithoutAnimation:^{
+        placeCircle(lead, sg_leadFrame, host);
+        placeCircle(trail, sg_trailFrame, host);
+    }];
+    if (lead) {
+        if (lead.glyph.image != leadImage) lead.glyph.image = leadImage;
+        lead.accessibilityLabel = @"Shows all tabs";
+        if (!lead.onTap) lead.onTap = ^{ SGRLegacySetTabBarMinimized(NO, YES); };
+    }
+    if (trail) {
+        if (trail.glyph.image != trailImage) trail.glyph.image = trailImage;
+        trail.accessibilityLabel = trailSource ? labelIn(trailSource).text : nil;
+        if (!trail.onTap) {
+            __weak UIView *weakStock = stockBar;
+            trail.onTap = ^{ tapTrailing(weakStock); };
+        }
+    }
+
+    [lead setShown:compact];
+    [trail setShown:compact && trailSource != nil];
+    SGRShowGlass(navGlass, !compact);
+    navTint.alpha = compact ? 0 : 1;
+    selPill.alpha = compact ? 0 : 1;
+    bar.alpha = compact ? 0 : 1;
+    bar.userInteractionEnabled = !compact;
+}
+
+static void setMinimized(BOOL minimized, BOOL animated) {
+    UIView *stockBar = sg_stockBar;
+    if (minimized == sg_minimized) return;
+    // Spotify's regular width bar is not this bar's row of tabs; it stays as it is. One tab has nothing to
+    // shrink to.
+    if (minimized && (!stockBar.window || stockBar.traitCollection.horizontalSizeClass != UIUserInterfaceSizeClassCompact || tabItems(stockBar).count < 2)) return;
+    sg_minimized = minimized;
+    if (!stockBar) return;
+    UIView *host = objc_getAssociatedObject(stockBar, &kHostKey);
+    animated &= host.window != nil;
+    void (^apply)(void) = ^{
+        syncBar(stockBar);
+        [host layoutIfNeeded];
+        SGRNowPlayingBarFollowTabBar();
+    };
+    if (!animated) {
+        [UIView performWithoutAnimation:apply];
+        return;
+    }
+    SGRAnimate(SGRMotionBar, apply, nil);
+}
+
+BOOL SGRLegacyTabBarMinimized(void) {
+    return sg_minimized;
+}
+
+// The scroll asks from inside -[UIScrollView setContentOffset:], which Spotify can call inside an animation of
+// its own, and the spring would then take that animation's length (TabBar.x, "minimized"). So a change asked for
+// inside one is made on the main queue's next turn, outside it, and only if nothing was asked for since; one asked
+// for outside any is made at once, and one with no animation stays at once too.
+static NSUInteger sg_request;
+
+void SGRLegacySetTabBarMinimized(BOOL minimized, BOOL animated) {
+    NSUInteger request = ++sg_request;
+    if (!animated) {
+        [UIView performWithoutAnimation:^{ setMinimized(minimized, NO); }];
+        return;
+    }
+    if (UIView.areAnimationsEnabled && UIView.inheritedAnimationDuration <= 0) {
+        setMinimized(minimized, YES);
+        return;
+    }
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (request == sg_request) setMinimized(minimized, YES);
+    });
+}
+
+CGRect SGRLegacyTabBarInlineSlot(UIView *host, CGFloat height) {
+    UIView *stockBar = sg_stockBar;
+    UIView *barHost = stockBar ? objc_getAssociatedObject(stockBar, &kHostKey) : nil;
+    UIView *bar = stockBar ? objc_getAssociatedObject(stockBar, &kBarKey) : nil;
+    if (!sg_minimized || !host || !barHost || !bar.window || stockBar.hidden || stockBar.alpha < 0.01 || CGRectIsEmpty(sg_leadFrame)) return CGRectNull;
+    // The circles' places, not what is on screen mid-spring.
+    CGRect lead = [barHost convertRect:sg_leadFrame toView:host];
+    CGFloat left = CGRectGetMaxX(lead) + SGRGrid;
+    CGFloat right;
+    if (!CGRectIsEmpty(sg_trailFrame)) {
+        right = CGRectGetMinX([barHost convertRect:sg_trailFrame toView:host]) - SGRGrid;
+    } else {
+        CGRect whole = [stockBar convertRect:stockBar.bounds toView:host];
+        right = CGRectGetMaxX(whole) - kNavGlassMargin;
+    }
+    CGRect slot = CGRectMake(left, CGRectGetMidY(lead) - height / 2, right - left, height);
+    // A bar Spotify has slid away for a page takes the slot off the screen with it.
+    CGRect inWindow = [host convertRect:slot toView:nil];
+    if (slot.size.width < 100 || CGRectGetMaxY(inWindow) > CGRectGetMaxY(bar.window.bounds)) return CGRectNull;
+    return slot;
 }
 
 static void syncBar(UIView *stockBar) {
@@ -1063,6 +1336,7 @@ static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
     } else {
         selPill.hidden = YES;
     }
+    placeCompact(stockBar, bar, host, sources, platterFrame, navGlass, navTint, selPill);
 
     if (host.superview != stockBar) [stockBar addSubview:host];
     else if (stockBar.subviews.lastObject != host) [stockBar bringSubviewToFront:host];
@@ -1121,6 +1395,8 @@ static void itemDidLayOut(UIView *item) {
     // Spotify repaints its labels a moment after the controller changes, so the first look can still
     // find the old tab painted white; the second, once it has.
     dispatch_async(dispatch_get_main_queue(), ^{
+        // Another tab brings the minimized bar back (HIG, Tab bars).
+        SGRLegacySetTabBarMinimized(NO, YES);
         UIView *bar = sg_stockBar;
         if (bar) syncBarExternalChange(bar);
     });
@@ -1142,7 +1418,12 @@ static void itemDidLayOut(UIView *item) {
 BOOL SGRLegacyTabBarOn(void) {
     static BOOL on;
     static dispatch_once_t once;
-    dispatch_once(&once, ^{ on = SGRedesignedUI() && SGUseLegacyGlass(); });
+    dispatch_once(&once, ^{
+        // Below 26 the system draws no glass of its own, so the redesign's bar is this one whatever it is made
+        // of; SGGlassFor makes the pane, a plain blur or legacy glass by the switch.
+        if (@available(iOS 26.0, *)) return;
+        on = SGRedesignedUI();
+    });
     return on;
 }
 
