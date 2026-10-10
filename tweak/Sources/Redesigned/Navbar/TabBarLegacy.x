@@ -154,6 +154,8 @@ static void followCreateClose(UIView *stockBar);
 // The tab the circle stands for, and whether that is Create.
 @property (nonatomic, weak) UITabBarItem *item;
 @property (nonatomic) BOOL holdsCreate;
+// The corner radius, 0 for a full circle: the compact bar's circles take the now playing card's.
+@property (nonatomic) CGFloat radius;
 // Shows or hides the circle; asked for inside an animation it moves in that animation.
 - (void)setShown:(BOOL)shown;
 // Create's menu open: the plus turns 45 degrees onto a white disc, as on the capsule's own Create button.
@@ -187,7 +189,7 @@ static void followCreateClose(UIView *stockBar);
 - (void)layoutSubviews {
     [super layoutSubviews];
     CGRect bounds = self.bounds;
-    CGFloat radius = bounds.size.height / 2;
+    CGFloat radius = _radius > 0 ? MIN(_radius, bounds.size.height / 2) : bounds.size.height / 2;
     if (!CGRectEqualToRect(_pane.frame, bounds)) _pane.frame = bounds;
     SGShapeGlass(_pane, radius, NO);
     SGRGlassFilm(self, &kCircleFilmKey, _pane, radius);
@@ -211,10 +213,17 @@ static void followCreateClose(UIView *stockBar);
     _glyph.alpha = shown ? 1 : 0;
     self.transform = shown ? CGAffineTransformIdentity : CGAffineTransformMakeScale(0.6, 0.6);
     self.userInteractionEnabled = shown;
+    if (!shown) [self setCreateOpen:NO];
+}
+
+- (void)setRadius:(CGFloat)radius {
+    if (_radius == radius) return;
+    _radius = radius;
+    [self setNeedsLayout];
 }
 
 - (void)setCreateOpen:(BOOL)open {
-    if (_open == open) return;
+    if (_open == open || (open && !_shown)) return;
     _open = open;
     if (!_disc) {
         _disc = [[UIView alloc] initWithFrame:CGRectZero];
@@ -520,7 +529,7 @@ static void setCreateOpen(SGRLegacyTabBar *bar, BOOL open) {
     UIView *stock = bar.stockBar;
     UIView *barHost = stock ? objc_getAssociatedObject(stock, &kHostKey) : nil;
     SGRLegacyCircle *trail = barHost ? objc_getAssociatedObject(barHost, &kTrailKey) : nil;
-    if (trail.holdsCreate) [trail setCreateOpen:open];
+    if (trail.holdsCreate && sg_minimized) [trail setCreateOpen:open];
     NSMutableArray<UIView *> *buttons = [NSMutableArray array];
     for (UIView *v in bar.subviews) {
         if ([NSStringFromClass(v.class) isEqualToString:@"UITabBarButton"]) [buttons addObject:v];
@@ -995,11 +1004,10 @@ static void placeCompact(UIView *stockBar, SGRLegacyTabBar *bar, UIView *host, N
     }
     if (apartCount >= sources.count) trailSource = nil;
 
-    // As round as the now playing card beside them (its corner radius is half their side), centered on the
-    // capsule's row.
+    // As tall as the now playing card beside them and with its corner radius, centered on the capsule's row.
     CGFloat cardRadius = 0;
-    SGRNowPlayingCardFrameIn(host, &cardRadius);
-    CGFloat side = MIN(cardRadius > 0 ? cardRadius * 2 : kNavCircleSide, platter.size.height);
+    CGRect card = SGRNowPlayingCardFrameIn(host, &cardRadius);
+    CGFloat side = MIN(CGRectIsNull(card) ? kNavCircleSide : card.size.height, platter.size.height);
     CGFloat circleY = platter.origin.y + (platter.size.height - side) / 2;
     sg_leadFrame = CGRectMake(kNavGlassMargin, circleY, side, side);
     sg_trailFrame = trailSource ? CGRectMake(CGRectGetWidth(host.bounds) - kNavGlassMargin - side, circleY, side, side) : CGRectZero;
@@ -1025,6 +1033,7 @@ static void placeCompact(UIView *stockBar, SGRLegacyTabBar *bar, UIView *host, N
     SGRLegacyCircle *trail = objc_getAssociatedObject(host, &kTrailKey);
     if (compact && !lead) lead = makeCircle(host, &kLeadKey);
     if (compact && trailSource && !trail) trail = makeCircle(host, &kTrailKey);
+    lead.radius = trail.radius = cardRadius;
     [UIView performWithoutAnimation:^{
         placeCircle(lead, sg_leadFrame, host);
         placeCircle(trail, sg_trailFrame, host);
