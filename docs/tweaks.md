@@ -462,8 +462,9 @@ Redesigned:
                   title over artists, and both are read. In the minimized row
                   the card drops its device and add buttons, faded out as it heads there and back in as it leaves. Only the title stays in the row. In a Jam the
                   glass stays on the track and Spotify's Jam strip gets a pane of its own above it (harness/tabbar/, jam)
-    ContextMenu/  the ⋯ of the player and the ⋯ pinned over the playlist, album and artist pages open the system menu,
-                  always (ContextMenu.h). The player's ⋯ is a pull-down button of the mod's over Spotify's: the menu
+    ContextMenu/  the ⋯ of the player opens the system menu, always (ContextMenu.h); the ⋯ pinned over the playlist,
+                  album and artist pages opens Spotify's own sheet, in the redesign's glass (kPageMenu is off). The
+                  player's ⋯ is a pull-down button of the mod's over Spotify's: the menu
                   opens on touch down with the quick row (Spotify's items 9, 19 and 11), the player's items and More,
                   waiting on nothing of Spotify's (the button holds a stand-in menu from the start, since UIKit opens
                   a button's menu on touch down only while it holds one, and the session's replaces it as the touch
@@ -472,7 +473,7 @@ Redesigned:
                   leaves no room for another there), read, and used to run a pick. More shows the last complete set
                   of rows stored for that kind of track (spotifyglass.redesign.player.menuRows.<kind>), or the
                   system's loading row the first time, and is put right in place as the live rows come. A page's ⋯
-                  works the other way round: its tap opens Spotify's sheet, presented unanimated in a container hidden
+                  (only with kPageMenu on, which it is not) works the other way round: its tap opens Spotify's sheet, presented unanimated in a container hidden
                   from the presented controller's viewWillAppear: on, and the menu comes from an invisible button
                   inside the ⋯ that takes touches only while it is up, opened with -performPrimaryAction (else
                   UIContextMenuInteraction's private _presentMenuAtLocation:). Spotify's rows, read off the sheet's
