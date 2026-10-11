@@ -439,7 +439,9 @@ Redesigned:
                   been read, at most SGRFieldHoldLimit (1 s), then faded away (SGRField.h)
                   Below iOS 26 every UIAlertController (alert or action sheet) comes up as Telegram's alert, a glass
                   card with 35pt corners and capsule buttons (SGRAlertScreen.m, swapped in at presentViewController by
-                  SGRAlertHook.x); the system's alert is never shown, its handlers and text fields are used as they are
+                  SGRAlertHook.x); the system's alert is never shown, its handlers and text fields are used as they are.
+                  The page behind it is blurred and darkened (kScrimAlert, a firm black alone under Reduce Transparency)
+                  so the card stands out
     Navbar/       the glass tab bar (TabBar.x) over its own composition (Navbar.x, NavbarLayout.m) and editor, the glass search field.
                   Spotify is made to leave the glass bar its height where its own bar is shorter (a phone with a home button,
                   Offline or Private Session under the bar), so the now playing bar and the pages move up with it. Under both

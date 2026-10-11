@@ -160,12 +160,18 @@ static UIColor *onAccent(UIColor *accent) {
 static char kPanelGlassKey;
 static void *kEnabledContext = &kEnabledContext;
 
+// What lies behind the card: the page goes dark and soft so the card is the one bright thing on the screen. A
+// plain 0.2 black left it nearly as it was, and a dark glass card on a dark page read as no card at all.
+// Under Reduce Transparency there is no blur, so the black is firmer instead.
+static const CGFloat kScrimAlert = 0.55, kScrimSheet = 0.5, kScrimSolid = 0.75;
+
 @interface SGRAlertScreen ()
 @property (nonatomic, strong) UIAlertController *alert;
 @end
 
 @implementation SGRAlertScreen {
     UIAlertControllerStyle _style;
+    UIVisualEffectView *_blur;
     UIView *_dim;
     UIView *_panel;
     UIScrollView *_scroll;
@@ -286,8 +292,15 @@ static UILabel *textLabel(NSString *text, UIFont *font) {
     [super viewDidLoad];
     self.view.backgroundColor = UIColor.clearColor;
 
+    BOOL clear = SGRReduceTransparency();
+    if (!clear) {
+        _blur = [[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemUltraThinMaterialDark]];
+        _blur.userInteractionEnabled = NO;
+        _blur.alpha = 0;
+        [self.view addSubview:_blur];
+    }
     _dim = [UIView new];
-    _dim.backgroundColor = [UIColor colorWithWhite:0 alpha:[self isAlertStyle] ? 0.2 : 0.32];
+    _dim.backgroundColor = [UIColor colorWithWhite:0 alpha:clear ? kScrimSolid : ([self isAlertStyle] ? kScrimAlert : kScrimSheet)];
     _dim.alpha = 0;
     [_dim addGestureRecognizer:[[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(dimTapped)]];
     [self.view addSubview:_dim];
@@ -296,7 +309,7 @@ static UILabel *textLabel(NSString *text, UIFont *font) {
     _panel.alpha = 0;
     _panel.accessibilityViewIsModal = YES;
     _panel.layer.shadowColor = UIColor.blackColor.CGColor;
-    _panel.layer.shadowOpacity = 0.28;
+    _panel.layer.shadowOpacity = 0.45;
     _panel.layer.shadowRadius = 24;
     _panel.layer.shadowOffset = CGSizeMake(0, 8);
     [self.view addSubview:_panel];
@@ -391,6 +404,7 @@ static UILabel *textLabel(NSString *text, UIFont *font) {
     UIEdgeInsets safe = self.view.safeAreaInsets;
     BOOL alertStyle = [self isAlertStyle];
     _dim.frame = bounds;
+    _blur.frame = bounds;
 
     CGFloat width = alertStyle ? MIN(kAlertWidth, bounds.size.width - 32) : MIN(kSheetMaxWidth, bounds.size.width - kSheetMargin * 2);
     CGFloat textWidth = width - kContentSide * 2;
@@ -567,6 +581,7 @@ static UILabel *textLabel(NSString *text, UIFont *font) {
     if (!fadePanel) _panel.alpha = 1;   // a sheet slides in whole
     [UIView animateWithDuration:0.2 delay:0 options:UIViewAnimationOptionCurveLinear animations:^{
         self->_dim.alpha = 1;
+        self->_blur.alpha = 1;
         if (fadePanel) self->_panel.alpha = 1;
     } completion:nil];
     [UIView animateWithDuration:still ? 0 : 0.45 delay:0 usingSpringWithDamping:0.9 initialSpringVelocity:0
@@ -585,6 +600,7 @@ static UILabel *textLabel(NSString *text, UIFont *font) {
     BOOL alertStyle = [self isAlertStyle];
     [UIView animateWithDuration:0.2 delay:0 options:UIViewAnimationOptionCurveEaseIn animations:^{
         self->_dim.alpha = 0;
+        self->_blur.alpha = 0;
         if (alertStyle || still) self->_panel.alpha = 0;
         else self->_panel.transform = CGAffineTransformMakeTranslation(0, self->_panel.bounds.size.height + kSheetMargin + 40);
     } completion:^(BOOL finished) { done(); }];
