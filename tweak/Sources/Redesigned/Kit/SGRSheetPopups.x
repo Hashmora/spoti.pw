@@ -8,9 +8,11 @@
 //   Sort by (a playlist, the library)  SPTSortingFilteringPickerViewController
 //   Song credits                       TrackCredits_CreditsPageImpl.CreditsViewController
 //   Save in                            PlaylistCuration_AddToPlaylistImpl.ATPContainerViewController
+//   Download using mobile data         Offline_ContentOffliningUIImpl.ElementViewController<DownloadOverCellularDialogElement>
 //   Share                              Share_MenuImpl.ShareMenuViewControllerV2 (below)
+//   Listening modes                    SmartShuffle_CoreImpl.PlayModePickerViewController (below)
 //
-// The first six are one and the same Navigation sheet the queue, the Connect picker and the ⋯ menu are
+// The first seven are one and the same Navigation sheet the queue, the Connect picker and the ⋯ menu are
 // (NavigationUI_SheetImpl.ContainerViewController, id=sheet-view, #1F1F1F or #282828, trees/continuous 2026-10-11
 // 2 to 9), each holding its own controller. That controller's class is Swift and, for a SwiftUI page, a generic
 // one with the page's types in its name, so the sheets are told apart by a part of the name of the controller
@@ -18,8 +20,10 @@
 // is left to its own file. The pane goes in from the sheet's own passes, since the rows are built after the
 // first layout and Spotify paints its grey back on later ones (SGRRepaint.x keeps it clear in between).
 //
-// The share menu is not Navigation's: its ShareMenuSheetView is presented over the full screen by UIKit and has
-// no "sheet-view" in it (trees/continuous/10.txt), so its pane goes behind that view by name.
+// The share menu and the Listening modes picker are not Navigation's: its ShareMenuSheetView is presented over the full screen by UIKit and has
+// no "sheet-view" in it (trees/continuous/10.txt), so its pane goes behind that view by name. The picker is
+// SmartShuffle_CoreImpl.PlayModePickerView, #1F1F1F r=16, which is the view of its controller and is placed at the
+// foot of the screen by a presentation controller of its own, with a plain black dimming view behind it.
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
 
@@ -38,7 +42,8 @@ static NSArray<NSString *> *contentMarkers(void) {
              @"AssistedCuration_",
              @"SPTSortingFilteringPickerViewController",
              @"TrackCredits_CreditsPageImpl",
-             @"PlaylistCuration_AddToPlaylistImpl"];
+             @"PlaylistCuration_AddToPlaylistImpl",
+             @"Offline_ContentOffliningUIImpl"];
 }
 
 static BOOL isContent(UIViewController *controller) {
@@ -61,10 +66,32 @@ static UIViewController *contentIn(UIViewController *controller, int depth) {
     return nil;
 }
 
+// Whether a page of Spotify's template that loads its content later is in the sheet: Save in is one, and its
+// ATPContainerViewController is only added once the page has loaded.
+static BOOL loadingIn(UIViewController *controller, int depth) {
+    if (depth > 10) return NO;
+    for (UIViewController *child in controller.childViewControllers) {
+        if ([NSStringFromClass(child.class) containsString:@"LoadableTemplateViewController"]) return YES;
+        if (loadingIn(child, depth + 1)) return YES;
+    }
+    return NO;
+}
+
+static char kPendingPaneKey;
+
 static void chrome(UIViewController *sheet) {
     UIViewController *content = contentIn(sheet, 0);
     UIView *root = content.viewIfLoaded;
-    if (root) SGRGlassSheetChrome(root);
+    if (root) {
+        SGRGlassSheetChrome(root);
+        return;
+    }
+    // The content is not in yet, but the sheet is already up and grey: while a loading page is in it, the pane
+    // goes in anyway, so the first frames are glass and not Spotify's grey that glass replaces a moment later.
+    if (loadingIn(sheet, 0)) {
+        UIView *pane = SGRFindByIdentifier(sheet.viewIfLoaded, @"sheet-view", &kPendingPaneKey);
+        if (pane) SGRGlassSheetChrome(pane);
+    }
 }
 
 static void afterAppear(UIViewController *sheet) {
@@ -101,18 +128,23 @@ static void afterAppear(UIViewController *sheet) {
 
 // Share_MenuImpl.ShareMenuSheetView: the card the menu draws on its own, #1F1F1F r=16, a good deal taller than the
 // screen so it can be pulled up.
-static UIView *shareSheetIn(UIView *root, int depth) {
+static UIView *sheetNamed(UIView *root, NSString *suffix, int depth) {
     if (!root || depth > 4) return nil;
-    if ([NSStringFromClass(root.class) hasSuffix:@"ShareMenuSheetView"]) return root;
+    if ([NSStringFromClass(root.class) hasSuffix:suffix]) return root;
     for (UIView *sub in root.subviews) {
-        UIView *found = shareSheetIn(sub, depth + 1);
+        UIView *found = sheetNamed(sub, suffix, depth + 1);
         if (found) return found;
     }
     return nil;
 }
 
 static void shareChrome(UIViewController *controller) {
-    UIView *sheet = shareSheetIn(controller.viewIfLoaded, 0);
+    UIView *sheet = sheetNamed(controller.viewIfLoaded, @"ShareMenuSheetView", 0);
+    if (sheet && sheet.bounds.size.width > 1) SGRGlassSheetView(sheet);
+}
+
+static void pickerChrome(UIViewController *controller) {
+    UIView *sheet = sheetNamed(controller.viewIfLoaded, @"PlayModePickerView", 0);
     if (sheet && sheet.bounds.size.width > 1) SGRGlassSheetView(sheet);
 }
 
@@ -142,6 +174,51 @@ static void shareChrome(UIViewController *controller) {
 %end
 %end
 
+#pragma mark - the listening modes picker
+
+%group SGRModePicker
+%hook SGRPlayModePicker
+- (void)viewDidLayoutSubviews {
+    %orig;
+    pickerChrome((UIViewController *)self);
+}
+
+- (void)viewWillAppear:(BOOL)animated {
+    %orig;
+    pickerChrome((UIViewController *)self);
+}
+
+- (void)viewDidAppear:(BOOL)animated {
+    %orig;
+    __weak UIViewController *weak = (UIViewController *)self;
+    pickerChrome((UIViewController *)self);
+    for (NSNumber *delay in @[@0.0, @0.25, @0.6]) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            if (weak) pickerChrome(weak);
+        });
+    }
+}
+%end
+%end
+
+#pragma mark - Save in, from the page's own controller
+
+// The page's own controller is hooked as well as the sheet's: it is the first thing that knows the content is
+// in, so the pane goes in on its first layout and not on the sheet's next pass.
+%group SGRSaveIn
+%hook SGRSaveInContainer
+- (void)viewWillAppear:(BOOL)animated {
+    %orig;
+    SGRGlassSheetChrome(((UIViewController *)self).viewIfLoaded);
+}
+
+- (void)viewDidLayoutSubviews {
+    %orig;
+    SGRGlassSheetChrome(((UIViewController *)self).viewIfLoaded);
+}
+%end
+%end
+
 %ctor {
     if (!SGRedesignedUI()) return;
     if (@available(iOS 26.0, *)) return;   // from iOS 26 the system draws its own glass; this is the legacy glass's
@@ -150,6 +227,16 @@ static void shareChrome(UIViewController *controller) {
         %init(SGRSheetPopups, SGRSheetContainer = sheet);
     } else {
         SGLog(@"class NavigationUI_SheetImpl.ContainerViewController not found, the Jam, Add to queue, Sort by, credits and Save in popups keep Spotify's grey");
+    }
+    Class saveIn = swiftClass(@"PlaylistCuration_AddToPlaylistImpl", @"ATPContainerViewController");
+    if (saveIn) {
+        %init(SGRSaveIn, SGRSaveInContainer = saveIn);
+    }
+    Class picker = swiftClass(@"SmartShuffle_CoreImpl", @"PlayModePickerViewController");
+    if (picker) {
+        %init(SGRModePicker, SGRPlayModePicker = picker);
+    } else {
+        SGLog(@"class SmartShuffle_CoreImpl.PlayModePickerViewController not found, the Listening modes popup keeps Spotify's grey");
     }
     Class share = swiftClass(@"Share_MenuImpl", @"ShareMenuViewControllerV2");
     if (share) {
