@@ -46,7 +46,9 @@ static BOOL isLibraryHeader(UIView *view) {
 
 %hook CALayer
 - (void)setBackgroundColor:(CGColorRef)color {
-    if (color && CGColorGetAlpha(color) > 0.5) {
+    BOOL legacyLook = YES;
+    if (@available(iOS 26.0, *)) legacyLook = NO;
+    if (legacyLook && color && CGColorGetAlpha(color) > 0.5) {
         UIView *header = (UIView *)self.delegate;
         if ([header isKindOfClass:UIView.class] && header.layer == self && isLibraryHeader(header)) color = NULL;
     }
@@ -54,7 +56,7 @@ static BOOL isLibraryHeader(UIView *view) {
     // in), because selecting and deselecting a chip repaints the fill and lays nothing out, so the glass kept
     // whatever state the last layout gave it (hidden under a selected colour that was gone again, 2026-10-05).
     UIView *paintedChip = nil;
-    if (color && (isNeutralTint(color) || CGColorGetAlpha(color) > 0.5)) {
+    if (legacyLook && color && (isNeutralTint(color) || CGColorGetAlpha(color) > 0.5)) {
         UIView *fill = (UIView *)self.delegate;
         if ([fill isKindOfClass:UIView.class] && fill.layer == self && isChipFill(fill)) {
             paintedChip = fill.superview;
@@ -94,6 +96,7 @@ static BOOL isLibraryHeader(UIView *view) {
 }
 %end
 
+%group SheetPaint
 // A row coming into the sheet after its chrome was stripped (scrolled in, reused, picked up to be dragged)
 // carries its grey with it, and is painted before it is inside the sheet for the hook above to hear of it,
 // so it is cleared from its own layout pass, like SGRClearCellPaint does for the pages.
@@ -158,8 +161,11 @@ static void clearAttachedPaint(UIView *view) {
     if ([view isKindOfClass:UIView.class] && view.layer == self && isSheetPaint(view, paint)) view.backgroundColor = UIColor.clearColor;
 }
 %end
+%end
 
 %ctor {
     if (!SGRedesignedUI()) return;
     %init;
+    if (@available(iOS 26.0, *)) return;
+    %init(SheetPaint);
 }

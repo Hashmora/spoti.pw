@@ -1,5 +1,5 @@
 // Now playing redesign: glass for the Connect device picker. Its sheet is the same Navigation sheet the queue
-// and the ⋯ menu are (id=sheet-view, trees/continuous 2026-10-05), but nothing gave it a pane: the pane stayed
+// and the ⋯ menu are, but nothing gave it a pane: the pane stayed
 // the opaque #1F1F1F Spotify paints it, so the picker was the one sheet with no glass at all. Content is
 // SwiftUI (Connect_DevicePickerUIImpl.DevicePickerViewController hosts it), whose own cards -- the playing
 // device's, the Connect button -- are left as they are (SGRIsSheetCard). The grey fade over the bottom of the

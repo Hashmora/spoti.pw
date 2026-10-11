@@ -8,10 +8,8 @@
 static const CGFloat kSide = 24, kTop = 28, kGap = 12;
 // The footer's row is drawn 22pt tall; its buttons take touches over 44, centered on it.
 static const CGFloat kRow = 22, kTouch = 44;
-// The sheet's corners: the screen's own radius at every detent. A page sheet is only 10 pt round at the medium
-// detent and grows to the screen's radius as it is pulled to the large one (trees 2026-10-05: r=10 on the
-// container at medium, r=47.3 inside it), so left alone the corners were small until dragged up. 16, the
-// radius of Spotify's own sheets, was tried and read as always small; this keeps the big one throughout.
+// The sheet's corners below iOS 26: the screen's own radius at every detent. A page sheet is only 10 pt round at
+// the medium detent and grows to the screen's radius at the large one.
 static const CGFloat kScreenRadiusFallback = 47;
 
 static CGFloat sheetRadius(void) {
@@ -64,7 +62,7 @@ static NSString *authorSymbol(SGLyricsMeaningAuthor author) {
     UISheetPresentationController *sheet = self.sheetPresentationController;
     sheet.detents = @[UISheetPresentationControllerDetent.mediumDetent, UISheetPresentationControllerDetent.largeDetent];
     sheet.prefersGrabberVisible = YES;
-    if (@available(iOS 16.0, *)) sheet.preferredCornerRadius = sheetRadius();
+    if (@available(iOS 26.0, *)) {} else sheet.preferredCornerRadius = sheetRadius();
     sheet.prefersScrollingExpandsWhenScrolledToEdge = YES;
     // On the landscape lyrics (compact height) the sheet would otherwise cover the whole screen with no
     // grabber and nothing to pull down; edge attached it is a card on the bottom edge, inside the safe area.

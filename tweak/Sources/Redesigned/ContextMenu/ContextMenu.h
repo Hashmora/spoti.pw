@@ -1,7 +1,7 @@
-// The redesign's player ⋯ opens the system menu instead of Spotify's sheet, the way the Music app's does. Always
-// on in the redesign; no setting. It is the player's alone: the ⋯ every redesigned entity page pins to its corner
-// (playlist, album, artist and the pages that share their templates) opens Spotify's own sheet, which gets the
-// glass pane and corners of SGRGlassSheetChrome (kPageMenu in ContextMenu.x switches the old takeover back on).
+// The redesign's ⋯ opens the system menu instead of Spotify's sheet, the way the Music app's does: the player's
+// and, on iOS 26, the ⋯ every redesigned entity page pins to its corner (playlist, album, artist and the pages
+// that share their templates). Below iOS 26 only the player's does; a page's ⋯ opens Spotify's own sheet, which
+// gets the glass pane and corners of SGRGlassSheetChrome. Always on in the redesign; no setting.
 //
 //     ContextMenu.x   the takeover: Spotify's sheet presented unseen, its rows read into a UIMenu shown from
 //                     the ⋯, a pick fired on the sheet, and the sheet itself as the fallback

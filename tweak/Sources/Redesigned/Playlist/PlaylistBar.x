@@ -1,25 +1,15 @@
-// Playlist, album and artist redesign: the navigation bar Spotify slides in as the page scrolls. It is a
-// 103pt HeaderNavigationBar (trees/continuous 2026-10-05, 3.txt to 6.txt) holding a LegacyUI GradientView of the
-// page's colour, which lies under the pinned Back and ⋯ buttons, and the page's name in an
-// SPTEncoreLabel centred between them. Under the redesign the page has no bar: the buttons float on their
-// own glass, so the gradient goes and the name sits on a glass capsule of the same material as the buttons.
+// Playlist, album and artist redesign, iOS < 26: the navigation bar Spotify slides in as the page scrolls
+// (HeaderNavigationBar, about 103pt). It holds a gradient in the page's colour under the pinned Back and ⋯
+// buttons and the page's name in an SPTEncoreLabel. Here the page has no bar: the gradient goes and the name sits
+// on a glass capsule of the same material as the buttons.
 //
-// PlaylistHeader.x's applyScrims conceals that gradient once, from the header's own pass, and in all four
-// dumps it is not concealed (no `hidden masked`, unlike the page's other gradients), so Spotify had put
-// it back or made it after the pass. This runs from the bar's own layout and window callbacks on every
-// pass instead, which is when Spotify draws it.
+// The gradient is concealed on every pass of the bar's own layout and window callbacks, because Spotify draws it
+// again after PlaylistHeader.x's single pass. The capsule is a child of the name label (SGRGlassCapsuleInside), so
+// it follows the label's alpha and position.
 //
-// The capsule is a child of the name label (SGRGlassCapsuleInside), so it takes the label's alpha as
-// Spotify fades the name in and out with the scroll, and it moves wherever the label does.
-//
-// Liked Songs keeps Spotify's bar as it is: the page's model says which it is (formatListType, the same
-// getter PlaylistHeader.x reads). The album's bar is this one under the id
-// CreativeWorkPlatform.HeaderNavigationBar (trees 2026-10-05, 6.txt:1350, 8.txt:1552, 103pt, its gradient only
-// masked, never hidden) and the artist's sits in the header's HeaderForegroundView (7.txt:110, 100pt, its
-// gradient not even masked), both with the name in the same SPTEncoreLabel 64pt tall. They are told apart
-// from the page's other bars by the page having been dressed: the redesign pins its own Back on the page's
-// root (SGRPinnedBack) for a playlist, an album and an artist, and for nothing else on the album's template,
-// which a podcast's episode shares and leaves as Spotify's.
+// Liked Songs keeps Spotify's bar (the page model says which it is: formatListType). The album and artist bars are
+// the same class under other ids. A bar is recognised by its page having been dressed, i.e. SGRPinnedBack pinned
+// its Back button; a podcast episode shares the album template and is left alone.
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
 #import "Playlist.h"

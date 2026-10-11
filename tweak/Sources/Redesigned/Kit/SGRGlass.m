@@ -4,10 +4,10 @@
 #import "SGRRestyle.h"
 #import "SGRRepaint.h"
 
-// The redesign runs below iOS 26 only (SGRedesignAvailable()), so there is no system glass to use: a shape
-// is the legacy approximation when it is on, a thin material blur when it is not, and a solid fill under
-// Reduce Transparency.
+// iOS 26 gets the system's glass. Below it a shape is the legacy approximation when that is on and a thin
+// material blur when it is not; Reduce Transparency gives a solid fill everywhere.
 typedef NS_ENUM(NSInteger, SGRGlassMode) {
+    SGRGlassModeGlass,
     SGRGlassModeLegacy,
     SGRGlassModeBlur,
     SGRGlassModeSolid,
@@ -15,6 +15,7 @@ typedef NS_ENUM(NSInteger, SGRGlassMode) {
 
 static SGRGlassMode glassMode(void) {
     if (SGRReduceTransparency()) return SGRGlassModeSolid;
+    if (@available(iOS 26.0, *)) return SGRGlassModeGlass;
     if (SGUseLegacyGlass()) return SGRGlassModeLegacy;
     return SGRGlassModeBlur;
 }
@@ -22,6 +23,9 @@ static SGRGlassMode glassMode(void) {
 static UIView *newShape(SGRGlassMode mode) {
     UIView *shape;
     switch (mode) {
+        case SGRGlassModeGlass:
+            shape = [[UIVisualEffectView alloc] initWithEffect:SGGlassEffect()];
+            break;
         case SGRGlassModeLegacy:
             shape = [[SGLegacyGlassView alloc] initWithFrame:CGRectZero];
             break;
@@ -131,6 +135,7 @@ void SGRShowGlass(UIView *shape, BOOL shown) {
 #pragma mark - flat boxes and floating films
 
 UIView *SGRGlassFlatBox(UIView *box, const void *key) {
+    if (@available(iOS 26.0, *)) return nil;
     CGSize size = box.bounds.size;
     if (!box || size.width < 1 || size.height < 1) return nil;
     if (box.backgroundColor != UIColor.clearColor) box.backgroundColor = UIColor.clearColor;
@@ -172,7 +177,7 @@ BOOL SGRIsSheetChromeArea(UIView *view, UIView *root) {
 }
 
 // A card the sheet draws on purpose, not a wrapper's leftover grey: the device picker's "this device" card
-// and its Connect button (SwiftUI._UIGraphicsView with a fill and a radius, trees/continuous 2026-10-05).
+// and its Connect button.
 // They are the sheet's content, and cleared they leave the picker a bare list with nothing marking the
 // device that is playing.
 BOOL SGRIsSheetCard(UIView *view) {
@@ -350,6 +355,7 @@ static UIView *chromeSheetView(UIView *v) {
 }
 
 UIView *SGRGlassSheetChrome(UIView *content) {
+    if (@available(iOS 26.0, *)) return nil;
     for (UIView *v = content; v; v = v.superview) {
         if ([v.accessibilityIdentifier isEqualToString:@"sheet-view"]) return chromeSheetView(v);
     }
@@ -357,5 +363,6 @@ UIView *SGRGlassSheetChrome(UIView *content) {
 }
 
 UIView *SGRGlassSheetView(UIView *sheet) {
+    if (@available(iOS 26.0, *)) return nil;
     return sheet ? chromeSheetView(sheet) : nil;
 }

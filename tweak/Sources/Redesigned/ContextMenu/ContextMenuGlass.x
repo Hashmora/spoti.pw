@@ -1,8 +1,8 @@
 // Glass for UIKit's own context menus: the player's ⋯ menu (the row of Add to playlist / Share / Add to Queue
 // over the list, Speed and the rest) and every other menu Spotify opens the same way. ContextMenu.x makes the
-// menu; this is only its look. (Taken from the pure-glass branch.)
+// menu; this is only its look.
 //
-// Tree (trees/continuous/2.txt, 2026-10-09): _UIContextMenuContainerView > _UIContextMenuPlatterTransitionView >
+// Tree: _UIContextMenuContainerView > _UIContextMenuPlatterTransitionView >
 // _UIContextMenuView > _UIContextMenuListView, one for the menu and one more for a submenu, each holding a
 // _UICutoutShadowView and a clipping UIView (the platter) with UIKit's own UIVisualEffectView and the menu's
 // UICollectionView in it. The platter's blur is hidden and a glass pane, the heavy kind a sheet gets

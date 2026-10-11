@@ -118,7 +118,7 @@ static void glassHeader(UIViewController *unit) {
 %end
 
 // The AI DJ's player has a header unit of its own with the same two buttons, which the circles never reached
-// (trees/continuous/3.txt).
+//.
 %group SGRDJHeaderHooks
 %hook SGRDJHeaderUnit
 - (void)viewDidLayoutSubviews {

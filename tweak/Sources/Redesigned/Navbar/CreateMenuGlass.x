@@ -1,5 +1,5 @@
 // Redesign: glass for the two Create menus, the same pane the queue, the ⋯ menu and the Connect picker have
-// (trees/continuous 2026-10-05: 1.txt and 2.txt of the Create dumps). Both draw the same three or four
+//. Both draw the same three or four
 // CreateMenuItemRows, but they are laid out differently, so each gets what fits it:
 //
 // - The tab bar's Create menu (CreateMenu_CreateMenuPageImpl) is a floating card, not a full sheet: the

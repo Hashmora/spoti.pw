@@ -511,6 +511,7 @@ static void concealBack(UIView *source) {
 
 SGRMirrorButton *SGRPinnedBack(UIView *page, UIView *searchRoot) {
     static char kSourceKey, kButtonKey;
+    if (@available(iOS 26.0, *)) return nil;
     if (!page) return nil;
     UIView *source = SGRFindByIdentifier(searchRoot, @"Components.Header.UI.BackButton", &kSourceKey);
     SGRMirrorButton *button = objc_getAssociatedObject(page, &kButtonKey);

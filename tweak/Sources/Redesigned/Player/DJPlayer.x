@@ -1,34 +1,16 @@
 // The AI DJ's player screen drawn the way the redesign draws the ordinary one: previous, play and next as bare
-// glyphs, and under them one row of glyphs, Lyrics, Connect, Queue and the DJ button, without the share button.
+// glyphs, and one row of glyphs under them (Lyrics, Connect, Queue, the DJ button) without the share button.
+// The redesign hooks the ordinary player's units and the DJ has its own, so none of it reached this screen;
+// this is PlayerControls.x and PlayerFooter.x done again for the DJ's units.
 //
-// The redesign hooks the ordinary player's units (NowPlaying_ModesImpl.PlaybackControlsElementsUnit,
-// FooterElementsUnit) and the DJ has units of its own, so none of it reached this screen (trees/continuous/3.txt
-// and 4.txt): the controls were Spotify's own discs, Connect sat at the leading edge with the device's name, the
-// DJ button and a share button at the other end, and there was no lyrics control and no queue one. This is
-// PlayerControls.x and PlayerFooter.x done again for the DJ's units. (Taken from the pure-glass branch.)
+// Controls: DJMHeadUnitViewController's view holds the previous, next and play buttons directly. The glyphs go
+// inside the buttons over their images, which go transparent; the buttons keep their actions and accessibility.
 //
-// Controls. DJMHeadUnitViewController's view (SPTNowPlayingHeadUnitView 390x88) holds the buttons directly:
-// id=SPTNowPlayingPreviousTrackButton and id=SPTNowPlayingNextTrackButton, EncoreButtons with one UIImageView in
-// them, and id=SPTNowPlayingPlayButton, the PlayButtonView with the white disc (a UIImageView the size of its
-// CondensedButton). The glyphs go inside the buttons, over the images, which go transparent; the buttons keep
-// their actions, their disabled look and their accessibility.
-//
-// Footer. DJMFooterUnitView (390x56) holds four views that are not in a stack: the share button, the DJ button
-// (AIDJButtonElement, id=Components.UI.NeffleButtonNowPlayingContainerView), Connect (id=Components.
-// ConnectButtonOutputSwitcher, a 19x19 glyph and the device's name in a MarqueeLabel) and an empty one. Spotify has
-// no lyrics or queue control down here, so those two are the Kit's glyph buttons. Connect and the DJ button stay
-// Spotify's (the device sheet, the DJ set) and are only moved, by a transform: it survives the footer laying
-// them out again. The four sit on one row at even steps, the outer two where the ordinary player has Lyrics
-// and Queue.
-//
-// Lyrics are the ordinary player's, not a page of their own: the footer's Lyrics glyph is the one PlayerFooter.x
-// makes (SGRPlayerLyricsGlyphIn), and it turns the lines on in the player the way it does there (PlayerLyrics.x,
-// which measures the DJ's information and duration units too). Queue opens spotify:now-playing:queue, the link
-// the navbar's Queue tab uses.
-//
-// The row sits lower than Spotify puts it, just over the home indicator, and the controls follow it part of the
-// way, as PlayerFooter.x does (issue #54): the footer's view is translated down, and a band over the part that
-// hangs out below the bottom stack hands those touches back to it.
+// Footer: DJMFooterUnitView holds the share button, the DJ button, Connect and an empty view, not in a stack.
+// Connect and the DJ button stay Spotify's and are only moved, by a transform that survives relayout. Lyrics
+// and Queue are the Kit's glyph buttons; Lyrics is the ordinary player's (SGRPlayerLyricsGlyphIn), Queue opens
+// spotify:now-playing:queue. The row sits just over the home indicator and the controls follow part of the way,
+// as PlayerFooter.x does (issue #54), with a band over the overhang handing those touches back to the footer.
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
 #import "Shared/Navigation/Links.h"

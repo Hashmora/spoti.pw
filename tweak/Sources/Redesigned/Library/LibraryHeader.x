@@ -226,7 +226,7 @@ static NSArray<UIView *> *placeFolder(UIView *header) {
 }
 
 // The plain view FilterChipView draws its capsule fill with, under the label and the border: the first
-// subview that is neither our glass nor one of Spotify's classes (trees/continuous/1.txt:824-830).
+// subview that is neither our glass nor one of Spotify's classes.
 static UIView *chipFill(UIView *chip, UIView *glass) {
     for (UIView *sub in chip.subviews) {
         if (sub != glass && [sub isMemberOfClass:UIView.class]) return sub;
@@ -235,7 +235,7 @@ static UIView *chipFill(UIView *chip, UIView *glass) {
 }
 
 // A selected chip is painted a solid colour of its own to say so; an unselected one a translucent white
-// (bg=#FFFFFF@0.10, trees/continuous/26.txt 2026-09-26) that SGRRepaint.x now keeps from ever landing.
+// that SGRRepaint.x now keeps from ever landing.
 static BOOL chipIsSelected(UIView *fill) {
     CGColorRef color = fill.layer.backgroundColor;
     return color && CGColorGetAlpha(color) > 0.3;
@@ -301,7 +301,7 @@ static BOOL inLibraryChips(UIView *view) {
 // A chip's fill was painted (SGRRepaint.x): selecting a chip or letting it go repaints the fill and lays
 // nothing out, so the glass stayed as the last layout left it. Deselected, the Playlists chip kept its glass
 // hidden from the selected state and at the width of a chip that had been another one in the reused cell,
-// and had no pill at all until the page happened to lay out (trees 2026-10-05, 5.txt:911).
+// and had no pill at all until the page happened to lay out.
 void SGRLibraryChipPainted(UIView *chip) {
     if (!chip.window || !isChipView(chip) || !inLibraryChips(chip)) return;
     // What the glass was when the paint came, before it is put right: the line that says whether it was stale.
@@ -321,6 +321,7 @@ void SGRLibraryChipPainted(UIView *chip) {
 // The chips' own collection lays out when a filter is picked or cleared: the cells are reloaded, a chip comes
 // back in a cell that was another chip's or a new one, and the header's page, which glassChips walks from,
 // is not laid out at all. Each pass of that collection takes every chip in it through the same two steps.
+%group LegacyChips
 %hook UICollectionView
 - (void)layoutSubviews {
     %orig;
@@ -330,6 +331,7 @@ void SGRLibraryChipPainted(UIView *chip) {
         if (isChipView(v)) { glassChip(v); watchChip(v); }
     });
 }
+%end
 %end
 
 #pragma mark - the backing behind the title row only
@@ -391,11 +393,13 @@ static void layoutRoot(UIView *page) {
     if (!header) return;
     [header layoutIfNeeded];
     SGRLibraryClearScrim(header);
-    glassChips(header);
-    UIView *filters = childNamed(header, @"YourLibraryHeaderContentFiltersView");
-    if (filters && header.bounds.size.height > 1) {
-        plateRow(header, filters);
-        raiseList(page, header, filters);
+    if (@available(iOS 26.0, *)) {} else {
+        glassChips(header);
+        UIView *filters = childNamed(header, @"YourLibraryHeaderContentFiltersView");
+        if (filters && header.bounds.size.height > 1) {
+            plateRow(header, filters);
+            raiseList(page, header, filters);
+        }
     }
 
     NSArray<UIView *> *trailing = placeRoot(header);
@@ -404,9 +408,11 @@ static void layoutRoot(UIView *page) {
     // Search and + are plain 48pt icon buttons with nothing behind them (trees/continuous/10.txt
     // 2026-09-26); the avatar is skipped, its image already fills the circle so glass behind it would
     // never show.
-    for (UIView *control in trailing) {
-        if (isFace(control)) continue;
-        SGRGlassInside(control, &kRoundGlassKey, 44);
+    if (@available(iOS 26.0, *)) {} else {
+        for (UIView *control in trailing) {
+            if (isFace(control)) continue;
+            SGRGlassInside(control, &kRoundGlassKey, 44);
+        }
     }
 
     // The first pass that laid the header out, not the first pass at all: a page appearing lays out before
@@ -426,7 +432,7 @@ static void layoutFolder(UIView *page) {
     if (!header) return;
     [header layoutIfNeeded];
     SGRLibraryClearScrim(header);
-    glassChips(header);
+    if (@available(iOS 26.0, *)) {} else glassChips(header);
 
     NSArray<UIView *> *placed = placeFolder(header);
     if (!placed.count) return;
@@ -459,6 +465,7 @@ static void layoutFolder(UIView *page) {
 %ctor {
     if (!SGRedesignedUI()) return;
     %init;
+    if (@available(iOS 26.0, *)) {} else { %init(LegacyChips); }
     SGRequireClasses(@[
         @"_TtC28YourLibrary_YourLibraryXImpl15YourLibraryView",
         @"_TtC22YourLibrary_FolderImpl10FolderView",

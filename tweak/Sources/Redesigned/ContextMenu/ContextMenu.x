@@ -39,11 +39,13 @@ static const NSTimeInterval kQuickWait = 4;
 // How long the player's menu waits for Spotify's sheet once its ⋯ action has been run for it.
 static const NSTimeInterval kRequestWindow = 3;
 
-// Whether a page's ⋯ (the one SGRPinnedMore pins over the playlist, album and artist pages) opens the system menu.
-// It does not: the system menu is the player's alone, and every other ⋯ opens Spotify's own sheet, which the
-// redesign only dresses (the glass pane and corners of SGRGlassSheetChrome, Sort and Mix on a playlist's,
-// PlaylistMenu.x). The page path below (takeOver, SGRMenuAnchor, a hidden sheet) is kept, off, so it can come back.
-static const BOOL kPageMenu = NO;
+// Whether a page's ⋯ (the one SGRPinnedMore pins over the playlist, album and artist pages) opens the system
+// menu. It does on iOS 26. Below it the system menu is the player's alone and the page's ⋯ opens Spotify's own
+// sheet, which the redesign dresses (SGRGlassSheetChrome, PlaylistMenu.x).
+static BOOL pageMenu(void) {
+    if (@available(iOS 26.0, *)) return YES;
+    return NO;
+}
 
 static NSString *const kSheetClass = @"_TtC24ContextMenu_InternalImpl25ContextMenuViewController";
 static NSString *const kTopMenu = @"com.vitrine.systemmenu.top";
@@ -1171,7 +1173,7 @@ static SGRMenuAnchor *anchorIn(UIView *host) {
 
 // A page's ⋯ was touched this recently: a context menu sheet that is not taken over now is worth a line saying why.
 static BOOL claimRecent(void) {
-    return kPageMenu && SGRPinnedMoreRecentButton() != nil;
+    return pageMenu() && SGRPinnedMoreRecentButton() != nil;
 }
 
 // Why a sheet was not taken over: every time while a ⋯ touch is recent, so the next log of a ⋯ that opened
@@ -1194,8 +1196,8 @@ static NSString *controllersIn(UIViewController *presented) {
 // Whether this sheet is a watched ⋯'s, and if so its session, with the sheet's presentation now the menu's.
 // `via` says which way in asked, for the log.
 static SGRMenuSession *takeOver(UIViewController *presented, NSString *via) {
-    // A page's ⋯ keeps Spotify's sheet; only the player's ⋯ is the system menu (kPageMenu).
-    if (!kPageMenu) return nil;
+    // Below iOS 26 a page's ⋯ keeps Spotify's sheet; only the player's ⋯ is the system menu.
+    if (!pageMenu()) return nil;
     BOOL recent = claimRecent();
     if (!sheetIn(presented)) {
         if (recent) SGLog(@"system menu: %@ presented soon after a page's ⋯ touch holds no ⋯ sheet (%@)", NSStringFromClass(presented.class),

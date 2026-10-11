@@ -1,29 +1,17 @@
-// Tab bar below iOS 26, for the redesign: Spotify's own bar stays where it is but goes invisible, and a system
-// UITabBar sits on top of it as a floating capsule with a selection pill, drag-to-switch and Create's menu
-// handled (ported from the legacy-glass branch). The capsule is drawn on SGGlassFor's pane, so with Legacy
-// Liquid Glass off it is the plain dark blur every other pane of the redesign falls back to, and with it on it
-// is SGLegacyGlassView. Nothing here depends on which one it is.
+// Tab bar below iOS 26: Spotify's own bar stays in place but invisible, and a system UITabBar floats over it as a
+// capsule with a selection pill, drag-to-switch and Create's menu. The capsule sits on SGGlassFor's pane, so it is
+// legacy glass or the plain dark blur depending on the Legacy Liquid Glass switch (read once at launch).
 //
-// TabBar.x is the other bar: on iOS 26+ UIKit draws real Liquid Glass for it and this file stays out. Below 26
-// its system bar has no platters to hang the minimized bar's circles on, and drew them as bare slabs of
-// blur. The hooks here are in a group that only runs where SGRLegacyTabBarOn() says so, and TabBar.x's own
-// hooks do not run then, so exactly one of the two bars is ever in place. The glass kind is read once at
-// launch, so changing the switch in Mod Settings takes effect on the next launch.
+// TabBar.x is the iOS 26 bar. The hooks here run only where SGRLegacyTabBarOn() says so and TabBar.x's do not,
+// so exactly one of the two is ever in place.
 //
-// A page scrolled down minimizes the bar to a circle holding the open tab at the leading end, a circle at
-// the trailing end when tabs are set apart (Split tabs), and the now playing card between them, as TabBar.x
-// does on 26. See "compact".
+// A page scrolled down minimizes the bar to a circle with the open tab, a circle for the set-apart tab, and the
+// now playing card between them. The last set-apart tab never sits on the capsule: it has its own round button
+// at the trailing end. A tab picked here is passed on as a tap on the hidden Spotify item it mirrors, and
+// Navbar.x composes that hidden row, so order, hidden tabs and the mod's own tabs carry over.
 //
-// The last tab set apart is never on the capsule: it has a round button of its own at the trailing end, beside
-// the capsule on the full bar and in the compact row when minimized, as the Music app's Search has. The
-// capsule holds the other tabs only.
-//
-// A tab picked on the system bar is passed on as a tap on the hidden Spotify item it mirrors, and the
-// system bar's selection follows whichever Spotify label is painted white. Navbar.x composes the
-// hidden row, so its order, hidden tabs and tabs of the mod's own carry over.
-//
-// Tree (trees/home.txt): NavigationUI_TabBarImpl.TabBarView > TabBarCompactView > UIStackView of
-//   ElementContentView<TabBarItemElement>, each with an SPTEncoreIconView and an SPTEncoreLabel.
+// View tree: NavigationUI_TabBarImpl.TabBarView > TabBarCompactView > UIStackView of
+// ElementContentView<TabBarItemElement>, each with an SPTEncoreIconView and an SPTEncoreLabel.
 #import "Core/SGCore.h"
 #import "Navbar.h"
 #import "Redesigned/Kit/SGRGlass.h"
@@ -297,7 +285,7 @@ static BOOL isHome(UIView *item, UIView *tabBar) {
 // So it must never become the bar's real "selected" tab: the pill parking on it, or drifting toward
 // its slot, would be showing a screen that was never actually opened.
 //
-// The row's arranged subviews are Element's ElementContentView wrappers (trees/continuous/1.txt), and
+// The row's arranged subviews are Element's ElementContentView wrappers, and
 // CreateMenuTabBarItemView is two levels down inside one -- never the arranged subview itself. A plain
 // isKindOfClass: on the item was therefore always NO: Create counted as a real tab, the pill moved
 // onto it, lastRealItem became Create and nothing ever moved the selection back once its popover was
@@ -926,7 +914,7 @@ static void makeRoom(UIViewController *container) {
 //    tab of the mod's own that Spotify's labels know nothing about.
 // A second look follows shortly after, since Spotify repaints its labels a moment after the change.
 // Matched loosely (contains, not exact-equal, and checked by class name too) on purpose: the sheet's
-// accessibilityIdentifier is read off a live view captured once by hand (trees/continuous/4.txt) and a
+// accessibilityIdentifier is read off a live view captured once by hand and a
 // future Spotify build, an A/B flag, or a slightly different presentation path (from Search's "+" or a
 // long-press instead of the tab) could dress the same menu up under a different id, or leave it unset
 // altogether. Falling through to the class name and to "is anything at all presented over us" keeps

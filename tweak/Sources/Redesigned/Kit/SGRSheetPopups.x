@@ -1,6 +1,5 @@
-// Redesign, iOS < 26: glass for the popups that were still Spotify's opaque grey, so every one of them has the
-// queue's pane (the heavy blur, the dark body and the rim of SGRGlassSheetChrome) and the screen's own top
-// corners instead of Spotify's 16:
+// Redesign, iOS < 26: glass for the popups that were still Spotify's opaque grey. Each gets the queue's pane
+// (SGRGlassSheetChrome) and the screen's own top corners:
 //
 //   Invite friends to your Jam         Jam_InvitationFlowImpl.ShareOptionsViewController
 //   Jam settings (Guest controls)      a SwiftUI hosting controller of Jam_ParticipantSettingsPageImpl
@@ -9,21 +8,17 @@
 //   Song credits                       TrackCredits_CreditsPageImpl.CreditsViewController
 //   Save in                            PlaylistCuration_AddToPlaylistImpl.ATPContainerViewController
 //   Download using mobile data         Offline_ContentOffliningUIImpl.ElementViewController<DownloadOverCellularDialogElement>
-//   Share                              Share_MenuImpl.ShareMenuViewControllerV2 (below)
-//   Listening modes                    SmartShuffle_CoreImpl.PlayModePickerViewController (below)
+//   Share                              Share_MenuImpl.ShareMenuViewControllerV2
+//   Listening modes                    SmartShuffle_CoreImpl.PlayModePickerViewController
 //
-// The first seven are one and the same Navigation sheet the queue, the Connect picker and the ⋯ menu are
-// (NavigationUI_SheetImpl.ContainerViewController, id=sheet-view, #1F1F1F or #282828, trees/continuous 2026-10-11
-// 2 to 9), each holding its own controller. That controller's class is Swift and, for a SwiftUI page, a generic
-// one with the page's types in its name, so the sheets are told apart by a part of the name of the controller
-// inside them rather than hooked one by one; any other sheet (the Create menu, which glasses its card alone)
-// is left to its own file. The pane goes in from the sheet's own passes, since the rows are built after the
-// first layout and Spotify paints its grey back on later ones (SGRRepaint.x keeps it clear in between).
+// The first seven are the same Navigation sheet (NavigationUI_SheetImpl.ContainerViewController, id=sheet-view),
+// each holding its own controller. That class is Swift and generic for SwiftUI pages, so a sheet is recognised by
+// part of the inner controller's name. The pane goes in from the sheet's own passes because its rows are built
+// after the first layout; SGRRepaint.x keeps Spotify's grey clear in between.
 //
-// The share menu and the Listening modes picker are not Navigation's: its ShareMenuSheetView is presented over the full screen by UIKit and has
-// no "sheet-view" in it (trees/continuous/10.txt), so its pane goes behind that view by name. The picker is
-// SmartShuffle_CoreImpl.PlayModePickerView, #1F1F1F r=16, which is the view of its controller and is placed at the
-// foot of the screen by a presentation controller of its own, with a plain black dimming view behind it.
+// Share and Listening modes are not Navigation sheets: ShareMenuSheetView is presented by UIKit with no
+// sheet-view in it, and PlayModePickerView is placed by a presentation controller of its own, so each gets
+// its pane by name.
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
 

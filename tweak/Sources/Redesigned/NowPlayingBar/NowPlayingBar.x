@@ -501,7 +501,7 @@ static void styleNowPlayingBar(UIViewController *container) {
     SGShapeGlass(glass, radius, NO);
     placeStripGlass(container.view, strip, frame, stripAbove);
 
-    SGRGlassFilm(container.view, &kTintKey, glass, radius);
+    if (@available(iOS 26.0, *)) {} else SGRGlassFilm(container.view, &kTintKey, glass, radius);
 
     static dispatch_once_t once;
     dispatch_once(&once, ^{

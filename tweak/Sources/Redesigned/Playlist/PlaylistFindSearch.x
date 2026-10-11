@@ -1,6 +1,6 @@
 // Redesign: "Find on this page" (Liked Songs and any other playlist). It is the plain system UISearchBar
 // (id=PL.SearchViewController.SearchBar), not one of Spotify's Encore fields, and its field is a flat
-// _UISearchBarSearchFieldBackgroundView, bg=#767680@0.24 r=10 (trees/continuous/3.txt). It becomes a glass
+// _UISearchBarSearchFieldBackgroundView, bg=#767680@0.24 r=10. It becomes a glass
 // capsule like the redesign's other search fields (Navbar/SearchField.x).
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
