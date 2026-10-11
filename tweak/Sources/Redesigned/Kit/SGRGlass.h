@@ -44,6 +44,10 @@ UIView *SGRGlassFilm(UIView *host, const void *key, UIView *glass, CGFloat radiu
 // at that list and leaves its rows alone. Also records the sheet in sgr_sheetChromeRoot (SGRRepaint.h), whose
 // hook keeps the fill clear when Spotify paints it back.
 UIView *SGRGlassSheetChrome(UIView *content);
+// The same for a sheet that carries no "sheet-view" identifier, handed over as the view that is the pane itself
+// (the share menu's ShareMenuSheetView, which UIKit presents over the screen on its own, not in Navigation's
+// sheet): the pane, the screen's top corners and the cleared grey, as above.
+UIView *SGRGlassSheetView(UIView *sheet);
 // The top corner radius of every sheet the mod glasses: the screen's, as the Genius meanings sheet has it.
 CGFloat SGRSheetCornerRadius(void);
 // The body SGRGlassSheetChrome puts on a sheet's pane (heavier blur, dark tint, hairline rim), for a sheet

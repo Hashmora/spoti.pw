@@ -227,7 +227,11 @@ static SGRGlyphButton *glyphButtonIn(UIView *host, const void *key, NSString *sy
 // touch and large content viewer; the glyph is its icon's stand-in, so the symbol hides rather than goes. With
 // no Encore (the class gone, or no such glyph) SGTabIconView answers a star symbol, and the bullet list stays.
 static char kEncoreQueueKey;
-static const CGFloat kQueueIconSize = 24;
+// A touch smaller on the iOS < 26 fallback, where the glyph sits among the Kit's own 20pt glyphs and read heavier.
+static CGFloat queueIconSize(void) {
+    if (@available(iOS 26.0, *)) return 24;
+    return 21;
+}
 
 static void useSpotifyQueueIcon(SGRGlyphButton *button) {
     UIView *icon = objc_getAssociatedObject(button, &kEncoreQueueKey);
@@ -241,7 +245,8 @@ static void useSpotifyQueueIcon(SGRGlyphButton *button) {
         [button addSubview:icon];
     }
     button.glyph.hidden = YES;
-    icon.bounds = CGRectMake(0, 0, kQueueIconSize, kQueueIconSize);
+    CGFloat side = queueIconSize();
+    icon.bounds = CGRectMake(0, 0, side, side);
     icon.center = CGPointMake(CGRectGetMidX(button.bounds), CGRectGetMidY(button.bounds));
 }
 

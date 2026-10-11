@@ -327,26 +327,35 @@ CGFloat SGRSheetCornerRadius(void) {
     return radius;
 }
 
-UIView *SGRGlassSheetChrome(UIView *content) {
+// The pane, the corners and the stripped grey of one sheet view `v`: what SGRGlassSheetChrome does once it has
+// found the sheet by its identifier, and what a sheet with no such identifier (the share menu's) gets by name.
+static UIView *chromeSheetView(UIView *v) {
     static char kSheetChromeGlassKey;
+    UIView *glass = SGGlassFor(v, &kSheetChromeGlassKey);
+    glass.frame = v.bounds;
+    glass.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    // Top corners only: the bottom of a sheet is off the screen's edge.
+    CGFloat radius = SGRSheetCornerRadius();
+    if (v.layer.cornerRadius != radius) v.layer.cornerRadius = radius;
+    v.layer.cornerCurve = kCACornerCurveContinuous;
+    v.layer.maskedCorners = kCALayerMinXMinYCorner | kCALayerMaxXMinYCorner;
+    SGShapeGlass(glass, radius, NO);
+    SGRThickenSheetGlass(glass, radius);
+    if (v.layer.backgroundColor) v.layer.backgroundColor = NULL;
+    CGFloat wide = v.bounds.size.width * kSheetBandShare;
+    for (UIView *sub in v.subviews) stripSheetChrome(sub, glass, wide, 0);
+    // Spotify repaints the grey on later passes; SGRRepaint.x keeps clearing it under this root.
+    if (sgr_sheetChromeRoot != v) sgr_sheetChromeRoot = v;
+    return glass;
+}
+
+UIView *SGRGlassSheetChrome(UIView *content) {
     for (UIView *v = content; v; v = v.superview) {
-        if (![v.accessibilityIdentifier isEqualToString:@"sheet-view"]) continue;
-        UIView *glass = SGGlassFor(v, &kSheetChromeGlassKey);
-        glass.frame = v.bounds;
-        glass.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-        // Top corners only: the bottom of a sheet is off the screen's edge.
-        CGFloat radius = SGRSheetCornerRadius();
-        if (v.layer.cornerRadius != radius) v.layer.cornerRadius = radius;
-        v.layer.cornerCurve = kCACornerCurveContinuous;
-        v.layer.maskedCorners = kCALayerMinXMinYCorner | kCALayerMaxXMinYCorner;
-        SGShapeGlass(glass, radius, NO);
-        SGRThickenSheetGlass(glass, radius);
-        if (v.layer.backgroundColor) v.layer.backgroundColor = NULL;
-        CGFloat wide = v.bounds.size.width * kSheetBandShare;
-        for (UIView *sub in v.subviews) stripSheetChrome(sub, glass, wide, 0);
-        // Spotify repaints the grey on later passes; SGRRepaint.x keeps clearing it under this root.
-        if (sgr_sheetChromeRoot != v) sgr_sheetChromeRoot = v;
-        return glass;
+        if ([v.accessibilityIdentifier isEqualToString:@"sheet-view"]) return chromeSheetView(v);
     }
     return nil;
+}
+
+UIView *SGRGlassSheetView(UIView *sheet) {
+    return sheet ? chromeSheetView(sheet) : nil;
 }
