@@ -145,8 +145,16 @@ static OSStatus pullChain(void *context, UInt32 frames, float *left, float *righ
     return chain->pull(chain->context, frames, &buffers.list, sounding);
 }
 
+#if SG_DRIVER
+static atomic_bool sg_anchorStageActive;
+BOOL SGSingAnchorStageActive(void) { return atomic_load(&sg_anchorStageActive); }
+#endif
+
 static OSStatus stage(UInt32 frames, AudioBufferList *data, SGPlayerPull pull, void *context) {
     SGSingEngine *engine = atomic_load_explicit(&sg_engine, memory_order_acquire);
+    #if SG_DRIVER
+    atomic_store(&sg_anchorStageActive, false);
+    #endif
     if (!engine) return pull(context, frames, data, NULL);
     atomic_store_explicit(&sg_staged, true, memory_order_relaxed);
     atomic_store_explicit(&sg_rendered, true, memory_order_relaxed);
@@ -158,6 +166,9 @@ static OSStatus stage(UInt32 frames, AudioBufferList *data, SGPlayerPull pull, v
         atomic_store_explicit(&sg_formatRefused, true, memory_order_relaxed);
         return pull(context, frames, data, NULL);
     }
+    #if SG_DRIVER
+    atomic_store(&sg_anchorStageActive, true);
+    #endif
     ChainPull chain = {pull, context};
     return SGSingEngineRender(engine, frames, data->mBuffers[0].mData, data->mBuffers[1].mData, pullChain, &chain);
 }
@@ -767,6 +778,8 @@ static double rawPosition(SPTPlayerState *state) {
     return position;
 }
 
+double SGSingSourcePosition(SPTPlayerState *state) { return rawPosition(state); }
+
 double SGSingHeldLead(void) {
     return SGSingEngineLead(atomic_load_explicit(&sg_engine, memory_order_acquire));
 }
@@ -1304,6 +1317,10 @@ static void readHeat(void) {
         }];
         // Low on memory, the model goes at once, before iOS closes Spotify for it.
         [center addObserverForName:UIApplicationDidReceiveMemoryWarningNotification object:nil queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *note) {
+            if (SGHidden(SGKeySingIgnoreMemory)) {
+                SGLog(@"sing: iOS warned that memory is low; the model is kept (Ignore memory warnings)");
+                return;
+            }
             SGSingLoaderPurge(@"iOS warned that memory is low");
             // Over a stop for falling behind, which would load the model again with the next track whatever the memory.
             if (!SGSingOn() || (sg_stopped && sg_stopKind != SGSingStopBehind)) return;

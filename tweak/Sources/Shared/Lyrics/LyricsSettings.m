@@ -21,7 +21,7 @@ SGModSection *SGLyricsSourcesSection(BOOL namingSource) {
         return count ? @(count).stringValue : @"None";
     };
     NSMutableArray<SGModRow *> *rows = [NSMutableArray arrayWithObjects:sources, imported,
-        SGOptionRow(@"Lyrics for every track", @"Even where Spotify has none", SGKeyLyricsAllTracks), SGSpicyLyricsKeyRow(), nil];
+        SGSwitchRow(@"Lyrics for every track", @"Even where Spotify has none", SGKeyLyricsAllTracks), SGSpicyLyricsKeyRow(), nil];
     // Spicy Lyrics' terms ask for its credit wherever its lines show (Shared/LyricsSources/SpicyLyrics.m), so the switch
     // says so, or its credit under the lyrics reads as the switch not working (issue #20).
     if (namingSource) [rows addObject:SGOptionRow(@"Show source", @"Spicy Lyrics is always credited after the last line: its terms ask for it", SGKeyLyricsCredit)];

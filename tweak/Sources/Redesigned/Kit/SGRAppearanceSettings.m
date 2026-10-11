@@ -52,8 +52,13 @@ NSArray<SGModRow *> *SGRAppearanceRows(void) {
         });
     });
     colour.swatch = ^UIColor *{ return SGColorRGB(SGRAccentRGB()); };
-    NSMutableArray<SGModRow *> *rows = [NSMutableArray arrayWithObjects:SGWithSymbol(menu, @"paintpalette"), SGWithSymbol(colour, @"eyedropper"), nil];
-    // From iOS 26 the system draws the glass itself and there is nothing for the switch to do, so no row.
+    // vitrine-main's rows, as written there.
+    NSMutableArray<SGModRow *> *rows = [@[
+        SGWithSymbol(menu, @"paintpalette"),
+        SGWithSymbol(colour, @"eyedropper"),
+        SGWithSymbol(SGOptionRow(@"Plain checkmark", @"A saved song's tick without its circle, in the accent", SGRKeyPlainCheck), @"checkmark"),
+    ] mutableCopy];
+    // legacy-glass: from iOS 26 the system draws the glass itself and there is nothing for the switch to do, so no row.
     if (@available(iOS 26.0, *)) {} else [rows addObject:legacyGlassRow()];
     return rows;
 }

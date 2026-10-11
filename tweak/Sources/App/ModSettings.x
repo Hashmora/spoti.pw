@@ -31,6 +31,7 @@
 #import "App/About/About.h"
 #import "App/Onboarding/Onboarding.h"
 #import "Redesigned/Album/Album.h"
+#import "Redesigned/Artist/Artist.h"
 #import "Pages.h"
 
 static const CGFloat kRowHeight = 56;
@@ -65,14 +66,18 @@ static UIViewController *modSettingsPage(void) {
     ])];
 
     // Home & Library holds only the native look's switches; the redesign has its album and artist pages instead.
-    SGModRow *albums = pageRow(@"Albums & artists", @"square.stack", UIColor.systemCyanColor, ^UIViewController *{ return SGRAlbumSettingsPage(); });
+    SGModRow *albums = pageRow(@"Albums", @"square.stack", UIColor.systemCyanColor, ^UIViewController *{ return SGRAlbumSettingsPage(); });
     albums.visible = redesigned;
+    // Not music.mic: Karaoke's tile below carries it.
+    SGModRow *artists = pageRow(@"Artists", @"guitars", UIColor.systemCyanColor, ^UIViewController *{ return SGRArtistSettingsPage(); });
+    artists.visible = redesigned;
     SGModRow *home = pageRow(@"Home & Library", @"house", UIColor.systemCyanColor, ^UIViewController *{ return SGHomeSettingsPage(); });
     home.visible = native;
     [sections addObject:SGSection(nil, @[
         pageRow(@"Player", @"play.circle", UIColor.systemPinkColor, ^UIViewController *{ return SGPlayerSettingsPage(); }),
         pageRow(@"Lyrics", @"quote.bubble", UIColor.systemPurpleColor, ^UIViewController *{ return SGLyricsSettingsPage(); }),
         albums,
+        artists,
         home,
     ])];
 
