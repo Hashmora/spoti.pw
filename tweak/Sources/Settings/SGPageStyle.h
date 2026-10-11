@@ -53,3 +53,11 @@ void SGOpenURL(NSString *url);
 extern NSString *const SGRepoURL;
 // The controller on top of the key window, through whatever is presented over it.
 UIViewController *SGTopController(void);
+
+// A controller of the mod that stands in for a UIAlertController (Redesigned/Kit/SGRAlertScreen.h) adopts this,
+// so the places that wait for an alert to go (the tour, What's new, the update notice) and the ones that leave an
+// alert alone (the ⋯ menu's takeover) see it as one.
+@protocol SGAlertScreen <NSObject>
+@end
+// Whether `controller` is a system alert or action sheet, or the mod's stand-in for one.
+BOOL SGIsAlertController(UIViewController *controller);

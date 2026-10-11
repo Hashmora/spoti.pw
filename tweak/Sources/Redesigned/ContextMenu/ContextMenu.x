@@ -25,6 +25,7 @@
 #import <objc/runtime.h>
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
+#import "Settings/SGPageStyle.h"
 #import "Shared/Player/SpeedPitch.h"
 #import "ContextMenu.h"
 
@@ -1265,7 +1266,7 @@ static void openWhenUp(SGRMenuSession *session, UIViewController *sheet, int tri
     UIWindow *in = self.viewIfLoaded.window;
     // The sheet the player's menu asked Spotify for: into the mod's window, unseen.
     SGRMenuSession *requesting = sg_requesting;
-    if (requesting && in != sg_host && CACurrentMediaTime() - sg_requestedAt <= kRequestWindow && ![presented isKindOfClass:UIAlertController.class]) {
+    if (requesting && in != sg_host && CACurrentMediaTime() - sg_requestedAt <= kRequestWindow && !SGIsAlertController(presented)) {
         sg_requesting = nil;
         [requesting adoptSheet:presented from:self completion:completion];
         return;

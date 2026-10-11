@@ -290,6 +290,10 @@ UIViewController *SGTopController(void) {
     return top;
 }
 
+BOOL SGIsAlertController(UIViewController *controller) {
+    return [controller isKindOfClass:UIAlertController.class] || [controller conformsToProtocol:@protocol(SGAlertScreen)];
+}
+
 // The fork's repo. Its links stay hidden while this is nil.
 NSString *const SGRepoURL = @"https://github.com/My-Name-Is-Jeff/vitrine";
 
