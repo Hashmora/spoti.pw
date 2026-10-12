@@ -18,7 +18,6 @@
 #import "Native/Player/NowPlaying.h"
 #import "Shared/LiveActivity/LiveActivity.h"
 #import "Shared/Lossless/SGLossless.h"
-#import "Redesigned/Home/Home.h"
 #import "Redesigned/Lyrics/LyricsText.h"
 #import "Redesigned/Lyrics/LyricsLook.h"
 #import "Redesigned/Navbar/Navbar.h"
@@ -73,7 +72,7 @@ static SGModRow *untestedRow(void) {
         }]];
         [SGTopController() presentViewController:alert animated:YES completion:nil];
     };
-    return SGWithTile(row, @"sparkles", UIColor.systemPurpleColor);
+    return SGWithTile(row, @"sparkles", UIColor.systemIndigoColor);
 }
 
 SGModRow *SGRedesignedUIRow(void) {
@@ -85,7 +84,7 @@ SGModRow *SGRedesignedUIRow(void) {
         SGSetRedesignedUI(on);
         offerRestart(on);
     };
-    return SGWithTile(redesign, @"sparkles", UIColor.systemPurpleColor);
+    return SGWithTile(redesign, @"sparkles", UIColor.systemIndigoColor);
 }
 
 // The stored look's own rows, then the font and the app icon, which work under either look on any iOS.
@@ -95,7 +94,7 @@ UIViewController *SGAppearancePage(void) {
     SGModRow *icon = SGAppIconRow();
     if (icon) [everywhere addObject:icon];
     return [[SGModPage alloc] initWithTitle:@"Appearance" intro:SGRestartNote sections:@[
-        SGSection(nil, SGRedesignedUIStored() ? [SGRAppearanceRows() arrayByAddingObject:SGRHomeTopPicksRow()] : SGNativeAppearanceRows()),
+        SGSection(nil, SGRedesignedUIStored() ? SGRAppearanceRows() : SGNativeAppearanceRows()),
         SGSection(nil, everywhere),
     ] footer:nil];
 }

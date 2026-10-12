@@ -9,11 +9,13 @@
 # in too (Substrate's MSHookMessageEx, and a phone's hw.machine). The device is a simulator of its own
 # ("Vitrine" by default, an iPhone 17 on the newest iOS runtime), so the booted ones are left alone.
 # SG_DRIVER=1 builds the tweak with the phone driver, on port 8086: PHONE_PORT=8086 scripts/phone.py state.
+# SIM_PORT=8087 moves it, so two simulators can run their drivers at once.
 #
 # Needs: full Xcode with an iOS Simulator runtime, Theos in $THEOS, gmake.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PORT="${SIM_PORT:-8086}"
 export THEOS="${THEOS:-$HOME/theos}"
 IN="" TWEAK=1 DEVICE="Vitrine" LAUNCH=1
 while [ $# -gt 0 ]; do
@@ -51,10 +53,10 @@ if [ "$TWEAK" = 1 ]; then
     "$ROOT/scripts/extract-flags.py" "$IN"
   fi
   echo "==> building tweak"
-  # The driver's server moves to port 8086, so an iproxy tunnel to the phone on 8085 stays the phone's.
+  # The driver's server moves to port $PORT (8086 unless SIM_PORT says), so an iproxy tunnel to the phone on 8085 stays the phone's.
   # Its objects go to .theos/obj-sim, so they never end up in a build for the phone (make quick builds
   # .theos/obj incrementally). Theos does not rebuild on changed flags, so a change of them cleans first.
-  MAKE_FLAGS=(THEOS_OBJ_DIR_NAME=obj-sim SG_DRIVER="${SG_DRIVER:-0}" ADDITIONAL_CFLAGS=-DSG_TREE_PORT=8086)
+  MAKE_FLAGS=(THEOS_OBJ_DIR_NAME=obj-sim SG_DRIVER="${SG_DRIVER:-0}" ADDITIONAL_CFLAGS=-DSG_TREE_PORT=$PORT)
   STAMP="$ROOT/tweak/.theos/obj-sim/sim-flags"
   CLEAN=""
   [ "$(cat "$STAMP" 2>/dev/null)" = "${MAKE_FLAGS[*]}" ] || CLEAN=clean
@@ -175,6 +177,6 @@ echo "log:        xcrun simctl spawn $UDID log stream --style compact --predicat
 echo "screenshot: xcrun simctl io $UDID screenshot shot.png"
 if [ "${SG_DRIVER:-0}" = 1 ]; then
   # scripts/phone.py starts iproxy to the phone when nothing answers on its port, so wait for the app's.
-  for _ in $(seq 60); do nc -z 127.0.0.1 8086 2>/dev/null && break; sleep 0.5; done
-  nc -z 127.0.0.1 8086 2>/dev/null && echo "driver:     PHONE_PORT=8086 scripts/phone.py state" || echo "the driver did not open port 8086" >&2
+  for _ in $(seq 60); do nc -z 127.0.0.1 "$PORT" 2>/dev/null && break; sleep 0.5; done
+  nc -z 127.0.0.1 "$PORT" 2>/dev/null && echo "driver:     PHONE_PORT=$PORT scripts/phone.py state" || echo "the driver did not open port $PORT" >&2
 fi

@@ -127,16 +127,38 @@ static SGRHomeKind gridKind(UICollectionView *grid) {
     if (grid.accessibilityIdentifier.length) return SGRHomeKindDrop;
     UIView *cell = grid.visibleCells.firstObject;
     // A grid the list sized before it laid its own cells out: nothing but the shortcuts has come as one.
-    if (!cell) return SGRHomeKindKeep;
-    return contentNames(cell.subviews.firstObject, @"Home_AnchorsAndShortcutsKit") ? SGRHomeKindKeep : SGRHomeKindDrop;
+    if (cell && !contentNames(cell.subviews.firstObject, @"Home_AnchorsAndShortcutsKit")) return SGRHomeKindDrop;
+    return SGHidden(SGRKeyHomeHideShortcuts) ? SGRHomeKindDrop : SGRHomeKindKeep;
+}
+
+// The previews (a video or a playlist playing as Home scrolls) are medium density cards, on their own or under a
+// heading; the song suggestions are Spotify's content evaluation carousel. Each stays only when asked for.
+static SGRHomeKind optionalKind(NSString *name) {
+    if ([name containsString:@"MediumDensityCard"] || [name containsString:@"Discovery_Preview"]) {
+        return SGHidden(SGRKeyHomePreviews) ? SGRHomeKindKeep : SGRHomeKindDrop;
+    }
+    if ([name containsString:@"ContentEvaluationList"]) return SGHidden(SGRKeyHomeSongSuggestions) ? SGRHomeKindKeep : SGRHomeKindDrop;
+    return SGRHomeKindDrop;
 }
 
 // A LazyElementView names the element it will hold before it holds it.
 static SGRHomeKind stackKind(UIStackView *stack) {
     for (UIView *part in stack.arrangedSubviews) {
-        if ([NSStringFromClass(part.class) containsString:@"Discovery_DJElementKit"]) return SGRHomeKindKeep;
+        NSString *name = NSStringFromClass(part.class);
+        if ([name containsString:@"Discovery_DJElementKit"]) return SGHidden(SGRKeyHomeHideDJ) ? SGRHomeKindDrop : SGRHomeKindKeep;
+        SGRHomeKind optional = optionalKind(name);
+        if (optional == SGRHomeKindKeep) return optional;
     }
     return stack.arrangedSubviews.count >= 2 ? SGRHomeKindDrop : SGRHomeKindPending;
+}
+
+// A shelf stays unless its heading names one that is switched off; one with no heading to read yet stays, and
+// HomeHeadings.x asks the cell to measure again once there is one.
+static SGRHomeKind shelfKind(UIView *shelf) {
+    NSString *identity = SGRHomeShelfIdentity(shelf);
+    if (!identity) return SGRHomeKindKeep;
+    SGRHomeNoteShelf(identity);
+    return SGRHomeShelfHidden(identity) ? SGRHomeKindDrop : SGRHomeKindKeep;
 }
 
 // Before the cell is measured, so the height it reports is without the heading.
@@ -156,10 +178,34 @@ static SGRHomeKind kindOf(UIView *content, NSString **rootName) {
     *rootName = NSStringFromClass(root.class);
     static Class shelf;
     if (!shelf) shelf = NSClassFromString(@"_TtC16Home_CarouselKit29TouchCancellingCollectionView");
-    if (shelf && [root isKindOfClass:shelf]) return SGRHomeKindKeep;
+    if (shelf && [root isKindOfClass:shelf]) return shelfKind(root);
     if ([root isKindOfClass:UICollectionView.class]) return gridKind((UICollectionView *)root);
     if ([root isKindOfClass:UIStackView.class]) return stackKind((UIStackView *)root);
-    return SGRHomeKindDrop;
+    return optionalKind(*rootName);
+}
+
+void SGRHomeMeasureAgain(UIView *view) {
+    UIView *cell = view;
+    while (cell && ![cell isKindOfClass:UICollectionViewCell.class]) cell = cell.superview;
+    // A cell of a shelf's own list: the page's cell is the one around that.
+    for (UIView *v = cell.superview; v; v = v.superview) {
+        if ([v isKindOfClass:UICollectionViewCell.class]) cell = v;
+    }
+    if (!cell || !isSection(((UICollectionViewCell *)cell).contentView)) return;
+    // The list asks a self-sizing cell for its size again once the cell's item is invalidated in the layout and the
+    // cell lays out; the cell's intrinsic size alone was not enough for a cell already sized.
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIView *v = cell.superview;
+        while (v && ![v isKindOfClass:UICollectionView.class]) v = v.superview;
+        UICollectionView *list = (UICollectionView *)v;
+        NSIndexPath *path = list ? [list indexPathForCell:(UICollectionViewCell *)cell] : nil;
+        [cell invalidateIntrinsicContentSize];
+        [cell setNeedsLayout];
+        if (!path) return;
+        UICollectionViewLayoutInvalidationContext *context = [[[list.collectionViewLayout class] invalidationContextClass] new];
+        [context invalidateItemsAtIndexPaths:@[path]];
+        [list.collectionViewLayout invalidateLayoutWithContext:context];
+    });
 }
 
 // A dropped section's cell is 0 tall, but what it holds keeps the height it measured at, hidden and cut off
@@ -207,6 +253,9 @@ static void expand(UICollectionViewCell *cell) {
     } else if (kind == SGRHomeKindKeep) {
         // Cells are reused across kinds: one collapsed before holds a section to keep now.
         if (collapsed) expand(cell);
+        // The page's color (HomeHeader.x) shows through a kept section; Spotify paints a shelf black on each configure.
+        UIView *root = content.subviews.firstObject.subviews.firstObject;
+        if (SGRHomeLook() && [root isKindOfClass:UICollectionView.class] && ![root.backgroundColor isEqual:UIColor.clearColor]) root.backgroundColor = UIColor.clearColor;
         markDropped(cell, attributes.indexPath.section, NO);
         logOnce([@"kept a section of " stringByAppendingString:rootName]);
     } else {

@@ -14,8 +14,8 @@
 
 // The track's height, the glyphs' point size and the gap between a glyph and the track.
 static const CGFloat kRowHeight = 34, kGlyphSize = 13, kGlyphGap = 10, kTrack = 4;
-// Half the play button's height and half the footer glyphs': below this much room between them it does not fit.
-static const CGFloat kButtonsHalf = 24, kGlyphsHalf = 14;
+// Half the footer glyphs' height: the row stops this far above their middle.
+static const CGFloat kGlyphsHalf = 14;
 // The slider draws its track this far above its own middle (6.5px measured on the phone), so the glyphs go up with it.
 static const CGFloat kTrackAbove = 2;
 
@@ -110,11 +110,19 @@ BOOL SGRPlayerPlaceVolume(UIView *stack, UIView *controls, UIView *row, CGFloat 
     }
     if (volume.superview != stack) [stack addSubview:volume];
     // Halfway between the play button's bottom and the footer glyphs' top, each where it is drawn (convertRect: takes
-    // the moves' transforms in): the controls' unit reaches above its buttons, so its own middle sat the row 16pt high.
-    // Without the button, the unit's middle stands in for it.
+    // the moves' transforms in). Without the button there is nothing to stand under: a guess from the controls' unit
+    // put the row across the buttons on an iPhone 13 Pro with iOS 17 (issue #32) and took their taps, so no row.
     UIView *play = SGRFindByIdentifier(controls, @"SPTNowPlayingPlayButton", &kPlayKey);
-    CGFloat above = play ? CGRectGetMaxY([play convertRect:play.bounds toView:stack])
-                         : controls.center.y + controls.transform.ty + kButtonsHalf;
+    if (!play) {
+        static BOOL logged;
+        if (!logged) {
+            logged = YES;
+            SGLog(@"redesign player: no play button in %@, so no volume row", NSStringFromClass(controls.class));
+        }
+        volume.alpha = 0;
+        return NO;
+    }
+    CGFloat above = CGRectGetMaxY([play convertRect:play.bounds toView:stack]);
     CGFloat below = [row convertPoint:CGPointMake(CGRectGetMidX(row.bounds), CGRectGetMidY(row.bounds)) toView:stack].y - kGlyphsHalf;
     CGFloat height = kRowHeight, room = below - above;
     CGRect frame = CGRectMake(margin, round((above + below - height) / 2), MAX(0, stack.bounds.size.width - 2 * margin), height);
