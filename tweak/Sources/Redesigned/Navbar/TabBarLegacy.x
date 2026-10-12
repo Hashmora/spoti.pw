@@ -177,6 +177,7 @@ static void followCreateClose(UIView *stockBar);
     self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
     _pane = SGGlassFor(self, &kCirclePaneKey);
     _pane.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
+    SGGlassInteractive(self, _pane);
     _film = SGRGlassFilm(self, &kCircleFilmKey, _pane, 0);
     _glyph = [UIImageView new];
     _glyph.userInteractionEnabled = NO;

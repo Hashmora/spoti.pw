@@ -111,6 +111,7 @@ static void styleSearchField(UIView *button) {
     if (glass.overrideUserInterfaceStyle != UIUserInterfaceStyleDark) glass.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
     glass.frame = button.bounds;
     SGShapeGlass(glass, size.height / 2, YES);
+    SGGlassInteractive(button, glass);
 
     SGForEachView(button, ^(UIView *v) { whiten(v); });
     traceField(button, @"styled");

@@ -218,6 +218,7 @@ static CGFloat height(float rms) {
     _play = [UIButton buttonWithType:UIButtonTypeSystem];
     _play.tintColor = UIColor.whiteColor;
     SGGlassFor(_play, @selector(addSubview:)).userInteractionEnabled = NO;
+    SGGlassInteractive(_play, SGGlassFor(_play, @selector(addSubview:)));
     _play.backgroundColor = [UIColor colorWithWhite:1 alpha:0.1];
     _play.layer.cornerRadius = 24;
     [_play addTarget:self action:@selector(playTapped) forControlEvents:UIControlEventTouchUpInside];

@@ -4,6 +4,7 @@
 // dark chrome blur otherwise.
 #import <UIKit/UIKit.h>
 #import "SGLegacyGlass.h"
+#import "SGGlassTouch.h"
 
 #define SGKeyLegacyGlass @"spotifyglass.legacyglass"
 
