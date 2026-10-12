@@ -13,8 +13,6 @@
 
 // The corners UIKit cuts a menu with.
 static const CGFloat kMenuRadius = 14;
-// The black laid over the glass: the light body alone leaves white labels too little contrast.
-static const CGFloat kMenuDim = 0.42;
 static char kMenuGlassKey;
 
 // The view holding UIKit's blur: the menu's own surface. Found by the blur rather than by how the platter is
@@ -39,7 +37,7 @@ static UIView *platterIn(UIView *view, int depth) {
 // The menu's glass: a pane on `host` (a menu's platter, or the chrome of the player's sliders panel) with the
 // body, rim and dim of a sheet's. One place, so what opens from the ⋯ looks like the menu it opens from.
 // Nil while `host` has no size yet. Below iOS 26 only: the system draws its own on 26.
-UIView *SGRMenuGlass(UIView *host, const void *key) {
+UIView *SGRMenuGlass(UIView *host, const void *key, CGFloat dim) {
     if (host.bounds.size.width < 1 || host.bounds.size.height < 1) return nil;
     UIView *glass = SGGlassFor(host, key);
     if (glass.overrideUserInterfaceStyle != UIUserInterfaceStyleDark) glass.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
@@ -47,7 +45,7 @@ UIView *SGRMenuGlass(UIView *host, const void *key) {
     if (!CGRectEqualToRect(glass.frame, host.bounds)) glass.frame = host.bounds;
     SGShapeGlass(glass, kMenuRadius, NO);
     SGRThickenSheetGlass(glass, kMenuRadius);
-    SGRDimSheetGlass(glass, kMenuDim);
+    SGRDimSheetGlass(glass, dim);
     return glass;
 }
 
@@ -56,7 +54,7 @@ static void glassMenu(UIView *list) {
     if (!platter || platter.bounds.size.width < 1 || platter.bounds.size.height < 1) return;
     if (list.overrideUserInterfaceStyle != UIUserInterfaceStyleDark) list.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
 
-    UIView *glass = SGRMenuGlass(platter, &kMenuGlassKey);
+    UIView *glass = SGRMenuGlass(platter, &kMenuGlassKey, SGRMenuDim);
 
     // UIKit's own blur goes; the pane above is the mod's, which is a UIVisualEffectView too when it is not
     // the legacy glass.

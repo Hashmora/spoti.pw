@@ -1,50 +1,44 @@
-// Player redesign, iOS < 26: the background of the Speed, Pitch & Reverb panel (SGPlayerShowSpeedPitchPanel), a
-// popover from the ⋯. On iOS 26 the system gives the popover Liquid Glass, as it does the ⋯ menu it comes from. Below
-// it the popover is a plain blur while the menu wears the mod's glass (ContextMenu/ContextMenuGlass.x), so the panel
-// would open from the glass as a different material. UIPopoverBackgroundView is UIKit's public way to draw a
-// popover's chrome: this one is the menu's pane (SGRMenuGlass), with no arrow, as the menu has none.
+// Player redesign, iOS < 26: the glass of the Speed, Pitch & Reverb panel (SGPlayerShowSpeedPitchPanel), a popover
+// from the ⋯. On iOS 26 the system gives the popover Liquid Glass, as it does the ⋯ menu it comes from. Below it the
+// popover is a plain blur while the menu wears the mod's glass (ContextMenu/ContextMenuGlass.x), so the panel would
+// open from the glass as a different material.
+//
+// The popover stays the system's, so its animation does too (a background class of the mod's own took it away): its
+// blur, found among the views above the panel's, is hidden and the menu's pane (SGRMenuGlass) goes in beside it. If
+// no blur is found, nothing is changed.
 //
 // Threading: main thread only.
 #import "Core/SGCore.h"
 #import "Redesigned/ContextMenu/ContextMenu.h"
 #import "Shared/Player/SpeedPitch.h"
 
+// The black over the pane: lighter than the menu's, whose rows are long white labels; the panel is sliders.
+static const CGFloat kPanelDim = 0.18;
 static char kPanelGlassKey;
 
-@interface SGRPanelBackground : UIPopoverBackgroundView
-@end
-
-@implementation SGRPanelBackground {
-    UIPopoverArrowDirection _arrowDirection;
-    CGFloat _arrowOffset;
+// The ancestor of `content` that holds the popover's own blur, nearest first.
+static UIView *chromeAbove(UIView *content) {
+    UIView *host = content.superview;
+    for (int depth = 0; host && depth < 4; depth++, host = host.superview) {
+        for (UIView *sub in host.subviews) {
+            if (![sub isKindOfClass:UIVisualEffectView.class]) continue;
+            if (objc_getAssociatedObject(host, &kPanelGlassKey) == sub) continue;
+            return host;
+        }
+    }
+    return nil;
 }
 
-// Both properties are the subclass's to keep. The arrow is not drawn.
-- (UIPopoverArrowDirection)arrowDirection { return _arrowDirection; }
-- (void)setArrowDirection:(UIPopoverArrowDirection)direction { _arrowDirection = direction; }
-- (CGFloat)arrowOffset { return _arrowOffset; }
-- (void)setArrowOffset:(CGFloat)offset { _arrowOffset = offset; }
-
-+ (CGFloat)arrowHeight { return 0; }
-+ (CGFloat)arrowBase { return 0; }
-+ (UIEdgeInsets)contentViewInsets { return UIEdgeInsetsZero; }
-+ (BOOL)wantsDefaultContentAppearance { return NO; }
-
-- (instancetype)initWithFrame:(CGRect)frame {
-    if (!(self = [super initWithFrame:frame])) return nil;
-    self.backgroundColor = UIColor.clearColor;
-    // Glass takes the appearance it inherits, which on a phone in light mode is light.
-    self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
-    return self;
-}
-
-- (void)layoutSubviews {
-    [super layoutSubviews];
-    SGRMenuGlass(self, &kPanelGlassKey);
-}
-@end
-
-Class SGPlayerPanelBackgroundClass(void) {
-    if (!SGRedesignedUI() || !SGBelowiOS26()) return nil;
-    return SGRPanelBackground.class;
+void SGPlayerStylePanel(UIView *content) {
+    if (!SGRedesignedUI() || !SGBelowiOS26() || !content.window) return;
+    UIView *host = chromeAbove(content);
+    if (!host) {
+        static int logged;
+        if (logged++ < 2) SGLog(@"speed and pitch: no blur above the panel, its popover keeps the system's");
+        return;
+    }
+    UIView *glass = SGRMenuGlass(host, &kPanelGlassKey, kPanelDim);
+    for (UIView *sub in host.subviews) {
+        if (sub != glass && [sub isKindOfClass:UIVisualEffectView.class] && !sub.hidden) sub.hidden = YES;
+    }
 }

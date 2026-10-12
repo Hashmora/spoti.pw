@@ -535,6 +535,18 @@ static NSString *pitchText(float pitch) {
     self.view = block;
 }
 
+// Below iOS 26 the popover's own blur gives way to the ⋯ menu's glass; the popover itself stays the system's, so
+// its animation does too. The chrome is made on layout, after UIKit has put it in.
+- (void)viewDidLayoutSubviews {
+    [super viewDidLayoutSubviews];
+    SGPlayerStylePanel(self.view);
+}
+
+- (void)viewDidAppear:(BOOL)animated {
+    [super viewDidAppear:animated];
+    SGPlayerStylePanel(self.view);
+}
+
 - (UIModalPresentationStyle)adaptivePresentationStyleForPresentationController:(UIPresentationController *)controller
                                                                traitCollection:(UITraitCollection *)traits {
     return UIModalPresentationNone;
@@ -551,9 +563,6 @@ void SGPlayerShowSpeedPitchPanel(UIView *from) {
     popover.sourceRect = from.bounds;
     popover.permittedArrowDirections = UIPopoverArrowDirectionUp | UIPopoverArrowDirectionDown;
     popover.delegate = panel;
-    // Below iOS 26 the popover's own material is a plain blur: the redesign hands it the glass the ⋯ menu has.
-    Class background = SGPlayerPanelBackgroundClass();
-    if (background) popover.popoverBackgroundViewClass = background;
     SGPresentDark(panel);
     // Picked from the system menu, which is still going away: the panel waits for it.
     __block int tries = 0;
