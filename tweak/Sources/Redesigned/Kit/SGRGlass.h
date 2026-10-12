@@ -35,7 +35,7 @@ UIView *SGRGlassFlatBox(UIView *box, const void *key);
 
 // The faint white film over a floating bar's glass (the tab bar's platter, the now playing card), without
 // which the bar disappears into Spotify's near-black chrome. Made once under `key`, kept just above `glass`
-// and on its frame, with corners of `radius`.
+// and on its frame, with corners of `radius`. Nil on iOS 26, where the system glass needs none.
 UIView *SGRGlassFilm(UIView *host, const void *key, UIView *glass, CGFloat radius);
 
 // The chrome of a bottom sheet Spotify draws around an opaque "sheet-view" pane: the ⋯ context menu, the
@@ -60,6 +60,9 @@ void SGRDimSheetGlass(UIView *glass, CGFloat alpha);
 // Whether `view` is chrome of the sheet rooted at `root` (sgr_sheetChromeRoot) rather than a row or card
 // inside the sheet's own list.
 BOOL SGRIsSheetChromeArea(UIView *view, UIView *root);
+
+// How much of a sheet's width a view must span to count as a band of its list rather than a card or an avatar.
+static const CGFloat SGRSheetBandShare = 0.75;
 
 // The opaque dark grey (up to 0.20 bright, grey, alpha >= 0.95) Spotify paints a sheet's rows and wrappers
 // with: #1F1F1F, which SGIsBaseSurface (the page black, up to 0.10) does not take for paint.

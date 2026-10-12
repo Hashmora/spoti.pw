@@ -520,8 +520,7 @@ static UIView *blockIn(UIView *layout, UIView *cover, UIView *fullbleed) {
 
 // The block's text and buttons scroll up and stop at the top of the page with the pinned header, where they
 // were under Spotify's navigation bar. That bar is gone now (PlaylistBar.x), so they show beside the ⋯ and the
-// title's glass instead. Each goes as
-// its top rises through the band below the pinned buttons (44pt at y 47, so down to 91), the way a row goes
+// title's glass instead. Each goes as its top rises through the band below the pinned buttons (44pt at y 47, so down to 91), the way a row goes
 // under the Music app's bar. A view's own alpha is free here: nothing of the redesign writes the info's.
 static const CGFloat kBarBottom = 91, kFadeSpan = 48;
 

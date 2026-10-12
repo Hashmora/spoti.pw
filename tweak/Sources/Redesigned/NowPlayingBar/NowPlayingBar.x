@@ -18,7 +18,6 @@
 // well, so the card is the painted view that holds the track and has no strip in it. The strip stays out
 // of the card's glass and gets a pane of its own above it, since its own paint goes clear with the rest.
 #import "Core/SGCore.h"
-#import "Redesigned/Kit/SGRGlass.h"
 #import "Redesigned/Kit/SGRRepaint.h"
 #import "Redesigned/Kit/SGRGlass.h"
 #import "Redesigned/Kit/SGRTokens.h"
@@ -501,7 +500,7 @@ static void styleNowPlayingBar(UIViewController *container) {
     SGShapeGlass(glass, radius, NO);
     placeStripGlass(container.view, strip, frame, stripAbove);
 
-    if (@available(iOS 26.0, *)) {} else SGRGlassFilm(container.view, &kTintKey, glass, radius);
+    SGRGlassFilm(container.view, &kTintKey, glass, radius);
 
     static dispatch_once_t once;
     dispatch_once(&once, ^{

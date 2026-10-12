@@ -216,7 +216,7 @@ static void pickerChrome(UIViewController *controller) {
 
 %ctor {
     if (!SGRedesignedUI()) return;
-    if (@available(iOS 26.0, *)) return;   // from iOS 26 the system draws its own glass; this is the legacy glass's
+    if (!SGBelowiOS26()) return;
     Class sheet = swiftClass(@"NavigationUI_SheetImpl", @"ContainerViewController");
     if (sheet) {
         %init(SGRSheetPopups, SGRSheetContainer = sheet);

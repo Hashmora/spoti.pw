@@ -393,7 +393,7 @@ static void layoutRoot(UIView *page) {
     if (!header) return;
     [header layoutIfNeeded];
     SGRLibraryClearScrim(header);
-    if (@available(iOS 26.0, *)) {} else {
+    if (SGBelowiOS26()) {
         glassChips(header);
         UIView *filters = childNamed(header, @"YourLibraryHeaderContentFiltersView");
         if (filters && header.bounds.size.height > 1) {
@@ -405,10 +405,9 @@ static void layoutRoot(UIView *page) {
     NSArray<UIView *> *trailing = placeRoot(header);
     if (!trailing.count) return;
 
-    // Search and + are plain 48pt icon buttons with nothing behind them (trees/continuous/10.txt
-    // 2026-09-26); the avatar is skipped, its image already fills the circle so glass behind it would
+    // Search and + are plain 48pt icon buttons with nothing behind them; the avatar is skipped, its image already fills the circle so glass behind it would
     // never show.
-    if (@available(iOS 26.0, *)) {} else {
+    if (SGBelowiOS26()) {
         for (UIView *control in trailing) {
             if (isFace(control)) continue;
             SGRGlassInside(control, &kRoundGlassKey, 44);
@@ -432,7 +431,7 @@ static void layoutFolder(UIView *page) {
     if (!header) return;
     [header layoutIfNeeded];
     SGRLibraryClearScrim(header);
-    if (@available(iOS 26.0, *)) {} else glassChips(header);
+    if (SGBelowiOS26()) glassChips(header);
 
     NSArray<UIView *> *placed = placeFolder(header);
     if (!placed.count) return;
@@ -465,7 +464,7 @@ static void layoutFolder(UIView *page) {
 %ctor {
     if (!SGRedesignedUI()) return;
     %init;
-    if (@available(iOS 26.0, *)) {} else { %init(LegacyChips); }
+    if (SGBelowiOS26()) { %init(LegacyChips); }
     SGRequireClasses(@[
         @"_TtC28YourLibrary_YourLibraryXImpl15YourLibraryView",
         @"_TtC22YourLibrary_FolderImpl10FolderView",

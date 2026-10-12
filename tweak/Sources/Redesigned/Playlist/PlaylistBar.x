@@ -131,7 +131,7 @@ static void apply(UIView *bar) {
 
 %ctor {
     if (!SGRedesignedUI()) return;
-    if (@available(iOS 26.0, *)) return;   // from iOS 26 the system draws its own glass; this is the legacy glass's
+    if (!SGBelowiOS26()) return;
     %init;
     SGRequireClasses(@[@"_TtC28EncoreConsumerMobile_BaseKit19HeaderNavigationBar"]);
 }

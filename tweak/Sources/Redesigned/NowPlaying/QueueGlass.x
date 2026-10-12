@@ -6,9 +6,8 @@
 // clear.
 //
 // The queue is built and painted after its first layout pass, so a chrome pass that runs only from
-// viewDidLayoutSubviews missed the bar of Shuffle / Repeat / Timer and the edit toolbar (both
-// #1F1F1F@1.00 in the dump taken just after opening, trees/continuous 2026-10-05) until a drag of the
-// sheet laid it out again. It runs from the view's appearance and from the next turns of the run loop
+// viewDidLayoutSubviews missed the bar of Shuffle / Repeat / Timer and the edit toolbar (both #1F1F1F)
+// until a drag of the sheet laid it out again. It runs from the view's appearance and from the next turns of the run loop
 // as well, and the two bars clear their own paint whenever it is laid down.
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
@@ -101,7 +100,7 @@ static void clearBar(UIView *bar) {
 
 %ctor {
     if (!SGRedesignedUI()) return;
-    if (@available(iOS 26.0, *)) return;   // from iOS 26 the system draws its own glass; this is the legacy glass's
+    if (!SGBelowiOS26()) return;
     %init;
     SGRequireClasses(@[@"_TtC14Queue_ViewImpl19QueueViewController"]);
 }

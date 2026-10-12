@@ -8,9 +8,8 @@
 #import "Redesigned/Kit/SGRKit.h"
 
 // The thin grey fade SwiftUI lays over the bottom of the device list, right above the Connect button
-// (trees 2026-10-05: a full-width _UIShapeHitTestingView, 42 pt tall, ending at the button's top edge, with
-// no fill of its own -- a gradient is not a background colour, so the dump shows none). On the glass it reads
-// as a grey band. SwiftUI's shape views paint their own fills (the grabber, the cards), so this one is told
+// (a full-width _UIShapeHitTestingView, 42 pt tall, ending at the button's top edge, with no fill of its own:
+// a gradient is not a background colour). On the glass it reads as a grey band. SwiftUI's shape views paint their own fills (the grabber, the cards), so this one is told
 // apart by size and parent: full width of the picker's hosting view, short, no colour. Its layer is switched
 // off rather than its alpha, since alpha under 0.01 would also take it out of hit testing.
 //
@@ -91,7 +90,7 @@ static void chrome(UIViewController *controller) {
 
 %ctor {
     if (!SGRedesignedUI()) return;
-    if (@available(iOS 26.0, *)) return;   // from iOS 26 the system draws its own glass; this is the legacy glass's
+    if (!SGBelowiOS26()) return;
     %init;
     SGRequireClasses(@[@"_TtC26Connect_DevicePickerUIImpl26DevicePickerViewController"]);
 }

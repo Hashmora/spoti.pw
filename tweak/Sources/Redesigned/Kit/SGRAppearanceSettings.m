@@ -57,7 +57,7 @@ NSArray<SGModRow *> *SGRAppearanceRows(void) {
         SGWithSymbol(colour, @"eyedropper"),
         SGWithSymbol(SGOptionRow(@"Plain checkmark", @"A saved song's tick without its circle, in the accent", SGRKeyPlainCheck), @"checkmark"),
     ] mutableCopy];
-    // From iOS 26 the system draws the glass itself, so the switch has nothing to do and gets no row.
-    if (@available(iOS 26.0, *)) {} else [rows addObject:legacyGlassRow()];
+    // From iOS 26 the system draws the glass itself, so the switch gets no row.
+    if (SGBelowiOS26()) [rows addObject:legacyGlassRow()];
     return rows;
 }

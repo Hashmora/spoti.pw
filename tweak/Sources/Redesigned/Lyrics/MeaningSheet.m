@@ -8,23 +8,6 @@
 static const CGFloat kSide = 24, kTop = 28, kGap = 12;
 // The footer's row is drawn 22pt tall; its buttons take touches over 44, centered on it.
 static const CGFloat kRow = 22, kTouch = 44;
-// The sheet's corners below iOS 26: the screen's own radius at every detent. A page sheet is only 10 pt round at
-// the medium detent and grows to the screen's radius at the large one.
-static const CGFloat kScreenRadiusFallback = 47;
-
-static CGFloat sheetRadius(void) {
-    static CGFloat radius;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{
-        radius = kScreenRadiusFallback;
-        @try {
-            id value = [UIScreen.mainScreen valueForKey:@"_displayCornerRadius"];
-            if ([value respondsToSelector:@selector(doubleValue)] && [value doubleValue] > 0) radius = [value doubleValue];
-        } @catch (__unused NSException *e) {}
-    });
-    return radius;
-}
-
 static char kMeaningGlassKey;
 
 static NSString *authorName(SGLyricsMeaningAuthor author) {
@@ -80,7 +63,7 @@ static NSAttributedString *linkedBody(NSString *body) {
     UISheetPresentationController *sheet = self.sheetPresentationController;
     sheet.detents = @[UISheetPresentationControllerDetent.mediumDetent, UISheetPresentationControllerDetent.largeDetent];
     sheet.prefersGrabberVisible = YES;
-    if (@available(iOS 26.0, *)) {} else sheet.preferredCornerRadius = sheetRadius();
+    if (SGBelowiOS26()) sheet.preferredCornerRadius = SGRSheetCornerRadius();
     sheet.prefersScrollingExpandsWhenScrolledToEdge = YES;
     // On the landscape lyrics (compact height) the sheet would otherwise cover the whole screen with no
     // grabber and nothing to pull down; edge attached it is a card on the bottom edge, inside the safe area.
@@ -125,8 +108,8 @@ static NSAttributedString *linkedBody(NSString *body) {
         UIView *glass = SGGlassFor(self.view, &kMeaningGlassKey);
         glass.frame = self.view.bounds;
         glass.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-        SGShapeGlass(glass, sheetRadius(), NO);
-        SGRThickenSheetGlass(glass, sheetRadius());
+        SGShapeGlass(glass, SGRSheetCornerRadius(), NO);
+        SGRThickenSheetGlass(glass, SGRSheetCornerRadius());
     }
     _scroll = [[UIScrollView alloc] initWithFrame:self.view.bounds];
     _scroll.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;

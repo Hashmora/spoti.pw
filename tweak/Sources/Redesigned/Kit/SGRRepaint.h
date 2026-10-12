@@ -17,11 +17,9 @@ extern __weak UIView *sgr_albumRoot;
 // Redesigned/Artist/ArtistField.x, the artist page, kept clear the same way and for the same reason.
 extern __weak UIView *sgr_artistRoot;
 // Kit/SGRGlass.h's SGRGlassSheetChrome: the "sheet-view" pane it glassed (the ⋯ context menu, the queue,
-// and the now-playing bar's pop-art track info, one component under all three). Any opaque fill its
-// chrome repaints outside the sheet's own list (SGRIsSheetChromeArea) is cleared here on every repaint,
-// not just the pass that first found it -- Spotify draws it back in on its own later,
-// and a view built only after that first pass never gets a
-// first strip at all without this.
+// and the now-playing bar's pop-art track info, one component under all three). Any opaque fill its chrome
+// repaints outside the sheet's own list (SGRIsSheetChromeArea) is cleared here on every repaint: Spotify
+// draws it back on its own later, and a view built after the first pass is never stripped otherwise.
 extern __weak UIView *sgr_sheetChromeRoot;
 
 // Defined in Redesigned/Library/LibraryHeader.x, declared here because the repaint hook is lower than the

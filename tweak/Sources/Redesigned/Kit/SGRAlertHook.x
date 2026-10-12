@@ -28,7 +28,7 @@
 
 %ctor {
     if (!SGRedesignedUI()) return;
-    if (@available(iOS 26.0, *)) return;   // from iOS 26 the system draws its own glass alert
+    if (!SGBelowiOS26()) return;
     if (![SGRAlertScreen handlersReadable]) {
         SGLog(@"UIAlertAction's _handler is gone, alerts keep the system's look");
         return;

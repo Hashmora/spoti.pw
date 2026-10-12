@@ -15,20 +15,12 @@
 // is not copied.
 //
 // A stand-in that is a snapshot view (the open) cannot take children behind its own picture, and below
-// iOS 26 a snapshot does not carry a CABackdropLayer either. There the copies live in a holder view
-// right under the stand-in in its superview, and a display link copies the stand-in's presentation
-// layer (position, bounds, transform, opacity) onto the holder every frame, so the glass rides along
-// with whatever Spotify animates, whether it drives the frame, a transform or the alpha.
-//
-// While the tab bar's stand-in is on screen the real tab bar is hidden (the superview of its glass pane:
-// the tab bar's host, which also holds its icons and film). Spotify does not hide it itself, and a real
-// bar left standing under a stand-in that carries glass of its own showed two bars, one moving and one
-// not. It comes back when the stand-in leaves its window, or after a failsafe. The player bar's real
-// view is left alone: Spotify hides that one itself.
-//
-// The real tab bar is kept at an alpha of 0.02, not hidden: a view that has been hidden has to capture its
-// backdrop afresh when it comes back, and on the close that took a frame, so the bar blinked out and back
-// when the stand-in left. At that alpha it is not seen under the stand-in's glass and keeps drawing its own.
+// iOS 26 a snapshot does not carry a CABackdropLayer either. There the copies live in a holder right under
+// the stand-in, and a display link copies the stand-in's presentation layer onto the holder every frame, so
+// the glass rides along with whatever Spotify animates. While the tab bar's stand-in is up the real tab bar
+// is held at an alpha of kHiddenAlpha rather than hidden (a hidden view captures its backdrop afresh when it
+// returns, and the close blinked for a frame); it comes back when the stand-in leaves its window, or after a
+// failsafe. The player bar's real view is left alone: Spotify hides that one itself.
 //
 // MainUI_TabBarUIImpl.CompactOverlayTransition is a Swift animator with the same stand-ins
 // (npbSnapshotView, tabBarSnapshotView); which of the two 9.1.78 runs is not known, so both are hooked

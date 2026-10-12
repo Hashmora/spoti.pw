@@ -3,7 +3,7 @@
 // legacy glass or the plain dark blur depending on the Legacy Liquid Glass switch (read once at launch).
 //
 // TabBar.x is the iOS 26 bar. The hooks here run only where SGRLegacyTabBarOn() says so and TabBar.x's do not,
-// so exactly one of the two is ever in place.
+// so exactly one of the two is ever in place. Reads of Spotify's own items are shared (Shared/Navigation/TabItems.h).
 //
 // A page scrolled down minimizes the bar to a circle with the open tab, a circle for the set-apart tab, and the
 // now playing card between them. The last set-apart tab never sits on the capsule: it has its own round button
@@ -18,6 +18,7 @@
 #import "Redesigned/Kit/SGRTokens.h"
 #import "Redesigned/NowPlayingBar/NowPlayingBar.h"
 #import "Settings/SGPage.h"
+#import "Shared/Navigation/TabItems.h"
 #import "Headers/SPTEncoreIconView.h"
 #import <objc/message.h>
 
@@ -251,17 +252,6 @@ static void followCreateClose(UIView *stockBar);
 
 #pragma mark - reading Spotify's items
 
-// The items the bar shows, left to right as Navbar/Navbar.x placed them.
-static NSArray<UIView *> *tabItems(UIView *tabBar) {
-    NSMutableArray<UIView *> *items = [NSMutableArray array];
-    for (UIView *item in SGRowIn(tabBar).arrangedSubviews) {
-        if (!item.hidden && item.bounds.size.width >= 20) [items addObject:item];
-    }
-    return [items sortedArrayUsingComparator:^NSComparisonResult(UIView *a, UIView *b) {
-        return [@(SGFrameIn(a, tabBar).origin.x) compare:@(SGFrameIn(b, tabBar).origin.x)];
-    }];
-}
-
 // The tab that stands on the round button of its own: the last one set apart. With nothing but split tabs the
 // bar has one group and no tab is apart (Navbar.x), so then there is none.
 static UIView *trailingSource(NSArray<UIView *> *items) {
@@ -273,11 +263,6 @@ static UIView *trailingSource(NSArray<UIView *> *items) {
         apartCount++;
     }
     return apartCount >= items.count ? nil : trail;
-}
-
-// Navbar.x never reorders Spotify's row and appends the mod's own tabs after it, so Home stays first.
-static BOOL isHome(UIView *item, UIView *tabBar) {
-    return item && item == SGRowIn(tabBar).arrangedSubviews.firstObject;
 }
 
 // Create never pushes a screen -- tapping it only pops CreateMenu's own option list open over whatever
@@ -300,31 +285,6 @@ static BOOL isCreateSource(UIView *source) {
     return found;
 }
 
-static UILabel *labelIn(UIView *item) {
-    __block UILabel *label = nil;
-    SGForEachView(item, ^(UIView *v) {
-        if (!label && [v isKindOfClass:UILabel.class] && ((UILabel *)v).text.length) label = (UILabel *)v;
-    });
-    return label;
-}
-
-static UIView *iconIn(UIView *item) {
-    __block UIView *icon = nil;
-    SGForEachView(item, ^(UIView *v) {
-        if (icon || v.bounds.size.width < 2) return;
-        if ([v isKindOfClass:UIImageView.class] || [NSStringFromClass(v.class) containsString:@"IconView"]) icon = v;
-    });
-    return icon;
-}
-
-// Spotify paints the selected tab's label white and the rest #B3B3B3.
-static BOOL isActive(UIView *item) {
-    UIColor *color = labelIn(item).textColor;
-    CGFloat white = 0, alpha = 0, r, g, b;
-    if (![color getWhite:&white alpha:&alpha] && [color getRed:&r green:&g blue:&b alpha:&alpha]) white = MIN(r, MIN(g, b));
-    return white > 0.95;
-}
-
 // The tab of Spotify's own whose page is really open: the one whose label is painted white, Create
 // never counting. Nil when that tab is hidden from the bar.
 static UIView *activeStockSource(UIView *stockBar) {
@@ -332,27 +292,6 @@ static UIView *activeStockSource(UIView *stockBar) {
         if (!isCreateSource(item) && isActive(item)) return item;
     }
     return nil;
-}
-
-static BOOL hasInk(UIImage *image) {
-    CGImageRef cg = image.CGImage;
-    size_t width = CGImageGetWidth(cg), height = CGImageGetHeight(cg);
-    if (!width || !height) return NO;
-    NSMutableData *pixels = [NSMutableData dataWithLength:width * height];
-    CGContextRef context = CGBitmapContextCreate(pixels.mutableBytes, width, height, 8, width, NULL, (CGBitmapInfo)kCGImageAlphaOnly);
-    CGContextDrawImage(context, CGRectMake(0, 0, width, height), cg);
-    CGContextRelease(context);
-    const uint8_t *alpha = pixels.bytes;
-    for (size_t i = 0; i < pixels.length; i++) if (alpha[i] > 16) return YES;
-    return NO;
-}
-
-static UIImage *renderLayer(CALayer *layer, CGSize size) {
-    UIGraphicsImageRenderer *renderer = [[UIGraphicsImageRenderer alloc] initWithSize:size];
-    UIImage *image = [renderer imageWithActions:^(UIGraphicsImageRendererContext *context) {
-        [layer renderInContext:context.CGContext];
-    }];
-    return hasInk(image) ? [image imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate] : nil;
 }
 
 // The two pictures of a tab, outline and filled, taken from Spotify's own icon view the first time it
@@ -880,14 +819,6 @@ static const CGFloat kStockRow = 49;
 static CGFloat glassHeight(UITabBar *bar, UIView *stockBar) {
     if (sg_room < 0.5 || sg_glassHeight <= 0) sg_glassHeight = [bar sizeThatFits:CGSizeMake(stockBar.bounds.size.width, kStockRow)].height;
     return sg_glassHeight;
-}
-
-static UIViewController *containerOf(UIView *stockBar) {
-    Class containerClass = NSClassFromString(@"_TtC23NavigationUI_TabBarImpl19TabBarContainerImpl");
-    for (UIResponder *r = stockBar.nextResponder; r; r = r.nextResponder) {
-        if ([r isKindOfClass:containerClass]) return (UIViewController *)r;
-    }
-    return nil;
 }
 
 static void makeRoom(UIViewController *container) {
@@ -1508,12 +1439,6 @@ static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
 }
 
 #pragma mark - hooks
-
-static UIView *tabBarOf(UIView *item) {
-    Class barClass = NSClassFromString(@"_TtC23NavigationUI_TabBarImpl10TabBarView");
-    for (UIView *v = item.superview; v; v = v.superview) if ([v isKindOfClass:barClass]) return v;
-    return nil;
-}
 
 // The bar's own pass runs before Spotify has filled the row; the items lay out as they arrive.
 static void itemDidLayOut(UIView *item) {
