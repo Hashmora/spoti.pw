@@ -50,3 +50,8 @@ void SGRSystemMenuWatch(UIView *button, SGRMenuItems items, SGRMenuKind kind);
 
 // The mod's button over `button`, which takes the ⋯'s touches once SGRSystemMenuWatch has been called; nil before.
 UIControl *SGRSystemMenuFront(UIView *button);
+
+// The glass the system menu has below iOS 26, on `host` under `key`: SGRMenuGlass (ContextMenuGlass.x) is what the
+// menu's platter gets and what the sliders' panel under the ⋯ takes for its background, so the two match. Nil while
+// `host` has no size.
+UIView *SGRMenuGlass(UIView *host, const void *key);

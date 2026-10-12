@@ -17,44 +17,84 @@ static const CGFloat kMenuRadius = 14;
 static const CGFloat kMenuDim = 0.42;
 static char kMenuGlassKey;
 
-// The clipping view holding UIKit's blur: the menu's own surface.
-static UIView *platterIn(UIView *list) {
-    for (UIView *sub in list.subviews) {
-        if (object_getClass(sub) != UIView.class || !sub.clipsToBounds) continue;
-        for (UIView *inner in sub.subviews) {
-            if (object_getClass(inner) == UIVisualEffectView.class) return sub;
+// The view holding UIKit's blur: the menu's own surface. Found by the blur rather than by how the platter is
+// clipped, since a submenu (More) is another list that UIKit builds when it opens, and its platter is not
+// guaranteed to be clipped or to hold the blur at the first level the top menu does. The mod's own pane is
+// skipped, which is a UIVisualEffectView too when it is not the legacy glass.
+static UIView *platterIn(UIView *view, int depth) {
+    if (depth > 3) return nil;
+    for (UIView *sub in view.subviews) {
+        if ([sub isKindOfClass:UIVisualEffectView.class]) {
+            if (objc_getAssociatedObject(view, &kMenuGlassKey) == sub) continue;
+            if (object_getClass(view) == UIView.class) return view;
+            continue;
         }
+        if ([sub isKindOfClass:NSClassFromString(@"_UIContextMenuListView")]) continue;
+        UIView *found = platterIn(sub, depth + 1);
+        if (found) return found;
     }
     return nil;
 }
 
-static void glassMenu(UIView *list) {
-    UIView *platter = platterIn(list);
-    if (!platter || platter.bounds.size.width < 1 || platter.bounds.size.height < 1) return;
-    if (list.overrideUserInterfaceStyle != UIUserInterfaceStyleDark) list.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
-
-    UIView *glass = SGGlassFor(platter, &kMenuGlassKey);
+// The menu's glass: a pane on `host` (a menu's platter, or the chrome of the player's sliders panel) with the
+// body, rim and dim of a sheet's. One place, so what opens from the ⋯ looks like the menu it opens from.
+// Nil while `host` has no size yet. Below iOS 26 only: the system draws its own on 26.
+UIView *SGRMenuGlass(UIView *host, const void *key) {
+    if (host.bounds.size.width < 1 || host.bounds.size.height < 1) return nil;
+    UIView *glass = SGGlassFor(host, key);
     if (glass.overrideUserInterfaceStyle != UIUserInterfaceStyleDark) glass.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
     glass.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    if (!CGRectEqualToRect(glass.frame, platter.bounds)) glass.frame = platter.bounds;
+    if (!CGRectEqualToRect(glass.frame, host.bounds)) glass.frame = host.bounds;
     SGShapeGlass(glass, kMenuRadius, NO);
     SGRThickenSheetGlass(glass, kMenuRadius);
     SGRDimSheetGlass(glass, kMenuDim);
+    return glass;
+}
+
+static void glassMenu(UIView *list) {
+    UIView *platter = platterIn(list, 0);
+    if (!platter || platter.bounds.size.width < 1 || platter.bounds.size.height < 1) return;
+    if (list.overrideUserInterfaceStyle != UIUserInterfaceStyleDark) list.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
+
+    UIView *glass = SGRMenuGlass(platter, &kMenuGlassKey);
 
     // UIKit's own blur goes; the pane above is the mod's, which is a UIVisualEffectView too when it is not
     // the legacy glass.
     for (UIView *sub in platter.subviews) {
-        if (sub != glass && object_getClass(sub) == UIVisualEffectView.class && !sub.hidden) sub.hidden = YES;
+        if (sub != glass && [sub isKindOfClass:UIVisualEffectView.class] && !sub.hidden) sub.hidden = YES;
     }
 
     static dispatch_once_t once;
     dispatch_once(&once, ^{ SGLog(@"context menu: glass over a platter of %@", NSStringFromCGRect(platter.bounds)); });
 }
 
+// Every list inside `root` glassed: a submenu's list is made when it opens, often after the menu's own passes,
+// and UIKit may lay it out only inside the transition.
+static void glassLists(UIView *root) {
+    Class list = NSClassFromString(@"_UIContextMenuListView");
+    SGForEachView(root, ^(UIView *view) {
+        if ([view isKindOfClass:list]) glassMenu(view);
+    });
+}
+
+// Again once the list has settled in its window: the first pass can come before the platter has its blur or its size.
+static void glassAfterSettling(UIView *list) {
+    __weak UIView *weak = list;
+    for (NSNumber *wait in @[@0, @0.15, @0.45]) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(wait.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            UIView *shown = weak;
+            if (shown.window) glassMenu(shown);
+        });
+    }
+}
+
 %hook _UIContextMenuListView
 - (void)didMoveToWindow {
     %orig;
-    if (((UIView *)self).window) glassMenu((UIView *)self);
+    if (((UIView *)self).window) {
+        glassMenu((UIView *)self);
+        glassAfterSettling((UIView *)self);
+    }
 }
 
 - (void)layoutSubviews {
@@ -63,10 +103,18 @@ static void glassMenu(UIView *list) {
 }
 %end
 
+// The menu's own view lays out as a submenu comes in or goes out, which reaches the lists it holds.
+%hook _UIContextMenuView
+- (void)layoutSubviews {
+    %orig;
+    glassLists((UIView *)self);
+}
+%end
+
 %ctor {
     if (!SGRedesignedUI()) return;
     // iOS 26 draws its own Liquid Glass on menus; the mod's pane would cover it.
     if (!SGBelowiOS26()) return;
     %init;
-    SGRequireClasses(@[@"_UIContextMenuListView"]);
+    SGRequireClasses(@[@"_UIContextMenuListView", @"_UIContextMenuView"]);
 }
