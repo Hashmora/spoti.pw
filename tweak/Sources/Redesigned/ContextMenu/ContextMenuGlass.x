@@ -10,6 +10,7 @@
 // menu takes from a phone in light mode, so the list is made dark like the rest of the glass.
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
+#import "Redesigned/ContextMenu/ContextMenu.h"
 
 // The corners UIKit cuts a menu with.
 static const CGFloat kMenuRadius = 14;
