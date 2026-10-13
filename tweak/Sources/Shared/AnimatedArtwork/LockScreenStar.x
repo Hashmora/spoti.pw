@@ -1,7 +1,7 @@
 // The lock screen widget's star: a tap switches the full-screen artwork between moving artwork and the
 // lyrics, at once, by writing the choice LockScreenMotion.x and LyricsArtwork.x both watch. The star is
 // MediaPlayer's like command, the slot Apple Music's Favorite star takes; it is filled while the lyrics
-// show. Spotify's own like and dislike buttons (its like_dislike flag) take the same slot, so the flag
+// show, under Lyrics or Moving artwork with lyrics. Spotify's own like and dislike buttons (its like_dislike flag) take the same slot, so the flag
 // is forced off while the switch is on and the Lock screen page's row shows it locked. iOS 26 only, as
 // the artwork is.
 #import <MediaPlayer/MediaPlayer.h>
@@ -21,12 +21,13 @@ static MPRemoteCommandHandlerStatus tapped(void) {
     SGLockArtwork choice = SGLockScreenArtwork();
     if (choice == SGLockArtworkOff) return MPRemoteCommandHandlerStatusCommandFailed;
     dispatch_async(dispatch_get_main_queue(), ^{
-        if (choice == SGLockArtworkLyrics) {
-            SGSetInt(SGKeyLockScreenArtwork, SGInt(SGKeyLockScreenStarBack, SGLockArtworkMotion));
-        } else {
-            SGSetInt(SGKeyLockScreenStarBack, choice);
-            SGSetInt(SGKeyLockScreenArtwork, SGLockArtworkLyrics);
-        }
+        // Back to the choice the star left when that one is on the other side, with lyrics or without; else to
+        // Lyrics or Moving artwork. So Lyrics and Moving artwork with lyrics each swap with the moving artwork.
+        BOOL lyrics = SGLockArtworkShowsLyrics(choice);
+        SGLockArtwork back = (SGLockArtwork)SGInt(SGKeyLockScreenStarBack, SGLockArtworkOff);
+        BOOL valid = back > SGLockArtworkOff && back <= SGLockArtworkMotionLyrics && SGLockArtworkShowsLyrics(back) != lyrics;
+        SGSetInt(SGKeyLockScreenStarBack, choice);
+        SGSetInt(SGKeyLockScreenArtwork, valid ? back : lyrics ? SGLockArtworkMotion : SGLockArtworkLyrics);
         SGLog(@"lock star: tapped, the lock screen takes %ld", (long)SGLockScreenArtwork());
     });
     return MPRemoteCommandHandlerStatusSuccess;
@@ -36,7 +37,7 @@ static MPRemoteCommandHandlerStatus tapped(void) {
 // changed, or when Spotify's lock screen policy turned it off under the star, which the log says.
 static void arm(void) {
     static BOOL lastOn, lastActive;
-    BOOL on = starOn(), active = on && SGLockScreenArtwork() == SGLockArtworkLyrics;
+    BOOL on = starOn(), active = on && SGLockArtworkShowsLyrics(SGLockScreenArtwork());
     if (sg_like && !sg_like.enabled) {
         static int told;
         if (told++ < 3) SGLog(@"lock star: the like command was off under the star, set again");
