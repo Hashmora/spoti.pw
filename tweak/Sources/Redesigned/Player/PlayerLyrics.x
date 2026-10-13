@@ -776,6 +776,17 @@ static void durationUnitLaidOut(UIViewController *unit) {
 %end
 %end
 
+// The DJ's header row fades with the rest while the lines are alone.
+%group SGRDJHeaderFadeHooks
+%hook SGRDJHeaderFadeUnit
+- (void)viewDidLayoutSubviews {
+    %orig;
+    sg_header = (UIViewController *)self;
+    replace();
+}
+%end
+%end
+
 %group SGRDJDurationHooks
 %hook SGRDJDurationUnit
 - (void)viewDidLayoutSubviews {
@@ -869,6 +880,8 @@ static SGRPlayerLyricsWatcher *sg_watcher;
     if (djInformation) { %init(SGRDJInformationHooks, SGRDJInformationUnit = djInformation); }
     Class djDuration = SGRDJClass(@"DJMDurationElementsUnit");
     if (djDuration) { %init(SGRDJDurationHooks, SGRDJDurationUnit = djDuration); }
+    Class djHeader = SGRDJClass(@"DJMHeaderElementsUnitViewController");
+    if (djHeader) { %init(SGRDJHeaderFadeHooks, SGRDJHeaderFadeUnit = djHeader); }
     sg_watcher = [SGRPlayerLyricsWatcher new];
     SGAddPlayerStateObserver(sg_watcher);
     // In the background the controls stay up; back in front the clock starts again.

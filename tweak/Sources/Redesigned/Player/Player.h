@@ -10,6 +10,8 @@
 //     PlayerHeader.x     glass behind the close and more buttons
 //     PlayerControls.x   previous, play and next as bare glyphs, monospaced times
 //     PlayerFooter.x     share gone, lyrics, Connect and queue as one row of three glyphs
+//     DJPlayer.x         the AI DJ's player (its own units): skip glyphs, a four glyph footer row, over the shared
+//                        play glyph, lowered row and Connect of PlayerControls.x and PlayerFooter.x
 //     PlayerCards.x      every card under the player collapsed, so the list closes up
 //     PlayerScroll.x     the list held at its top, so the player is one screen and cannot be scrolled up,
 //                        and its pull held off while the progress bar is scrubbed
@@ -86,8 +88,8 @@ void SGRPlayerToggleLyrics(void);
 // (PlayerFooter.x). It returns at once when nothing changed.
 void SGRPlayerLyricsChanged(void);
 // The lyrics glyph of the footer, made on first ask in `host` and kept there; the ordinary player's footer
-// (PlayerFooter.x) and the AI DJ's (DJPlayer.x) share it, so its symbol, tint and dimming follow
-// SGRPlayerLyricsChanged in both.
+// (PlayerFooter.x) and the AI DJ's (DJPlayer.x) share it. Only the one asked for last is followed by
+// SGRPlayerLyricsChanged, which is the footer on screen: each layout of a footer asks again.
 @class SGRGlyphButton;
 SGRGlyphButton *SGRPlayerLyricsGlyphIn(UIView *host);
 // An Endless_DJMusicImpl class of the AI DJ's player by its Swift name, under the mangled spelling or the
@@ -169,6 +171,17 @@ UIViewController *SGRPlayerSettingsPage(NSArray *more);
 // Alpha 0, no touches, hidden from accessibility, set again on every call: for Spotify's Swift views,
 // which SGRSuppress cannot keep (PlayerControls.x).
 void SGRPlayerVanish(UIView *view);
+
+// The play glyph over the play button in `host`, a controls unit's view: the ordinary player's
+// (PlayerControls.x) and the AI DJ's (DJPlayer.x) share it, with its state, spinner and tap handling.
+void SGRPlayerPlayGlyphIn(UIView *host);
+
+// The footer's shared parts (PlayerFooter.x), for the AI DJ's footer (DJPlayer.x). `row` is the footer unit's view:
+// moved down over the home indicator with the controls following, the volume row and Follow the cover placed.
+void SGRPlayerLowerRow(UIView *row);
+// Connect's glyph in `connect`, laid out and with the device name hidden; nil while it has no size yet, and `host`
+// then lays out again on the next turn of the run loop. Leave Connect where it is while it is nil.
+UIView *SGRPlayerConnectGlyphIn(UIView *host, UIView *connect);
 
 // The tap to seek around the progress bar (PlayerControls.x), apart for the harness: whether a tap at `point`
 // in the duration unit's view seeks, and the share of the song a point on the slider stands for, measured

@@ -143,6 +143,25 @@ static void coverConnect(UIView *arranged, UIView *glyph) {
     objc_setAssociatedObject(arranged, &kConnectHitKey, [NSValue valueWithCGRect:square], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 }
 
+// Connect's glyph, ready to be moved: Connect laid out first, since the glyph is unsized until it is (the first time the
+// player opens), and its device name hidden. The name is a MarqueeLabel on the phone's speaker and a plain Encore label
+// on AirPods; Connect holds nothing else that draws text. With no glyph yet the caller leaves Connect where Spotify put
+// it, and `host` looks again on the next turn of the run loop.
+UIView *SGRPlayerConnectGlyphIn(UIView *host, UIView *connect) {
+    [connect layoutIfNeeded];
+    UIView *glyph = connectGlyphIn(connect);
+    static NSUInteger lookedAgain;   // a Connect with no glyph at all is left alone after this many
+    if (glyph) lookedAgain = 0;
+    if (connect && !glyph && lookedAgain++ < 20) {
+        __weak UIView *weakHost = host;
+        dispatch_async(dispatch_get_main_queue(), ^{ [weakHost setNeedsLayout]; });
+    }
+    SGForEachView(connect, ^(UIView *view) {
+        if ([view isKindOfClass:UILabel.class] || [NSStringFromClass(view.class) containsString:@"MarqueeLabel"]) SGRPlayerVanish(view);
+    });
+    return glyph;
+}
+
 #pragma mark - lower down
 
 // Moved down, the row is drawn partly below the bottom stack it is arranged in, and UIKit does not look
@@ -181,7 +200,7 @@ static UIView *rowAbove(UIView *row) {
     return best;
 }
 
-static void lowerRow(UIView *row) {
+void SGRPlayerLowerRow(UIView *row) {
     UIView *stack = row.superview, *player = stack.superview;
     UIWindow *window = row.window;
     if (![stack isKindOfClass:UIStackView.class] || !player || !window) return;
@@ -195,7 +214,9 @@ static void lowerRow(UIView *row) {
 
     // Only the controls, and only straight above: a volume row between them keeps its place and theirs.
     UIView *above = rowAbove(row);
-    BOOL controls = [NSStringFromClass(unitOf(above).class) containsString:@"PlaybackControlsElementsUnit"];
+    // The ordinary player's controls unit, or the AI DJ's head unit (DJPlayer.x), which holds the same buttons.
+    NSString *unit = NSStringFromClass(unitOf(above).class);
+    BOOL controls = [unit containsString:@"PlaybackControlsElementsUnit"] || [unit containsString:@"DJMHeadUnitViewController"];
     // With the volume row, the controls stay where Spotify put them and the row takes the room the footer leaves.
     // The volume row is placed against the controls where they would stand for it; one that does not show leaves them
     // following the footer as they do without it.
@@ -262,29 +283,13 @@ static void lowerRow(UIView *row) {
     SGRPlayerLyricsChanged();
 
     UIView *connect = SGRFindByIdentifier(host, @"Components.ConnectButtonOutputSwitcher", &kConnectKey);
-    // The unit lays out before Connect has sized its glyph, the first time the player opens: Connect is laid
-    // out first so the glyph is there to move to the middle. Should it still be missing, Connect stays where
-    // Spotify put it, since centering the whole control would leave the glyph well off the middle, and the unit
-    // looks again on the next turn of the run loop.
-    [connect layoutIfNeeded];
-    UIView *glyph = connectGlyphIn(connect);
-    static NSUInteger lookedAgain;   // a Connect with no glyph at all is left alone after this many
-    if (glyph) lookedAgain = 0;
-    if (connect && !glyph && lookedAgain++ < 20) {
-        __weak UIView *weakHost = host;
-        dispatch_async(dispatch_get_main_queue(), ^{ [weakHost setNeedsLayout]; });
-    }
-    // The name is a MarqueeLabel on the phone's speaker and a plain Encore label on AirPods; Connect holds
-    // nothing else that draws text.
-    SGForEachView(connect, ^(UIView *view) {
-        if ([view isKindOfClass:UILabel.class] || [NSStringFromClass(view.class) containsString:@"MarqueeLabel"]) SGRPlayerVanish(view);
-    });
+    UIView *glyph = SGRPlayerConnectGlyphIn(host, connect);
     CGFloat connectFrom = glyph ? moveTo(arrangedAround(connect, host), glyph, CGPointMake(CGRectGetMidX(glyph.bounds), CGRectGetMidY(glyph.bounds)), host, round(width * kMiddle)) : -1;
 
     UIView *queue = SGRFindByIdentifier(host, @"QueueButtonNowPlaying", &kQueueKey);
     CGFloat queueFrom = moveTo(arrangedAround(queue, host), queue, CGPointMake(CGRectGetMidX(queue.bounds), CGRectGetMidY(queue.bounds)), host, round(width * (rtl ? kLeading : kTrailing)));
 
-    lowerRow(host);
+    SGRPlayerLowerRow(host);
     coverConnect(arrangedAround(connect, host), glyph);
 
     static dispatch_once_t once;
