@@ -189,8 +189,13 @@ static UIViewController *unitOf(UIView *view) {
 static UIView *rowAbove(UIView *row) {
     UIView *best = nil;
     CGFloat top = row.center.y - row.bounds.size.height / 2, bestBottom = -CGFLOAT_MAX;
+    // The volume row lives in the same stack, between the controls and the footer: it is not what is above, or the
+    // controls would be taken for something else whenever it ends within a point of the footer (the AI DJ's gap does).
+    static Class volumeRow;
+    if (!volumeRow) volumeRow = NSClassFromString(@"SGRVolumeRow");
     for (UIView *sibling in row.superview.subviews) {
         if (sibling == row || sibling.hidden || sibling.alpha < 0.01 || sibling.bounds.size.height < 1) continue;
+        if (volumeRow && [sibling isKindOfClass:volumeRow]) continue;
         CGFloat bottom = sibling.center.y + sibling.bounds.size.height / 2;
         if (bottom <= top + 1 && bottom > bestBottom) {
             best = sibling;
