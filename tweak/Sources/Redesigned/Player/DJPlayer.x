@@ -2,7 +2,7 @@
 // glyphs, and one row of glyphs under them (Lyrics, Connect, Queue, the DJ button) without the share button.
 // The redesign hooks the ordinary player's units and the DJ has its own, so each hook here is a second one on the
 // DJ's unit that calls the ordinary player's function: the play glyph (SGRPlayerPlayGlyphIn, PlayerControls.x), the
-// lowered row with the volume row and Follow the cover (SGRPlayerLowerRow), Connect (SGRPlayerConnectGlyphIn) and the
+// lowered row with the volume row and Follow the cover (SGRPlayerLowerRow), Connect (SGRPlayerConnectGlyphIn, SGRPlayerCoverConnect) and the
 // Lyrics glyph (SGRPlayerLyricsGlyphIn, PlayerFooter.x). What is the DJ's own is kept here: the skip glyphs, the
 // four places of the footer and its Queue button.
 //
@@ -180,6 +180,8 @@ static void styleFooter(UIViewController *unit) {
     if (connectHolder && glyph) {
         CGFloat from = untransformedX(connectHolder, glyph, CGPointMake(CGRectGetMidX(glyph.bounds), CGRectGetMidY(glyph.bounds)));
         placeHolder(connectHolder, from, slot(1), 1);
+        // Its view reaches far to the right of the glyph, over Queue and the DJ button: touches only over the glyph.
+        SGRPlayerCoverConnect(connectHolder, glyph);
     }
 
     SGRGlyphButton *queue = glyphButtonIn(host, &kQueueKey, @"list.bullet", @"Queue", SGRPrimary(), ^{

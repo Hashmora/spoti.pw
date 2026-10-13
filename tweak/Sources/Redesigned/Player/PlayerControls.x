@@ -267,7 +267,8 @@ CGFloat SGRSeekShareAt(UISlider *slider, CGPoint point) {
 
 // Whether a tap at `point` in the duration unit's view seeks.
 BOOL SGRSeekTapLands(UIView *unit, UISlider *slider, CGPoint point) {
-    if (!slider.window || !slider.enabled || ![slider isDescendantOfView:unit] || !CGRectContainsPoint(unit.bounds, point)) return NO;
+    // The AI DJ's unit keeps a slider in a hidden element on a live stream: nothing to seek there.
+    if (!slider.window || !slider.enabled || ![slider isDescendantOfView:unit] || !SGShownUnder(slider, unit) || !CGRectContainsPoint(unit.bounds, point)) return NO;
     CGRect bar = [unit convertRect:slider.bounds fromView:slider];
     if (point.x < CGRectGetMinX(bar) - kSeekReach || point.x > CGRectGetMaxX(bar) + kSeekReach) return NO;
     CGRect bounds = slider.bounds;

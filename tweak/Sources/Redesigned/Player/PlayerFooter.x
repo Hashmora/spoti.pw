@@ -6,7 +6,7 @@
 // tint, the Jam avatars) and are only moved, by a translation of the arranged view that holds each: a
 // transform survives the stack view laying them out again, and moving the holder keeps its touches
 // inside its own bounds. The device name goes transparent, since the glyph alone sits in the middle, and
-// Connect's holder takes touches only in a square over the glyph (coverConnect).
+// Connect's holder takes touches only in a square over the glyph (SGRPlayerCoverConnect).
 // Spotify has no lyrics control down here, so that one is the Kit's glyph button, and it turns the
 // lyrics in the player on and off (PlayerLyrics.x): filled while they are up, dimmed and dead for a
 // track that has none.
@@ -130,7 +130,7 @@ static BOOL connectPointInside(UIView *self, SEL _cmd, CGPoint point, UIEvent *e
     return sg_origPointInside(self, _cmd, point, event);
 }
 
-static void coverConnect(UIView *arranged, UIView *glyph) {
+void SGRPlayerCoverConnect(UIView *arranged, UIView *glyph) {
     if (!arranged || !glyph) return;
     static Class hooked;
     if (!hooked) {
@@ -295,7 +295,7 @@ void SGRPlayerLowerRow(UIView *row) {
     CGFloat queueFrom = moveTo(arrangedAround(queue, host), queue, CGPointMake(CGRectGetMidX(queue.bounds), CGRectGetMidY(queue.bounds)), host, round(width * (rtl ? kLeading : kTrailing)));
 
     SGRPlayerLowerRow(host);
-    coverConnect(arrangedAround(connect, host), glyph);
+    SGRPlayerCoverConnect(arrangedAround(connect, host), glyph);
 
     static dispatch_once_t once;
     dispatch_once(&once, ^{
