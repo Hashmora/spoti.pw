@@ -544,14 +544,14 @@ static void styleNowPlayingBar(UIViewController *container) {
 %hook _TtC18NowPlaying_BarImpl17InformationCellV2
 - (void)layoutSubviews {
     %orig;
-    if (sgr_nowPlayingRoot) placeText((UIView *)self);
+    if (sgr_nowPlayingRoot && [(UIView *)self isDescendantOfView:sgr_nowPlayingRoot]) placeText((UIView *)self);
 }
 %end
 
 %hook _TtC18NowPlaying_BarImpl15InformationCell
 - (void)layoutSubviews {
     %orig;
-    if (sgr_nowPlayingRoot) placeText((UIView *)self);
+    if (sgr_nowPlayingRoot && [(UIView *)self isDescendantOfView:sgr_nowPlayingRoot]) placeText((UIView *)self);
 }
 %end
 

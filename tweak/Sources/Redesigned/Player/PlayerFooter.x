@@ -122,22 +122,31 @@ static UIView *connectGlyphIn(UIView *holder) {
 // of the row's other two; Spotify's own views inside still handle them. The square is kept on that view, and
 // its class answers from it, as it does for every other view of the class.
 static char kConnectHitKey;
-static BOOL (*sg_origPointInside)(UIView *, SEL, CGPoint, UIEvent *);
+static NSMutableDictionary<NSString *, NSValue *> *sg_origPointInside;   // class name -> original IMP
 
 static BOOL connectPointInside(UIView *self, SEL _cmd, CGPoint point, UIEvent *event) {
     NSValue *square = objc_getAssociatedObject(self, &kConnectHitKey);
     if (square) return CGRectContainsPoint(square.CGRectValue, point);
-    return sg_origPointInside(self, _cmd, point, event);
+    // The nearest hooked class up the chain holds the original this view would have run.
+    for (Class cls = self.class; cls; cls = class_getSuperclass(cls)) {
+        NSValue *orig = sg_origPointInside[NSStringFromClass(cls)];
+        // A subclass hooked after its parent got the parent's hook as its original; that one is skipped.
+        if (orig && orig.pointerValue != (void *)connectPointInside)
+            return ((BOOL (*)(UIView *, SEL, CGPoint, UIEvent *))orig.pointerValue)(self, _cmd, point, event);
+    }
+    return NO;
 }
 
 void SGRPlayerCoverConnect(UIView *arranged, UIView *glyph) {
     if (!arranged || !glyph) return;
-    static Class hooked;
-    if (!hooked) {
-        hooked = arranged.class;
-        MSHookMessageEx(hooked, @selector(pointInside:withEvent:), (IMP)connectPointInside, (IMP *)&sg_origPointInside);
+    // The ordinary footer and the DJ's can hand over views of different classes; each class is hooked once.
+    if (!sg_origPointInside) sg_origPointInside = [NSMutableDictionary new];
+    NSString *name = NSStringFromClass(arranged.class);
+    if (!sg_origPointInside[name]) {
+        IMP orig = NULL;
+        MSHookMessageEx(arranged.class, @selector(pointInside:withEvent:), (IMP)connectPointInside, &orig);
+        sg_origPointInside[name] = [NSValue valueWithPointer:(void *)orig];
     }
-    if (arranged.class != hooked) return;
     CGRect drawn = [glyph convertRect:glyph.bounds toView:arranged];
     CGRect square = CGRectMake(CGRectGetMidX(drawn) - 22, CGRectGetMidY(drawn) - 22, 44, 44);
     objc_setAssociatedObject(arranged, &kConnectHitKey, [NSValue valueWithCGRect:square], OBJC_ASSOCIATION_RETAIN_NONATOMIC);

@@ -184,7 +184,6 @@ void SGRPlayerPlayGlyphIn(UIView *host) {
     if (!host) return;
     // The unit lays out before its row does, and the glyphs are centered on the buttons in it.
     [SGRowIn(host) layoutIfNeeded];
-    sg_controlsHost = host;
     skipGlyph(host, @"SPTNowPlayingPreviousTrackButton", &kPreviousKey, @"backward.fill");
     skipGlyph(host, @"SPTNowPlayingNextTrackButton", &kNextKey, @"forward.fill");
     SGRPlayerPlayGlyphIn(host);
