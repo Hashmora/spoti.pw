@@ -60,5 +60,11 @@ static void scrolled(UIScrollView *scrollView) {
     if (!sg_containerClass) return;
     %init;
     [NSNotificationCenter.defaultCenter addObserverForName:SGPlayerTransitionNotification object:nil queue:nil
-                                                usingBlock:^(NSNotification *note) { SGRSetTabBarMinimized(NO, NO); }];
+                                                usingBlock:^(NSNotification *note) {
+        // The capsule bar (iOS < 26) stays as it is: Spotify's pictures of the bars are of the minimized row, and
+        // growing the real bar back under them drew a full bar beneath the circles (two bars in the swipe that
+        // opens the player from the minimized bar).
+        if (SGRLegacyTabBarOn()) return;
+        SGRSetTabBarMinimized(NO, NO);
+    }];
 }

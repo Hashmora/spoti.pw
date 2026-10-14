@@ -38,6 +38,9 @@
 static void collectPanes(UIView *view, NSMutableArray<UIView *> *panes) {
     for (UIView *sub in view.subviews) {
         if (sub.hidden || sub.alpha < 0.01) continue;
+        // A pane the bar has switched off (SGRShowGlass takes a blur's effect away rather than its alpha, as
+        // the minimized bar does with its capsule) draws nothing, and its copy would stand there as a bar.
+        if ([sub isKindOfClass:UIVisualEffectView.class] && !((UIVisualEffectView *)sub).effect) continue;
         if ([sub isKindOfClass:UIVisualEffectView.class] || [sub isKindOfClass:SGLegacyGlassView.class]
             || [NSStringFromClass(sub.class) hasSuffix:@"PlatterView"]) {
             [panes addObject:sub];

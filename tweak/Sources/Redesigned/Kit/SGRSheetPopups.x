@@ -74,18 +74,30 @@ static BOOL loadingIn(UIViewController *controller, int depth) {
 
 static char kPendingPaneKey;
 
+// Save in's wrappers are painted an opaque black (#000 or the page's #121212), which the pane's strip leaves alone
+// (it takes only greys a view can see, SGIsVisibleColor) and the queue has none of: laid over the glass they made
+// the popup near black. The full width bands that are black or Spotify's grey go clear, as in a list's rows.
+static void clearSaveInPaint(UIView *view) {
+    UIView *sheet = sgr_sheetChromeRoot;
+    if (view && sheet) SGRClearSheetCellPaint(view, sheet);
+}
+
 static void chrome(UIViewController *sheet) {
     UIViewController *content = contentIn(sheet, 0);
     UIView *root = content.viewIfLoaded;
     if (root) {
         SGRGlassSheetChrome(root);
+        if ([NSStringFromClass(content.class) containsString:@"PlaylistCuration_AddToPlaylistImpl"]) clearSaveInPaint(root);
         return;
     }
     // The content is not in yet, but the sheet is already up and grey: while a loading page is in it, the pane
     // goes in anyway, so the first frames are glass and not Spotify's grey that glass replaces a moment later.
     if (loadingIn(sheet, 0)) {
         UIView *pane = SGRFindByIdentifier(sheet.viewIfLoaded, @"sheet-view", &kPendingPaneKey);
-        if (pane) SGRGlassSheetChrome(pane);
+        if (pane) {
+            SGRGlassSheetChrome(pane);
+            clearSaveInPaint(pane);
+        }
     }
 }
 
@@ -204,12 +216,16 @@ static void pickerChrome(UIViewController *controller) {
 %hook SGRSaveInContainer
 - (void)viewWillAppear:(BOOL)animated {
     %orig;
-    SGRGlassSheetChrome(((UIViewController *)self).viewIfLoaded);
+    UIView *view = ((UIViewController *)self).viewIfLoaded;
+    SGRGlassSheetChrome(view);
+    clearSaveInPaint(view);
 }
 
 - (void)viewDidLayoutSubviews {
     %orig;
-    SGRGlassSheetChrome(((UIViewController *)self).viewIfLoaded);
+    UIView *view = ((UIViewController *)self).viewIfLoaded;
+    SGRGlassSheetChrome(view);
+    clearSaveInPaint(view);
 }
 %end
 %end

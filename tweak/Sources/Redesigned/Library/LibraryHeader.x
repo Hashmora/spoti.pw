@@ -241,6 +241,19 @@ static BOOL chipIsSelected(UIView *fill) {
     return color && CGColorGetAlpha(color) > 0.3;
 }
 
+// A chip grows and stretches under a finger below iOS 26 (SGGlassInteractive, with the legacy glass), and the
+// views it stands in clip to their bounds: the cell, the stacks and the chips' collection, which is as tight as
+// the chips themselves. They cut the grown capsule off at its edges. Every view from the chip up to the chips'
+// row stops clipping; the row is as wide as the screen, so nothing shows that was not on screen already.
+static BOOL inLibraryChips(UIView *view);
+static void unclipChip(UIView *chip) {
+    if (!SGUseLegacyGlass() || !inLibraryChips(chip)) return;
+    for (UIView *v = chip.superview; v; v = v.superview) {
+        if (v.clipsToBounds) v.clipsToBounds = NO;
+        if ([NSStringFromClass(v.class) hasSuffix:@"YourLibraryHeaderContentFiltersView"]) break;
+    }
+}
+
 // The glass goes in the chip itself, first among its subviews and under the fill, the way every round
 // control of the header gets its own: a selected chip's solid colour then covers it by order, with no pass
 // needed to take it away, and an unselected one's fill is clear, so what is seen through it is glass.
@@ -249,6 +262,7 @@ static BOOL chipIsSelected(UIView *fill) {
 static void glassChip(UIView *chip) {
     CGSize size = chip.bounds.size;
     if (size.width < 1 || size.height < 1) return;
+    unclipChip(chip);
     UIView *glass = objc_getAssociatedObject(chip, &kChipGlassKey);
     UIView *fill = chipFill(chip, glass);
     if (fill && chipIsSelected(fill)) {
