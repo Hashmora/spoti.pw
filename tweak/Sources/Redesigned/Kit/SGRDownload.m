@@ -84,14 +84,21 @@ static NSString *hexOf(const uint8_t *bytes, size_t length) {
     return text;
 }
 
-// The plain download button keeps its state in its owner (currentStatus) and the view it draws with
-// (currentState, currentProgress). What each holds is said whenever it changes, for a download to be followed in
-// the log: the mapping of its cases is read from that, not assumed.
-static void logPlainDownload(UIView *button, id owner) {
+// The view the plain download button draws with, a StateMicroInteractionView.
+static UIView *stateMicroIn(UIView *button) {
     __block UIView *micro = nil;
     SGForEachView(button, ^(UIView *v) {
         if (!micro && [NSStringFromClass(v.class) containsString:@"StateMicroInteractionView"]) micro = v;
     });
+    return micro;
+}
+
+// The plain download button keeps its state in its owner (currentStatus) and the view it draws with
+// (currentState, currentProgress). What each holds is said whenever it changes, for a download to be followed in
+// the log: SGRReadDownload takes the owner's byte as the Granular button's cases, and this is where the device
+// shows whether it does.
+static void logPlainDownload(UIView *button, id owner) {
+    UIView *micro = stateMicroIn(button);
     const uint8_t *progress = propertyBytes(micro, "currentProgress", 8);
     double fraction = 0;
     if (progress) memcpy(&fraction, progress, sizeof fraction);
@@ -108,8 +115,10 @@ static void logPlainDownload(UIView *button, id owner) {
 
 BOOL SGRReadDownload(UIView *source, SGRDownloadState *state, CGFloat *progress) {
     UIView *button = source ? identifiedIn(source, kIdentifierPrefix) : nil;
-    // The songs liked by one artist have the plain button, whose identifier says nothing of the state. Its fields
-    // are known (see logPlainDownload) but not yet what their values mean, so it is drawn as the arrow until then.
+    // The songs liked by one artist have the plain button, whose identifier says nothing of the state. Its owner
+    // keeps the state in `currentStatus`, numbered in the order of the Granular button's cases, and the view it
+    // draws with keeps the progress in `currentProgress`; both are logged (logPlainDownload) for the device to
+    // confirm. A value outside the cases leaves it drawn as the arrow.
     BOOL plain = NO;
     if (!button && source) {
         button = identifiedIn(source, @"Components.UI.DownloadButton");
@@ -124,12 +133,19 @@ BOOL SGRReadDownload(UIView *source, SGRDownloadState *state, CGFloat *progress)
     // 1 when there is none. The identifier says the same state in words, and is what counts when the model
     // cannot be read.
     id owner = ownerOf(button, plain ? @"DownloadButton" : @"GranularDownloadButton");
+    const uint8_t *current = propertyBytes(owner, plain ? "currentStatus" : "currentState", 1);
+    const uint8_t *stored = propertyBytes(owner, "progress", 9);
+    // The plain button has no progress in its owner: the fraction is the view's, a plain double, always set.
+    uint8_t plainProgress[9] = {0};
     if (plain) {
         logPlainDownload(button, owner);
-        return NO;
+        const uint8_t *fraction = propertyBytes(stateMicroIn(button), "currentProgress", 8);
+        stored = NULL;
+        if (fraction) {
+            memcpy(plainProgress, fraction, 8);
+            stored = plainProgress;
+        }
     }
-    const uint8_t *current = propertyBytes(owner, "currentState", 1);
-    const uint8_t *stored = propertyBytes(owner, "progress", 9);
     BOOL modelled = current && *current <= 5;
     static const SGRDownloadState fromModel[] = {
         SGRDownloadNone, SGRDownloadWaiting, SGRDownloadDownloading, SGRDownloadWaiting, SGRDownloadDownloaded, SGRDownloadError,

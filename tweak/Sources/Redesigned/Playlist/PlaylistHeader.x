@@ -42,8 +42,8 @@ static const CGFloat kDissolve = 0.46, kTopScrim = 140, kTopScrimAlpha = 0.28;
 static const CGFloat kMinHero = 120, kMinCover = 80;
 
 static char kCoverKey, kMetaKey, kPlayKey, kLayoutKey, kToolbarKey, kScrimKey, kBarScrimKey;
-static char kShuffleKey, kAddKey, kDownloadKey, kPlainDownloadKey, kFollowKey, kInfoKey, kBlockHeightKey, kBlockWatchedKey;
-static char kHeroKey, kHeroHeightKey, kRestPlaneKey, kRowKey, kRowWatchedKey, kMoreKey, kCreatorKey, kPinnedMoreKey, kSortKey, kTitleKey, kStateButtonKey;
+static char kShuffleKey, kAddKey, kDownloadKey, kPlainDownloadKey, kInfoKey, kBlockHeightKey, kBlockWatchedKey;
+static char kHeroKey, kHeroHeightKey, kRestPlaneKey, kRowKey, kRowWatchedKey, kMoreKey, kCreatorKey, kPinnedMoreKey, kSortKey, kTitleKey;
 
 #pragma mark - finding things
 
@@ -372,14 +372,10 @@ static NSString *artistTitle(UIView *block) {
     return text.length ? text : nil;
 }
 
-// What the page keeps where, said once in the log, for what its trees do not show: Follow's owner (where the artist
-// is read from), the page's two controllers, and what the download button draws its state with.
-static void probeArtistPage(UIView *root, UIView *follow, UIView *download) {
+// What the page keeps where, said once in the log, for what its trees do not show: the page's two controllers, and
+// what the download button draws its state with.
+static void probeArtistPage(UIView *root, UIView *download) {
     if (!root.window) return;
-    UIView *state = follow ? SGRFindByIdentifier(follow, @"Components.UI.StateButton", &kStateButtonKey) : nil;
-    if ([state isKindOfClass:UIControl.class]) {
-        for (id target in ((UIControl *)state).allTargets) SGRLogProbeOnce(target, @"follow owner");
-    }
     SGRLogProbeOnce(SGRPlaylistHeaderOf(root), @"collection artist header");
     for (UIResponder *r = SGRPlaylistPageOf(root); r; r = r.nextResponder) {
         if ([r isKindOfClass:UIViewController.class]) {
@@ -417,13 +413,11 @@ static void showPlaylist(SGRHeaderInfo *info, UIView *block, UIView *root, id mo
     // Only what the button draws goes: a concealed layer still sends the actions the capsule fires.
     conceal(play);
 
-    // The songs liked by one artist have Follow in their row as well, beside shuffle: Spotify's own button, drawn
-    // from the collection's state and fired.
-    UIView *follow = artistPage ? SGRFindByIdentifier(block, @"Components.UI.FollowButton", &kFollowKey) : nil;
-    [info showLeading:follow];
+    // The songs liked by one artist keep the row of shuffle, Play and download: Follow stays Spotify's own, concealed
+    // with the rest of the block, and is not drawn beside shuffle.
     if (artistPage) {
         logDownloadOnce(download, info);
-        probeArtistPage(root, follow, download);
+        probeArtistPage(root, download);
     }
 
     // Whoever made the playlist, opened from the line that names them. Spotify's own button carries the
@@ -477,17 +471,6 @@ static SGRHeaderInfo *applyInfo(UIView *block, UIView *headerRoot, UIViewControl
     SGRHeaderInfo *info = objc_getAssociatedObject(headerRoot, &kInfoKey);
     if (!info) {
         info = [[SGRHeaderInfo alloc] initWithFrame:CGRectZero];
-        if (isCollectionArtist(headerRoot)) {
-            // Follow's only state is its title in the app's language, so the glyph takes it from the collection
-            // (Artist/ArtistFollow.x), as the artist page's does.
-            __weak UIView *weakPage = SGRPlaylistPageOf(headerRoot);
-            __weak SGRHeaderInfo *weakInfo = info;
-            info.leadingState = ^BOOL(BOOL *on) {
-                return SGRArtistFollowing(weakPage, nil, on, ^{ [weakInfo leadingStateChanged]; });
-            };
-            info.leadingOffSymbol = @"person.badge.plus";
-            info.leadingOnSymbol = @"person.fill.checkmark";
-        }
         objc_setAssociatedObject(headerRoot, &kInfoKey, info, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
     if (info.superview != block) {

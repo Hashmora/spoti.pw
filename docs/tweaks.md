@@ -600,12 +600,13 @@ Redesigned:
                   are put on that menu's own sheet instead, above Spotify's rows, and fire Spotify's own buttons.
                   The page of the songs the user liked by one artist (CollectionArtist) is Liked Songs' header kit
                   with no cover and goes through the same files: the neutral field, the wash and the bar's scrim
-                  gone, the one row of shuffle, Play and download with Follow leading beside shuffle (drawn from the
-                  collection's state once the artist is known, Artist/ArtistFollow.x), and its rows as the
-                  playlist's are. Its ⋯ keeps Spotify's own sheet: the pinned button is not recorded, so the
+                  gone, the one row of shuffle, Play and download (Follow stays Spotify's own, concealed), and its rows
+                  as the playlist's are. Its ⋯ keeps Spotify's own sheet: the pinned button is not recorded, so the
                   redesign's menu does not take it over. Its download button is the plain one, not the Granular
-                  one, so its state is read from its owner's fields (Kit/SGRDownload.m), which the log names once
-                  (redesign kit: probe ...).
+                  one, so its state is read from its owner's `currentStatus` (the Granular cases, in the same
+                  order) and the fraction from its view's `currentProgress` (Kit/SGRDownload.m), and the row
+                  reads it again while it is on screen, as it does for the Granular one. The log says what both
+                  hold (redesign kit: download raw ...).
                   Laid out on the Mac against harness/playlist/
     Album/        the album page laid out the same way, on the page the Creative Work Platform builds rather than the
                   playlist's, so it shares nothing with Playlist/ but the Kit: the cover full bleed dissolving into the
