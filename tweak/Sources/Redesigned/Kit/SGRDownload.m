@@ -113,6 +113,37 @@ static void logPlainDownload(UIView *button, id owner) {
     SGLog(@"redesign kit: download raw %@", raw);
 }
 
+// Every stored field of the plain button's owner and of its view as bytes, said while a download runs and whenever
+// one of them moves, to find where the progress is kept: the view's `currentProgress` stays 0 (device log, 2026-10-15).
+static void logPlainFields(UIView *button, id owner, UIView *micro) {
+    static NSString *last;
+    static int lines;
+    NSMutableArray<NSString *> *parts = [NSMutableArray array];
+    for (id object in @[owner ?: NSNull.null, micro ?: NSNull.null]) {
+        if (object == NSNull.null) continue;
+        for (Class c = object_getClass(object); c; c = class_getSuperclass(c)) {
+            NSString *name = NSStringFromClass(c);
+            if ([name hasPrefix:@"UI"] || [name hasPrefix:@"NS"] || [name hasPrefix:@"_UI"] || [name hasPrefix:@"CA"]) break;
+            unsigned count = 0;
+            Ivar *ivars = class_copyIvarList(c, &count);
+            for (unsigned i = 0; i < count; i++) {
+                ptrdiff_t offset = ivar_getOffset(ivars[i]);
+                size_t room = class_getInstanceSize(object_getClass(object)) - (size_t)offset;
+                const uint8_t *bytes = propertyBytes(object, ivar_getName(ivars[i]), MIN(room, (size_t)8));
+                if (bytes) [parts addObject:[NSString stringWithFormat:@"%@.%s=%@", object == owner ? @"o" : @"v", ivar_getName(ivars[i]), hexOf(bytes, MIN(room, (size_t)8))]];
+            }
+            free(ivars);
+        }
+    }
+    NSString *raw = [parts componentsJoinedByString:@" "];
+    NSString *value = button.accessibilityValue ?: @"-";
+    raw = [NSString stringWithFormat:@"%@ a11yValue \"%@\"", raw, value];
+    if ([raw isEqualToString:last] || lines >= 40) return;
+    last = raw;
+    lines++;
+    SGLog(@"redesign kit: download fields %@", raw);
+}
+
 BOOL SGRReadDownload(UIView *source, SGRDownloadState *state, CGFloat *progress) {
     UIView *button = source ? identifiedIn(source, kIdentifierPrefix) : nil;
     // The songs liked by one artist have the plain button, whose identifier says nothing of the state. Its owner
@@ -139,9 +170,15 @@ BOOL SGRReadDownload(UIView *source, SGRDownloadState *state, CGFloat *progress)
     uint8_t plainProgress[9] = {0};
     if (plain) {
         logPlainDownload(button, owner);
-        const uint8_t *fraction = propertyBytes(stateMicroIn(button), "currentProgress", 8);
+        UIView *micro = stateMicroIn(button);
+        if (current && *current == 2) logPlainFields(button, owner, micro);
+        const uint8_t *fraction = propertyBytes(micro, "currentProgress", 8);
         stored = NULL;
-        if (fraction) {
+        // The view's fraction stays 0 while a download runs, so 0 is no reading: the ring turns, as while waiting,
+        // until a fraction that moved is found.
+        double read = 0;
+        if (fraction) memcpy(&read, fraction, sizeof read);
+        if (isfinite(read) && read > 0) {
             memcpy(plainProgress, fraction, 8);
             stored = plainProgress;
         }
