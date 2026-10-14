@@ -28,6 +28,10 @@ static BOOL isAddCell(UIView *cell) {
         if (!box && [v isMemberOfClass:UIView.class] && [NSStringFromClass(v.superview.class) hasSuffix:@"ImageViewHolder"]) box = v;
     });
     SGRGlassFlatBox(box, &kBoxGlassKey);
+    // The legacy glass grows under a finger (SGGlassInteractive), and the 48pt ImageViewHolder around the square
+    // clips to its bounds, which cut the capsule off at its edges while it was held.
+    UIView *holder = box.superview;
+    if (SGUseLegacyGlass() && holder.clipsToBounds) holder.clipsToBounds = NO;
 }
 %end
 

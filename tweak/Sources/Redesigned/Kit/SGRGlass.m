@@ -238,6 +238,13 @@ static void clearListPaint(UIView *view, CGFloat wide, int depth) {
         // Written through the view so its own backgroundColor and the layer say the same thing.
         view.backgroundColor = UIColor.clearColor;
     }
+    // Spotify marks the wrappers and rows of Save in opaque. An opaque view with no fill is drawn over black, so
+    // the glass behind the list stayed black however clean the tree was (trees/continuous/1.txt has no paint left
+    // in the sheet).
+    if (view.opaque && !SGKeepsColor(view) && view.bounds.size.width >= wide) {
+        view.opaque = NO;
+        view.layer.opaque = NO;
+    }
     for (UIView *sub in view.subviews) clearListPaint(sub, wide, depth + 1);
 }
 

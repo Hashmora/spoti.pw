@@ -74,7 +74,7 @@ static BOOL isLibraryHeader(UIView *view) {
                 paintedChip = fill.superview;
                 dressedChip = YES;
             }
-            if (paintedChip && isNeutralTint(color)) color = NULL;
+            if (paintedChip && (isNeutralTint(color) || (dressedChip && SGRIsSheetSurface(color)))) color = NULL;
         }
     }
     if (color && (sgr_nowPlayingRoot || sgr_lyricsPageRoot || sgr_playlistRoot || sgr_albumRoot || sgr_artistRoot || sgr_sheetChromeRoot)) {

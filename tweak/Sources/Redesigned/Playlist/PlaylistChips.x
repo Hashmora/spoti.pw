@@ -22,9 +22,21 @@ static BOOL isChipsCell(UIView *cell) {
 }
 %end
 
+// The radio's chips (SessionControlImpl's SCFilterChipsElement, trees/continuous/4.txt) sit in a collection view of
+// their own, whose items are made after the cell has been laid out, so the cell's pass above never meets them. Each
+// chip is dressed as it comes into the window.
+%hook _TtCE15Encore_ChipsKitO16EncoreFoundation6Encore8ChipView
+- (void)didMoveToWindow {
+    %orig;
+    UIView *chip = (UIView *)self;
+    if (chip.window && SGRPlaylistHeaderOf(chip)) SGRGlassChipsIn(chip);
+}
+%end
+
 %ctor {
     if (!SGRedesignedUI()) return;
     if (!SGBelowiOS26()) return;
     %init;
-    SGRequireClasses(@[@"_TtC35ListUXPlatform_FreeTierPlaylistImpl25ElementCollectionViewCell"]);
+    SGRequireClasses(@[@"_TtC35ListUXPlatform_FreeTierPlaylistImpl25ElementCollectionViewCell",
+                       @"_TtCE15Encore_ChipsKitO16EncoreFoundation6Encore8ChipView"]);
 }

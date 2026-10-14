@@ -221,7 +221,14 @@ static void pickerChrome(UIViewController *controller) {
 // SPTSortingFilteringPresentationController (trees/continuous/2.txt): #282828 r=10 over a 0.6 scrim, the card
 // being the view the presentation puts in its container. The same controller in a playlist's Navigation
 // sheet is the sheet's to dress, above.
+//
+// Liked Songs' Sort by is the same picker inside a Navigation sheet (trees/continuous/3.txt), whose pane the sheet
+// pass above already puts behind it. The picker's own view is not a second card there: giving it a pane too laid a
+// second glass inside the first.
 static void sortChrome(UIViewController *controller) {
+    for (UIView *v = controller.viewIfLoaded; v; v = v.superview) {
+        if ([v.accessibilityIdentifier isEqualToString:@"sheet-view"]) return;
+    }
     UIPresentationController *presentation = controller.presentationController;
     if (![NSStringFromClass(presentation.class) isEqualToString:@"SPTSortingFilteringPresentationController"]) return;
     UIView *card = presentation.presentedView;
@@ -432,6 +439,31 @@ static void passes(UIViewController *controller, void (*chrome)(UIViewController
 %end
 %end
 
+#pragma mark - Save in's find bar
+
+// The find field and the Sort button over Save in's playlists (trees/continuous/5.txt) are the grey boxes the
+// playlist page's own find bar has (Playlist/PlaylistHeader.x), and become glass the same way. The bar is in the
+// page twice: the one that scrolls with the list (a child of AddToPlaylistTableView) and the one the page shows while
+// searching, with Cancel in place of Sort, so each is looked for from its own root.
+static void glassFindBar(UIView *root) {
+    static char kFieldKey, kButtonKey, kFieldGlassKey, kButtonGlassKey;
+    SGRGlassFlatBox(SGRFindByIdentifier(root, @"Components.Header.UI.Toolbar.SearchField", &kFieldKey), &kFieldGlassKey);
+    SGRGlassFlatBox(SGRFindByIdentifier(root, @"Components.Header.UI.Toolbar.ButtonContainer", &kButtonKey), &kButtonGlassKey);
+}
+
+// The list's own pass runs on every scroll as well, and the bar is made after the page's first layout.
+%group SGRSaveInList
+%hook UITableView
+- (void)layoutSubviews {
+    %orig;
+    UIView *list = (UIView *)self;
+    if (![list.accessibilityIdentifier isEqualToString:@"AddToPlaylistTableView"]) return;
+    glassFindBar(list);
+    glassFindBar(list.superview);
+}
+%end
+%end
+
 %ctor {
     if (!SGRedesignedUI()) return;
     if (!SGBelowiOS26()) return;
@@ -444,6 +476,7 @@ static void passes(UIViewController *controller, void (*chrome)(UIViewController
     Class saveIn = swiftClass(@"PlaylistCuration_AddToPlaylistImpl", @"ATPContainerViewController");
     if (saveIn) {
         %init(SGRSaveIn, SGRSaveInContainer = saveIn);
+        %init(SGRSaveInList);
     }
     Class picker = swiftClass(@"SmartShuffle_CoreImpl", @"PlayModePickerViewController");
     if (picker) {
