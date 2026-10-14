@@ -43,7 +43,7 @@ static const CGFloat kMinHero = 120, kMinCover = 80;
 
 static char kCoverKey, kMetaKey, kPlayKey, kLayoutKey, kToolbarKey, kScrimKey, kBarScrimKey;
 static char kShuffleKey, kAddKey, kDownloadKey, kPlainDownloadKey, kFollowKey, kInfoKey, kBlockHeightKey, kBlockWatchedKey;
-static char kHeroKey, kHeroHeightKey, kRestPlaneKey, kRowKey, kRowWatchedKey, kMoreKey, kCreatorKey, kPinnedMoreKey, kSortKey;
+static char kHeroKey, kHeroHeightKey, kRestPlaneKey, kRowKey, kRowWatchedKey, kMoreKey, kCreatorKey, kPinnedMoreKey, kSortKey, kTitleKey, kStateButtonKey;
 
 #pragma mark - finding things
 
@@ -350,12 +350,42 @@ static void logDownloadOnce(UIView *download, UIView *info) {
           download.accessibilityLabel, targets, views);
 }
 
+// The name on the songs liked by one artist: the page's big label. Not the first text of the block, which is Follow's
+// word for as long as the name has not been filled in.
+static NSString *artistTitle(UIView *block) {
+    UIView *label = SGRFindByIdentifier(block, @"Encore.Label-internal", &kTitleKey);
+    NSString *text = [label isKindOfClass:UILabel.class] ? ((UILabel *)label).text : nil;
+    text = [text stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+    return text.length ? text : nil;
+}
+
+// What the page keeps where, said once in the log, for what its trees do not show: Follow's owner (where the artist
+// is read from), the page's two controllers, and what the download button draws its state with.
+static void probeArtistPage(UIView *root, UIView *follow, UIView *download) {
+    if (!root.window) return;
+    UIView *state = follow ? SGRFindByIdentifier(follow, @"Components.UI.StateButton", &kStateButtonKey) : nil;
+    if ([state isKindOfClass:UIControl.class]) {
+        for (id target in ((UIControl *)state).allTargets) SGRLogProbeOnce(target, @"follow owner");
+    }
+    SGRLogProbeOnce(SGRPlaylistHeaderOf(root), @"collection artist header");
+    for (UIResponder *r = SGRPlaylistPageOf(root); r; r = r.nextResponder) {
+        if ([r isKindOfClass:UIViewController.class]) {
+            SGRLogProbeOnce(r, @"collection artist page");
+            break;
+        }
+    }
+    if (download) SGForEachView(download, ^(UIView *v) {
+        if ([NSStringFromClass(v.class) containsString:@"StateMicroInteractionView"]) SGRLogProbeOnce(v, @"download view");
+    });
+}
+
 // What the playlist's header shows: the name and the description from the page's model, the creator and the
 // length from Spotify's concealed labels, and on Play's right save for someone else's playlist (download once
 // it is saved, showsDownload), download for one's own and for Liked Songs, which Spotify reports as neither
 // owned nor unsaved (isOwnedBySelf NO, formatListType liked-songs).
 static void showPlaylist(SGRHeaderInfo *info, UIView *block, UIView *root, id model) {
-    NSString *title = modelString(model, @"playlistName") ?: firstText(block, nil);
+    BOOL artistPage = isCollectionArtist(root);
+    NSString *title = modelString(model, @"playlistName") ?: (artistPage ? artistTitle(block) : firstText(block, nil));
     [info showTitle:title creator:creatorIn(block) length:lengthIn(block)
               about:plainText(modelString(model, @"playlistDescription"))];
 
@@ -376,9 +406,12 @@ static void showPlaylist(SGRHeaderInfo *info, UIView *block, UIView *root, id mo
 
     // The songs liked by one artist have Follow in their row as well, beside shuffle: Spotify's own button, drawn
     // from the collection's state and fired.
-    BOOL artistPage = isCollectionArtist(root);
-    [info showLeading:artistPage ? SGRFindByIdentifier(block, @"Components.UI.FollowButton", &kFollowKey) : nil];
-    if (artistPage) logDownloadOnce(download, info);
+    UIView *follow = artistPage ? SGRFindByIdentifier(block, @"Components.UI.FollowButton", &kFollowKey) : nil;
+    [info showLeading:follow];
+    if (artistPage) {
+        logDownloadOnce(download, info);
+        probeArtistPage(root, follow, download);
+    }
 
     // Whoever made the playlist, opened from the line that names them. Spotify's own button carries the
     // facepile and the name and takes the tap to a profile -- or, for a playlist several people are on, to
@@ -391,7 +424,10 @@ static void showPlaylist(SGRHeaderInfo *info, UIView *block, UIView *root, id mo
     // More, pinned over the page rather than left in the block, which is concealed and scrolls away; and
     // Spotify's own Sort, from the find-on-page toolbar this header conceals, for the ⋯ sheet to fire.
     UIView *page = SGRPlaylistPageOf(root);
-    SGRPinnedMore(page, &kPinnedMoreKey, SGRFindByIdentifier(block, @"Components.UI.ContextMenuButton*", &kMoreKey));
+    SGRMirrorButton *more = SGRPinnedMore(page, &kPinnedMoreKey, SGRFindByIdentifier(block, @"Components.UI.ContextMenuButton*", &kMoreKey));
+    // The songs liked by one artist keep the sheet Spotify gives them: the redesign's menu is made of a playlist's
+    // rows and has none of this page's.
+    if (artistPage) SGRPinnedMoreLeavesSheetAlone(more);
     SGRPlaylistTakeSort(page, SGRFindByIdentifier(root, @"Components.Header.UI.Toolbar.Button", &kSortKey));
 
     static BOOL logged;

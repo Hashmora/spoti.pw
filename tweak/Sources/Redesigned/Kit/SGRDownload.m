@@ -48,18 +48,55 @@ static BOOL stateFromIdentifier(NSString *identifier, SGRDownloadState *state) {
     return YES;
 }
 
+void SGRLogProbeOnce(id object, NSString *label) {
+    if (!object) return;
+    static NSMutableSet<NSString *> *done;
+    if (!done) done = [NSMutableSet set];
+    Class cls = object_getClass(object);
+    NSString *mark = [NSString stringWithFormat:@"%@ %@", label, NSStringFromClass(cls)];
+    if ([done containsObject:mark]) return;
+    [done addObject:mark];
+    NSMutableArray<NSString *> *fields = [NSMutableArray array], *methods = [NSMutableArray array];
+    for (Class c = cls; c; c = class_getSuperclass(c)) {
+        NSString *name = NSStringFromClass(c);
+        if ([name hasPrefix:@"UI"] || [name hasPrefix:@"NS"] || [name hasPrefix:@"_UI"] || [name hasPrefix:@"CA"]) break;
+        unsigned count = 0;
+        Ivar *ivars = class_copyIvarList(c, &count);
+        for (unsigned i = 0; i < count && fields.count < 80; i++) {
+            [fields addObject:[NSString stringWithFormat:@"%s@%td", ivar_getName(ivars[i]) ?: "?", ivar_getOffset(ivars[i])]];
+        }
+        free(ivars);
+        Method *list = class_copyMethodList(c, &count);
+        for (unsigned i = 0; i < count && methods.count < 40; i++) {
+            NSString *selector = NSStringFromSelector(method_getName(list[i]));
+            NSString *lower = selector.lowercaseString;
+            if ([lower containsString:@"uri"] || [lower containsString:@"artist"] || [lower containsString:@"url"]) [methods addObject:selector];
+        }
+        free(list);
+    }
+    SGLog(@"redesign kit: probe %@ %@: fields %@; methods %@", label, NSStringFromClass(cls), fields, methods);
+}
+
 BOOL SGRReadDownload(UIView *source, SGRDownloadState *state, CGFloat *progress) {
     UIView *button = source ? identifiedIn(source, kIdentifierPrefix) : nil;
+    // The songs liked by one artist have the plain button, whose identifier says nothing of the state; what it
+    // draws from is read from its owner alone, and that owner's fields are logged for the device to confirm.
+    BOOL plain = NO;
+    if (!button && source) {
+        button = identifiedIn(source, @"Components.UI.DownloadButton");
+        plain = button != nil;
+    }
     if (!button) return NO;
     SGRDownloadState said = SGRDownloadNone;
-    BOOL named = stateFromIdentifier(button.accessibilityIdentifier, &said);
+    BOOL named = !plain && stateFromIdentifier(button.accessibilityIdentifier, &said);
 
     // What the button draws from. Its state is a Swift enum without payloads, one byte, its cases numbered
     // in the order they are declared; its progress an optional 8 byte number, the value then a byte that is
     // 1 when there is none. The identifier says the same state in words, and is what counts when the model
     // cannot be read.
-    id owner = ownerOf(button, @"GranularDownloadButton");
-    const uint8_t *current = propertyBytes(owner, "currentState", 1);
+    id owner = ownerOf(button, plain ? @"DownloadButton" : @"GranularDownloadButton");
+    if (plain) SGRLogProbeOnce(owner, @"download owner");
+    const uint8_t *current = propertyBytes(owner, "currentState", 1) ?: (plain ? propertyBytes(owner, "state", 1) : NULL);
     const uint8_t *stored = propertyBytes(owner, "progress", 9);
     BOOL modelled = current && *current <= 5;
     static const SGRDownloadState fromModel[] = {

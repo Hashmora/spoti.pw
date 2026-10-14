@@ -3,6 +3,8 @@
 // The provider is the one Spotify's own code uses, kept weakly.
 #import "Core/SGCore.h"
 #import "Artist.h"
+#import <objc/message.h>
+#import <objc/runtime.h>
 
 @protocol SGRCollectionState <NSObject>
 + (id)saved;
@@ -161,11 +163,33 @@ static NSURL *artistInside(NSURL *uri) {
     return nil;
 }
 
+// The artist a page's controller names through an accessor of its own, when it has one that gives an object.
+static NSURL *artistFromAccessors(UIViewController *controller) {
+    for (NSString *name in @[@"artistURI", @"artistURL", @"entityURI", @"contextURI", @"uri", @"URI"]) {
+        SEL selector = NSSelectorFromString(name);
+        Method method = class_getInstanceMethod(object_getClass(controller), selector);
+        if (!method) continue;
+        char *type = method_copyReturnTypeEncoding(method);
+        BOOL object = type && type[0] == '@';
+        free(type);
+        if (!object) continue;
+        id value = ((id (*)(id, SEL))objc_msgSend)(controller, selector);
+        NSString *text = [value isKindOfClass:NSURL.class] ? [value absoluteString] : [value isKindOfClass:NSString.class] ? value : nil;
+        NSURL *uri = text ? [NSURL URLWithString:text] : nil;
+        if ([text hasPrefix:@"spotify:artist:"]) return uri;
+        if (uri && artistInside(uri)) return artistInside(uri);
+    }
+    return nil;
+}
+
 // The artist the page is for. The artist page's controllers carry no URI, but the header's ⋯ does:
 // Components.UI.ContextMenuButton-<artist id>.
 static NSURL *artistURI(UIView *page, NSString *moreIdentifier) {
     for (UIResponder *responder = page; responder; responder = responder.nextResponder) {
-        if (![responder isKindOfClass:UIViewController.class] || ![responder respondsToSelector:@selector(spt_pageURI)]) continue;
+        if (![responder isKindOfClass:UIViewController.class]) continue;
+        NSURL *named = artistFromAccessors((UIViewController *)responder);
+        if (named) return named;
+        if (![responder respondsToSelector:@selector(spt_pageURI)]) continue;
         id uri = [(id)responder performSelector:@selector(spt_pageURI)];
         if (![uri isKindOfClass:NSURL.class]) continue;
         if ([[uri absoluteString] hasPrefix:@"spotify:artist:"]) return uri;
@@ -217,6 +241,7 @@ BOOL SGRArtistFollowing(UIView *page, NSString *moreIdentifier, BOOL *following,
                 loggedPage = page;
                 NSMutableArray *uris = [NSMutableArray array];
                 for (UIResponder *r = page; r; r = r.nextResponder) {
+                    if ([r isKindOfClass:UIViewController.class]) SGRLogProbeOnce(r, @"follow page");
                     if ([r isKindOfClass:UIViewController.class] && [r respondsToSelector:@selector(spt_pageURI)]) {
                         [uris addObject:[[(id)r performSelector:@selector(spt_pageURI)] description] ?: @"nil"];
                     }

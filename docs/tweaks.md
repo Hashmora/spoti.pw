@@ -602,8 +602,10 @@ Redesigned:
                   with no cover and goes through the same files: the neutral field, the wash and the bar's scrim
                   gone, the one row of shuffle, Play and download with Follow leading beside shuffle (drawn from the
                   collection's state once the artist is known, Artist/ArtistFollow.x), and its rows as the
-                  playlist's are. Its download button is not the Granular one the Kit reads, so it draws the arrow
-                  only until its state is found on the device (the log says what it is made of).
+                  playlist's are. Its ⋯ keeps Spotify's own sheet: the pinned button is not recorded, so the
+                  redesign's menu does not take it over. Its download button is the plain one, not the Granular
+                  one, so its state is read from its owner's fields (Kit/SGRDownload.m), which the log names once
+                  (redesign kit: probe ...).
                   Laid out on the Mac against harness/playlist/
     Album/        the album page laid out the same way, on the page the Creative Work Platform builds rather than the
                   playlist's, so it shares nothing with Playlist/ but the Kit: the cover full bleed dissolving into the
