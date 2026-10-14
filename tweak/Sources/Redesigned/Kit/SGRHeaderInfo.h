@@ -39,15 +39,6 @@ extern const CGFloat SGRHeaderInfoTitleRise;  // 56, of the content over the pic
 @property (nonatomic, copy) NSString *trailingOffSymbol;
 @property (nonatomic, copy) NSString *trailingOnSymbol;
 - (void)trailingStateChanged;
-// A fourth control, leading beside shuffle, for a page that has one more thing to offer than the row has room
-// for on the trailing side (the songs liked by one artist: Follow beside download). Its state, like the
-// trailing one's, is read from wherever the page keeps it; it is drawn only while that state is known, and
-// nil hides it. Play stays in the middle of the page whether it is there or not.
-@property (nonatomic, copy) BOOL (^leadingState)(BOOL *on);
-@property (nonatomic, copy) NSString *leadingOffSymbol;
-@property (nonatomic, copy) NSString *leadingOnSymbol;
-- (void)showLeading:(UIView *)leading;
-- (void)leadingStateChanged;
 // Spotify's controls, each drawn from and fired; nil hides that button. Play stays in the middle of the
 // page whether the other two are there or not. `trailingFallback` is drawn when Spotify's trailing control
 // has no image to copy. `playColor` is the color of the capsule's glyph and word.

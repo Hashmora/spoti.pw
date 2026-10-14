@@ -25,11 +25,6 @@ typedef NS_ENUM(NSInteger, SGRDownloadState) {
 // is 0...1 while downloading, -1 when Spotify has none to give (an endless download, or not readable).
 BOOL SGRReadDownload(UIView *source, SGRDownloadState *state, CGFloat *progress);
 
-// What an Encore object is made of, said once per label and class in the log: its stored properties as name@offset
-// and the methods whose names have to do with a URI or an artist. For finding what a page keeps where, on the
-// device, when the trees say nothing of it.
-void SGRLogProbeOnce(id object, NSString *label);
-
 // YES when `source`, or something under it, is Spotify's add-to button (Components.UI.AddToButton, saving an
 // album or a playlist), with whether it is saved. Lottie draws that one too, so the state is read off its
 // Encore owner's `currentStatus` (AddToButtonState: notAdded, added); NO when that cannot be read.

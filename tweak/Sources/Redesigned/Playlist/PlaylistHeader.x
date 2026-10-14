@@ -31,7 +31,6 @@
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
 #import "Playlist.h"
-#import "Redesigned/Artist/Artist.h"
 #import <objc/message.h>
 
 // How much of the cover's height the dissolve into the field covers, and the scrim over the top of it that
@@ -54,8 +53,8 @@ static char kHeroKey, kHeroHeightKey, kRestPlaneKey, kRowKey, kRowWatchedKey, kM
 @end
 
 // The page the header is on: FTPViewController's own view -- or, for the songs the user liked by one artist,
-// CollectionArtistViewController's, the same header kit with no cover (trees/continuous/1.txt, 2026-10-14) -- which holds the field, the list and the header
-// and does not scroll. Walked from the header rather than taken off sgr_playlistRoot, so a playlist under
+// CollectionArtistViewController's, the same header kit with no cover -- which holds the field, the list and the
+// header and does not scroll. Walked from the header rather than taken off sgr_playlistRoot, so a playlist under
 // another one on the stack pins its own ⋯ and not the one on top.
 UIView *SGRPlaylistPageOf(UIView *view) {
     for (UIResponder *r = view; r; r = r.nextResponder) {
@@ -333,59 +332,13 @@ static BOOL isCollectionArtist(UIView *root) {
     return [NSStringFromClass(SGRPlaylistHeaderOf(root).class) hasSuffix:@"CollectionArtistHeaderViewController"];
 }
 
-// This page's download button is not the Granular one SGRReadDownload reads, so what it is made of is logged once, for
-// the state to be found on the device: the objects its actions go to and the views it draws with.
-static void logDownloadOnce(UIView *download, UIView *info) {
-    static BOOL logged;
-    if (logged || !download || !info.window) return;
-    logged = YES;
-    NSMutableArray<NSString *> *targets = [NSMutableArray array], *views = [NSMutableArray array];
-    if ([download isKindOfClass:UIControl.class]) {
-        for (id target in ((UIControl *)download).allTargets) [targets addObject:NSStringFromClass(object_getClass(target))];
-    }
-    SGForEachView(download, ^(UIView *v) {
-        [views addObject:[NSString stringWithFormat:@"%@(%@)", NSStringFromClass(v.class), v.accessibilityIdentifier ?: @"-"]];
-    });
-    // Its state has no signal that moves the header, so it is read twice a second for a while, for a download
-    // started on this page to show in the log.
-    __weak UIView *weakDownload = download;
-    __weak UIView *weakInfo = info;
-    __block int ticks = 0;
-    [NSTimer scheduledTimerWithTimeInterval:0.5 repeats:YES block:^(NSTimer *timer) {
-        UIView *button = weakDownload;
-        if (!button || !weakInfo.window || ++ticks > 480) {
-            [timer invalidate];
-            return;
-        }
-        SGRReadDownload(button, NULL, NULL);
-    }];
-    SGLog(@"redesign collection artist: download %@ a11y \"%@\"; targets %@; views %@", download.accessibilityIdentifier,
-          download.accessibilityLabel, targets, views);
-}
-
-// The name on the songs liked by one artist: the page's big label. Not the first text of the block, which is Follow's
-// word for as long as the name has not been filled in.
+// The name on the songs liked by one artist: the page's big label. Not the first text of the block, which is the
+// word on Spotify's Follow button for as long as the name has not been filled in.
 static NSString *artistTitle(UIView *block) {
     UIView *label = SGRFindByIdentifier(block, @"Encore.Label-internal", &kTitleKey);
     NSString *text = [label isKindOfClass:UILabel.class] ? ((UILabel *)label).text : nil;
     text = [text stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
     return text.length ? text : nil;
-}
-
-// What the page keeps where, said once in the log, for what its trees do not show: the page's two controllers, and
-// what the download button draws its state with.
-static void probeArtistPage(UIView *root, UIView *download) {
-    if (!root.window) return;
-    SGRLogProbeOnce(SGRPlaylistHeaderOf(root), @"collection artist header");
-    for (UIResponder *r = SGRPlaylistPageOf(root); r; r = r.nextResponder) {
-        if ([r isKindOfClass:UIViewController.class]) {
-            SGRLogProbeOnce(r, @"collection artist page");
-            break;
-        }
-    }
-    if (download) SGForEachView(download, ^(UIView *v) {
-        if ([NSStringFromClass(v.class) containsString:@"StateMicroInteractionView"]) SGRLogProbeOnce(v, @"download view");
-    });
 }
 
 // What the playlist's header shows: the name and the description from the page's model, the creator and the
@@ -412,13 +365,6 @@ static void showPlaylist(SGRHeaderInfo *info, UIView *block, UIView *root, id mo
      trailingFallback:[UIImage systemImageNamed:save ? @"plus" : @"arrow.down"] playColor:SGRPlaylistFieldColor(info)];
     // Only what the button draws goes: a concealed layer still sends the actions the capsule fires.
     conceal(play);
-
-    // The songs liked by one artist keep the row of shuffle, Play and download: Follow stays Spotify's own, concealed
-    // with the rest of the block, and is not drawn beside shuffle.
-    if (artistPage) {
-        logDownloadOnce(download, info);
-        probeArtistPage(root, download);
-    }
 
     // Whoever made the playlist, opened from the line that names them. Spotify's own button carries the
     // facepile and the name and takes the tap to a profile -- or, for a playlist several people are on, to

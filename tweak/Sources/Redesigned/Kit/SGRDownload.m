@@ -48,108 +48,11 @@ static BOOL stateFromIdentifier(NSString *identifier, SGRDownloadState *state) {
     return YES;
 }
 
-void SGRLogProbeOnce(id object, NSString *label) {
-    if (!object) return;
-    static NSMutableSet<NSString *> *done;
-    if (!done) done = [NSMutableSet set];
-    Class cls = object_getClass(object);
-    NSString *mark = [NSString stringWithFormat:@"%@ %@", label, NSStringFromClass(cls)];
-    if ([done containsObject:mark]) return;
-    [done addObject:mark];
-    NSMutableArray<NSString *> *fields = [NSMutableArray array], *methods = [NSMutableArray array];
-    for (Class c = cls; c; c = class_getSuperclass(c)) {
-        NSString *name = NSStringFromClass(c);
-        if ([name hasPrefix:@"UI"] || [name hasPrefix:@"NS"] || [name hasPrefix:@"_UI"] || [name hasPrefix:@"CA"]) break;
-        unsigned count = 0;
-        Ivar *ivars = class_copyIvarList(c, &count);
-        for (unsigned i = 0; i < count && fields.count < 80; i++) {
-            [fields addObject:[NSString stringWithFormat:@"%s@%td", ivar_getName(ivars[i]) ?: "?", ivar_getOffset(ivars[i])]];
-        }
-        free(ivars);
-        Method *list = class_copyMethodList(c, &count);
-        for (unsigned i = 0; i < count && methods.count < 40; i++) {
-            NSString *selector = NSStringFromSelector(method_getName(list[i]));
-            NSString *lower = selector.lowercaseString;
-            if ([lower containsString:@"uri"] || [lower containsString:@"artist"] || [lower containsString:@"url"]) [methods addObject:selector];
-        }
-        free(list);
-    }
-    SGLog(@"redesign kit: probe %@ %@: fields %@; methods %@", label, NSStringFromClass(cls), fields, methods);
-}
-
-static NSString *hexOf(const uint8_t *bytes, size_t length) {
-    if (!bytes) return @"unreadable";
-    NSMutableString *text = [NSMutableString string];
-    for (size_t i = 0; i < length; i++) [text appendFormat:@"%02x", bytes[i]];
-    return text;
-}
-
-// The view the plain download button draws with, a StateMicroInteractionView.
-static UIView *stateMicroIn(UIView *button) {
-    __block UIView *micro = nil;
-    SGForEachView(button, ^(UIView *v) {
-        if (!micro && [NSStringFromClass(v.class) containsString:@"StateMicroInteractionView"]) micro = v;
-    });
-    return micro;
-}
-
-// The plain download button keeps its state in its owner (currentStatus) and the view it draws with
-// (currentState, currentProgress). What each holds is said whenever it changes, for a download to be followed in
-// the log: SGRReadDownload takes the owner's byte as the Granular button's cases, and this is where the device
-// shows whether it does.
-static void logPlainDownload(UIView *button, id owner) {
-    UIView *micro = stateMicroIn(button);
-    const uint8_t *progress = propertyBytes(micro, "currentProgress", 8);
-    double fraction = 0;
-    if (progress) memcpy(&fraction, progress, sizeof fraction);
-    NSString *raw = [NSString stringWithFormat:@"status %@, view state %@, progress %.3f, label \"%@\"",
-                     hexOf(propertyBytes(owner, "currentStatus", 8), 8), hexOf(propertyBytes(micro, "currentState", 16), 16),
-                     fraction, button.accessibilityLabel];
-    static NSString *last;
-    static int lines;
-    if ([raw isEqualToString:last] || lines >= 60) return;
-    last = raw;
-    lines++;
-    SGLog(@"redesign kit: download raw %@", raw);
-}
-
-// Every stored field of the plain button's owner and of its view as bytes, said while a download runs and whenever
-// one of them moves, to find where the progress is kept: the view's `currentProgress` stays 0 (device log, 2026-10-15).
-static void logPlainFields(UIView *button, id owner, UIView *micro) {
-    static NSString *last;
-    static int lines;
-    NSMutableArray<NSString *> *parts = [NSMutableArray array];
-    for (id object in @[owner ?: NSNull.null, micro ?: NSNull.null]) {
-        if (object == NSNull.null) continue;
-        for (Class c = object_getClass(object); c; c = class_getSuperclass(c)) {
-            NSString *name = NSStringFromClass(c);
-            if ([name hasPrefix:@"UI"] || [name hasPrefix:@"NS"] || [name hasPrefix:@"_UI"] || [name hasPrefix:@"CA"]) break;
-            unsigned count = 0;
-            Ivar *ivars = class_copyIvarList(c, &count);
-            for (unsigned i = 0; i < count; i++) {
-                ptrdiff_t offset = ivar_getOffset(ivars[i]);
-                size_t room = class_getInstanceSize(object_getClass(object)) - (size_t)offset;
-                const uint8_t *bytes = propertyBytes(object, ivar_getName(ivars[i]), MIN(room, (size_t)8));
-                if (bytes) [parts addObject:[NSString stringWithFormat:@"%@.%s=%@", object == owner ? @"o" : @"v", ivar_getName(ivars[i]), hexOf(bytes, MIN(room, (size_t)8))]];
-            }
-            free(ivars);
-        }
-    }
-    NSString *raw = [parts componentsJoinedByString:@" "];
-    NSString *value = button.accessibilityValue ?: @"-";
-    raw = [NSString stringWithFormat:@"%@ a11yValue \"%@\"", raw, value];
-    if ([raw isEqualToString:last] || lines >= 40) return;
-    last = raw;
-    lines++;
-    SGLog(@"redesign kit: download fields %@", raw);
-}
-
 BOOL SGRReadDownload(UIView *source, SGRDownloadState *state, CGFloat *progress) {
     UIView *button = source ? identifiedIn(source, kIdentifierPrefix) : nil;
-    // The songs liked by one artist have the plain button, whose identifier says nothing of the state. Its owner
-    // keeps the state in `currentStatus`, numbered in the order of the Granular button's cases, and the view it
-    // draws with keeps the progress in `currentProgress`; both are logged (logPlainDownload) for the device to
-    // confirm. A value outside the cases leaves it drawn as the arrow.
+    // The songs liked by one artist have the plain button, whose identifier says nothing of the state: its owner
+    // keeps it in `currentStatus`, numbered like the Granular button's cases. It keeps no progress, so while it
+    // downloads the ring turns, as it does while waiting. A value outside the cases leaves the arrow.
     BOOL plain = NO;
     if (!button && source) {
         button = identifiedIn(source, @"Components.UI.DownloadButton");
@@ -165,24 +68,7 @@ BOOL SGRReadDownload(UIView *source, SGRDownloadState *state, CGFloat *progress)
     // cannot be read.
     id owner = ownerOf(button, plain ? @"DownloadButton" : @"GranularDownloadButton");
     const uint8_t *current = propertyBytes(owner, plain ? "currentStatus" : "currentState", 1);
-    const uint8_t *stored = propertyBytes(owner, "progress", 9);
-    // The plain button has no progress in its owner: the fraction is the view's, a plain double, always set.
-    uint8_t plainProgress[9] = {0};
-    if (plain) {
-        logPlainDownload(button, owner);
-        UIView *micro = stateMicroIn(button);
-        if (current && *current == 2) logPlainFields(button, owner, micro);
-        const uint8_t *fraction = propertyBytes(micro, "currentProgress", 8);
-        stored = NULL;
-        // The view's fraction stays 0 while a download runs, so 0 is no reading: the ring turns, as while waiting,
-        // until a fraction that moved is found.
-        double read = 0;
-        if (fraction) memcpy(&read, fraction, sizeof read);
-        if (isfinite(read) && read > 0) {
-            memcpy(plainProgress, fraction, 8);
-            stored = plainProgress;
-        }
-    }
+    const uint8_t *stored = plain ? NULL : propertyBytes(owner, "progress", 9);
     BOOL modelled = current && *current <= 5;
     static const SGRDownloadState fromModel[] = {
         SGRDownloadNone, SGRDownloadWaiting, SGRDownloadDownloading, SGRDownloadWaiting, SGRDownloadDownloaded, SGRDownloadError,
