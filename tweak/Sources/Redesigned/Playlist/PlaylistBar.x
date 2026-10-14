@@ -10,6 +10,11 @@
 // Liked Songs keeps Spotify's bar (the page model says which it is: formatListType). The album and artist bars are
 // the same class under other ids. A bar is recognised by its page having been dressed, i.e. SGRPinnedBack pinned
 // its Back button; a podcast episode shares the album template and is left alone.
+//
+// The scrims themselves are refused at the class: a mask or a hidden written once is undone by Spotify (-setHidden:NO
+// as the page scrolls), and an album's or an artist's showed as a band under the name and behind the header, where
+// a playlist's own had none (trees/continuous/6.txt, 7.txt). So a GradientView on a dressed playlist, album or
+// artist page, outside the page's list rows, refuses to be shown, whoever asks.
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
 #import "Playlist.h"
@@ -18,6 +23,7 @@
 #import <objc/message.h>
 
 static char kBubbleKey;
+static BOOL isDressedAlbumOrArtist(UIView *bar);
 
 // Side padding of the name inside its capsule; the capsule is as tall as the buttons beside it.
 static const CGFloat kBubblePadding = 18, kBubbleHeight = 44;
@@ -39,6 +45,17 @@ static BOOL isLikedSongs(UIViewController *headerVC) {
 static void hideScrim(UIView *view) {
     if (!view.layer.hidden) view.layer.hidden = YES;
     if (!view.layer.mask) view.layer.mask = [CALayer layer];
+}
+
+// A GradientView of a page the redesign dresses -- playlist (Liked Songs apart), album, artist -- that is not
+// inside one of the list's cells: the wash behind the header, the header's own fade and the bar's scrim.
+static BOOL isPageScrim(UIView *view) {
+    for (UIView *v = view.superview; v; v = v.superview) {
+        if ([v isKindOfClass:UICollectionViewCell.class] || [v isKindOfClass:UITableViewCell.class]) return NO;
+    }
+    UIViewController *headerVC = SGRPlaylistHeaderOf(view);
+    if (headerVC) return !isLikedSongs(headerVC);
+    return isDressedAlbumOrArtist(view);
 }
 
 // The name: the one SPTEncoreLabel directly under the bar that holds text (the Back button's is a glyph
@@ -129,9 +146,36 @@ static void apply(UIView *bar) {
 }
 %end
 
+// Spotify's GradientView (LegacyUI_ECMCoreKit.GradientView in the trees), found by name at launch.
+%group SGRPageScrim
+%hook SGRScrimView
+- (void)setHidden:(BOOL)hidden {
+    %orig(hidden || isPageScrim((UIView *)self));
+}
+
+- (void)didMoveToSuperview {
+    %orig;
+    UIView *view = (UIView *)self;
+    if (view.superview && isPageScrim(view)) hideScrim(view);
+}
+
+- (void)layoutSubviews {
+    %orig;
+    UIView *view = (UIView *)self;
+    if (isPageScrim(view)) hideScrim(view);
+}
+%end
+%end
+
 %ctor {
     if (!SGRedesignedUI()) return;
     if (!SGBelowiOS26()) return;
     %init;
     SGRequireClasses(@[@"_TtC28EncoreConsumerMobile_BaseKit19HeaderNavigationBar"]);
+    Class scrim = NSClassFromString(@"_TtC19LegacyUI_ECMCoreKit12GradientView") ?: NSClassFromString(@"LegacyUI_ECMCoreKit.GradientView");
+    if (scrim) {
+        %init(SGRPageScrim, SGRScrimView = scrim);
+    } else {
+        SGLog(@"class LegacyUI_ECMCoreKit.GradientView not found, the page scrims are masked from the bar's passes only");
+    }
 }

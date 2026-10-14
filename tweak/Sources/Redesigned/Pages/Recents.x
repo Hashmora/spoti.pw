@@ -1,22 +1,23 @@
 // Recents, the listening history: the redesign's bar over the list (Pages/PageBar.m), its chips on glass, and the
-// list run under the bars.
+// list run under the bars at the bottom.
 //
-// Tree (trees/continuous/7.txt:19-41): the page is a plain view holding an Encore StackView {0, 91} 390x598 -- the
-// bar's bottom to the top of what the tab bar and the now playing bar take -- of the chips (Podcasts, Music: the
-// same Encore ChipView and PillView as Liked Songs', Kit/SGRChips.h) and the list, a UICollectionView on
-// #000000. The list stopped where the stack did, so its rows were cut off short of the bar above and the bars
-// below, leaving a black margin at either end, where every other redesigned list runs on under glass.
+// Tree (trees/continuous/8.txt): the page is a plain view holding an Encore StackView of the chips (Podcasts, Music:
+// the same Encore ChipView and PillView as Liked Songs', Kit/SGRChips.h) and the list, a UICollectionView on
+// #000000, in that order. The stack starts at the bar's bottom and stopped where the tab bar and the now playing bar
+// begin, so the last rows were cut off short of them, leaving a black margin where every other redesigned list runs
+// on under glass.
 //
-// So the stack is made as tall as the page and the list as tall as the stack, and the two margins go to the list
-// as insets: its first row starts where it did, below the chips, and the last one clears the bars. The chips are
-// moved down by the margin they stood under, by a transform, which the stack's layout never writes, and kept
-// over the rows that scroll under them. The frames are set again after every pass of the view the stack stands in
-// and of the stack, since Spotify's constraints and the stack's layout put them back at the bar's edge.
+// So the stack is made as tall as the page from where it starts, the list as tall as what is left of the stack under
+// the chips, and what the bars below took of the stack goes to the list as its bottom inset: the last row clears
+// them. The chips stay first in the stack, where Spotify put them. Bringing them to the front put them at the
+// bottom of the page, since the stack arranges its views in order (trees/continuous/8.txt), and a transform is not
+// what they need either: the list begins under them. The frames are set again after every pass of the view the
+// stack stands in and of the stack, since Spotify's constraints and the stack's layout put them back.
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
 #import "Pages.h"
 
-static char kInsetKey, kWatchedKey, kListKey;
+static char kInsetKey, kWatchedKey, kListKey, kOwnFrameKey, kTakenKey;
 
 // The page's list, found once: the one collection view as wide as the page.
 static UICollectionView *listIn(UIView *view) {
@@ -43,32 +44,35 @@ static void extendRecentsList(UIView *page, UICollectionView *list) {
     UIView *host = stack.superview;
     UIView *chips = chipsBesides(list);
     if (!host || !chips) return;
-    CGFloat top = page.safeAreaInsets.top, bottom = page.safeAreaInsets.bottom;
+    CGFloat pageHeight = host.bounds.size.height;
 
-    CGRect frame = host.bounds;
-    if (!CGRectEqualToRect(stack.frame, frame)) stack.frame = frame;
+    // What the bars below take of the page is read off the stack as Spotify's constraints leave it: whenever it is
+    // not in the frame this pass put it in. Left alone while it is, so what was read stays.
+    NSValue *own = objc_getAssociatedObject(stack, &kOwnFrameKey);
+    CGRect frame = stack.frame;
+    if (!own || !CGRectEqualToRect(own.CGRectValue, frame)) {
+        objc_setAssociatedObject(stack, &kTakenKey, @(MAX(pageHeight - CGRectGetMaxY(frame), 0)), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    CGFloat taken = [objc_getAssociatedObject(stack, &kTakenKey) doubleValue];
+
+    CGRect wanted = CGRectMake(frame.origin.x, frame.origin.y, frame.size.width, pageHeight - frame.origin.y);
+    if (!CGRectEqualToRect(stack.frame, wanted)) stack.frame = wanted;
+    objc_setAssociatedObject(stack, &kOwnFrameKey, [NSValue valueWithCGRect:stack.frame], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+
+    // The list under the chips, down to the bottom of the stack, which is the bottom of the page.
+    CGFloat under = CGRectGetMaxY(chips.frame);
+    CGRect listFrame = CGRectMake(0, under, stack.bounds.size.width, stack.bounds.size.height - under);
+    if (listFrame.size.height > 0 && !CGRectEqualToRect(list.frame, listFrame)) list.frame = listFrame;
     if (stack.clipsToBounds) stack.clipsToBounds = NO;
 
-    // The chips down by the margin they stood under, and over the list, which is as tall as the stack and whose
-    // rows scroll up beneath them. Last among the stack's views so they still take their touches.
-    CGAffineTransform down = CGAffineTransformMakeTranslation(0, top);
-    if (!CGAffineTransformEqualToTransform(chips.transform, down)) chips.transform = down;
-    if (stack.subviews.lastObject != chips) [stack bringSubviewToFront:chips];
-    CGRect listFrame = stack.bounds;
-    if (!CGRectEqualToRect(list.frame, listFrame)) list.frame = listFrame;
-    if (list.clipsToBounds) list.clipsToBounds = NO;
-
-    // The margins go to the list as insets, the first row where it was, below the chips, and no safe area of
-    // its own on top of them.
+    // The bars below go to the list as its inset, with no safe area of its own on top of it.
     if (list.contentInsetAdjustmentBehavior != UIScrollViewContentInsetAdjustmentNever) list.contentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentNever;
-    UIEdgeInsets inset = UIEdgeInsetsMake(top + chips.bounds.size.height, 0, bottom, 0);
-    if (fabs(list.contentInset.top - inset.top) < 0.5 && fabs(list.contentInset.bottom - inset.bottom) < 0.5) return;
-    BOOL atTop = !objc_getAssociatedObject(list, &kInsetKey) || list.contentOffset.y <= -list.adjustedContentInset.top + 1;
+    UIEdgeInsets inset = UIEdgeInsetsMake(0, 0, MAX(taken, page.safeAreaInsets.bottom), 0);
+    if (fabs(list.contentInset.bottom - inset.bottom) < 0.5 && fabs(list.contentInset.top) < 0.5) return;
     list.contentInset = inset;
     list.verticalScrollIndicatorInsets = inset;
-    if (atTop) list.contentOffset = CGPointMake(list.contentOffset.x, -inset.top);
     objc_setAssociatedObject(list, &kInsetKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    SGLog(@"redesign recents: list under the bars, insets %.0f and %.0f, stack %@", inset.top, inset.bottom, NSStringFromCGRect(stack.frame));
+    SGLog(@"redesign recents: list under the bars, bottom inset %.0f, stack %@", inset.bottom, NSStringFromCGRect(stack.frame));
 }
 
 static void dress(UIViewController *page) {

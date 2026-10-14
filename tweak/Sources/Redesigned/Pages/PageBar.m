@@ -11,13 +11,24 @@
 // Playlist/PlaylistBar.x gives the playlist's name its own.
 //
 // The bar and its blur are the navigation controller's, shared by every page on its stack, so each is given back
-// as the page goes (SGRUndressBarPage). What is concealed is Spotify's own controls, not replaced: the pinned ⋯
-// fires the page's own ⋯ -- the Encore button in this page's bar -- and Back pops the navigation controller.
+// as the page goes (SGRUndressBarPage) -- unless another dressed page has come on top, which UIKit announces
+// before it takes this one's leave: the bar is that page's then, and stays dressed.
+//
+// The bar is made dark while a page is dressed, and its title white: the system's appearance reached the bar, which
+// drew the title in the label color, black in light mode, on a capsule of dark glass (device, 2026-10-15,
+// trees/continuous/8.txt, 9.txt, 12.txt, 13.txt).
+//
+// What is concealed is Spotify's own controls, not replaced: the pinned ⋯ fires the page's own ⋯ -- the Encore
+// button in this page's bar, or the Share of a Listening stats list, drawn as a share glyph -- and Back pops the
+// navigation controller.
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
 #import "Pages.h"
 
-static char kMoreKey, kProxyKey, kTitleGlassKey, kTitleWatchedKey;
+static char kMoreKey, kProxyKey, kTitleGlassKey, kTitleWatchedKey, kBarStyleKey;
+
+// The pages dressed now, weakly: the bar is given back only when none is left.
+static NSHashTable<UIViewController *> *sg_dressed;
 
 // Side padding of the title inside its capsule, and the room the two corner buttons leave it: the same as the
 // playlist's name has (Playlist/PlaylistBar.x).
@@ -51,6 +62,15 @@ static UIView *moreOf(UIView *content) {
     UIView *stack = subviewNamed(content, @"_UIButtonBarStackView");
     UIView *button = stack.subviews.firstObject;
     return button.bounds.size.width > 1 ? button : nil;
+}
+
+// Whether the page's trailing control is a Share (Listening stats' Top artists and Top songs) rather than a ⋯.
+static BOOL isShare(UIView *control) {
+    __block BOOL share = [NSStringFromClass(control.class) containsString:@"ShareButton"];
+    SGForEachView(control, ^(UIView *v) {
+        if ([v.accessibilityIdentifier hasSuffix:@"ShareButton"]) share = YES;
+    });
+    return share;
 }
 
 static void conceal(UIView *view) {
@@ -115,6 +135,9 @@ static void glassTitle(UIView *title) {
         }
     }
     if (!label.text.length) return;
+    // White, whatever the system appearance made of it: the capsule behind it is dark glass.
+    UIColor *white = SGRPrimary();
+    if (![label.textColor isEqual:white]) label.textColor = white;
     CGFloat screen = title.window ? title.window.bounds.size.width : 390;
     CGFloat room = screen - 2 * (kCorner + SGRGlassCircleSize + kGap);
     CGFloat wanted = ceil([label sizeThatFits:CGSizeMake(CGFLOAT_MAX, kTitleHeight)].width) + 2 * kTitlePadding;
@@ -152,6 +175,15 @@ void SGRDressBarPage(UIViewController *page) {
     UIView *content = contentOf(bar);
     if (!content) return;
 
+    if (!sg_dressed) sg_dressed = [NSHashTable weakObjectsHashTable];
+    [sg_dressed addObject:page];
+    if (bar.overrideUserInterfaceStyle != UIUserInterfaceStyleDark) {
+        if (!objc_getAssociatedObject(bar, &kBarStyleKey)) {
+            objc_setAssociatedObject(bar, &kBarStyleKey, @(bar.overrideUserInterfaceStyle), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        }
+        bar.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
+    }
+
     UIView *blur = blurOf(navigation);
     if (blur) {
         if (!blur.layer.mask) blur.layer.mask = [CALayer layer];
@@ -172,7 +204,15 @@ void SGRDressBarPage(UIViewController *page) {
 
     UIView *more = moreOf(content);
     conceal(more);
-    SGRPinnedMore(view, &kMoreKey, more);
+    SGRMirrorButton *pinned = SGRPinnedMore(view, &kMoreKey, more);
+    if (more && isShare(more)) {
+        static UIImage *shareGlyph;
+        if (!shareGlyph) shareGlyph = [UIImage systemImageNamed:@"square.and.arrow.up"];
+        if (pinned.fallbackGlyph != shareGlyph) {
+            pinned.fallbackGlyph = shareGlyph;
+            [pinned feedFrom:more];
+        }
+    }
 
     UIView *title = subviewNamed(content, @"_UINavigationBarTitleControl");
     if (title) {
@@ -182,9 +222,17 @@ void SGRDressBarPage(UIViewController *page) {
 }
 
 void SGRUndressBarPage(UIViewController *page) {
+    [sg_dressed removeObject:page];
     UINavigationController *navigation = page.navigationController;
     if (!navigation) return;
+    // A page pushed over this one dressed the bar before this one went: it is that page's now.
+    if (sg_dressed.count) return;
     UINavigationBar *bar = navigation.navigationBar;
+    NSNumber *style = objc_getAssociatedObject(bar, &kBarStyleKey);
+    if (style) {
+        bar.overrideUserInterfaceStyle = (UIUserInterfaceStyle)style.integerValue;
+        objc_setAssociatedObject(bar, &kBarStyleKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
     UIView *content = contentOf(bar);
     reveal(subviewNamed(content, @"_UIButtonBarButton"));
     reveal(moreOf(content));
