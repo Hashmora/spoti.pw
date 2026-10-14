@@ -252,6 +252,86 @@ static void sortChrome(UIViewController *controller) {
 %end
 %end
 
+#pragma mark - the podcast speed popup
+
+// PodcastPlaybackSpeed_UIImpl.PlaybackSpeedView {0, 529} 390x315 #1F1F1F r=16 in a UITransitionView of a
+// BottomSheetPresentationController's own (trees/continuous/22.txt). Beside it, not in it, sits a 28pt strip
+// with the grabber and Spotify's Done button; Done goes (alpha, since a hidden Encore view can crash its
+// stack), the swipe and the dimmed area close the popup. The round speed buttons are glass circles.
+static char kDoneKey;
+
+static void hideDone(UIView *sheet) {
+    UIView *host = sheet.superview;
+    for (UIView *strip in host.subviews) {
+        if (strip == sheet || object_getClass(strip) != UIView.class) continue;
+        for (UIView *sub in strip.subviews) {
+            if (![sub.accessibilityLabel isEqualToString:@"Done"]) continue;
+            if (sub.alpha != 0) sub.alpha = 0;
+            sub.userInteractionEnabled = NO;
+            objc_setAssociatedObject(strip, &kDoneKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        }
+    }
+}
+
+static void speedChrome(UIViewController *controller) {
+    UIView *sheet = sheetNamed(controller.viewIfLoaded, @"PlaybackSpeedView", 0);
+    if (!sheet || sheet.bounds.size.width < 1) return;
+    SGRGlassSheetView(sheet);
+    hideDone(sheet);
+}
+
+%group SGRSpeedPopup
+%hook SGRSpeedController
+- (void)viewDidLayoutSubviews {
+    %orig;
+    speedChrome((UIViewController *)self);
+}
+
+- (void)viewWillAppear:(BOOL)animated {
+    %orig;
+    speedChrome((UIViewController *)self);
+}
+
+- (void)viewDidAppear:(BOOL)animated {
+    %orig;
+    __weak UIViewController *weak = (UIViewController *)self;
+    speedChrome((UIViewController *)self);
+    for (NSNumber *delay in @[@0.0, @0.25, @0.6]) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            if (weak) speedChrome(weak);
+        });
+    }
+}
+%end
+%end
+
+// The buttons: a glass circle inside each, and the translucent white Spotify fills them with taken off.
+static char kRoundGlassKey;
+
+static BOOL isFaintFill(CGColorRef color) {
+    if (!color || CGColorGetAlpha(color) > 0.3) return NO;
+    const CGFloat *c = CGColorGetComponents(color);
+    size_t n = CGColorGetNumberOfComponents(color);
+    for (size_t i = 0; i + 1 < n; i++) if (c[i] < 0.9) return NO;
+    return n >= 2;
+}
+
+%group SGRSpeedButtons
+%hook SGRRoundButton
+- (void)setBackgroundColor:(UIColor *)color {
+    %orig(isFaintFill(color.CGColor) ? UIColor.clearColor : color);
+}
+
+- (void)layoutSubviews {
+    %orig;
+    UIView *button = (UIView *)self;
+    if (button.bounds.size.width < 1) return;
+    if (isFaintFill(button.layer.backgroundColor)) button.backgroundColor = UIColor.clearColor;
+    SGRGlassInside(button, &kRoundGlassKey, MIN(button.bounds.size.width, button.bounds.size.height));
+}
+%end
+%end
+
 #pragma mark - Save in, from the page's own controller
 
 // The page's own controller is hooked as well as the sheet's: it is the first thing that knows the content is
@@ -299,6 +379,14 @@ static void sortChrome(UIViewController *controller) {
     } else {
         SGLog(@"class SPTSortingFilteringPickerViewController not found, the library's Sort by keeps Spotify's grey");
     }
+    Class speed = swiftClass(@"PodcastPlaybackSpeed_UIImpl", @"PlaybackSpeedViewController");
+    if (speed) {
+        %init(SGRSpeedPopup, SGRSpeedController = speed);
+    } else {
+        SGLog(@"class PodcastPlaybackSpeed_UIImpl.PlaybackSpeedViewController not found, the podcast speed popup keeps Spotify's grey");
+    }
+    Class round = NSClassFromString(@"_TtCO27PodcastPlaybackSpeed_ECMKit26PodcastDialogPlaybackSpeed11RoundButton");
+    if (round) %init(SGRSpeedButtons, SGRRoundButton = round);
     Class share = swiftClass(@"Share_MenuImpl", @"ShareMenuViewControllerV2");
     if (share) {
         %init(SGRSharePopup, SGRShareMenu = share);

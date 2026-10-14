@@ -1501,7 +1501,7 @@ typedef struct {
 // Genius is asked once the song's lines are in; lines that change under it are matched again.
 - (void)askMeanings {
     _meanings = nil;
-    if (_sample) return;
+    if (_sample || [_track hasPrefix:@"episode:"]) return;   // a transcript has no Genius page
     NSUInteger asked = ++_meaningsAsked;
     NSArray<SGKaraokeLine *> *lines = _lines;
     __weak SGRKaraokeView *weakSelf = self;
@@ -2321,7 +2321,7 @@ static BOOL anyUntranslated(NSArray<SGKaraokeLine *> *lines) {
 }
 
 - (void)tick {
-    NSString *track = _sample ? @"sample" : SGKaraokePlayingTrack();
+    NSString *track = _sample ? @"sample" : SGKaraokePlayingLyricsKey();
     if (!(track == _track || [track isEqualToString:_track])) {
         SGLog(@"karaoke: page shows track %@, lyrics %@", track, [self linesFor:track] ? @"captured" : @"not captured yet");
         _track = track;
