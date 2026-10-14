@@ -77,6 +77,16 @@ static BOOL isLibraryHeader(UIView *view) {
             if (paintedChip && (isNeutralTint(color) || (dressedChip && SGRIsSheetSurface(color)))) color = NULL;
         }
     }
+    // A pill of the Add to playlist sheet (SGRSheetPills.x): its grey goes, and the pill's glass is told once the
+    // paint is in, since selecting a pill repaints it and lays nothing out. The dressed mark is one lookup.
+    UIView *paintedPill = nil;
+    if (legacyLook && color && SGRSheetPillsLive()) {
+        UIView *pill = (UIView *)self.delegate;
+        if ([pill isKindOfClass:UIView.class] && pill.layer == self && SGRIsSheetPill(pill)) {
+            paintedPill = pill;
+            if (SGRIsPillGrey(color)) color = NULL;
+        }
+    }
     if (color && (sgr_nowPlayingRoot || sgr_lyricsPageRoot || sgr_playlistRoot || sgr_albumRoot || sgr_artistRoot || sgr_sheetChromeRoot)) {
         UIView *view = (UIView *)self.delegate;
         if ([view isKindOfClass:UIView.class] && view.layer == self && !SGKeepsColor(view)) {
@@ -106,6 +116,7 @@ static BOOL isLibraryHeader(UIView *view) {
         }
     }
     %orig(color);
+    if (paintedPill) dispatch_async(dispatch_get_main_queue(), ^{ SGRSheetPillPainted(paintedPill); });
     if (paintedChip) dispatch_async(dispatch_get_main_queue(), ^{
         if (dressedChip) SGRDressedChipPainted(paintedChip);
         else SGRLibraryChipPainted(paintedChip);

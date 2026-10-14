@@ -6,13 +6,15 @@
 //   Add to queue                       AssistedCuration_PageImpl / AssistedCuration_RecommendationsImpl
 //   Sort by (a playlist)               SPTSortingFilteringPickerViewController
 //   Filter and sort (Your Episodes)    FilterAndSort_PresentingImpl
+//   Filter and sort (See all episodes) ShowPage_SortAndFilterImpl.SortAndFilterBottomSheetViewController
 //   Song credits                       TrackCredits_CreditsPageImpl.CreditsViewController
 //   Save in                            PlaylistCuration_AddToPlaylistImpl.ATPContainerViewController
 //   Download using mobile data         Offline_ContentOffliningUIImpl.ElementViewController<DownloadOverCellularDialogElement>
 //   Share                              Share_MenuImpl.ShareMenuViewControllerV2
 //   Listening modes                    SmartShuffle_CoreImpl.PlayModePickerViewController
 //   Report a problem (a transcript)    Transcript_ReadAlongImpl.ReportReadAlongViewController
-//   Rate show (a podcast's Rate chip)  Ratings_CommonImpl.RatingsAndReviewsRatePodcastViewController
+//   Rate show (a podcast's Rate chip)  Ratings_CommonImpl.RatingsAndReviewsRatePodcastViewController, inside the
+//                                      page loader (Tome_PageLoaderViewImpl.SPTMusicClientPageLoaderView)
 //
 // The first seven are the same Navigation sheet (NavigationUI_SheetImpl.ContainerViewController, id=sheet-view),
 // each holding its own controller. That class is Swift and generic for SwiftUI pages, so a sheet is recognised by
@@ -43,6 +45,7 @@ static NSArray<NSString *> *contentMarkers(void) {
              @"AssistedCuration_",
              @"SPTSortingFilteringPickerViewController",
              @"FilterAndSort_PresentingImpl",
+             @"ShowPage_SortAndFilterImpl",
              @"TrackCredits_CreditsPageImpl",
              @"PlaylistCuration_AddToPlaylistImpl",
              @"Offline_ContentOffliningUIImpl"];
@@ -398,6 +401,55 @@ static void passes(UIViewController *controller, void (*chrome)(UIViewController
 %end
 %end
 
+// The Rate show page is not in the sheet from the start: the page sheet opens on Tome_PageLoaderViewImpl's
+// SPTMusicClientPageLoaderView with its spinner (SpinnerLoadingView) and the Rate controller is added once the page has
+// loaded (23.txt:1691-1695, 1801-1805). Until then the loader's view, which is the pane, is Spotify's plain #121212,
+// and rateChrome above only ran with the Rate controller: the sheet came up black for a beat and turned to glass
+// when the page arrived. Save in has the same wait and solves it the same way (chrome() above, loadingIn): the pane
+// goes in while the page is loading. A page sheet whose loader holds anything but the spinner and the Rate page is
+// left as it is.
+static BOOL isPageSheet(UIViewController *controller) {
+    UIPresentationController *presentation = controller.navigationController.presentationController ?: controller.presentationController;
+    Class pageSheet = NSClassFromString(@"_UIPageSheetPresentationController");
+    return pageSheet && [presentation isKindOfClass:pageSheet];
+}
+
+// Loading, or holding the Rate page: no child of the loader but the spinner, or the one of Ratings_CommonImpl.
+static BOOL loaderIsRate(UIViewController *loader) {
+    for (UIViewController *child in loader.childViewControllers) {
+        NSString *name = NSStringFromClass(child.class);
+        if ([name containsString:@"Ratings_CommonImpl"]) return YES;
+        if (![name containsString:@"SpinnerLoadingView"]) return NO;
+    }
+    return YES;
+}
+
+static void loaderChrome(UIViewController *loader) {
+    UIView *pane = loader.viewIfLoaded;
+    if (!pane || pane.bounds.size.width < 300 || !isPageSheet(loader) || !loaderIsRate(loader)) return;
+    if (pane.layer.mask) pane.layer.mask = nil;
+    SGRGlassSheetView(pane);
+}
+
+%group SGRRateLoader
+%hook SGRPageLoader
+- (void)viewDidLayoutSubviews {
+    %orig;
+    loaderChrome((UIViewController *)self);
+}
+
+- (void)viewWillAppear:(BOOL)animated {
+    %orig;
+    loaderChrome((UIViewController *)self);
+}
+
+- (void)viewDidAppear:(BOOL)animated {
+    %orig;
+    passes((UIViewController *)self, loaderChrome);
+}
+%end
+%end
+
 %group SGRRatePopup
 %hook SGRRatePodcast
 - (void)viewDidLayoutSubviews {
@@ -509,6 +561,12 @@ static void glassFindBar(UIView *root) {
         %init(SGRRatePopup, SGRRatePodcast = rate);
     } else {
         SGLog(@"class Ratings_CommonImpl.RatingsAndReviewsRatePodcastViewController not found, the Rate show popup keeps Spotify's grey");
+    }
+    Class loader = swiftClass(@"Tome_PageLoaderViewImpl", @"SPTMusicClientPageLoaderView");
+    if (loader) {
+        %init(SGRRateLoader, SGRPageLoader = loader);
+    } else {
+        SGLog(@"class Tome_PageLoaderViewImpl.SPTMusicClientPageLoaderView not found, the Rate show popup is black until its page has loaded");
     }
     Class share = swiftClass(@"Share_MenuImpl", @"ShareMenuViewControllerV2");
     if (share) {
