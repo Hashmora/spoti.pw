@@ -60,7 +60,7 @@ UIImageView *SGRCreatorPicture(UIView *root) {
     UIImageView *_picture;   // the creator's, round, before the name
     __weak UIImageView *_pictureSource;
     UIImage *_titleImage;   // what the title's place is laid out for; the logo keeps its picture while it fades out
-    SGRMirrorButton *_shuffle, *_trailing;
+    SGRMirrorButton *_shuffle, *_trailing, *_leading;
     SGRPlayCapsule *_play;
     __weak UIView *_creatorLink;
 }
@@ -91,7 +91,8 @@ UIImageView *SGRCreatorPicture(UIView *root) {
     _play = [[SGRPlayCapsule alloc] initWithFrame:CGRectZero];
     _play.fillColor = UIColor.whiteColor;
     _trailing = [[SGRMirrorButton alloc] initWithFrame:CGRectZero];
-    for (UIView *button in @[_shuffle, _play, _trailing]) {
+    _leading = [[SGRMirrorButton alloc] initWithFrame:CGRectZero];
+    for (UIView *button in @[_shuffle, _play, _trailing, _leading]) {
         button.hidden = YES;
         [self addSubview:button];
     }
@@ -260,6 +261,26 @@ UIImageView *SGRCreatorPicture(UIView *root) {
     if (_trailing.source) [_trailing feedFrom:_trailing.source];
 }
 
+// Drawn only once its state is known: until then there is no glyph to draw, and an empty glass circle in the row
+// would be worse than none.
+- (void)showLeading:(UIView *)leading {
+    if (_leading.readState != self.leadingState) {
+        _leading.readState = self.leadingState;
+        _leading.stateOffSymbol = self.leadingOffSymbol;
+        _leading.stateOnSymbol = self.leadingOnSymbol;
+    }
+    BOOL on = NO, known = leading && (!self.leadingState || self.leadingState(&on));
+    if (known) [_leading feedFrom:leading];
+    if (_leading.hidden == known) {
+        _leading.hidden = !known;
+        [self setNeedsLayout];
+    }
+}
+
+- (void)leadingStateChanged {
+    if (_leading.source) [self showLeading:_leading.source];
+}
+
 - (CGFloat)contentHeightForWidth:(CGFloat)width {
     CGFloat text = MAX(0, width - 2 * kSide), height = 0;
     UILabel *previous = nil;
@@ -316,11 +337,14 @@ UIImageView *SGRCreatorPicture(UIView *root) {
     // are there or not.
     CGFloat side = SGRActionHeight;
     // As wide as its word, short of pushing the other two off the page.
-    CGFloat playWidth = MIN(MAX(kPlayWidth, [_play sgr_width]), width - 2 * (kSide + side + kRowSpacing));
+    // The leading control hangs off the shuffle's side, so the room on both sides is kept equal for Play.
+    CGFloat extra = _leading.hidden ? 0 : side + kRowSpacing;
+    CGFloat playWidth = MIN(MAX(kPlayWidth, [_play sgr_width]), width - 2 * (kSide + side + kRowSpacing + extra));
     CGRect play = CGRectMake(round((width - playWidth) / 2), y, playWidth, side);
     _play.frame = play;
     _shuffle.frame = CGRectMake(CGRectGetMinX(play) - kRowSpacing - side, y, side, side);
     _trailing.frame = CGRectMake(CGRectGetMaxX(play) + kRowSpacing, y, side, side);
+    _leading.frame = CGRectMake(CGRectGetMinX(_shuffle.frame) - kRowSpacing - side, y, side, side);
     y += side;
 
     if (!_about.hidden) {

@@ -31,6 +31,7 @@
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
 #import "Playlist.h"
+#import "Redesigned/Artist/Artist.h"
 #import <objc/message.h>
 
 // How much of the cover's height the dissolve into the field covers, and the scrim over the top of it that
@@ -41,7 +42,7 @@ static const CGFloat kDissolve = 0.46, kTopScrim = 140, kTopScrimAlpha = 0.28;
 static const CGFloat kMinHero = 120, kMinCover = 80;
 
 static char kCoverKey, kMetaKey, kPlayKey, kLayoutKey, kToolbarKey, kScrimKey, kBarScrimKey;
-static char kShuffleKey, kAddKey, kDownloadKey, kPlainDownloadKey, kInfoKey, kBlockHeightKey, kBlockWatchedKey;
+static char kShuffleKey, kAddKey, kDownloadKey, kPlainDownloadKey, kFollowKey, kInfoKey, kBlockHeightKey, kBlockWatchedKey;
 static char kHeroKey, kHeroHeightKey, kRestPlaneKey, kRowKey, kRowWatchedKey, kMoreKey, kCreatorKey, kPinnedMoreKey, kSortKey;
 
 #pragma mark - finding things
@@ -327,6 +328,28 @@ static BOOL showsDownload(UIView *save, UIView *download) {
     return (SGRReadAddTo(save, &added) && added) || (SGRReadDownload(download, &state, NULL) && state != SGRDownloadNone);
 }
 
+// The header of the songs the user liked by one artist: the playlist page's kit with no playlist behind it.
+static BOOL isCollectionArtist(UIView *root) {
+    return [NSStringFromClass(SGRPlaylistHeaderOf(root).class) hasSuffix:@"CollectionArtistHeaderViewController"];
+}
+
+// This page's download button is not the Granular one SGRReadDownload reads, so what it is made of is logged once, for
+// the state to be found on the device: the objects its actions go to and the views it draws with.
+static void logDownloadOnce(UIView *download, UIView *info) {
+    static BOOL logged;
+    if (logged || !download || !info.window) return;
+    logged = YES;
+    NSMutableArray<NSString *> *targets = [NSMutableArray array], *views = [NSMutableArray array];
+    if ([download isKindOfClass:UIControl.class]) {
+        for (id target in ((UIControl *)download).allTargets) [targets addObject:NSStringFromClass(object_getClass(target))];
+    }
+    SGForEachView(download, ^(UIView *v) {
+        [views addObject:[NSString stringWithFormat:@"%@(%@)", NSStringFromClass(v.class), v.accessibilityIdentifier ?: @"-"]];
+    });
+    SGLog(@"redesign collection artist: download %@ a11y \"%@\"; targets %@; views %@", download.accessibilityIdentifier,
+          download.accessibilityLabel, targets, views);
+}
+
 // What the playlist's header shows: the name and the description from the page's model, the creator and the
 // length from Spotify's concealed labels, and on Play's right save for someone else's playlist (download once
 // it is saved, showsDownload), download for one's own and for Liked Songs, which Spotify reports as neither
@@ -348,6 +371,12 @@ static void showPlaylist(SGRHeaderInfo *info, UIView *block, UIView *root, id mo
      trailingFallback:[UIImage systemImageNamed:save ? @"plus" : @"arrow.down"] playColor:SGRPlaylistFieldColor(info)];
     // Only what the button draws goes: a concealed layer still sends the actions the capsule fires.
     conceal(play);
+
+    // The songs liked by one artist have Follow in their row as well, beside shuffle: Spotify's own button, drawn
+    // from the collection's state and fired.
+    BOOL artistPage = isCollectionArtist(root);
+    [info showLeading:artistPage ? SGRFindByIdentifier(block, @"Components.UI.FollowButton", &kFollowKey) : nil];
+    if (artistPage) logDownloadOnce(download, info);
 
     // Whoever made the playlist, opened from the line that names them. Spotify's own button carries the
     // facepile and the name and takes the tap to a profile -- or, for a playlist several people are on, to
@@ -397,6 +426,17 @@ static SGRHeaderInfo *applyInfo(UIView *block, UIView *headerRoot, UIViewControl
     SGRHeaderInfo *info = objc_getAssociatedObject(headerRoot, &kInfoKey);
     if (!info) {
         info = [[SGRHeaderInfo alloc] initWithFrame:CGRectZero];
+        if (isCollectionArtist(headerRoot)) {
+            // Follow's only state is its title in the app's language, so the glyph takes it from the collection
+            // (Artist/ArtistFollow.x), as the artist page's does.
+            __weak UIView *weakPage = SGRPlaylistPageOf(headerRoot);
+            __weak SGRHeaderInfo *weakInfo = info;
+            info.leadingState = ^BOOL(BOOL *on) {
+                return SGRArtistFollowing(weakPage, nil, on, ^{ [weakInfo leadingStateChanged]; });
+            };
+            info.leadingOffSymbol = @"person.badge.plus";
+            info.leadingOnSymbol = @"person.fill.checkmark";
+        }
         objc_setAssociatedObject(headerRoot, &kInfoKey, info, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
     if (info.superview != block) {

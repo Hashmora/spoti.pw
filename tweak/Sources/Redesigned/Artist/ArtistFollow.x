@@ -148,13 +148,30 @@ static id currentProvider(void) {
 
 static char kWatchKey;
 
+// The artist a page URI names after an "artist" component, as spotify:artist:<id>; nil when it names none.
+static NSURL *artistInside(NSURL *uri) {
+    NSArray<NSString *> *parts = [uri.absoluteString componentsSeparatedByString:@":"];
+    NSCharacterSet *other = [NSCharacterSet alphanumericCharacterSet].invertedSet;
+    for (NSUInteger i = 0; i + 1 < parts.count; i++) {
+        NSString *identifier = parts[i + 1];
+        if (![parts[i] isEqualToString:@"artist"] || identifier.length != 22
+            || [identifier rangeOfCharacterFromSet:other].location != NSNotFound) continue;
+        return [NSURL URLWithString:[@"spotify:artist:" stringByAppendingString:identifier]];
+    }
+    return nil;
+}
+
 // The artist the page is for. The artist page's controllers carry no URI, but the header's ⋯ does:
 // Components.UI.ContextMenuButton-<artist id>.
 static NSURL *artistURI(UIView *page, NSString *moreIdentifier) {
     for (UIResponder *responder = page; responder; responder = responder.nextResponder) {
         if (![responder isKindOfClass:UIViewController.class] || ![responder respondsToSelector:@selector(spt_pageURI)]) continue;
         id uri = [(id)responder performSelector:@selector(spt_pageURI)];
-        if ([uri isKindOfClass:NSURL.class] && [[uri absoluteString] hasPrefix:@"spotify:artist:"]) return uri;
+        if (![uri isKindOfClass:NSURL.class]) continue;
+        if ([[uri absoluteString] hasPrefix:@"spotify:artist:"]) return uri;
+        // The page of the songs liked by one artist names the artist inside its own URI.
+        NSURL *inner = artistInside(uri);
+        if (inner) return inner;
     }
     NSString *prefix = @"Components.UI.ContextMenuButton-";
     if (![moreIdentifier hasPrefix:prefix]) return nil;
@@ -198,7 +215,13 @@ BOOL SGRArtistFollowing(UIView *page, NSString *moreIdentifier, BOOL *following,
             static __weak UIView *loggedPage;
             if (loggedPage != page) {
                 loggedPage = page;
-                SGLog(@"redesign artist: follow has no artist URI, more is %@", moreIdentifier);
+                NSMutableArray *uris = [NSMutableArray array];
+                for (UIResponder *r = page; r; r = r.nextResponder) {
+                    if ([r isKindOfClass:UIViewController.class] && [r respondsToSelector:@selector(spt_pageURI)]) {
+                        [uris addObject:[[(id)r performSelector:@selector(spt_pageURI)] description] ?: @"nil"];
+                    }
+                }
+                SGLog(@"redesign artist: follow has no artist URI, more is %@, page URIs %@", moreIdentifier, uris);
             }
             return NO;
         }

@@ -600,8 +600,10 @@ Redesigned:
                   are put on that menu's own sheet instead, above Spotify's rows, and fire Spotify's own buttons.
                   The page of the songs the user liked by one artist (CollectionArtist) is Liked Songs' header kit
                   with no cover and goes through the same files: the neutral field, the wash and the bar's scrim
-                  gone, the one row of shuffle, Play and download, and its rows' paint taken off. Its download
-                  button has no state Spotify reports, so it draws the arrow only.
+                  gone, the one row of shuffle, Play and download with Follow leading beside shuffle (drawn from the
+                  collection's state once the artist is known, Artist/ArtistFollow.x), and its rows as the
+                  playlist's are. Its download button is not the Granular one the Kit reads, so it draws the arrow
+                  only until its state is found on the device (the log says what it is made of).
                   Laid out on the Mac against harness/playlist/
     Album/        the album page laid out the same way, on the page the Creative Work Platform builds rather than the
                   playlist's, so it shares nothing with Playlist/ but the Kit: the cover full bleed dissolving into the
