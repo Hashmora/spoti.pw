@@ -115,6 +115,8 @@ static UIView *glassInside(UIView *control, const void *key, CGSize size, BOOL c
         SGShapeGlass(shape, MIN(size.width, size.height) / 2, capsule);
     }
     keepFilm(shape, prominent, mode);
+    // Every glass inside a control answers a press below iOS 26, as UIGlassEffect.isInteractive does on it.
+    if (mode == SGRGlassModeLegacy) SGGlassInteractive(control, shape);
     CGPoint middle = CGPointMake(CGRectGetMidX(control.bounds), CGRectGetMidY(control.bounds));
     if (!CGPointEqualToPoint(shape.center, middle)) shape.center = middle;
     return shape;
@@ -146,7 +148,9 @@ UIView *SGRGlassFlatBox(UIView *box, const void *key) {
     if (box.backgroundColor != UIColor.clearColor) box.backgroundColor = UIColor.clearColor;
     if (box.layer.cornerRadius != size.height / 2) box.layer.cornerRadius = size.height / 2;
     if (box.layer.cornerCurve != kCACornerCurveContinuous) box.layer.cornerCurve = kCACornerCurveContinuous;
-    if (!box.layer.masksToBounds) box.layer.masksToBounds = YES;
+    // Not clipped below iOS 26 with the legacy glass: its press grows past the box, and the pane has its own corners.
+    BOOL grows = SGUseLegacyGlass();
+    if (box.layer.masksToBounds != !grows) box.layer.masksToBounds = !grows;
     return SGRGlassCapsuleInside(box, key, size, NO);
 }
 

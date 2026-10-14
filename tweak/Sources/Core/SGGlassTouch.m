@@ -7,7 +7,7 @@ static char kRecognizerKey;    // on a host: its SGGlassTouchRecognizer
 
 #pragma mark - the stand-in
 
-static const CGFloat kGrow = 20, kMaxShift = 24, kLightSize = 300, kLightAlpha = 0.1;
+static const CGFloat kGrow = 15, kMaxGrowScale = 1.08, kMaxShift = 12, kLightSize = 300, kLightAlpha = 0.1;
 static const CFTimeInterval kLightIn = 0.12, kLightOut = 0.22;
 static NSString *const kTransformKey = @"sg.glasstouch";
 
@@ -20,6 +20,8 @@ static CGFloat SGSmooth(CGFloat t) { return t * t * (3 - 2 * t); }
 
 @interface SGGlassTouchRecognizer : UIGestureRecognizer <UIGestureRecognizerDelegate>
 @property (nonatomic, weak) UIView *pane;
+// The view that moves, when it is not the one that takes the touches (the player's mod button over the ⋯).
+@property (nonatomic, weak) UIView *target;
 @end
 
 @implementation SGGlassTouchRecognizer {
@@ -42,6 +44,8 @@ static CGFloat SGSmooth(CGFloat t) { return t * t * (3 - 2 * t); }
 - (BOOL)canPrevent:(UIGestureRecognizer *)other { return NO; }
 - (BOOL)canBePrevented:(UIGestureRecognizer *)other { return NO; }
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)a shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)b { return YES; }
+
+- (UIView *)subject { return self.target ?: self.view; }
 
 #pragma mark light
 
@@ -94,10 +98,10 @@ static CGFloat SGSmooth(CGFloat t) { return t * t * (3 - 2 * t); }
 // The press: grown by kGrow along the longer side and, once the finger moves, stretched along the move and
 // squeezed across it, with the middle shifted toward the finger by less and less.
 - (CATransform3D)transformTracking:(BOOL)tracking {
-    UIView *host = self.view;
+    UIView *host = [self subject];
     if (!tracking || !host || UIAccessibilityIsReduceMotionEnabled()) return CATransform3DIdentity;
     CGFloat w = MAX(1, host.bounds.size.width), h = MAX(1, host.bounds.size.height), aspect = w / h;
-    CGFloat base = 1 + kGrow / (w < h ? h : w);
+    CGFloat base = MIN(1 + kGrow / (w < h ? h : w), kMaxGrowScale);
     CGFloat dx = _shift.x / aspect, length = hypot(dx, _shift.y);
     if (length == 0) return CATransform3DMakeScale(base, base, 1);
     CGFloat nx = dx / length, ny = _shift.y / length;
@@ -114,7 +118,7 @@ static CGFloat SGSmooth(CGFloat t) { return t * t * (3 - 2 * t); }
 }
 
 - (void)applyTracking:(BOOL)tracking springy:(BOOL)springy {
-    UIView *host = self.view;
+    UIView *host = [self subject];
     if (!host) return;
     CALayer *layer = host.layer;
     CATransform3D target = [self transformTracking:tracking];
@@ -147,7 +151,7 @@ static CGFloat SGSmooth(CGFloat t) { return t * t * (3 - 2 * t); }
 }
 
 - (void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
-    UIView *host = self.view;
+    UIView *host = [self subject];
     if (_touch || !host) return;
     _touch = touches.anyObject;
     _start = [_touch locationInView:host];
@@ -157,7 +161,7 @@ static CGFloat SGSmooth(CGFloat t) { return t * t * (3 - 2 * t); }
 }
 
 - (void)touchesMoved:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
-    UIView *host = self.view;
+    UIView *host = [self subject];
     if (!_touch || !host || ![touches containsObject:_touch]) return;
     CGPoint point = [_touch locationInView:host];
     _shift = CGPointMake(point.x - _start.x, point.y - _start.y);
@@ -180,14 +184,19 @@ static CGFloat SGSmooth(CGFloat t) { return t * t * (3 - 2 * t); }
 #pragma mark - the one entry
 
 void SGGlassInteractive(UIView *host, UIView *pane) {
-    if (!host || !pane) return;
+    SGGlassInteractiveVia(host, host, pane);
+}
+
+void SGGlassInteractiveVia(UIView *touched, UIView *host, UIView *pane) {
+    if (!touched || !host || !pane) return;
     // Not on iOS 26 or later (the system's glass), and not on a plain blur.
     if (!SGUseLegacyGlass()) return;
-    SGGlassTouchRecognizer *recognizer = objc_getAssociatedObject(host, &kRecognizerKey);
+    SGGlassTouchRecognizer *recognizer = objc_getAssociatedObject(touched, &kRecognizerKey);
     if (!recognizer) {
         recognizer = [SGGlassTouchRecognizer new];
-        objc_setAssociatedObject(host, &kRecognizerKey, recognizer, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        [host addGestureRecognizer:recognizer];
+        objc_setAssociatedObject(touched, &kRecognizerKey, recognizer, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        [touched addGestureRecognizer:recognizer];
     }
     recognizer.pane = pane;
+    recognizer.target = host == touched ? nil : host;
 }

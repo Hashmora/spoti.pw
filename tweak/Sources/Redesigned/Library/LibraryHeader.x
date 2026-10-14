@@ -410,7 +410,7 @@ static void layoutRoot(UIView *page) {
     if (SGBelowiOS26()) {
         for (UIView *control in trailing) {
             if (isFace(control)) continue;
-            SGRGlassInside(control, &kRoundGlassKey, 44);
+            SGGlassInteractive(control, SGRGlassInside(control, &kRoundGlassKey, 44));
         }
     }
 
