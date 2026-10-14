@@ -4,7 +4,8 @@
 //   Invite friends to your Jam         Jam_InvitationFlowImpl.ShareOptionsViewController
 //   Jam settings (Guest controls)      a SwiftUI hosting controller of Jam_ParticipantSettingsPageImpl
 //   Add to queue                       AssistedCuration_PageImpl / AssistedCuration_RecommendationsImpl
-//   Sort by (a playlist, the library)  SPTSortingFilteringPickerViewController
+//   Sort by (a playlist)               SPTSortingFilteringPickerViewController
+//   Filter and sort (Your Episodes)    FilterAndSort_PresentingImpl
 //   Song credits                       TrackCredits_CreditsPageImpl.CreditsViewController
 //   Save in                            PlaylistCuration_AddToPlaylistImpl.ATPContainerViewController
 //   Download using mobile data         Offline_ContentOffliningUIImpl.ElementViewController<DownloadOverCellularDialogElement>
@@ -15,6 +16,9 @@
 // each holding its own controller. That class is Swift and generic for SwiftUI pages, so a sheet is recognised by
 // part of the inner controller's name. The pane goes in from the sheet's own passes because its rows are built
 // after the first layout; SGRRepaint.x keeps Spotify's grey clear in between.
+//
+// Sort by under the library's Recents button is not a Navigation sheet either: it is a card of the picker's own
+// presentation (SPTSortingFilteringPresentationController), so it gets its pane by the card.
 //
 // Share and Listening modes are not Navigation sheets: ShareMenuSheetView is presented by UIKit with no
 // sheet-view in it, and PlayModePickerView is placed by a presentation controller of its own, so each gets
@@ -36,6 +40,7 @@ static NSArray<NSString *> *contentMarkers(void) {
              @"Jam_ParticipantSettingsPageImpl",
              @"AssistedCuration_",
              @"SPTSortingFilteringPickerViewController",
+             @"FilterAndSort_PresentingImpl",
              @"TrackCredits_CreditsPageImpl",
              @"PlaylistCuration_AddToPlaylistImpl",
              @"Offline_ContentOffliningUIImpl"];
@@ -208,6 +213,45 @@ static void pickerChrome(UIViewController *controller) {
 %end
 %end
 
+#pragma mark - the library's Sort by
+
+// The Recents button over Liked Songs opens SPTSortingFilteringPickerViewController as a card under
+// SPTSortingFilteringPresentationController (trees/continuous/2.txt): #282828 r=10 over a 0.6 scrim, the card
+// being the view the presentation puts in its container. The same controller in a playlist's Navigation
+// sheet is the sheet's to dress, above.
+static void sortChrome(UIViewController *controller) {
+    UIPresentationController *presentation = controller.presentationController;
+    if (![NSStringFromClass(presentation.class) isEqualToString:@"SPTSortingFilteringPresentationController"]) return;
+    UIView *card = presentation.presentedView;
+    if (card.bounds.size.width > 1) SGRGlassSheetView(card);
+}
+
+%group SGRSortPicker
+%hook SGRSortPickerController
+- (void)viewDidLayoutSubviews {
+    %orig;
+    sortChrome((UIViewController *)self);
+}
+
+- (void)viewWillAppear:(BOOL)animated {
+    %orig;
+    sortChrome((UIViewController *)self);
+}
+
+- (void)viewDidAppear:(BOOL)animated {
+    %orig;
+    __weak UIViewController *weak = (UIViewController *)self;
+    sortChrome((UIViewController *)self);
+    // Its rows are built after the first layout.
+    for (NSNumber *delay in @[@0.0, @0.25, @0.6]) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            if (weak) sortChrome(weak);
+        });
+    }
+}
+%end
+%end
+
 #pragma mark - Save in, from the page's own controller
 
 // The page's own controller is hooked as well as the sheet's: it is the first thing that knows the content is
@@ -248,6 +292,12 @@ static void pickerChrome(UIViewController *controller) {
         %init(SGRModePicker, SGRPlayModePicker = picker);
     } else {
         SGLog(@"class SmartShuffle_CoreImpl.PlayModePickerViewController not found, the Listening modes popup keeps Spotify's grey");
+    }
+    Class sortPicker = NSClassFromString(@"SPTSortingFilteringPickerViewController");
+    if (sortPicker) {
+        %init(SGRSortPicker, SGRSortPickerController = sortPicker);
+    } else {
+        SGLog(@"class SPTSortingFilteringPickerViewController not found, the library's Sort by keeps Spotify's grey");
     }
     Class share = swiftClass(@"Share_MenuImpl", @"ShareMenuViewControllerV2");
     if (share) {

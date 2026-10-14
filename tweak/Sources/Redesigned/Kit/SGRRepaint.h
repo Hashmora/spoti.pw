@@ -26,3 +26,9 @@ extern __weak UIView *sgr_sheetChromeRoot;
 // part: a library filter chip's fill was just painted (selected, deselected, pressed), so its glass is brought
 // in line with the paint -- shown over a clear fill, hidden under a selected colour -- without a layout pass.
 void SGRLibraryChipPainted(UIView *chip);
+
+// Defined in Redesigned/Playlist/PlaylistChips.x, declared here for the same reason: whether `view` is the pill of
+// a chip on the playlist page that is on screen, and its fill was just painted, so the chip's glass is brought in
+// line with the paint.
+BOOL SGRPlaylistIsChipPill(UIView *view);
+void SGRPlaylistChipPainted(UIView *chip);

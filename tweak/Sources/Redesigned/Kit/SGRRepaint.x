@@ -54,11 +54,18 @@ static BOOL isLibraryHeader(UIView *view) {
     // in), because selecting and deselecting a chip repaints the fill and lays nothing out, so the glass kept
     // whatever state the last layout gave it (hidden under a selected colour that was gone again).
     UIView *paintedChip = nil;
+    BOOL playlistChip = NO;
     if (legacyLook && color && (isNeutralTint(color) || CGColorGetAlpha(color) > 0.5)) {
         UIView *fill = (UIView *)self.delegate;
-        if ([fill isKindOfClass:UIView.class] && fill.layer == self && isChipFill(fill)) {
-            paintedChip = fill.superview;
-            if (isNeutralTint(color)) color = NULL;
+        if ([fill isKindOfClass:UIView.class] && fill.layer == self) {
+            if (isChipFill(fill)) {
+                paintedChip = fill.superview;
+            } else if (sgr_playlistRoot && SGRPlaylistIsChipPill(fill)) {
+                // The same for the pill of a chip over a playlist's tracks (Playlist/PlaylistChips.x).
+                paintedChip = fill.superview;
+                playlistChip = YES;
+            }
+            if (paintedChip && isNeutralTint(color)) color = NULL;
         }
     }
     if (color && (sgr_nowPlayingRoot || sgr_lyricsPageRoot || sgr_playlistRoot || sgr_albumRoot || sgr_artistRoot || sgr_sheetChromeRoot)) {
@@ -90,7 +97,10 @@ static BOOL isLibraryHeader(UIView *view) {
         }
     }
     %orig(color);
-    if (paintedChip) dispatch_async(dispatch_get_main_queue(), ^{ SGRLibraryChipPainted(paintedChip); });
+    if (paintedChip) dispatch_async(dispatch_get_main_queue(), ^{
+        if (playlistChip) SGRPlaylistChipPainted(paintedChip);
+        else SGRLibraryChipPainted(paintedChip);
+    });
 }
 %end
 
