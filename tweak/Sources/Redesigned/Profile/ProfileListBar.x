@@ -57,7 +57,7 @@ static UIView *backdropOf(UIView *bar) {
 }
 
 static void dress(UIView *bar) {
-    UIView *back = nil, *title = nil;
+    __block UIView *back = nil, *title = nil;
     SGForEachView(bar, ^(UIView *v) {
         NSString *name = NSStringFromClass(v.class);
         if (!back && [name isEqualToString:@"_UIButtonBarButton"] && subviewNamed(v, @"_UIBackButtonMaskView")) back = v;
