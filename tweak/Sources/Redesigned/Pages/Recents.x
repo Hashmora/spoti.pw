@@ -38,7 +38,7 @@ static UIView *chipsBesides(UIView *list) {
     return nil;
 }
 
-static void extend(UIView *page, UICollectionView *list) {
+static void extendRecentsList(UIView *page, UICollectionView *list) {
     UIView *stack = list.superview;
     UIView *host = stack.superview;
     UIView *chips = chipsBesides(list);
@@ -78,7 +78,7 @@ static void dress(UIViewController *page) {
     UICollectionView *list = listIn(view);
     if (!list) return;
     SGRGlassChipsIn(chipsBesides(list));
-    extend(view, list);
+    extendRecentsList(view, list);
     // Spotify's constraints set the stack back after each pass of the view it is in, and the stack sets the list
     // back after each pass of its own.
     for (UIView *watched in @[list.superview.superview ?: view, list.superview]) {
@@ -87,7 +87,7 @@ static void dress(UIViewController *page) {
         if (SGRObserveLayout(watched, ^(UIView *laidOut) {
                 UIViewController *strong = weakPage;
                 UICollectionView *found = strong ? listIn(strong.viewIfLoaded) : nil;
-                if (found) extend(strong.viewIfLoaded, found);
+                if (found) extendRecentsList(strong.viewIfLoaded, found);
             })) {
             objc_setAssociatedObject(watched, &kWatchedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         }
