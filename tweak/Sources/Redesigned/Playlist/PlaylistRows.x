@@ -107,8 +107,18 @@ static void applyRow(UIView *cell) {
 }
 %end
 
+// The rows of the songs liked by one artist are another cell (a UITableView's, Track.Row painted the base surface)
+// and keep Spotify's layout; only the paint comes off, for a reused cell too.
+%hook SPTEncoreSwipeableTableViewCell
+- (void)layoutSubviews {
+    %orig;
+    UIView *cell = (UIView *)self;
+    if (sgr_playlistRoot && SGIsInside(cell, sgr_playlistRoot)) SGRClearCellPaint(cell);
+}
+%end
+
 %ctor {
     if (!SGRedesignedUI()) return;
     %init;
-    SGRequireClasses(@[@"_TtC35ListUXPlatform_FreeTierPlaylistImpl25ElementCollectionViewCell"]);
+    SGRequireClasses(@[@"_TtC35ListUXPlatform_FreeTierPlaylistImpl25ElementCollectionViewCell", @"SPTEncoreSwipeableTableViewCell"]);
 }
