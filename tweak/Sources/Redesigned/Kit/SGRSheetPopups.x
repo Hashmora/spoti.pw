@@ -11,6 +11,8 @@
 //   Download using mobile data         Offline_ContentOffliningUIImpl.ElementViewController<DownloadOverCellularDialogElement>
 //   Share                              Share_MenuImpl.ShareMenuViewControllerV2
 //   Listening modes                    SmartShuffle_CoreImpl.PlayModePickerViewController
+//   Report a problem (a transcript)    Transcript_ReadAlongImpl.ReportReadAlongViewController
+//   Rate show (a podcast's Rate chip)  Ratings_CommonImpl.RatingsAndReviewsRatePodcastViewController
 //
 // The first seven are the same Navigation sheet (NavigationUI_SheetImpl.ContainerViewController, id=sheet-view),
 // each holding its own controller. That class is Swift and generic for SwiftUI pages, so a sheet is recognised by
@@ -332,6 +334,82 @@ static BOOL isFaintFill(CGColorRef color) {
 %end
 %end
 
+#pragma mark - Report a problem, and Rate show
+
+// Transcript_ReadAlongImpl.ReportReadAlongView (trees/continuous/24.txt:902): the card the transcript's flag opens
+// from the bottom of the screen, #1F1F1F with a layer mask of Spotify's own corners, over a 50% black dim. It is the
+// controller's own view, so it is the pane; the mask would cut the glass to Spotify's corners, so it goes.
+static void reportChrome(UIViewController *controller) {
+    UIView *sheet = controller.viewIfLoaded;
+    if (!sheet || sheet.bounds.size.width < 1) return;
+    if (sheet.layer.mask) sheet.layer.mask = nil;
+    SGRGlassSheetView(sheet);
+}
+
+// Ratings_CommonImpl's Rate show page (23.txt:1871-1906), a page sheet of its own navigation controller: the
+// controller's view sits in the page loader's view, a plain #121212 the size of the sheet, which is the pane. Its
+// footer fades to that #121212 (a gradient and a 34pt band under the Submit button), which would lay a dark bar
+// over the glass; the band goes with the strip, the gradient is concealed.
+static void rateChrome(UIViewController *controller) {
+    UIView *pane = controller.viewIfLoaded.superview;
+    if (!pane || pane.bounds.size.width < 300) return;
+    SGRGlassSheetView(pane);
+    SGForEachView(pane, ^(UIView *view) {
+        if (![NSStringFromClass(view.class) hasSuffix:@"GradientView"] || view.layer.hidden) return;
+        view.layer.hidden = YES;
+        if (!view.layer.mask) view.layer.mask = [CALayer layer];
+    });
+}
+
+// The grey comes back with the rows and the footer, after the first layout.
+static void passes(UIViewController *controller, void (*chrome)(UIViewController *)) {
+    __weak UIViewController *weak = controller;
+    chrome(controller);
+    for (NSNumber *delay in @[@0.0, @0.25, @0.6]) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            if (weak) chrome(weak);
+        });
+    }
+}
+
+%group SGRReportPopup
+%hook SGRReportReadAlong
+- (void)viewDidLayoutSubviews {
+    %orig;
+    reportChrome((UIViewController *)self);
+}
+
+- (void)viewWillAppear:(BOOL)animated {
+    %orig;
+    reportChrome((UIViewController *)self);
+}
+
+- (void)viewDidAppear:(BOOL)animated {
+    %orig;
+    passes((UIViewController *)self, reportChrome);
+}
+%end
+%end
+
+%group SGRRatePopup
+%hook SGRRatePodcast
+- (void)viewDidLayoutSubviews {
+    %orig;
+    rateChrome((UIViewController *)self);
+}
+
+- (void)viewWillAppear:(BOOL)animated {
+    %orig;
+    rateChrome((UIViewController *)self);
+}
+
+- (void)viewDidAppear:(BOOL)animated {
+    %orig;
+    passes((UIViewController *)self, rateChrome);
+}
+%end
+%end
+
 #pragma mark - Save in, from the page's own controller
 
 // The page's own controller is hooked as well as the sheet's: it is the first thing that knows the content is
@@ -387,6 +465,18 @@ static BOOL isFaintFill(CGColorRef color) {
     }
     Class round = NSClassFromString(@"_TtCO27PodcastPlaybackSpeed_ECMKit26PodcastDialogPlaybackSpeed11RoundButton");
     if (round) %init(SGRSpeedButtons, SGRRoundButton = round);
+    Class report = swiftClass(@"Transcript_ReadAlongImpl", @"ReportReadAlongViewController");
+    if (report) {
+        %init(SGRReportPopup, SGRReportReadAlong = report);
+    } else {
+        SGLog(@"class Transcript_ReadAlongImpl.ReportReadAlongViewController not found, the transcript's Report a problem popup keeps Spotify's grey");
+    }
+    Class rate = swiftClass(@"Ratings_CommonImpl", @"RatingsAndReviewsRatePodcastViewController");
+    if (rate) {
+        %init(SGRRatePopup, SGRRatePodcast = rate);
+    } else {
+        SGLog(@"class Ratings_CommonImpl.RatingsAndReviewsRatePodcastViewController not found, the Rate show popup keeps Spotify's grey");
+    }
     Class share = swiftClass(@"Share_MenuImpl", @"ShareMenuViewControllerV2");
     if (share) {
         %init(SGRSharePopup, SGRShareMenu = share);

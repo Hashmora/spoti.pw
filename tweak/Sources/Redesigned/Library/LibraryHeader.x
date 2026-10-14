@@ -47,6 +47,7 @@
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
 #import "Library.h"
+#import "Redesigned/Search/Search.h"
 
 NSString *const SGRLibraryListIdentifier = @"YourLibraryContent.collectionView";
 
@@ -244,13 +245,15 @@ static BOOL chipIsSelected(UIView *fill) {
 // A chip grows and stretches under a finger below iOS 26 (SGGlassInteractive, with the legacy glass), and the
 // views it stands in clip to their bounds: the cell, the stacks and the chips' collection, which is as tight as
 // the chips themselves. They cut the grown capsule off at its edges. Every view from the chip up to the chips'
-// row stops clipping; the row is as wide as the screen, so nothing shows that was not on screen already.
+// row stops clipping; the row is as wide as the screen, so nothing shows that was not on screen already. The
+// search results' chips (Search/SearchHeader.x) are the same views in a row of their own, and are taken the same way.
 static BOOL inLibraryChips(UIView *view);
 static void unclipChip(UIView *chip) {
     if (!SGUseLegacyGlass() || !inLibraryChips(chip)) return;
     for (UIView *v = chip.superview; v; v = v.superview) {
         if (v.clipsToBounds) v.clipsToBounds = NO;
         if ([NSStringFromClass(v.class) hasSuffix:@"YourLibraryHeaderContentFiltersView"]) break;
+        if ([v.accessibilityIdentifier isEqualToString:SGRSearchFiltersIdentifier]) break;
     }
 }
 
@@ -304,10 +307,12 @@ static BOOL isChipView(UIView *view) {
     return [NSStringFromClass(view.class) isEqualToString:@"EncoreConsumerMobile_BaseKit.FilterChipView"];
 }
 
-// Only the chips of a library header or a folder's: Home has chips of its own, with their own treatment.
+// Only the chips of a library header or a folder's, and the search results' (the one other row of these chips that is
+// glass): Home has chips of its own, with their own treatment.
 static BOOL inLibraryChips(UIView *view) {
     for (UIView *v = view; v; v = v.superview) {
         if ([NSStringFromClass(v.class) hasSuffix:@"YourLibraryHeaderContentFiltersView"]) return YES;
+        if ([v.accessibilityIdentifier isEqualToString:SGRSearchFiltersIdentifier]) return YES;
     }
     return NO;
 }

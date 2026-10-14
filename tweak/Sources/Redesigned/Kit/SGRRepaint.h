@@ -22,6 +22,11 @@ extern __weak UIView *sgr_artistRoot;
 // draws it back on its own later, and a view built after the first pass is never stripped otherwise.
 extern __weak UIView *sgr_sheetChromeRoot;
 
+// Search/SearchHeader.x, iOS < 26: the view of the search results header (Spotify's #1F1F1F backing, which the page
+// puts back on its own passes) and the grey capsule inside its field. Both are kept clear while they are set.
+extern __weak UIView *sgr_searchHeaderRoot;
+extern __weak UIView *sgr_searchFieldFill;
+
 // Defined in Redesigned/Library/LibraryHeader.x, declared here because the repaint hook is lower than the
 // part: a library filter chip's fill was just painted (selected, deselected, pressed), so its glass is brought
 // in line with the paint -- shown over a clear fill, hidden under a selected colour -- without a layout pass.

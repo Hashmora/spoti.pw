@@ -585,7 +585,12 @@ Redesigned:
     Search/       the Browse page decluttered to its category cards (an allow list of the list's cells: the watch feed
                   carousels and promos collapse, and the cards move up by the spacing they leave), the header the way Home
                   has it without the camera, and each card as Liquid Glass tinted by its own color, read off the Box's
-                  shape layer (Search.h lists its files)
+                  shape layer (Search.h lists its files). Below iOS 26 the results page's header (SearchHeader.x) loses
+                  Spotify's #1F1F1F backing, with a black plate behind the status bar and the field row, the field is a
+                  glass capsule and the filter chips are glass as the Library's are (LibraryHeader.x takes both rows)
+    Profile/      below iOS 26, the lists a profile opens (Followers, Following, playlists): UIKit's bar with the back
+                  button on a glass circle, the title on a glass capsule and Spotify's dark blur behind the bar hidden
+                  while such a page is on top (Profile.h lists its files)
     Library/      Your Library the way Home and Search have their headers: a large title at the leading edge, the avatar
                   at the trailing edge with the search and create buttons before it, the header's scrim gone, each row's
                   artwork at the Kit's radius with a circular one left round, a hairline between the rows, and the search
