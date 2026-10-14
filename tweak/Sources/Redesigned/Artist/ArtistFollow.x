@@ -6,6 +6,7 @@
 #import "Artist.h"
 #import <objc/message.h>
 #import <objc/runtime.h>
+#import <malloc/malloc.h>
 
 @protocol SGRCollectionState <NSObject>
 + (id)saved;
@@ -164,8 +165,29 @@ static NSURL *artistInside(NSURL *uri) {
     return nil;
 }
 
+// The songs liked by one artist keep the URL they were opened with in a field of their own (pageURL, a Swift URL,
+// which is the one object it wraps). Read only from a pointer that is a live allocation.
+static NSURL *artistFromPageURL(UIViewController *controller) {
+    Class cls = object_getClass(controller);
+    Ivar ivar = class_getInstanceVariable(cls, "pageURL");
+    ptrdiff_t offset = ivar ? ivar_getOffset(ivar) : 0;
+    if (offset <= 0 || (size_t)offset + sizeof(void *) > class_getInstanceSize(cls)) return nil;
+    void *raw = *(void **)((char *)(__bridge void *)controller + offset);
+    if (!raw || ((uintptr_t)raw & 7) || malloc_size(raw) == 0) return nil;
+    id value = (__bridge id)raw;
+    if (![value isKindOfClass:NSURL.class]) return nil;
+    static BOOL said;
+    if (!said) {
+        said = YES;
+        SGLog(@"redesign artist: the page's own URL is %@", [(NSURL *)value absoluteString]);
+    }
+    return artistInside(value);
+}
+
 // The artist a page's controller names through an accessor of its own, when it has one that gives an object.
 static NSURL *artistFromAccessors(UIViewController *controller) {
+    NSURL *own = artistFromPageURL(controller);
+    if (own) return own;
     for (NSString *name in @[@"artistURI", @"artistURL", @"entityURI", @"contextURI", @"uri", @"URI"]) {
         SEL selector = NSSelectorFromString(name);
         Method method = class_getInstanceMethod(object_getClass(controller), selector);

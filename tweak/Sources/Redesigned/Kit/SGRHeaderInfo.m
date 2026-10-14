@@ -337,14 +337,20 @@ UIImageView *SGRCreatorPicture(UIView *root) {
     // are there or not.
     CGFloat side = SGRActionHeight;
     // As wide as its word, short of pushing the other two off the page.
-    // The leading control hangs off the shuffle's side, so the room on both sides is kept equal for Play.
-    CGFloat extra = _leading.hidden ? 0 : side + kRowSpacing;
-    CGFloat playWidth = MIN(MAX(kPlayWidth, [_play sgr_width]), width - 2 * (kSide + side + kRowSpacing + extra));
+    CGFloat playWidth = MIN(MAX(kPlayWidth, [_play sgr_width]), width - 2 * (kSide + side + kRowSpacing));
     CGRect play = CGRectMake(round((width - playWidth) / 2), y, playWidth, side);
+    if (!_leading.hidden) {
+        // A fourth control would push Play off the middle and leave it too narrow for its word, so the row
+        // is one group, centered as a whole, with Play as wide as the page allows.
+        playWidth = MIN(MAX(kPlayWidth, [_play sgr_width]), width - 2 * kSide - 3 * (side + kRowSpacing));
+        CGFloat group = 3 * (side + kRowSpacing) + playWidth;
+        CGFloat x = round((width - group) / 2);
+        _leading.frame = CGRectMake(x, y, side, side);
+        play = CGRectMake(x + 2 * (side + kRowSpacing), y, playWidth, side);
+    }
     _play.frame = play;
     _shuffle.frame = CGRectMake(CGRectGetMinX(play) - kRowSpacing - side, y, side, side);
     _trailing.frame = CGRectMake(CGRectGetMaxX(play) + kRowSpacing, y, side, side);
-    _leading.frame = CGRectMake(CGRectGetMinX(_shuffle.frame) - kRowSpacing - side, y, side, side);
     y += side;
 
     if (!_about.hidden) {

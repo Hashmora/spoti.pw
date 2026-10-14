@@ -346,6 +346,19 @@ static void logDownloadOnce(UIView *download, UIView *info) {
     SGForEachView(download, ^(UIView *v) {
         [views addObject:[NSString stringWithFormat:@"%@(%@)", NSStringFromClass(v.class), v.accessibilityIdentifier ?: @"-"]];
     });
+    // Its state has no signal that moves the header, so it is read twice a second for a while, for a download
+    // started on this page to show in the log.
+    __weak UIView *weakDownload = download;
+    __weak UIView *weakInfo = info;
+    __block int ticks = 0;
+    [NSTimer scheduledTimerWithTimeInterval:0.5 repeats:YES block:^(NSTimer *timer) {
+        UIView *button = weakDownload;
+        if (!button || !weakInfo.window || ++ticks > 480) {
+            [timer invalidate];
+            return;
+        }
+        SGRReadDownload(button, NULL, NULL);
+    }];
     SGLog(@"redesign collection artist: download %@ a11y \"%@\"; targets %@; views %@", download.accessibilityIdentifier,
           download.accessibilityLabel, targets, views);
 }

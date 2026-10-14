@@ -77,10 +77,39 @@ void SGRLogProbeOnce(id object, NSString *label) {
     SGLog(@"redesign kit: probe %@ %@: fields %@; methods %@", label, NSStringFromClass(cls), fields, methods);
 }
 
+static NSString *hexOf(const uint8_t *bytes, size_t length) {
+    if (!bytes) return @"unreadable";
+    NSMutableString *text = [NSMutableString string];
+    for (size_t i = 0; i < length; i++) [text appendFormat:@"%02x", bytes[i]];
+    return text;
+}
+
+// The plain download button keeps its state in its owner (currentStatus) and the view it draws with
+// (currentState, currentProgress). What each holds is said whenever it changes, for a download to be followed in
+// the log: the mapping of its cases is read from that, not assumed.
+static void logPlainDownload(UIView *button, id owner) {
+    __block UIView *micro = nil;
+    SGForEachView(button, ^(UIView *v) {
+        if (!micro && [NSStringFromClass(v.class) containsString:@"StateMicroInteractionView"]) micro = v;
+    });
+    const uint8_t *progress = propertyBytes(micro, "currentProgress", 8);
+    double fraction = 0;
+    if (progress) memcpy(&fraction, progress, sizeof fraction);
+    NSString *raw = [NSString stringWithFormat:@"status %@, view state %@, progress %.3f, label \"%@\"",
+                     hexOf(propertyBytes(owner, "currentStatus", 8), 8), hexOf(propertyBytes(micro, "currentState", 16), 16),
+                     fraction, button.accessibilityLabel];
+    static NSString *last;
+    static int lines;
+    if ([raw isEqualToString:last] || lines >= 60) return;
+    last = raw;
+    lines++;
+    SGLog(@"redesign kit: download raw %@", raw);
+}
+
 BOOL SGRReadDownload(UIView *source, SGRDownloadState *state, CGFloat *progress) {
     UIView *button = source ? identifiedIn(source, kIdentifierPrefix) : nil;
-    // The songs liked by one artist have the plain button, whose identifier says nothing of the state; what it
-    // draws from is read from its owner alone, and that owner's fields are logged for the device to confirm.
+    // The songs liked by one artist have the plain button, whose identifier says nothing of the state. Its fields
+    // are known (see logPlainDownload) but not yet what their values mean, so it is drawn as the arrow until then.
     BOOL plain = NO;
     if (!button && source) {
         button = identifiedIn(source, @"Components.UI.DownloadButton");
@@ -95,8 +124,11 @@ BOOL SGRReadDownload(UIView *source, SGRDownloadState *state, CGFloat *progress)
     // 1 when there is none. The identifier says the same state in words, and is what counts when the model
     // cannot be read.
     id owner = ownerOf(button, plain ? @"DownloadButton" : @"GranularDownloadButton");
-    if (plain) SGRLogProbeOnce(owner, @"download owner");
-    const uint8_t *current = propertyBytes(owner, "currentState", 1) ?: (plain ? propertyBytes(owner, "state", 1) : NULL);
+    if (plain) {
+        logPlainDownload(button, owner);
+        return NO;
+    }
+    const uint8_t *current = propertyBytes(owner, "currentState", 1);
     const uint8_t *stored = propertyBytes(owner, "progress", 9);
     BOOL modelled = current && *current <= 5;
     static const SGRDownloadState fromModel[] = {
