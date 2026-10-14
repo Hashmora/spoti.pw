@@ -364,7 +364,9 @@ static void showPlaylist(SGRHeaderInfo *info, UIView *block, UIView *root, id mo
     UIView *shuffle = SGRFindByIdentifier(block, @"Components.UI.ShuffleButton", &kShuffleKey);
     UIView *play = SGRFindByIdentifier(root, @"header-play-button", &kPlayKey);
     UIView *save = own ? nil : SGRFindByIdentifier(block, @"Components.UI.AddToButton", &kAddKey);
-    UIView *download = SGRFindByIdentifier(block, @"DownloadButton.Granular*", &kDownloadKey);
+    // The Granular button of the playlist pages, or the plain one the songs liked by one artist have.
+    UIView *download = SGRFindByIdentifier(block, @"DownloadButton.Granular*", &kDownloadKey)
+        ?: SGRFindByIdentifier(block, @"Components.UI.DownloadButton", &kPlainDownloadKey);
     if (save && showsDownload(save, download)) save = nil;
     if (save) download = nil;
     [info showShuffle:shuffle play:play trailing:save ?: download
