@@ -627,11 +627,30 @@ static void applyPage(UIView *page) {
 }
 %end
 
+// The navigation bar's gradient is masked from the bar's own passes as well as the header's (applyWash): Spotify
+// adds it as the page scrolls, between two passes of the header.
+%hook _TtC28EncoreConsumerMobile_BaseKit19HeaderNavigationBar
+- (void)layoutSubviews {
+    %orig;
+    UIView *bar = (UIView *)self;
+    if (!SGRAlbumPageOf(bar)) return;
+    for (UIView *sub in bar.subviews) {
+        if ([NSStringFromClass(sub.class) containsString:@"GradientView"]) maskOut(sub);
+    }
+}
+
+- (void)didAddSubview:(UIView *)subview {
+    %orig;
+    if (SGRAlbumPageOf((UIView *)self) && [NSStringFromClass(subview.class) containsString:@"GradientView"]) maskOut(subview);
+}
+%end
+
 %ctor {
     if (!SGRedesignedUI()) return;
     %init;
     SGRequireClasses(@[
         @"_TtC28CreativeWorkPlatform_PageKit24CreativeWorkTemplateView",
         @"_TtC28EncoreConsumerMobile_BaseKit14PlayButtonView",
+        @"_TtC28EncoreConsumerMobile_BaseKit19HeaderNavigationBar",
     ]);
 }

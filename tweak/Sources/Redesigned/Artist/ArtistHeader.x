@@ -42,7 +42,7 @@ static const CGFloat kMinCover = 80, kMinHero = 120;
 static const CGFloat kBar = 100, kFade = 150;
 
 static char kInfoKey, kHeroKey, kHeroHeightKey, kContainerHeightKey, kRowWatchedKey;
-static char kTitleKey, kMetaKey, kShuffleKey, kPlayKey, kFollowKey, kArtworkKey, kBarKey, kMoreKey, kMoreButtonKey;
+static char kTitleKey, kMetaKey, kShuffleKey, kPlayKey, kFollowKey, kArtworkKey, kMoreKey, kMoreButtonKey;
 
 #pragma mark - Spotify's views
 
@@ -245,6 +245,11 @@ static void applyHero(UIView *container, UIView *artwork, CGFloat bottom) {
 
 static void applyHeader(UIView *header);
 
+// Drawn by nothing, whatever Spotify does to it: an empty mask, which -setHidden: and alpha never touch.
+static void maskGradient(UIView *view) {
+    if ([NSStringFromClass(view.class) containsString:@"GradientView"] && !view.layer.mask) view.layer.mask = [CALayer layer];
+}
+
 // Spotify's navigation bar, the one part of the header kept: collapsed, it is where the name is. Its gradient
 // is a flat dark band over the field, as the album's was (Album/AlbumHeader.x); the soft top edge every
 // redesigned page has keeps the name legible instead.
@@ -253,12 +258,9 @@ static UIView *keepBar(UIView *header) {
     for (UIView *sub in header.subviews) {
         if ([NSStringFromClass(sub.class) containsString:@"HeaderForegroundView"]) foreground = sub;
     }
-    if (foreground && !objc_getAssociatedObject(header, &kBarKey)) {
-        SGForEachView(foreground, ^(UIView *v) {
-            if ([NSStringFromClass(v.class) containsString:@"GradientView"] && !v.layer.mask) v.layer.mask = [CALayer layer];
-        });
-        objc_setAssociatedObject(header, &kBarKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    }
+    // On every pass: Spotify adds the bar's gradient as the page scrolls, after the first pass has looked
+    // (trees/continuous/5.txt: scrolled, the bar's GradientView had no mask).
+    if (foreground) SGForEachView(foreground, ^(UIView *v) { maskGradient(v); });
     return foreground;
 }
 
@@ -376,8 +378,27 @@ static void clearNavigationBar(UIView *header) {
 }
 %end
 
+// The bar is Spotify's, so its gradient is masked from the bar's own passes too: the header lays out only when
+// the page's header does, and a gradient added to the bar between two of those showed as a band under the name.
+%hook _TtC28EncoreConsumerMobile_BaseKit19HeaderNavigationBar
+- (void)layoutSubviews {
+    %orig;
+    UIView *bar = (UIView *)self;
+    if (!SGRArtistPageOf(bar)) return;
+    for (UIView *sub in bar.subviews) maskGradient(sub);
+}
+
+- (void)didAddSubview:(UIView *)subview {
+    %orig;
+    if (SGRArtistPageOf((UIView *)self)) maskGradient(subview);
+}
+%end
+
 %ctor {
     if (!SGRedesignedUI()) return;
     %init;
-    SGRequireClasses(@[@"_TtC35CreativeWorkPlatform_ImageHeaderKit15ImageHeaderView"]);
+    SGRequireClasses(@[
+        @"_TtC35CreativeWorkPlatform_ImageHeaderKit15ImageHeaderView",
+        @"_TtC28EncoreConsumerMobile_BaseKit19HeaderNavigationBar",
+    ]);
 }

@@ -511,18 +511,16 @@ static void concealBack(UIView *source) {
     source.accessibilityElementsHidden = YES;
 }
 
-SGRMirrorButton *SGRPinnedBack(UIView *page, UIView *searchRoot) {
-    static char kSourceKey, kButtonKey;
-    if (@available(iOS 26.0, *)) return nil;
-    if (!page) return nil;
-    UIView *source = SGRFindByIdentifier(searchRoot, @"Components.Header.UI.BackButton", &kSourceKey);
-    SGRMirrorButton *button = objc_getAssociatedObject(page, &kButtonKey);
+static char kBackButtonKey;
+
+static SGRMirrorButton *pinBack(UIView *page, UIView *source) {
+    SGRMirrorButton *button = objc_getAssociatedObject(page, &kBackButtonKey);
     if (!button) {
         button = [[SGRMirrorButton alloc] initWithFrame:CGRectZero];
         button.fallbackGlyph = [UIImage systemImageNamed:@"chevron.left"];
         button.glyphColor = SGRPrimary();
         button.accessibilityLabel = source.accessibilityLabel ?: @"Back";
-        objc_setAssociatedObject(page, &kButtonKey, button, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        objc_setAssociatedObject(page, &kBackButtonKey, button, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
     keepOnTop(page, button);
     concealBack(source);
@@ -530,4 +528,16 @@ SGRMirrorButton *SGRPinnedBack(UIView *page, UIView *searchRoot) {
     if (button.hidden != (source == nil)) button.hidden = source == nil;
     placeInCorner(page, button, YES);
     return button;
+}
+
+SGRMirrorButton *SGRPinnedBack(UIView *page, UIView *searchRoot) {
+    static char kSourceKey;
+    if (@available(iOS 26.0, *)) return nil;
+    if (!page) return nil;
+    return pinBack(page, SGRFindByIdentifier(searchRoot, @"Components.Header.UI.BackButton", &kSourceKey));
+}
+
+SGRMirrorButton *SGRPinnedBackOf(UIView *page, UIView *source) {
+    if (@available(iOS 26.0, *)) return nil;
+    return page ? pinBack(page, source) : nil;
 }

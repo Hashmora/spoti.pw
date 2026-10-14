@@ -3,6 +3,7 @@
 #import "Core/SGCore.h"
 #import "SGRRepaint.h"
 #import "SGRGlass.h"
+#import "SGRChips.h"
 
 __weak UIView *sgr_nowPlayingRoot = nil;
 NSHashTable<UIView *> *sgr_nowPlayingPainted = nil;
@@ -54,16 +55,16 @@ static BOOL isLibraryHeader(UIView *view) {
     // in), because selecting and deselecting a chip repaints the fill and lays nothing out, so the glass kept
     // whatever state the last layout gave it (hidden under a selected colour that was gone again).
     UIView *paintedChip = nil;
-    BOOL playlistChip = NO;
+    BOOL dressedChip = NO;
     if (legacyLook && color && (isNeutralTint(color) || CGColorGetAlpha(color) > 0.5)) {
         UIView *fill = (UIView *)self.delegate;
         if ([fill isKindOfClass:UIView.class] && fill.layer == self) {
             if (isChipFill(fill)) {
                 paintedChip = fill.superview;
-            } else if (sgr_playlistRoot && SGRPlaylistIsChipPill(fill)) {
-                // The same for the pill of a chip over a playlist's tracks (Playlist/PlaylistChips.x).
+            } else if (SGRIsDressedChipPill(fill)) {
+                // The pill of a chip dressed by the Kit (SGRChips.h): the genres over Liked Songs, Recents' chips.
                 paintedChip = fill.superview;
-                playlistChip = YES;
+                dressedChip = YES;
             }
             if (paintedChip && isNeutralTint(color)) color = NULL;
         }
@@ -98,7 +99,7 @@ static BOOL isLibraryHeader(UIView *view) {
     }
     %orig(color);
     if (paintedChip) dispatch_async(dispatch_get_main_queue(), ^{
-        if (playlistChip) SGRPlaylistChipPainted(paintedChip);
+        if (dressedChip) SGRDressedChipPainted(paintedChip);
         else SGRLibraryChipPainted(paintedChip);
     });
 }

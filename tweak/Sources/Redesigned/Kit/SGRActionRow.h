@@ -88,3 +88,8 @@ SGRMirrorButton *SGRPinnedMoreRecentButton(void);
 // `searchRoot` is where Spotify's back button (Components.Header.UI.BackButton) is looked for; until it is
 // found the pinned button stays hidden. Kept on `page`, and cheap to call on every pass.
 SGRMirrorButton *SGRPinnedBack(UIView *page, UIView *searchRoot);
+
+// The same for a page whose back button is not Spotify's own Components.Header.UI.BackButton but a control of a
+// UINavigationBar (Recents, Your Updates): `source` is what the button reads its glyph from and fires, concealed
+// here like the one above. Kept on `page` and cheap to call on every pass. Nil on iOS 26.
+SGRMirrorButton *SGRPinnedBackOf(UIView *page, UIView *source);

@@ -11,6 +11,7 @@
 //     SGRActionRow.h the Play capsule and the stand-in button of a page's action row
 //     SGRDownload.h  Spotify's download state, read, and the glyph drawn for it
 //     SGRHeaderInfo.h a page header's title, creator, length, row and description, the Music app's
+//     SGRChips.h     Encore's filter chips on glass (Liked Songs, Recents)
 //     SGRRestyle.h   keeping Spotify's views restyled: suppress, digits, lookups, shadows, firing
 //                    controls, taking a list cell's paint off the field
 //     SGRBridges.h   player state, now playing artwork, the player's open and close
@@ -32,6 +33,7 @@
 #import "SGRDownload.h"
 #import "SGRHeaderInfo.h"
 #import "SGRRestyle.h"
+#import "SGRChips.h"
 #import "SGRBridges.h"
 #import "SGRRepaint.h"
 #import "SGRAccent.h"
