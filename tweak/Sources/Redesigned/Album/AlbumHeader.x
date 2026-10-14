@@ -593,6 +593,9 @@ static void glassAlbumToolbar(UIView *page) {
 }
 
 static void applyPage(UIView *page) {
+    // The wash goes whether or not the header has its title yet: a podcast's page showed its dark wash and bar
+    // gradient until the header's own pass had found the title row (device, 2026-10-15, 17.txt).
+    applyWash(page);
     UIView *header = SGRFindByIdentifier(page, @"CreativeWorkPlatform.Components.UI.CreativeWorkHeader", &kHeaderKey);
     if (!header) return;
     applyHeader(header, page);
@@ -645,10 +648,29 @@ static void applyPage(UIView *page) {
 }
 %end
 
+// The wash is a HeaderView of the page holding Spotify's GradientView, and Spotify adds the gradient to it, and
+// fades it, between two passes of the page: masked as it is added and from the view's own passes.
+%hook _TtCO19LegacyUI_ECMCoreKit5Views10HeaderView
+- (void)layoutSubviews {
+    %orig;
+    UIView *header = (UIView *)self;
+    if (!SGRAlbumPageOf(header)) return;
+    for (UIView *sub in header.subviews) {
+        if ([NSStringFromClass(sub.class) containsString:@"GradientView"]) maskOut(sub);
+    }
+}
+
+- (void)didAddSubview:(UIView *)subview {
+    %orig;
+    if (SGRAlbumPageOf((UIView *)self) && [NSStringFromClass(subview.class) containsString:@"GradientView"]) maskOut(subview);
+}
+%end
+
 %ctor {
     if (!SGRedesignedUI()) return;
     %init;
     SGRequireClasses(@[
+        @"_TtCO19LegacyUI_ECMCoreKit5Views10HeaderView",
         @"_TtC28CreativeWorkPlatform_PageKit24CreativeWorkTemplateView",
         @"_TtC28EncoreConsumerMobile_BaseKit14PlayButtonView",
         @"_TtC28EncoreConsumerMobile_BaseKit19HeaderNavigationBar",

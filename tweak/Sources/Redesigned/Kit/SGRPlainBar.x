@@ -113,16 +113,34 @@ static void dress(UIViewController *page) {
         if (backing.layer.mask != sg_emptyMask) backing.layer.mask = sg_emptyMask;
     }
     UIView *bar = nav.navigationBar;
+    // The bar is the navigation controller's and may still be light: its title was black and its glass white.
+    if (bar.overrideUserInterfaceStyle != UIUserInterfaceStyleDark) bar.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
+    // The circle goes in the control that draws the chevron (_UIModernBarButton), as the profile lists have it
+    // (Profile/ProfileListBar.x): the bar button around it is 44pt wide with the glyph off its middle, so a
+    // circle in the button was off the glyph, and after a swipe back that was let go the chevron ended up
+    // under it (device, 2026-10-15, 18.txt, 19.txt). The shape stays first among the control's subviews.
     UIView *back = firstOfClass(bar, @"_UIButtonBarButton", 0);
-    if (back && back.bounds.size.width > 1) {
-        SGRGlassInside(back, &kBackKey, kCapsuleHeight);
-        own(page, back);
+    UIView *backHost = nil;
+    for (UIView *sub in back.subviews) {
+        if ([NSStringFromClass(sub.class) isEqualToString:@"_UIModernBarButton"]) backHost = sub;
+    }
+    if (backHost && backHost.bounds.size.width > 1) {
+        // A circle an earlier build put in the bar button itself is taken off.
+        [(UIView *)objc_getAssociatedObject(back, &kBackKey) removeFromSuperview];
+        objc_setAssociatedObject(back, &kBackKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        UIView *glass = SGRGlassInside(backHost, &kBackKey, kCapsuleHeight);
+        if (glass) SGRShowGlass(glass, YES);
+        own(page, backHost);
     }
     UIView *title = firstOfClass(bar, @"_UINavigationBarTitleControl", 0);
     UILabel *text = title ? labelIn(title) : nil;
     if (title && text.text.length) {
         CGFloat wanted = ceil([text sizeThatFits:CGSizeMake(CGFLOAT_MAX, kCapsuleHeight)].width) + 2 * kCapsulePadding;
-        SGRGlassCapsuleInside(title, &kTitleKey, CGSizeMake(MAX(wanted, kCapsuleHeight), kCapsuleHeight), NO);
+        for (UIView *v = title; v && ![v isKindOfClass:UINavigationBar.class]; v = v.superview) {
+            if (v.clipsToBounds) v.clipsToBounds = NO;
+        }
+        UIView *glass = SGRGlassCapsuleInside(title, &kTitleKey, CGSizeMake(MAX(wanted, kCapsuleHeight), kCapsuleHeight), NO);
+        if (glass) SGRShowGlass(glass, YES);
         own(page, title);
     }
     // Share on the right (a track or an artist opened from Listening stats): its element view is 24pt wide,
