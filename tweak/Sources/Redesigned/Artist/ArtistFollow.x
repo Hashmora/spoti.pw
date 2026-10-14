@@ -2,6 +2,7 @@
 // artist to the collection) rather than the Follow button, whose only state is its localized title.
 // The provider is the one Spotify's own code uses, kept weakly.
 #import "Core/SGCore.h"
+#import "Redesigned/Kit/SGRKit.h"
 #import "Artist.h"
 #import <objc/message.h>
 #import <objc/runtime.h>
@@ -169,7 +170,7 @@ static NSURL *artistFromAccessors(UIViewController *controller) {
         SEL selector = NSSelectorFromString(name);
         Method method = class_getInstanceMethod(object_getClass(controller), selector);
         if (!method) continue;
-        char *type = method_copyReturnTypeEncoding(method);
+        char *type = method_copyReturnType(method);
         BOOL object = type && type[0] == '@';
         free(type);
         if (!object) continue;
