@@ -1,0 +1,167 @@
+// Redesign, iOS < 26: Spotify's tooltips ("You can ask people to join the Jam on your phone", "Listening on this
+// iPhone") on glass.
+//
+// Tree (trees/continuous/12.txt:822-829, 14.txt:822-832): a Messaging_TooltipPresenterImpl.PassthroughView over the
+// now playing bar, holding a TooltipContainerView {390 wide}. In it, the arrow first: a white UIView, a 9pt square turned
+// 45 degrees (12.7pt across its frame), centred on the card's bottom edge at the x of the control it points to. Then the
+// card: a UIView #FFFFFF r=8 clips, with a SwiftUI hosting view in it, whose _UIGraphicsView is white as well and whose text
+// is drawn by CGDrawingViews (black), with the action ("Got it") drawn the same way and, in 14, a Lottie play indicator.
+//
+// The card is dressed the way the toasts are (Kit/SGRSnackbar.x): its white goes, a glass pane and the faint white film
+// stand behind the content, the corners are a capsule's (up to kMaxRadius), and the black text turns white (Kit/SGRDrawnText.h).
+// The arrow is white and would stay a white diamond on a glass card, so it is cleared and a small glass tail of the same
+// material is made in its place, on the card's edge at the arrow's x. The tail is a pane with a triangle for a mask, so
+// the film and the glass are cut to the same shape and its top lies 1pt inside the card, which leaves no seam.
+//
+// Spotify's own sizes are kept: the card is the width SwiftUI laid it out for. The pass runs from the container's layout
+// and again a moment later, in case SwiftUI draws the text or paints the white back after it.
+#import "Core/SGCore.h"
+#import "Redesigned/Kit/SGRKit.h"
+#import "Redesigned/Pages/Pages.h"
+
+static const CGFloat kMaxRadius = 28;
+// The tail: how wide it is at the card's edge and how far it stands out from it, and how far it lies under the card.
+static const CGFloat kTailWidth = 18, kTailHeight = 8, kTailOverlap = 1;
+
+static char kGlassKey, kFilmKey, kTailKey, kTailGlassKey, kTailFilmKey, kTailMaskKey, kTailBelowKey;
+
+// The card is the container's biggest subview and the arrow its small one; what the mod adds (the tail) is neither.
+static void partsOf(UIView *container, UIView **card, UIView **arrow) {
+    *card = nil;
+    *arrow = nil;
+    UIView *tail = objc_getAssociatedObject(container, &kTailKey);
+    for (UIView *sub in container.subviews) {
+        if (sub == tail) continue;
+        CGSize size = sub.bounds.size;
+        if (size.width < 1 || size.height < 1) continue;
+        if (!*card || size.width * size.height > (*card).bounds.size.width * (*card).bounds.size.height) *card = sub;
+    }
+    for (UIView *sub in container.subviews) {
+        CGSize size = sub.bounds.size;
+        if (sub == tail || sub == *card || size.width < 1 || size.height < 1) continue;
+        // The arrow's frame is the box of the turned square: 12.7pt, never more than a couple of dozen.
+        if (size.width <= 24 && size.height <= 24) *arrow = sub;
+    }
+}
+
+static void dressTail(UIView *container, UIView *card, UIView *arrow, CGFloat radius) {
+    UIView *tail = SGLazyChild(container, &kTailKey, ^UIView *{
+        UIView *view = [UIView new];
+        view.userInteractionEnabled = NO;
+        return view;
+    });
+    if (tail.superview != container) [container insertSubview:tail belowSubview:card];
+
+    // The arrow's x, kept off the card's corners; on the side of the card it was on.
+    BOOL below = CGRectGetMidY(arrow.frame) >= CGRectGetMidY(card.frame);
+    CGFloat minX = CGRectGetMinX(card.frame) + radius + kTailWidth / 2;
+    CGFloat maxX = CGRectGetMaxX(card.frame) - radius - kTailWidth / 2;
+    CGFloat midX = maxX >= minX ? MAX(minX, MIN(maxX, CGRectGetMidX(arrow.frame))) : CGRectGetMidX(card.frame);
+    CGFloat y = below ? CGRectGetMaxY(card.frame) - kTailOverlap : CGRectGetMinY(card.frame) - kTailHeight;
+    CGRect frame = CGRectMake(round(midX - kTailWidth / 2), round(y), kTailWidth, kTailHeight + kTailOverlap);
+    if (!CGRectEqualToRect(tail.frame, frame)) tail.frame = frame;
+
+    UIView *glass = SGGlassFor(tail, &kTailGlassKey);
+    if (glass.overrideUserInterfaceStyle != UIUserInterfaceStyleDark) glass.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
+    if (!CGRectEqualToRect(glass.frame, tail.bounds)) glass.frame = tail.bounds;
+    SGShapeGlass(glass, 0, NO);
+    SGRGlassFilm(tail, &kTailFilmKey, glass, 0);
+
+    // The triangle's base is on the card's side, its tip away from it. Kept as the mask's own layer, so a pass sets the path
+    // again only when the tail's size or side has changed.
+    CAShapeLayer *mask = objc_getAssociatedObject(tail, &kTailMaskKey);
+    if (!mask) {
+        mask = [CAShapeLayer layer];
+        mask.fillColor = UIColor.whiteColor.CGColor;
+        tail.layer.mask = mask;
+        objc_setAssociatedObject(tail, &kTailMaskKey, mask, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    NSNumber *shown = objc_getAssociatedObject(tail, &kTailBelowKey);
+    if (!CGRectEqualToRect(mask.frame, tail.bounds) || !shown || shown.boolValue != below) {
+        CGSize size = tail.bounds.size;
+        UIBezierPath *path = [UIBezierPath bezierPath];
+        [path moveToPoint:CGPointMake(0, below ? 0 : size.height)];
+        [path addLineToPoint:CGPointMake(size.width, below ? 0 : size.height)];
+        [path addLineToPoint:CGPointMake(size.width / 2, below ? size.height : 0)];
+        [path closePath];
+        mask.frame = tail.bounds;
+        mask.path = path.CGPath;
+        objc_setAssociatedObject(tail, &kTailBelowKey, @(below), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+}
+
+static void dressTooltip(UIView *container) {
+    if (container.bounds.size.width < 1 || container.bounds.size.height < 1) return;
+    UIView *card = nil, *arrow = nil;
+    partsOf(container, &card, &arrow);
+    if (!card) return;
+
+    CGFloat radius = MIN(card.bounds.size.height / 2, kMaxRadius);
+    if (card.layer.backgroundColor) card.layer.backgroundColor = NULL;
+    if (card.layer.cornerRadius != radius) card.layer.cornerRadius = radius;
+    card.layer.cornerCurve = kCACornerCurveContinuous;
+    // The legacy glass has corners of its own and a press that grows past its pane: nothing to clip.
+    BOOL clip = !SGUseLegacyGlass();
+    if (card.layer.masksToBounds != clip) card.layer.masksToBounds = clip;
+
+    UIView *glass = SGGlassFor(card, &kGlassKey);
+    if (glass.overrideUserInterfaceStyle != UIUserInterfaceStyleDark) glass.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
+    glass.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    if (!CGRectEqualToRect(glass.frame, card.bounds)) glass.frame = card.bounds;
+    SGShapeGlass(glass, radius, NO);
+    UIView *film = SGRGlassFilm(card, &kFilmKey, glass, radius);
+
+    // What SwiftUI put in the card: its white goes, its text turns white. The glass and the film are the mod's.
+    for (UIView *sub in card.subviews) {
+        if (sub == glass || sub == film) continue;
+        SGRClearHostedFill(sub);
+        SGRLightenDrawnText(sub);
+    }
+
+    if (arrow) {
+        // The white diamond is only a fill; clearing it leaves it in place for whatever Spotify does with its frame.
+        if (arrow.layer.backgroundColor) arrow.layer.backgroundColor = NULL;
+        dressTail(container, card, arrow, radius);
+    }
+
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ SGLog(@"tooltip: glass over a card of %@", NSStringFromCGRect(card.bounds)); });
+}
+
+static void dressAfterSettling(UIView *container) {
+    __weak UIView *weak = container;
+    for (NSNumber *wait in @[@0.0, @0.25]) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(wait.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            UIView *shown = weak;
+            if (shown.window) dressTooltip(shown);
+        });
+    }
+}
+
+%group SGRTooltipGlass
+%hook SGRTooltipContainer
+- (void)layoutSubviews {
+    %orig;
+    dressTooltip((UIView *)self);
+}
+
+- (void)didMoveToWindow {
+    %orig;
+    UIView *container = (UIView *)self;
+    if (!container.window) return;
+    dressTooltip(container);
+    dressAfterSettling(container);
+}
+%end
+%end
+
+%ctor {
+    if (!SGRedesignedUI()) return;
+    if (!SGBelowiOS26()) return;
+    Class container = SGRPageClass(@"Messaging_TooltipPresenterImpl", @"TooltipContainerView");
+    if (container) {
+        %init(SGRTooltipGlass, SGRTooltipContainer = container);
+    } else {
+        SGLog(@"class Messaging_TooltipPresenterImpl.TooltipContainerView not found, tooltips keep Spotify's white card");
+    }
+}

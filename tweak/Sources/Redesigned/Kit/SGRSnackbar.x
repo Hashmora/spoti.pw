@@ -31,6 +31,20 @@
 // tab bar the bar moves down into the row (NowPlayingBar.x, by a transform Spotify does not know), and the toast
 // kept its height in the air above nothing. The card follows the bar by the same shift, in the animation of the tab bar.
 //
+// A multi-line label ran out of the card's right edge (trees/continuous/20.txt:1181-1188: the card 321pt wide, the
+// SPTEncoreLabel in it 281pt, the UILabel inside it still the 342pt Spotify laid it out for, so the text wrapped for 342
+// and ran 61pt past the card). Spotify does not size the inner label to the Encore label's frame, so the mod does, and
+// the label clips to its own bounds as a last line.
+//
+// Some toasts are SwiftUI, in an SPTSnackbarViewFactoryView instead of an SPTSnackbarView ("You're now logged in as ...",
+// trees/continuous/11.txt:710-714): the same 374x50 view and plain card, but its content is a hosting view whose text is
+// drawn, not a label, and which paints the white itself. That card is dressed the same, its text is turned white as
+// Kit/SGRDrawnText.h says, and it is as wide as what the hosting view drew plus an even padding.
+//
+// The shift into the minimized tab bar's row is the card's only where the toast stands over the bar. A toast raised from a
+// popup is laid out by Spotify at the bottom of the screen, with no bar under it (trees/continuous/18.txt:1834: the toast
+// at y=752 to 802, the bar at 697); the 68pt shift put the card at 820, below the screen's edge, where it was not seen.
+//
 // The toast is laid out as it comes up, so the pass runs from its layout; it runs again a moment later in case
 // Spotify paints the white back with the content.
 #import "Core/SGCore.h"
@@ -52,6 +66,9 @@ static const CGFloat kPadLeft = 20, kPadRight = 20;
 static const CGFloat kActionInset = 9;
 // The space between the label and the glass round the action.
 static const CGFloat kLabelGap = 16;
+// How far below the bar's top (where Spotify keeps it, without the shift) the toast's bottom edge may be and still
+// count as standing over the bar: Spotify puts a toast 8pt above it.
+static const CGFloat kBarClearance = 24;
 
 static char kGlassKey, kFilmKey, kActionGlassKey, kDressedKey;
 // The toast on screen, for the tab bar's minimize to move.
@@ -63,6 +80,11 @@ static UIView *cardOf(UIView *snackbar) {
         if ([sub isMemberOfClass:UIView.class]) return sub;
     }
     return nil;
+}
+
+// The content of a SwiftUI toast: the hosting view its text and action are drawn in.
+static BOOL isHostingView(UIView *view) {
+    return [NSStringFromClass(view.class) containsString:@"_UIHostingView"];
 }
 
 static BOOL isActionButton(UIView *view) {
@@ -157,6 +179,12 @@ static void layoutContent(UIView *content) {
         CGSize fit = labelSize(label, MAX(room, 1));
         CGRect frame = CGRectMake(kPadLeft, round((size.height - fit.height) / 2), fit.width, fit.height);
         if (!CGRectEqualToRect(label.frame, frame)) label.frame = frame;
+        // Spotify's Encore label keeps its UILabel at the width it was laid out for (342 of a 374pt toast), whatever
+        // frame it is given, so the text is wrapped for that width and runs out of a narrower card.
+        UILabel *text = innerLabel(label);
+        CGRect inner = CGRectMake(0, 0, fit.width, fit.height);
+        if (text && !CGRectEqualToRect(text.frame, inner)) text.frame = inner;
+        if (!label.clipsToBounds) label.clipsToBounds = YES;
     }
 }
 
@@ -166,18 +194,49 @@ static void dressAction(UIView *button) {
     SGRGlassCapsuleInside(button, &kActionGlassKey, CGSizeMake(size.width + kActionPadX * 2, kActionHeight), NO);
 }
 
-// Where the now playing bar stands is where the toast stands over it: the bar's shift into the minimized tab bar's row
-// (0 with the bar expanded) is the card's. Called inside the tab bar's animation as well, so the two move together.
+// How far the card moves with the bar: the bar's shift into the minimized tab bar's row (0 with the bar expanded), but
+// only for a toast that stands over the bar. Spotify puts one above the bar, so its bottom edge is above where the bar
+// stands unshifted (the bar's top now, less the shift). A toast laid out lower than that (the one a popup raises, at
+// the bottom of the screen with no bar under it) is not over the bar, and the shift would take it off the screen.
+static CGFloat barShiftFor(UIView *snackbar) {
+    CGFloat shift = SGRNowPlayingBarInlineShift();
+    UIWindow *window = snackbar.window;
+    if (shift == 0 || !window) return 0;
+    CGRect bar = SGRNowPlayingCardFrameIn(window, NULL);
+    if (CGRectIsNull(bar)) return shift;
+    CGRect toast = [snackbar convertRect:snackbar.bounds toView:window];
+    return CGRectGetMaxY(toast) <= CGRectGetMinY(bar) - shift + kBarClearance ? shift : 0;
+}
+
+// Where the now playing bar stands is where the toast stands over it. Called inside the tab bar's animation as well, so
+// the two move together.
 static void followNowPlayingBar(UIView *snackbar) {
     UIView *card = cardOf(snackbar);
     if (!card) return;
-    CGAffineTransform shift = CGAffineTransformMakeTranslation(0, SGRNowPlayingBarInlineShift());
+    CGAffineTransform shift = CGAffineTransformMakeTranslation(0, barShiftFor(snackbar));
     if (!CGAffineTransformEqualToTransform(card.transform, shift)) card.transform = shift;
 }
 
 void SGRSnackbarFollowNowPlayingBar(void) {
     UIView *snackbar = sg_snackbar;
     if (snackbar.window) followNowPlayingBar(snackbar);
+}
+
+// The width a SwiftUI toast needs: what its hosting view drew (the text, an action's own view), from the first one's
+// left edge to the last one's right, with the same padding on the right as SwiftUI gave on the left. A toast whose
+// content SwiftUI spreads to the full width (an action at the far end) gets the full width, as it had.
+static CGFloat hostedCardWidth(UIView *content, CGFloat maxWidth) {
+    __block CGFloat left = CGFLOAT_MAX, right = 0;
+    SGForEachView(content, ^(UIView *view) {
+        NSString *name = NSStringFromClass(view.class);
+        if (![name hasSuffix:@"CGDrawingView"] && ![name containsString:@"PlatformViewHost"]) return;
+        CGRect frame = [view convertRect:view.bounds toView:content];
+        if (frame.size.width < 1) return;
+        left = MIN(left, CGRectGetMinX(frame));
+        right = MAX(right, CGRectGetMaxX(frame));
+    });
+    if (right <= 0 || left == CGFLOAT_MAX) return maxWidth;
+    return MIN(ceil(right + MAX(left, kSideInset)), maxWidth);
 }
 
 static void dressSnackbar(UIView *snackbar) {
@@ -190,11 +249,12 @@ static void dressSnackbar(UIView *snackbar) {
     // toast with an action holds an SPTSnackbarWithActionView, the one without a SPTSimpleSnackbarContentView.
     UIView *content = nil;
     for (UIView *sub in card.subviews) {
-        if ([NSStringFromClass(sub.class) containsString:@"SnackbarWithActionView"] || [NSStringFromClass(sub.class) containsString:@"SnackbarContentView"]) content = sub;
+        if ([NSStringFromClass(sub.class) containsString:@"SnackbarWithActionView"] || [NSStringFromClass(sub.class) containsString:@"SnackbarContentView"] || isHostingView(sub)) content = sub;
     }
     sg_snackbar = snackbar;
     CGFloat maxWidth = snackbar.bounds.size.width - kSideInset * 2;
-    CGFloat width = content ? cardWidth(content, maxWidth) : maxWidth;
+    BOOL hosted = content && isHostingView(content);
+    CGFloat width = !content ? maxWidth : hosted ? hostedCardWidth(content, maxWidth) : cardWidth(content, maxWidth);
     // By bounds and centre: the card carries a transform below (the minimized tab bar), and a frame set under one is undefined.
     CGRect bounds = CGRectMake(0, 0, width, snackbar.bounds.size.height);
     CGPoint center = CGPointMake(round((snackbar.bounds.size.width - width) / 2) + width / 2, snackbar.bounds.size.height / 2);
@@ -222,7 +282,13 @@ static void dressSnackbar(UIView *snackbar) {
         if (!CGRectEqualToRect(sub.frame, card.bounds)) sub.frame = card.bounds;
         if (sub.layer.backgroundColor) sub.layer.backgroundColor = NULL;
     }
-    if (content) layoutContent(content);
+    if (hosted) {
+        // SwiftUI paints its own white and draws its text, which is black: the fill goes and the ink turns white.
+        SGRClearHostedFill(content);
+        SGRLightenDrawnText(content);
+    } else if (content) {
+        layoutContent(content);
+    }
     lightenText(card);
     SGForEachView(card, ^(UIView *view) {
         if (isActionButton(view)) dressAction(view);
@@ -259,6 +325,36 @@ static void dressAfterSettling(UIView *snackbar) {
 // The bare strips either side of the card are not the toast's: a touch there reaches the controls under them. Both the
 // test and the hit are held to the card, so a hit test of Spotify's own that answers for the whole 374 does not take
 // the strips either.
+- (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
+    UIView *snackbar = (UIView *)self;
+    UIView *card = objc_getAssociatedObject(snackbar, &kDressedKey) ? cardOf(snackbar) : nil;
+    if (card && !CGRectContainsPoint(card.frame, point)) return nil;
+    return %orig;
+}
+
+- (BOOL)pointInside:(CGPoint)point withEvent:(UIEvent *)event {
+    UIView *snackbar = (UIView *)self;
+    UIView *card = objc_getAssociatedObject(snackbar, &kDressedKey) ? cardOf(snackbar) : nil;
+    if (card) return CGRectContainsPoint(card.frame, point);
+    return %orig;
+}
+%end
+
+// The SwiftUI toast: the same view and the same card, dressed by the same pass.
+%hook SPTSnackbarViewFactoryView
+- (void)layoutSubviews {
+    %orig;
+    dressSnackbar((UIView *)self);
+}
+
+- (void)didMoveToWindow {
+    %orig;
+    UIView *snackbar = (UIView *)self;
+    if (!snackbar.window) return;
+    dressSnackbar(snackbar);
+    dressAfterSettling(snackbar);
+}
+
 - (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
     UIView *snackbar = (UIView *)self;
     UIView *card = objc_getAssociatedObject(snackbar, &kDressedKey) ? cardOf(snackbar) : nil;
@@ -320,5 +416,5 @@ static CGRect heldToCard(UIView *content, CGRect frame) {
     if (!SGRedesignedUI()) return;
     if (!SGBelowiOS26()) return;
     %init;
-    SGRequireClasses(@[@"SPTSnackbarView", @"SPTSnackbarWithActionView", @"SPTSnackbarTextActionButton"]);
+    SGRequireClasses(@[@"SPTSnackbarView", @"SPTSnackbarViewFactoryView", @"SPTSnackbarWithActionView", @"SPTSnackbarTextActionButton"]);
 }

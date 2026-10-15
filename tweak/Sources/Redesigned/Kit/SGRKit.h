@@ -18,6 +18,7 @@
 //     SGRAlertScreen.h  the system alert and action sheet as Telegram draws them (iOS < 26; SGRAlertHook.x swaps them in)
 //     SGRRepaint.h   the areas the redesign keeps transparent when Spotify repaints them
 //     SGRAccent.h    the redesign's accent color; its AMOLED black is SGRAmoled.x, always on
+//     SGRDrawnText.h the text and the white of a SwiftUI card put on glass (the toasts, the tooltips)
 //     Settings/SGMarquee.h  a title that glides when it is too long, every layer's, imported here for the screens
 //
 // Every hook file of the redesign starts its %ctor with `if (!SGRedesignedUI()) return;` and every one
@@ -37,4 +38,5 @@
 #import "SGRBridges.h"
 #import "SGRRepaint.h"
 #import "SGRAccent.h"
+#import "SGRDrawnText.h"
 #import "Settings/SGMarquee.h"
