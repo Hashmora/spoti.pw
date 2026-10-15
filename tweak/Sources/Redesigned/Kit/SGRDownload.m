@@ -48,29 +48,6 @@ static BOOL stateFromIdentifier(NSString *identifier, SGRDownloadState *state) {
     return YES;
 }
 
-// TEMP, not for commit: says every change of the plain download button's status, label and drawn state.
-static void tempLogPlain(UIView *button, id owner) {
-    __block UIView *micro = nil;
-    SGForEachView(button, ^(UIView *v) {
-        if (!micro && [NSStringFromClass(v.class) containsString:@"StateMicroInteractionView"]) micro = v;
-    });
-    NSMutableString *view = [NSMutableString string];
-    const uint8_t *bytes = propertyBytes(micro, "currentState", 16);
-    for (int i = 0; bytes && i < 16; i++) [view appendFormat:@"%02x", bytes[i]];
-    const uint8_t *status = propertyBytes(owner, "currentStatus", 8);
-    NSMutableString *own = [NSMutableString string];
-    for (int i = 0; status && i < 8; i++) [own appendFormat:@"%02x", status[i]];
-    double fraction = 0;
-    const uint8_t *progress = propertyBytes(micro, "currentProgress", 8);
-    if (progress) memcpy(&fraction, progress, sizeof fraction);
-    NSString *line = [NSString stringWithFormat:@"status %@ view %@ progress %.3f label \"%@\" value \"%@\" owner %p",
-                      own, view, fraction, button.accessibilityLabel, button.accessibilityValue, owner];
-    static NSString *last;
-    if ([line isEqualToString:last]) return;
-    last = line;
-    SGLog(@"TEMP download %@", line);
-}
-
 BOOL SGRReadDownload(UIView *source, SGRDownloadState *state, CGFloat *progress) {
     UIView *button = source ? identifiedIn(source, kIdentifierPrefix) : nil;
     // The songs liked by one artist have the plain button, whose identifier says nothing of the state: its owner
@@ -92,7 +69,6 @@ BOOL SGRReadDownload(UIView *source, SGRDownloadState *state, CGFloat *progress)
     id owner = ownerOf(button, plain ? @"DownloadButton" : @"GranularDownloadButton");
     const uint8_t *current = propertyBytes(owner, plain ? "currentStatus" : "currentState", 1);
     const uint8_t *stored = plain ? NULL : propertyBytes(owner, "progress", 9);
-    if (plain) tempLogPlain(button, owner);
     BOOL modelled = current && *current <= 5;
     static const SGRDownloadState fromModel[] = {
         SGRDownloadNone, SGRDownloadWaiting, SGRDownloadDownloading, SGRDownloadWaiting, SGRDownloadDownloaded, SGRDownloadError,
