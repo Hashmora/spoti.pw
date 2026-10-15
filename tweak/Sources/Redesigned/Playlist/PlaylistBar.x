@@ -25,6 +25,7 @@
 
 static char kBubbleKey;
 static BOOL isDressedAlbumOrArtist(UIView *bar);
+static BOOL isDressedProfile(UIView *bar);
 
 // Side padding of the name inside its capsule; the capsule is as tall as the buttons beside it.
 static const CGFloat kBubblePadding = 18, kBubbleHeight = 44;
@@ -56,7 +57,9 @@ static BOOL isPageScrim(UIView *view) {
     }
     UIViewController *headerVC = SGRPlaylistHeaderOf(view);
     if (headerVC) return !isLikedSongs(headerVC);
-    return isDressedAlbumOrArtist(view);
+    // A dressed profile's wash (the HeaderView's GradientView, still #000 at 57% over the header, trees/continuous/4.txt)
+    // and the bar's scrim go the same way.
+    return isDressedAlbumOrArtist(view) || isDressedProfile(view);
 }
 
 // The name: the one SPTEncoreLabel directly under the bar that holds text (the Back button's is a glyph

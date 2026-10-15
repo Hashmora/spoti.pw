@@ -8,7 +8,8 @@
 // then Back, To top and To bottom. While tracks are dragged the bar's title holds an undo / redo pill
 // (UndoRedoBarElement, #FFFFFF@0.10, 23.txt).
 //
-//  - The pane gets the queue's glass and the screen's top corners (SGRGlassSheetView). The grey of the list and of the
+//  - The pane gets the queue's glass and the screen's top corners (SGRGlassSheetView), darkened a little (kEditDim) so
+//    the bright page under it does not wash out the rows. The grey of the list and of the
 //    toolbar goes with it (SGRRepaint.x keeps it clear).
 //  - The bar's blur plate goes, and the bar and the list are moved down 10pt: with the screen's corner radius on the
 //    pane the Cancel and Save at 8pt from the edge, 6pt from the top, would be cut.
@@ -22,6 +23,11 @@
 #import "Redesigned/Kit/SGRRepaint.h"
 
 static const CGFloat kEditShift = 10;
+
+// How much black the pane's glass carries over its body (SGRDimSheetGlass). The sheet floats over the playlist page,
+// whose artwork field is bright, and the plain glass read nearly white with the rows on it hard to make out
+// (trees/continuous/2.txt); the same dim the dialogs carry, a little lighter.
+static const CGFloat kEditDim = 0.4;
 
 static char kToolbarGlassKey, kPopupGlassKey, kPopupTintKey, kPillKey, kPillGlassKey, kDressedKey;
 
@@ -73,7 +79,8 @@ static void chrome(UIViewController *controller) {
     if (pane.bounds.size.height >= UIScreen.mainScreen.bounds.size.height - 1) return;
     if (sg_editNavigation != navigation) sg_editNavigation = navigation;
     if (pane.layer.mask) pane.layer.mask = nil;
-    SGRGlassSheetView(pane);
+    UIView *glass = SGRGlassSheetView(pane);
+    if (glass && !SGRReduceTransparency()) SGRDimSheetGlass(glass, kEditDim);
     hideBarPlate(navigation);
     moveBar(navigation);
     UIEdgeInsets extra = controller.additionalSafeAreaInsets;

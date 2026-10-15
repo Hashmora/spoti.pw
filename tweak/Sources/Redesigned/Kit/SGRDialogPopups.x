@@ -72,6 +72,43 @@ static void clearPaint(UIView *view, UIView *glass, int depth) {
     for (UIView *sub in view.subviews) clearPaint(sub, glass, depth + 1);
 }
 
+// Update preferred location: the dialog's stack holds the card's content (the text and Confirm, 24pt of air under
+// Confirm) and then Cancel after 16pt more, flush with the bottom edge of the dialog (trees/continuous/3.txt: Confirm
+// ends at 258.7, Cancel runs 298.7 to 346.7 in a 346.7 card). Cancel moves up to kCancelGap under Confirm, and the
+// room that frees goes under it as the stack's bottom margin, so the card keeps its height and Cancel keeps its air.
+// The spacing and the margin are properties of the stack, so Spotify's own layout keeps them.
+static const CGFloat kCancelGap = 12, kCancelBottom = 28;
+static char kCancelUnderKey;
+
+static void spaceCancel(UIView *host) {
+    UIStackView *stack = nil;
+    for (UIView *view in host.subviews) {
+        if ([view isKindOfClass:UIStackView.class] && [view.accessibilityIdentifier isEqualToString:@"PopUpConfirmationDialog"]) stack = (UIStackView *)view;
+    }
+    if (!stack || stack.arrangedSubviews.count != 2) return;
+    UIView *card = stack.arrangedSubviews.firstObject, *cancel = stack.arrangedSubviews.lastObject;
+    if (![cancel.accessibilityIdentifier isEqualToString:@"Components.UI.TertiaryButton"]) return;
+    // The air under Confirm in the card, read once: it is what the stack's spacing is measured against, and reading it
+    // again after the spacing has changed the card's height would chase its own tail.
+    NSNumber *under = objc_getAssociatedObject(stack, &kCancelUnderKey);
+    if (!under) {
+        UIView *confirm = nil;
+        for (UIView *sub in card.subviews) {
+            if ([sub.accessibilityIdentifier isEqualToString:@"Components.UI.PrimaryButton"]) confirm = sub;
+        }
+        if (!confirm || card.bounds.size.height < 1 || confirm.bounds.size.height < 1) return;
+        under = @(MAX(0, card.bounds.size.height - CGRectGetMaxY(confirm.frame)));
+        objc_setAssociatedObject(stack, &kCancelUnderKey, under, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    CGFloat custom = kCancelGap - under.doubleValue;
+    if (fabs([stack customSpacingAfterView:card] - custom) > 0.5) [stack setCustomSpacing:custom afterView:card];
+    // Written whole: a stack's margins are 8pt on every side by default, and they apply once the arrangement follows them.
+    UIEdgeInsets margins = UIEdgeInsetsMake(0, 0, kCancelBottom, 0);
+    if (stack.insetsLayoutMarginsFromSafeArea) stack.insetsLayoutMarginsFromSafeArea = NO;
+    if (!UIEdgeInsetsEqualToEdgeInsets(stack.layoutMargins, margins)) stack.layoutMargins = margins;
+    if (!stack.layoutMarginsRelativeArrangement) stack.layoutMarginsRelativeArrangement = YES;
+}
+
 static void dressDialog(UIView *host) {
     if (host.bounds.size.width < 1 || host.bounds.size.height < 1) return;
     UIView *glass = SGGlassFor(host, &kGlassKey);
@@ -83,6 +120,7 @@ static void dressDialog(UIView *host) {
     if (!SGRReduceTransparency()) SGRDimSheetGlass(glass, 0.45);
 
     clearPaint(host, glass, 0);
+    spaceCancel(host);
     host.layer.cornerRadius = kDialogRadius;
     host.layer.cornerCurve = kCACornerCurveContinuous;
     BOOL clip = !SGUseLegacyGlass();
