@@ -131,6 +131,7 @@ static void dress(UIViewController *page) {
     if (!SGBelowiOS26()) return;
     Class page = SGRPageClass(@"Recents_RecentsPageImpl", @"RecentsViewController");
     if (page) {
+        SGRRegisterBarPages(^BOOL(UIViewController *top) { return [top isKindOfClass:page]; });
         %init(SGRRecents, SGRRecentsController = page);
     } else {
         SGLog(@"class Recents_RecentsPageImpl.RecentsViewController not found, Recents keeps Spotify's bar");

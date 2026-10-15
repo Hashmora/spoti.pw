@@ -100,6 +100,34 @@ static UIView *blurOf(UINavigationController *navigation) {
     return nil;
 }
 
+// The pages that want the blur off (SGRRegisterBarPages), and the blurs this file took off, to give back to a page that does not.
+static NSMutableArray<SGRBarPageTest> *sg_wants;
+static char kBlurOffKey;
+
+void SGRRegisterBarPages(SGRBarPageTest wants) {
+    if (!sg_wants) sg_wants = [NSMutableArray array];
+    [sg_wants addObject:[wants copy]];
+}
+
+void SGRSyncBarBlur(UINavigationController *navigation) {
+    UIView *blur = blurOf(navigation);
+    if (!blur) return;
+    UIViewController *top = navigation.topViewController;
+    BOOL wanted = NO;
+    for (SGRBarPageTest test in sg_wants) {
+        if (top && test(top)) { wanted = YES; break; }
+    }
+    if (wanted) {
+        if (!blur.layer.mask) blur.layer.mask = [CALayer layer];
+        if (blur.userInteractionEnabled) blur.userInteractionEnabled = NO;
+        if (!objc_getAssociatedObject(blur, &kBlurOffKey)) objc_setAssociatedObject(blur, &kBlurOffKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    } else if (objc_getAssociatedObject(blur, &kBlurOffKey) && !sg_dressed.count) {
+        blur.layer.mask = nil;
+        blur.userInteractionEnabled = YES;
+        objc_setAssociatedObject(blur, &kBlurOffKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+}
+
 #pragma mark - Back
 
 // What the pinned Back reads and fires: a control of the redesign's own that stands in for the bar's back button

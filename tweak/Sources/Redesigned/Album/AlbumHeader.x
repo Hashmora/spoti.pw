@@ -584,12 +584,27 @@ static void applyHeader(UIView *header, UIView *page) {
 // Find on this page sits above the cover the way it does on a playlist (PlaylistHeader.x), and the
 // template is shared with a podcast episode and Your Episodes (AlbumField.x).
 static void glassAlbumToolbar(UIView *page) {
-    static char kToolbarKey, kFieldKey, kSortBoxKey, kFieldGlassKey, kSortGlassKey;
-    SGRPinnedBack(page, page);
+    static char kToolbarKey, kFieldKey, kSortBoxKey, kFieldGlassKey, kSortGlassKey, kRowKey, kRowFieldKey, kRowGlassKey;
+    SGRMirrorButton *back = SGRPinnedBack(page, page);
     UIView *toolbar = SGRFindByIdentifier(page, @"Components.Header.UI.Toolbar.Content", &kToolbarKey);
-    if (!toolbar) return;
-    SGRGlassFlatBox(SGRFindByIdentifier(toolbar, @"Components.Header.UI.Toolbar.SearchField", &kFieldKey), &kFieldGlassKey);
-    SGRGlassFlatBox(SGRFindByIdentifier(toolbar, @"Components.Header.UI.Toolbar.ButtonContainer", &kSortBoxKey), &kSortGlassKey);
+    if (toolbar) {
+        SGRGlassFlatBox(SGRFindByIdentifier(toolbar, @"Components.Header.UI.Toolbar.SearchField", &kFieldKey), &kFieldGlassKey);
+        SGRGlassFlatBox(SGRFindByIdentifier(toolbar, @"Components.Header.UI.Toolbar.ButtonContainer", &kSortBoxKey), &kSortGlassKey);
+    }
+    // A podcast's "Find in this show" (trees/continuous/11.txt) is not in that toolbar: it is a row of the page's own,
+    // 16pt in from the sides and 36pt high, set 12pt up into the 100pt bar where Spotify's back button was 32pt, so
+    // the pinned circles (44pt, from the safe area's top) reached 3pt over it. Its box is glass like a playlist's, and
+    // the row is moved down to clear the circles by the gap a playlist's field has under them. A transform and not a
+    // frame: Spotify's constraints put the frame back at every pass.
+    UIView *row = SGRFindByIdentifier(page, @"CreativeWorkPlatform.Components.UI.FindRow", &kRowKey);
+    if (!row) return;
+    SGRGlassFlatBox(SGRFindByIdentifier(row, @"Components.Header.UI.Toolbar.SearchField", &kRowFieldKey), &kRowGlassKey);
+    if (!back || back.hidden) return;
+    static const CGFloat kRowGap = 8;
+    CGFloat top = row.center.y - row.bounds.size.height / 2;
+    CGFloat shift = MAX(CGRectGetMaxY(back.frame) + kRowGap - top, 0);
+    CGAffineTransform wanted = CGAffineTransformMakeTranslation(0, shift);
+    if (!CGAffineTransformEqualToTransform(row.transform, wanted)) row.transform = wanted;
 }
 
 static void applyPage(UIView *page) {

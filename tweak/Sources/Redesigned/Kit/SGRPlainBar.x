@@ -14,6 +14,8 @@
 // its data has loaded, which no pass of the hosting controller follows, so a page opened at the top of its list
 // showed Spotify's bar until it was scrolled (9.txt).
 //
+// Its blur is kept off from the push (SGRSyncBarBlur, Pages/PageAppearance.x), not from the first pass that finds the bar.
+//
 // And the page itself is made dark. Under the redesign these lists drew a white UICollectionView under
 // their white labels until the app was left and entered again (device, 2026-10-14), so every hosted page
 // is given the dark appearance, which Spotify has everywhere, and the two Stats lists are cleared of the
@@ -129,7 +131,9 @@ static UINavigationController *navigationOf(UIView *view) {
 - (void)layoutSubviews {
     %orig;
     if (!SGBelowiOS26()) return;
-    UIViewController *top = navigationOf((UIView *)self).topViewController;
+    UINavigationController *navigation = navigationOf((UIView *)self);
+    SGRSyncBarBlur(navigation);
+    UIViewController *top = navigation.topViewController;
     if (top && [top isKindOfClass:sg_hosting] && top.viewIfLoaded.window) dress(top);
 }
 %end
@@ -143,5 +147,12 @@ static UINavigationController *navigationOf(UIView *view) {
         return;
     }
     sg_hosting = hosting;
+    // A hosted page whose own controller has not been made yet is taken for one of these: its blur stays off from the push,
+    // and is given back at the next pass if the page turns out to be another.
+    if (SGBelowiOS26()) {
+        SGRRegisterBarPages(^BOOL(UIViewController *top) {
+            return [top isKindOfClass:hosting] && (!top.childViewControllers.count || isPage(top, 0));
+        });
+    }
     %init(SGRPlainBarPages, SGRHostingController = hosting);
 }

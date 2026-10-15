@@ -9,9 +9,17 @@
 //
 // So the navigation controller, its view and its bar are given the dark appearance. Every page under them
 // inherits it, the bar's glass and its labels included, and no page has to override its own.
+//
+// The blur Spotify draws behind the bar is kept off here as well (SGRSyncBarBlur): a dressed page took it off only from
+// its own first layout pass, which a page whose bar had not been built yet missed, so a tinted header showed for a
+// moment on Recents, Listening stats, Your Premium and the rest, and came back when the app was left and entered again.
+// It is now settled as a page is pushed or popped, on every pass of the stack and as the app comes to the front.
 // Threading: main thread only.
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
+#import "Pages.h"
+
+static NSHashTable<UINavigationController *> *sg_stacks;
 
 static void makeDark(UINavigationController *navigation) {
     if (navigation.overrideUserInterfaceStyle != UIUserInterfaceStyleDark) navigation.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
@@ -19,6 +27,13 @@ static void makeDark(UINavigationController *navigation) {
     if (view && view.overrideUserInterfaceStyle != UIUserInterfaceStyleDark) view.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
     UINavigationBar *bar = navigation.navigationBar;
     if (bar.overrideUserInterfaceStyle != UIUserInterfaceStyleDark) bar.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
+    if (!sg_stacks) sg_stacks = [NSHashTable weakObjectsHashTable];
+    [sg_stacks addObject:navigation];
+    SGRSyncBarBlur(navigation);
+}
+
+static void syncAllStacks(void) {
+    for (UINavigationController *navigation in sg_stacks.allObjects) SGRSyncBarBlur(navigation);
 }
 
 %hook SPNavigationController
@@ -37,10 +52,37 @@ static void makeDark(UINavigationController *navigation) {
     %orig;
     makeDark((UINavigationController *)self);
 }
+
+// The top page changes inside these, before anything is drawn.
+- (void)pushViewController:(UIViewController *)controller animated:(BOOL)animated {
+    %orig;
+    SGRSyncBarBlur((UINavigationController *)self);
+}
+
+- (UIViewController *)popViewControllerAnimated:(BOOL)animated {
+    UIViewController *popped = %orig;
+    SGRSyncBarBlur((UINavigationController *)self);
+    return popped;
+}
+
+- (void)setViewControllers:(NSArray<UIViewController *> *)controllers animated:(BOOL)animated {
+    %orig;
+    SGRSyncBarBlur((UINavigationController *)self);
+}
 %end
 
 %ctor {
     if (!SGRedesignedUI()) return;
     %init;
     SGRequireClasses(@[@"SPNavigationController"]);
+    // Spotify builds its blur again as the app comes back; it is settled at once and once more after its own pass.
+    void (^comeback)(NSNotification *) = ^(NSNotification *note) {
+        syncAllStacks();
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.25 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            syncAllStacks();
+        });
+    };
+    for (NSNotificationName name in @[UIApplicationWillEnterForegroundNotification, UIApplicationDidBecomeActiveNotification]) {
+        [NSNotificationCenter.defaultCenter addObserverForName:name object:nil queue:NSOperationQueue.mainQueue usingBlock:comeback];
+    }
 }

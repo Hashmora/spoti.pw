@@ -20,3 +20,12 @@ Class SGRPageClass(NSString *module, NSString *name);
 void SGRDressBarPage(UIViewController *page);
 // Gives the bar back the way Spotify made it, for the next page: as `page` goes.
 void SGRUndressBarPage(UIViewController *page);
+
+// Registers a page the redesign dresses: `wants` says whether the page on top of a navigation controller is one. While one is,
+// Spotify's blur behind the bar is kept off from the moment the page is pushed, instead of from the first pass of the page
+// that finds the bar, and again whenever Spotify brings it back (the app left and entered again).
+typedef BOOL (^SGRBarPageTest)(UIViewController *top);
+void SGRRegisterBarPages(SGRBarPageTest wants);
+// Puts the blur of `navigation` where its top page wants it: drawn by nothing for a dressed page, Spotify's again for any other.
+// Cheap to call again.
+void SGRSyncBarBlur(UINavigationController *navigation);
