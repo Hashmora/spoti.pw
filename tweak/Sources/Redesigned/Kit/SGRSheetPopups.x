@@ -10,6 +10,7 @@
 //   Song credits                       TrackCredits_CreditsPageImpl.CreditsViewController
 //   Save in                            PlaylistCuration_AddToPlaylistImpl.ATPContainerViewController
 //   Download using mobile data         Offline_ContentOffliningUIImpl.ElementViewController<DownloadOverCellularDialogElement>
+//   Smart Reorder popups (Edit playlist) PlaylistMixing_MessagingImpl.MixingMessagingViewController
 //   Share                              Share_MenuImpl.ShareMenuViewControllerV2
 //   Listening modes                    SmartShuffle_CoreImpl.PlayModePickerViewController
 //   Connect device menu (Log out)      Connect_ContextMenuPageImpl.ContextMenuViewController, pushed in the picker's sheet
@@ -49,7 +50,8 @@ static NSArray<NSString *> *contentMarkers(void) {
              @"ShowPage_SortAndFilterImpl",
              @"TrackCredits_CreditsPageImpl",
              @"PlaylistCuration_AddToPlaylistImpl",
-             @"Offline_ContentOffliningUIImpl"];
+             @"Offline_ContentOffliningUIImpl",
+             @"PlaylistMixing_MessagingImpl"];
 }
 
 static BOOL isContent(UIViewController *controller) {
