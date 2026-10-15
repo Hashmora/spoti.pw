@@ -211,6 +211,20 @@ void SGRSyncBarBlur(UINavigationController *navigation) {
 }
 @end
 
+BOOL SGRPageIsOrHolds(UIViewController *top, Class page) {
+    if (!top || !page) return NO;
+    NSMutableArray *queue = [NSMutableArray arrayWithObject:top];
+    for (int depth = 0; depth < 7 && queue.count; depth++) {
+        NSMutableArray *next = [NSMutableArray array];
+        for (UIViewController *vc in queue) {
+            if ([vc isKindOfClass:page]) return YES;
+            [next addObjectsFromArray:vc.childViewControllers];
+        }
+        queue = next;
+    }
+    return NO;
+}
+
 #pragma mark - the title
 
 static void glassTitle(UIView *title) {
@@ -220,13 +234,21 @@ static void glassTitle(UIView *title) {
             if (!label && [inner isKindOfClass:UILabel.class]) label = (UILabel *)inner;
         }
     }
-    if (!label.text.length) return;
-    // White, whatever the system appearance made of it: the capsule behind it is dark glass.
-    UIColor *white = SGRPrimary();
-    if (![label.textColor isEqual:white]) label.textColor = white;
+    CGFloat content;
+    if (label) {
+        if (!label.text.length) return;
+        // White, whatever the system appearance made of it: the capsule behind it is dark glass.
+        UIColor *white = SGRPrimary();
+        if (![label.textColor isEqual:white]) label.textColor = white;
+        content = ceil([label sizeThatFits:CGSizeMake(CGFLOAT_MAX, kTitleHeight)].width);
+    } else {
+        // A title that is a picture (Song DNA's logo and its Beta tag, trees/continuous/41.txt): the capsule wraps the control.
+        content = ceil(title.bounds.size.width);
+        if (content < 1) return;
+    }
     CGFloat screen = title.window ? title.window.bounds.size.width : 390;
     CGFloat room = screen - 2 * (kCorner + SGRGlassCircleSize + kGap);
-    CGFloat wanted = ceil([label sizeThatFits:CGSizeMake(CGFLOAT_MAX, kTitleHeight)].width) + 2 * kTitlePadding;
+    CGFloat wanted = content + 2 * kTitlePadding;
     CGFloat width = MIN(MAX(wanted, kTitleHeight), room);
     // The control is as small as its label, and the capsule is a subview that reaches past it.
     for (UIView *v = title; v && ![v isKindOfClass:UINavigationBar.class]; v = v.superview) {

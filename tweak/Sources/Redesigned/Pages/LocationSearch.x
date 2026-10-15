@@ -1,0 +1,143 @@
+// The Preferred Location page, reached from an artist's concerts by Change location
+// (LiveEvents_LiveEventsImpl.LocationSearchViewController): the title on a glass capsule, Back a glass circle and the
+// search field on glass, over a header that is no longer opaque.
+//
+// Tree (trees/continuous/43.txt): the page has no navigation bar (SPNavigationBar is not on screen, Spotify's blur is
+// 390x0 and hidden). Its view, LocationSearchView, holds a plain UIView 390x143 painted #000000, the table
+// (LocationSearchView.tableView, from y=143), and LocationSearchHeaderView (Components.UI.LocationHeaderSearch, 390x96
+// at y=47): a 48pt row with the title label "Preferred Location" and Back (an Encore Tertiary button, 32x32, a11y
+// "Back"), then the field (Components.Header.UI.Toolbar.SearchField, a 358x32 text field, #FFFFFF@0.14 r=4).
+//
+// So the black plate is taken off, the title label gets the capsule the other pages' titles have (Pages/PageBar.m,
+// the same padding and height, white), Back is pinned to the corner as on every redesigned page (the Encore button is
+// concealed and fired by the glass circle), and the field is glass the way Liked Songs' find field is (SGRGlassFlatBox;
+// SGRRepaint.x keeps Spotify's grey off it as it is focused, as it does for the podcast search field).
+// Threading: main thread only.
+#import "Core/SGCore.h"
+#import "Redesigned/Kit/SGRKit.h"
+#import "Redesigned/Kit/SGRRepaint.h"
+#import "Pages.h"
+
+static char kHeaderKey, kFieldKey, kFieldGlassKey, kTitleGlassKey;
+
+// Side padding of the title in its capsule and its height: the same as every other page's (Pages/PageBar.m).
+static const CGFloat kTitlePadding = 18, kTitleHeight = 44, kCorner = 16, kGap = 8;
+
+static UIView *pageView(UIViewController *page) {
+    UIView *view = page.viewIfLoaded;
+    if (!view.window || view.bounds.size.width < 1) return nil;
+    return view;
+}
+
+// The plain black view behind the header: a direct, childless UIView of the page that ends where the header does.
+static void clearPlate(UIView *root, UIView *header) {
+    CGFloat bottom = CGRectGetMaxY(header.frame);
+    for (UIView *sub in root.subviews) {
+        if (![sub isMemberOfClass:UIView.class] || sub.subviews.count) continue;
+        if (sub.bounds.size.width < root.bounds.size.width * 0.9) continue;
+        if (fabs(CGRectGetMaxY(sub.frame) - bottom) > 1.5) continue;
+        if (!sub.hidden) sub.hidden = YES;
+        if (sub.layer.backgroundColor) sub.layer.backgroundColor = NULL;
+    }
+}
+
+static UIView *backIn(UIView *header) {
+    __block UIView *back = nil;
+    SGForEachView(header, ^(UIView *v) {
+        if (!back && [v.accessibilityLabel isEqualToString:@"Back"] && [NSStringFromClass(v.class) containsString:@"Button"]) back = v;
+    });
+    return back;
+}
+
+// The title: the wide label of the header's first row.
+static UIView *titleIn(UIView *header) {
+    __block UIView *title = nil;
+    SGForEachView(header, ^(UIView *v) {
+        if (title || ![NSStringFromClass(v.class) containsString:@"EncoreLabel"]) return;
+        if (v.bounds.size.width > 100 && v.bounds.size.height >= 30) title = v;
+    });
+    return title;
+}
+
+static void glassTitle(UIView *root, UIView *title) {
+    UILabel *label = nil;
+    for (UIView *sub in title.subviews) {
+        if (!label && [sub isKindOfClass:UILabel.class]) label = (UILabel *)sub;
+    }
+    if (!label.text.length) return;
+    UIColor *white = SGRPrimary();
+    if (![label.textColor isEqual:white]) label.textColor = white;
+    CGFloat room = root.bounds.size.width - 2 * (kCorner + SGRGlassCircleSize + kGap);
+    CGFloat wanted = ceil([label sizeThatFits:CGSizeMake(CGFLOAT_MAX, kTitleHeight)].width) + 2 * kTitlePadding;
+    CGFloat width = MIN(MAX(wanted, kTitleHeight), room);
+    // The label is as wide as the row gives it and the capsule is a subview that may reach past it.
+    for (UIView *v = title; v && v != root; v = v.superview) {
+        if (v.clipsToBounds) v.clipsToBounds = NO;
+    }
+    UIView *shape = SGRGlassCapsuleInside(title, &kTitleGlassKey, CGSizeMake(width, kTitleHeight), NO);
+    // The row is 48pt high and the pinned Back is 44: the capsule is level with it, at the row's top.
+    CGRect frame = CGRectMake(round((title.bounds.size.width - width) / 2), 0, width, kTitleHeight);
+    if (shape && !CGRectEqualToRect(shape.frame, frame)) shape.frame = frame;
+}
+
+static void dress(UIViewController *page) {
+    UIView *root = pageView(page);
+    if (!root) return;
+    UIView *header = SGRFindByIdentifier(root, @"Components.UI.LocationHeaderSearch", &kHeaderKey);
+    if (!header || header.bounds.size.width < 1) return;
+    UIView *headerHost = header;
+    while (headerHost.superview && headerHost.superview != root) headerHost = headerHost.superview;
+    clearPlate(root, headerHost);
+
+    UIView *back = backIn(header);
+    if (back) SGRPinnedBackOf(root, back);
+    UIView *title = titleIn(header);
+    if (title) glassTitle(root, title);
+
+    UIView *field = SGRFindByIdentifier(root, @"Components.Header.UI.Toolbar.SearchField", &kFieldKey);
+    if (field) {
+        if (sgr_showSearchField != field) sgr_showSearchField = field;
+        SGRGlassFlatBox(field, &kFieldGlassKey);
+    }
+    static BOOL logged;
+    if (!logged && field) {
+        logged = YES;
+        SGLog(@"redesign location search: header glass, back %@, title %@, field %@", back ? @"pinned" : @"not found", title ? @"capsule" : @"not found", NSStringFromCGRect(field.frame));
+    }
+}
+
+%group SGRLocationSearch
+%hook SGRLocationController
+- (void)viewWillAppear:(BOOL)animated {
+    %orig;
+    dress((UIViewController *)self);
+}
+
+- (void)viewDidLayoutSubviews {
+    %orig;
+    dress((UIViewController *)self);
+}
+
+- (void)viewDidAppear:(BOOL)animated {
+    %orig;
+    // The header's elements are made after the first layout, and the field's grey comes back as it is focused.
+    __weak UIViewController *weak = (UIViewController *)self;
+    for (NSNumber *delay in @[@0.0, @0.25, @0.6]) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            if (weak) dress(weak);
+        });
+    }
+}
+%end
+%end
+
+%ctor {
+    if (!SGRedesignedUI()) return;
+    if (!SGBelowiOS26()) return;
+    Class page = SGRPageClass(@"LiveEvents_LiveEventsImpl", @"LocationSearchViewController");
+    if (page) {
+        %init(SGRLocationSearch, SGRLocationController = page);
+    } else {
+        SGLog(@"class LiveEvents_LiveEventsImpl.LocationSearchViewController not found, Preferred location keeps Spotify's header");
+    }
+}
