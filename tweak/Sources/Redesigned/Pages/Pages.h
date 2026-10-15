@@ -6,6 +6,7 @@
 //     Recents.x       the listening history (Recents_RecentsPageImpl): the bar, its chips on glass, and the list
 //                     run under the bars instead of stopping short of them
 //     YourUpdates.x   the left menu's Your Updates (YourUpdates_CommonImpl): the bar
+//     ShowSearch.x    a podcast's "Find in this show" page (ShowPage_ShowSearchPageImpl): the bar, the field and Cancel on glass
 //
 // Every hook installs only while Redesigned UI is on and below iOS 26, where the bars are the system's.
 // Threading: main thread only.

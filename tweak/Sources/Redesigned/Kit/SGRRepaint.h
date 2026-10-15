@@ -29,6 +29,8 @@ extern __weak UIView *sgr_sheetChromeRoot;
 // puts back on its own passes) and the grey capsule inside its field. Both are kept clear while they are set.
 extern __weak UIView *sgr_searchHeaderRoot;
 extern __weak UIView *sgr_searchFieldFill;
+// Pages/ShowSearch.x, iOS < 26: the "Find in this show" field of a podcast's search page, whose grey Spotify paints again as it is focused.
+extern __weak UIView *sgr_showSearchField;
 
 // Playlist/PlaylistAddSearch.x, iOS < 26: the grey search bar at the bottom of the Add songs sheet's pages, kept clear
 // while it is set (Spotify paints it again when the field is focused).

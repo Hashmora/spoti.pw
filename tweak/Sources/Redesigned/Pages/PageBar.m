@@ -25,7 +25,7 @@
 #import "Redesigned/Kit/SGRKit.h"
 #import "Pages.h"
 
-static char kMoreKey, kProxyKey, kTitleGlassKey, kTitleWatchedKey, kBarStyleKey;
+static char kMoreKey, kProxyKey, kTitleGlassKey, kTitleWatchedKey, kBarStyleKey, kHeldKey;
 
 // The pages dressed now, weakly: the bar is given back only when none is left.
 static NSHashTable<UIViewController *> *sg_dressed;
@@ -109,23 +109,65 @@ void SGRRegisterBarPages(SGRBarPageTest wants) {
     [sg_wants addObject:[wants copy]];
 }
 
+static BOOL isOnScreen(UIViewController *page, UINavigationController *navigation);
+
+// Whether a page the redesign has dressed is the one on top of `navigation`.
+static BOOL topIsDressed(UINavigationController *navigation) {
+    for (UIViewController *page in sg_dressed.allObjects) {
+        if (isOnScreen(page, navigation)) return YES;
+    }
+    return NO;
+}
+
+// Spotify's own Back, ⋯ and title are kept out of sight from the moment a page that wants the redesign's bar is
+// pushed, not from the first pass that dresses it: UIKit builds them in the bar's content view, whose pass this
+// runs after, and until the page's own controller exists nothing else hides them, so Spotify's bar showed for a
+// moment and went (trees/continuous/4.txt is that moment). A dressed page conceals Back and ⋯ itself and its title
+// is shown again here for its capsule; a page that turns out to be another gets all three back.
+static void holdControls(UINavigationController *navigation, BOOL wanted) {
+    UINavigationBar *bar = navigation.navigationBar;
+    UIView *content = contentOf(bar);
+    if (!content) return;
+    UIView *title = subviewNamed(content, @"_UINavigationBarTitleControl");
+    BOOL held = objc_getAssociatedObject(bar, &kHeldKey) != nil;
+    if (wanted) {
+        if (topIsDressed(navigation)) {
+            if (held) reveal(title);
+            return;
+        }
+        if (!held) objc_setAssociatedObject(bar, &kHeldKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        conceal(subviewNamed(content, @"_UIButtonBarButton"));
+        conceal(moreOf(content));
+        conceal(title);
+    } else if (held) {
+        reveal(title);
+        if (!sg_dressed.count) {
+            reveal(subviewNamed(content, @"_UIButtonBarButton"));
+            reveal(moreOf(content));
+            objc_setAssociatedObject(bar, &kHeldKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        }
+    }
+}
+
 void SGRSyncBarBlur(UINavigationController *navigation) {
-    UIView *blur = blurOf(navigation);
-    if (!blur) return;
     UIViewController *top = navigation.topViewController;
     BOOL wanted = NO;
     for (SGRBarPageTest test in sg_wants) {
         if (top && test(top)) { wanted = YES; break; }
     }
-    if (wanted) {
-        if (!blur.layer.mask) blur.layer.mask = [CALayer layer];
-        if (blur.userInteractionEnabled) blur.userInteractionEnabled = NO;
-        if (!objc_getAssociatedObject(blur, &kBlurOffKey)) objc_setAssociatedObject(blur, &kBlurOffKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    } else if (objc_getAssociatedObject(blur, &kBlurOffKey) && !sg_dressed.count) {
-        blur.layer.mask = nil;
-        blur.userInteractionEnabled = YES;
-        objc_setAssociatedObject(blur, &kBlurOffKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    UIView *blur = blurOf(navigation);
+    if (blur) {
+        if (wanted) {
+            if (!blur.layer.mask) blur.layer.mask = [CALayer layer];
+            if (blur.userInteractionEnabled) blur.userInteractionEnabled = NO;
+            if (!objc_getAssociatedObject(blur, &kBlurOffKey)) objc_setAssociatedObject(blur, &kBlurOffKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        } else if (objc_getAssociatedObject(blur, &kBlurOffKey) && !sg_dressed.count) {
+            blur.layer.mask = nil;
+            blur.userInteractionEnabled = YES;
+            objc_setAssociatedObject(blur, &kBlurOffKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        }
     }
+    if (SGBelowiOS26()) holdControls(navigation, wanted);
 }
 
 #pragma mark - Back
@@ -244,6 +286,7 @@ void SGRDressBarPage(UIViewController *page) {
 
     UIView *title = subviewNamed(content, @"_UINavigationBarTitleControl");
     if (title) {
+        if (objc_getAssociatedObject(bar, &kHeldKey)) reveal(title);
         glassTitle(title);
         watchTitle(title);
     }
@@ -265,6 +308,8 @@ void SGRUndressBarPage(UIViewController *page) {
     reveal(subviewNamed(content, @"_UIButtonBarButton"));
     reveal(moreOf(content));
     bar.userInteractionEnabled = YES;
+    objc_setAssociatedObject(bar, &kHeldKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    reveal(subviewNamed(content, @"_UINavigationBarTitleControl"));
     UIView *blur = blurOf(navigation);
     blur.layer.mask = nil;
     blur.userInteractionEnabled = YES;

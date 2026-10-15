@@ -83,4 +83,9 @@ static void update(UIView *bar) {
     if (!SGBelowiOS26()) return;
     %init;
     SGRequireClasses(@[@"SPNavigationBar", @"_UINavigationBarContentView"]);
+    // Spotify's bar is kept out of sight from the push, not from the first pass that finds the list.
+    SGRRegisterBarPages(^BOOL(UIViewController *top) {
+        UIView *view = top.viewIfLoaded;
+        return view && holdsProfileList(view, 4);
+    });
 }

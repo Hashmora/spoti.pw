@@ -71,10 +71,37 @@ static void syncAllStacks(void) {
 }
 %end
 
+static UINavigationController *navigationOf(UIView *bar) {
+    for (UIResponder *r = bar; r; r = r.nextResponder) {
+        if ([r isKindOfClass:UINavigationController.class]) return (UINavigationController *)r;
+    }
+    return nil;
+}
+
+// UIKit builds the bar's buttons and title while laying the content view out, after the bar's own pass: Spotify's
+// controls are kept out of sight for a page that wants the redesign's bar from here (SGRSyncBarBlur).
+%hook SPNavigationBar
+- (void)layoutSubviews {
+    %orig;
+    UINavigationController *navigation = navigationOf((UIView *)self);
+    if (navigation) SGRSyncBarBlur(navigation);
+}
+%end
+
+%hook _UINavigationBarContentView
+- (void)layoutSubviews {
+    %orig;
+    UIView *bar = ((UIView *)self).superview;
+    if (![bar isKindOfClass:NSClassFromString(@"SPNavigationBar")]) return;
+    UINavigationController *navigation = navigationOf(bar);
+    if (navigation) SGRSyncBarBlur(navigation);
+}
+%end
+
 %ctor {
     if (!SGRedesignedUI()) return;
     %init;
-    SGRequireClasses(@[@"SPNavigationController"]);
+    SGRequireClasses(@[@"SPNavigationController", @"SPNavigationBar", @"_UINavigationBarContentView"]);
     // Spotify builds its blur again as the app comes back; it is settled at once and once more after its own pass.
     void (^comeback)(NSNotification *) = ^(NSNotification *note) {
         syncAllStacks();

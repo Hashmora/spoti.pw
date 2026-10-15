@@ -20,6 +20,7 @@
 #import "Playlist.h"
 #import "Redesigned/Album/Album.h"
 #import "Redesigned/Artist/Artist.h"
+#import "Redesigned/Profile/Profile.h"
 #import <objc/message.h>
 
 static char kBubbleKey;
@@ -83,10 +84,18 @@ static BOOL isDressedAlbumOrArtist(UIView *bar) {
     return NO;
 }
 
+// A profile's bar, the same way (Profile/ProfileHeader.x).
+static BOOL isDressedProfile(UIView *bar) {
+    for (UIView *sub in SGRProfilePageOf(bar).subviews) {
+        if ([sub isKindOfClass:SGRMirrorButton.class]) return YES;
+    }
+    return NO;
+}
+
 // Whether this bar is one the redesign dresses: a playlist's (Liked Songs apart), a dressed album's or artist's.
 static BOOL handles(UIView *bar) {
     UIViewController *headerVC = SGRPlaylistHeaderOf(bar);
-    return headerVC ? !isLikedSongs(headerVC) : isDressedAlbumOrArtist(bar);
+    return headerVC ? !isLikedSongs(headerVC) : (isDressedAlbumOrArtist(bar) || isDressedProfile(bar));
 }
 
 static void apply(UIView *bar) {

@@ -85,6 +85,9 @@ static BOOL loadingIn(UIViewController *controller, int depth) {
 
 static char kPendingPaneKey;
 
+// The sheet Save in is in, while it is up: what the write-time hooks below test a view against.
+static __weak UIView *sg_saveInSheet;
+
 // Save in's wrappers are painted an opaque black (#000 or the page's #121212), which the pane's strip leaves alone
 // (it takes only greys a view can see, SGIsVisibleColor) and the queue has none of: laid over the glass they made
 // the popup near black. The full width bands that are black or Spotify's grey go clear, as in a list's rows.
@@ -92,12 +95,17 @@ static char kPendingPaneKey;
 // takes the views below the page). The wrappers above it, between the page and the sheet's pane, are Spotify's and
 // kept their flag, so the glass stayed black behind a tree with no paint left in it (trees/continuous/3.txt). Only
 // below the pane, and only when there is one.
-static void clearOpaqueAbove(UIView *view) {
-    UIView *pane = nil;
-    for (UIView *v = view; v && !pane; v = v.superview) {
-        if ([v.accessibilityIdentifier isEqualToString:@"sheet-view"]) pane = v;
+static UIView *paneOf(UIView *view) {
+    for (UIView *v = view; v; v = v.superview) {
+        if ([v.accessibilityIdentifier isEqualToString:@"sheet-view"]) return v;
     }
+    return nil;
+}
+
+static void clearOpaqueAbove(UIView *view) {
+    UIView *pane = paneOf(view);
     if (!pane) return;
+    if (sg_saveInSheet != pane) sg_saveInSheet = pane;
     for (UIView *v = view; v && v != pane; v = v.superview) {
         if (v.opaque) v.opaque = NO;
         if (v.layer.opaque) v.layer.opaque = NO;
@@ -105,11 +113,44 @@ static void clearOpaqueAbove(UIView *view) {
     }
 }
 
+// Every view below `view`, whatever its width: the flag the width-gated clearing leaves on the narrow views inside a
+// row (the title stack, the artwork's holder) draws black over the glass just the same.
+static void clearOpaqueBelow(UIView *view, int depth) {
+    if (depth > 24) return;
+    if (view.opaque) view.opaque = NO;
+    if (view.layer.opaque) view.layer.opaque = NO;
+    for (UIView *sub in view.subviews) clearOpaqueBelow(sub, depth + 1);
+}
+
 static void clearSaveInPaint(UIView *view) {
     UIView *sheet = sgr_sheetChromeRoot;
     if (view && sheet) SGRClearSheetCellPaint(view, sheet);
-    if (view) clearOpaqueAbove(view);
+    if (view) {
+        clearOpaqueAbove(view);
+        clearOpaqueBelow(view, 0);
+    }
 }
+
+// Save in is marked opaque by Spotify each time a row or wrapper is laid out, so clearing the flag on the passes above
+// leaves it back on until the next one, and an opaque view with no fill is drawn black over the glass. The queue never
+// had this: its grey is a fill, kept clear as it is written (SGRRepaint.x). The flag is kept clear the same way, as it is
+// written, for every view inside this sheet.
+static BOOL inSaveIn(UIView *view) {
+    UIView *sheet = sg_saveInSheet;
+    return sheet && view.window && SGIsInside(view, sheet);
+}
+
+%group SGRSaveInOpaque
+%hook CALayer
+- (void)setOpaque:(BOOL)opaque {
+    if (opaque && sg_saveInSheet) {
+        UIView *view = (UIView *)self.delegate;
+        if ([view isKindOfClass:UIView.class] && view.layer == self && inSaveIn(view)) opaque = NO;
+    }
+    %orig(opaque);
+}
+%end
+%end
 
 // The page's own views (ATPMainView, and the strip under the list that holds Done), painted by Spotify whenever
 // they are laid out, as the queue's two bars are (Redesigned/NowPlaying/QueueGlass.x): the paint, the opaque flag and the
@@ -636,6 +677,7 @@ static void connectMenuChrome(UIViewController *controller) {
     if (saveIn) {
         %init(SGRSaveIn, SGRSaveInContainer = saveIn);
         %init(SGRSaveInList);
+        %init(SGRSaveInOpaque);
     }
     Class saveInMain = swiftClass(@"PlaylistCuration_AddToPlaylistImpl", @"ATPMainView");
     Class saveInDone = swiftClass(@"PlaylistCuration_AddToPlaylistImpl", @"ATPDoneButtonView");
