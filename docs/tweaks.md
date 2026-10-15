@@ -603,8 +603,8 @@ Redesigned:
                   gone, the one row of shuffle, Play and download, and its rows as the playlist's are. Its ⋯ keeps
                   Spotify's own sheet: the pinned button is not recorded, so the redesign's menu does not take it
                   over. Its download button is the plain one, not the Granular one, so its state is read from its
-                  owner's `currentStatus` (the Granular cases, in the same order); it keeps no progress, so the ring
-                  turns while it downloads (Kit/SGRDownload.m).
+                  owner's `currentStatus`, whose cases are its own (none, waiting, downloading, downloaded); it keeps no
+                  progress while it downloads, so the ring turns (Kit/SGRDownload.m).
                   Laid out on the Mac against harness/playlist/
     Album/        the album page laid out the same way, on the page the Creative Work Platform builds rather than the
                   playlist's, so it shares nothing with Playlist/ but the Kit: the cover full bleed dissolving into the

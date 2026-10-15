@@ -51,8 +51,9 @@ static BOOL stateFromIdentifier(NSString *identifier, SGRDownloadState *state) {
 BOOL SGRReadDownload(UIView *source, SGRDownloadState *state, CGFloat *progress) {
     UIView *button = source ? identifiedIn(source, kIdentifierPrefix) : nil;
     // The songs liked by one artist have the plain button, whose identifier says nothing of the state: its owner
-    // keeps it in `currentStatus`, numbered like the Granular button's cases. It keeps no progress, so while it
-    // downloads the ring turns, as it does while waiting. A value outside the cases leaves the arrow.
+    // keeps it in `currentStatus`, with cases of its own (none, waiting, downloading, downloaded; device log,
+    // 2026-10-15). It keeps no progress while it downloads, so the ring turns, as it does while waiting. A value
+    // outside the cases leaves the arrow.
     BOOL plain = NO;
     if (!button && source) {
         button = identifiedIn(source, @"Components.UI.DownloadButton");
@@ -69,11 +70,14 @@ BOOL SGRReadDownload(UIView *source, SGRDownloadState *state, CGFloat *progress)
     id owner = ownerOf(button, plain ? @"DownloadButton" : @"GranularDownloadButton");
     const uint8_t *current = propertyBytes(owner, plain ? "currentStatus" : "currentState", 1);
     const uint8_t *stored = plain ? NULL : propertyBytes(owner, "progress", 9);
-    BOOL modelled = current && *current <= 5;
+    BOOL modelled = current && *current <= (plain ? 3 : 5);
     static const SGRDownloadState fromModel[] = {
         SGRDownloadNone, SGRDownloadWaiting, SGRDownloadDownloading, SGRDownloadWaiting, SGRDownloadDownloaded, SGRDownloadError,
     };
-    SGRDownloadState modelState = modelled ? fromModel[*current] : SGRDownloadNone;
+    static const SGRDownloadState fromPlainModel[] = {
+        SGRDownloadNone, SGRDownloadWaiting, SGRDownloadDownloading, SGRDownloadDownloaded,
+    };
+    SGRDownloadState modelState = modelled ? (plain ? fromPlainModel : fromModel)[*current] : SGRDownloadNone;
     SGRDownloadState result = modelled ? modelState : said;
     if (!modelled && !named) return NO;
 
