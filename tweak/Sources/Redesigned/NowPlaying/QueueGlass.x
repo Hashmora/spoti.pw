@@ -15,7 +15,7 @@
 // NowPlaying_ECMKit.QueueHeader.UI.Private.PillButton, as NSStringFromClass prints it.
 static NSString *const kPillButtonClass = @"_TtCOOO17NowPlaying_ECMKit11QueueHeader2UI7Private10PillButton";
 
-static char kPillGlassKey, kChipGlassKey, kReshuffleKey, kReshuffleGlassKey;
+static char kPillGlassKey, kChipGlassKey, kReshuffleKey, kReshuffleGlassKey, kPlayKey;
 
 // Clear and Edit: wherever QueueHeaderView has put them this pass.
 static void glassPills(UIView *root) {
@@ -33,10 +33,27 @@ static void glassChip(UIView *root, NSString *buttonIdentifier) {
 }
 
 // The Reshuffle capsule (Encore Primary button, id=reshuffle-button) that floats over the list once the
-// queue has been played through: glass like Clear and Edit.
+// queue has been played through: it is the sheet's one primary action, so its glass carries the white film
+// (prominent) and reads a step brighter than Clear and Edit instead of vanishing into the sheet.
 static void glassReshuffle(UIView *root) {
     UIView *button = SGRFindByIdentifier(root, @"reshuffle-button", &kReshuffleKey);
-    if (button) SGRGlassFlatBox(button, &kReshuffleGlassKey);
+    if (!button) return;
+    if (@available(iOS 26.0, *)) return;
+    CGSize size = button.bounds.size;
+    if (size.width < 1 || size.height < 1) return;
+    if (button.backgroundColor != UIColor.clearColor) button.backgroundColor = UIColor.clearColor;
+    if (button.layer.cornerRadius != size.height / 2) button.layer.cornerRadius = size.height / 2;
+    if (button.layer.cornerCurve != kCACornerCurveContinuous) button.layer.cornerCurve = kCACornerCurveContinuous;
+    BOOL grows = SGUseLegacyGlass();
+    if (button.layer.masksToBounds != !grows) button.layer.masksToBounds = !grows;
+    SGRGlassCapsuleInside(button, &kReshuffleGlassKey, size, YES);
+}
+
+// The Now playing row's play / pause button (id=header-play-button, 15.txt): Spotify draws a dark grey shadow
+// under it that runs down over the glass. Taken off its layers, and again whenever Spotify lays it out.
+static void flattenPlay(UIView *button) {
+    if (button.layer.shadowOpacity > 0) button.layer.shadowOpacity = 0;
+    for (UIView *v in button.subviews) flattenPlay(v);
 }
 
 static void chrome(UIViewController *controller) {
@@ -45,6 +62,8 @@ static void chrome(UIViewController *controller) {
     SGRGlassSheetChrome(root);
     glassPills(root);
     glassReshuffle(root);
+    UIView *play = SGRFindByIdentifier(root, @"header-play-button", &kPlayKey);
+    if (play) flattenPlay(play);
     glassChip(root, @"queue-edit-toolbar-move-up");
     glassChip(root, @"queue-edit-toolbar-remove");
     glassChip(root, @"queue-edit-toolbar-clear-selection");
@@ -106,9 +125,23 @@ static void clearBar(UIView *bar) {
 }
 %end
 
+// Spotify sets the shadow as the button's state changes, play to pause included, which no pass of the sheet follows.
+%hook _TtC28EncoreConsumerMobile_BaseKit14PlayButtonView
+- (void)layoutSubviews {
+    %orig;
+    UIView *button = (UIView *)self;
+    if (![button.accessibilityIdentifier isEqualToString:@"header-play-button"]) return;
+    for (UIResponder *r = button; r; r = r.nextResponder) {
+        if (![r isKindOfClass:UIViewController.class]) continue;
+        if ([NSStringFromClass(r.class) containsString:@"Queue_ViewImpl"]) flattenPlay(button);
+        return;
+    }
+}
+%end
+
 %ctor {
     if (!SGRedesignedUI()) return;
     if (!SGBelowiOS26()) return;
     %init;
-    SGRequireClasses(@[@"_TtC14Queue_ViewImpl19QueueViewController"]);
+    SGRequireClasses(@[@"_TtC14Queue_ViewImpl19QueueViewController", @"_TtC28EncoreConsumerMobile_BaseKit14PlayButtonView"]);
 }

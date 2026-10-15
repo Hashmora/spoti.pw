@@ -38,6 +38,21 @@ static Class swiftClass(NSString *module, NSString *name) {
 
 #pragma mark - the search bar
 
+// The grey wash Spotify lays over the list behind the pinned bar (AssistedCuration_RecommendationsImpl.GradientView,
+// 120pt, a sibling of the bar's element, 17.txt): the bar is glass now, and the wash showed as a dark band under it.
+// Drawn by nothing, as the album's gradients are: an empty mask survives Spotify fading it by alpha.
+static void clearWash(UIView *bar) {
+    UIView *level = bar;
+    for (int i = 0; level && i < 5; i++, level = level.superview) {
+        for (UIView *sibling in level.superview.subviews) {
+            NSString *name = NSStringFromClass(sibling.class);
+            if (sibling == level || ![name containsString:@"AssistedCuration_RecommendationsImpl"] || ![name hasSuffix:@"GradientView"]) continue;
+            if (!sibling.layer.mask) sibling.layer.mask = [CALayer layer];
+            sibling.accessibilityElementsHidden = YES;
+        }
+    }
+}
+
 static void glassSearchBar(UIViewController *controller) {
     UIView *root = controller.viewIfLoaded;
     if (!root || root.bounds.size.width < 1) return;
@@ -46,6 +61,7 @@ static void glassSearchBar(UIViewController *controller) {
     if (sgr_addSongsSearchBar != bar) sgr_addSongsSearchBar = bar;
     if (bar.layer.backgroundColor) bar.layer.backgroundColor = NULL;
     SGRGlassFlatBox(bar, &kBarGlassKey);
+    clearWash(bar);
 
     static BOOL logged;
     if (!logged && bar.window) {

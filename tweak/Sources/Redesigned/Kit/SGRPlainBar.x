@@ -113,7 +113,7 @@ static UINavigationController *navigationOf(UIView *view) {
 - (void)viewDidAppear:(BOOL)animated {
     %orig;
     __weak UIViewController *weak = (UIViewController *)self;
-    for (NSNumber *delay in @[@0.0, @0.25]) {
+    for (NSNumber *delay in @[@0.0, @0.25, @0.6, @1.2, @2.5]) {
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
             if (weak && weak.viewIfLoaded.window) dress(weak);
         });
@@ -127,14 +127,29 @@ static UINavigationController *navigationOf(UIView *view) {
 %end
 
 // The bar's own passes: the page on top of its navigation controller, if it is one of these, is dressed.
-%hook SPNavigationBar
-- (void)layoutSubviews {
-    %orig;
+static void barPass(UIView *bar) {
     if (!SGBelowiOS26()) return;
-    UINavigationController *navigation = navigationOf((UIView *)self);
+    UINavigationController *navigation = navigationOf(bar);
     SGRSyncBarBlur(navigation);
     UIViewController *top = navigation.topViewController;
     if (top && [top isKindOfClass:sg_hosting] && top.viewIfLoaded.window) dress(top);
+}
+
+%hook SPNavigationBar
+- (void)layoutSubviews {
+    %orig;
+    barPass((UIView *)self);
+}
+%end
+
+// UIKit builds the bar's Back and title again as Spotify sets the page's item, which for these pages is when its data
+// has loaded and while this view is laid out, after the bar's own pass: Spotify's bar showed until the next pass of
+// the bar, a scroll, and the redesign's came only then (trees/continuous/14.txt).
+%hook _UINavigationBarContentView
+- (void)layoutSubviews {
+    %orig;
+    UIView *bar = ((UIView *)self).superview;
+    if ([bar isKindOfClass:NSClassFromString(@"SPNavigationBar")]) barPass(bar);
 }
 %end
 %end
