@@ -14,6 +14,7 @@
 // Threading: main thread only.
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
+#import "Redesigned/Pages/Pages.h"
 #import "Profile.h"
 
 static char kHeaderKey, kMoreKey, kBarMoreKey, kPinnedMoreKey;
