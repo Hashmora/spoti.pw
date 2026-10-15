@@ -13,6 +13,7 @@ __weak UIView *sgr_albumRoot = nil;
 __weak UIView *sgr_artistRoot = nil;
 __weak UIView *sgr_sheetChromeRoot = nil;
 __weak UIView *sgr_searchHeaderRoot = nil;
+__weak UIView *sgr_addSongsSearchBar = nil;
 __weak UIView *sgr_searchFieldFill = nil;
 
 // The flat, translucent white Spotify tints an unselected filter chip with (#FFFFFF@0.10). A selected chip is painted a solid colour of its own, which is never this.
@@ -59,6 +60,8 @@ static BOOL isLibraryHeader(UIView *view) {
         if (owner == sgr_searchHeaderRoot && CGColorGetAlpha(color) > 0.5) color = NULL;
         else if (owner == sgr_searchFieldFill && (isNeutralTint(color) || CGColorGetAlpha(color) > 0.5)) color = NULL;
     }
+    // The Add songs sheet's search bar: its grey goes, the glass (Playlist/PlaylistAddSearch.x) stands in its place.
+    if (legacyLook && color && sgr_addSongsSearchBar && self.delegate == sgr_addSongsSearchBar && CGColorGetAlpha(color) > 0.5) color = NULL;
     // A chip's fill painted: the grey goes, and either way the chip's glass is told (below, once the paint is
     // in), because selecting and deselecting a chip repaints the fill and lays nothing out, so the glass kept
     // whatever state the last layout gave it (hidden under a selected colour that was gone again).

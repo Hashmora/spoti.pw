@@ -12,8 +12,11 @@
 // room, and a hit area to match.
 //
 // 374pt wide the toast ran over the controls at either edge of the page (the buttons of a header, the rows' trailing
-// buttons), so the card is kSideInset narrower on each side, the content with it (Spotify lays the label and the
-// button out from the content's bounds), and the strips of the view that are left bare do not take touches.
+// buttons) and left a gap of nothing beside a short label, so the card is as wide as what it holds (the label, the
+// action and an even padding), centred in the view and never wider than kSideInset short of either edge. Spotify
+// lays the label and the button out for the 374, so the mod places both itself, also when the content lays out
+// again (trees/continuous/12.txt:1459-1470: the button's glass ran 26pt past a 342pt card). The strips of the view
+// that are left bare do not take touches.
 //
 // The toast is laid out as it comes up, so the pass runs from its layout; it runs again a moment later in case
 // Spotify paints the white back with the content.
@@ -27,6 +30,10 @@ static const CGFloat kActionPadX = 10;
 static const CGFloat kActionHeight = 32;
 // How far past the button the touch still counts, so the capsule is all button.
 static const CGFloat kActionHitX = 10, kActionHitY = 8;
+// The card's padding left of the label, and right of the glass round the action (or of the label when it has none).
+static const CGFloat kPadLeft = 20, kPadRight = 20;
+// The space between the label and the glass round the action.
+static const CGFloat kLabelGap = 10;
 
 static char kGlassKey, kFilmKey, kActionGlassKey, kDressedKey;
 
@@ -59,6 +66,63 @@ static void lightenText(UIView *root) {
     });
 }
 
+// The label and the action of the toast's content (SPTSnackbarWithActionView), found among its direct subviews.
+static void contentParts(UIView *content, UIView **label, UIView **action) {
+    *label = nil;
+    *action = nil;
+    for (UIView *sub in content.subviews) {
+        if (isActionButton(sub)) *action = sub;
+        else if (!*label && [NSStringFromClass(sub.class) containsString:@"Label"]) *label = sub;
+    }
+}
+
+static UILabel *innerLabel(UIView *label) {
+    __block UILabel *found = nil;
+    SGForEachView(label, ^(UIView *view) {
+        if (!found && [view isKindOfClass:UILabel.class]) found = (UILabel *)view;
+    });
+    return found;
+}
+
+// How wide the label wants to be within maxWidth (a long one takes all of it and wraps).
+static CGSize labelSize(UIView *label, CGFloat maxWidth) {
+    UILabel *text = innerLabel(label);
+    CGSize size = text ? [text sizeThatFits:CGSizeMake(maxWidth, CGFLOAT_MAX)] : label.bounds.size;
+    return CGSizeMake(MIN(ceil(size.width), maxWidth), ceil(size.height));
+}
+
+// The card's width for its content: padding, label, and the action's glass when there is one.
+static CGFloat cardWidth(UIView *content, CGFloat maxWidth) {
+    UIView *label = nil, *action = nil;
+    contentParts(content, &label, &action);
+    CGFloat actionWidth = action ? action.bounds.size.width + kActionPadX * 2 + kLabelGap : 0;
+    CGFloat padRight = action ? kPadRight - kActionPadX : kPadRight;
+    CGFloat room = maxWidth - kPadLeft - padRight - actionWidth;
+    CGFloat labelWidth = label ? labelSize(label, MAX(room, 1)).width : 0;
+    return MIN(kPadLeft + labelWidth + actionWidth + padRight, maxWidth);
+}
+
+// The label and the action inside the card, centred on its height: the label from the left padding, the action
+// against the right one.
+static void layoutContent(UIView *content) {
+    CGSize size = content.bounds.size;
+    if (size.width < 1 || size.height < 1) return;
+    UIView *label = nil, *action = nil;
+    contentParts(content, &label, &action);
+    CGFloat padRight = action ? kPadRight - kActionPadX : kPadRight;
+    CGFloat actionWidth = action ? action.bounds.size.width : 0;
+    if (action) {
+        CGRect frame = CGRectMake(size.width - padRight - actionWidth, round((size.height - action.bounds.size.height) / 2), actionWidth, action.bounds.size.height);
+        if (!CGRectEqualToRect(action.frame, frame)) action.frame = frame;
+    }
+    if (label) {
+        CGFloat room = size.width - kPadLeft - padRight - (action ? actionWidth + kActionPadX * 2 + kLabelGap : 0);
+        CGSize fit = labelSize(label, MAX(room, 1));
+        CGRect frame = CGRectMake(kPadLeft, round((size.height - fit.height) / 2), fit.width, fit.height);
+        if (!CGRectEqualToRect(label.frame, frame)) label.frame = frame;
+    }
+}
+
 static void dressAction(UIView *button) {
     CGSize size = button.bounds.size;
     if (size.width < 1 || size.height < 1) return;
@@ -71,7 +135,14 @@ static void dressSnackbar(UIView *snackbar) {
     // Dressed: from here the bare strips beside the card do not take touches (pointInside below).
     if (!objc_getAssociatedObject(snackbar, &kDressedKey)) objc_setAssociatedObject(snackbar, &kDressedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 
-    CGRect frame = CGRectInset(snackbar.bounds, kSideInset, 0);
+    // The content is the card's one view that is not the mod's glass or film (it is what Spotify added).
+    UIView *content = nil;
+    for (UIView *sub in card.subviews) {
+        if ([NSStringFromClass(sub.class) containsString:@"SPTSnackbarWithActionView"]) content = sub;
+    }
+    CGFloat maxWidth = snackbar.bounds.size.width - kSideInset * 2;
+    CGFloat width = content ? cardWidth(content, maxWidth) : maxWidth;
+    CGRect frame = CGRectMake(round((snackbar.bounds.size.width - width) / 2), 0, width, snackbar.bounds.size.height);
     if (!CGRectEqualToRect(card.frame, frame)) card.frame = frame;
     CGFloat radius = MIN(card.bounds.size.height / 2, kMaxRadius);
     if (card.layer.backgroundColor) card.layer.backgroundColor = NULL;
@@ -88,12 +159,13 @@ static void dressSnackbar(UIView *snackbar) {
     SGShapeGlass(glass, radius, NO);
     SGRGlassFilm(card, &kFilmKey, glass, radius);
 
-    // What the card holds follows it, so the label and the button are laid out for the narrower width.
+    // What the card holds follows it, and the label and the button are placed for its width.
     for (UIView *sub in card.subviews) {
         if (sub == glass || sub == objc_getAssociatedObject(card, &kFilmKey)) continue;
         if (!CGRectEqualToRect(sub.frame, card.bounds)) sub.frame = card.bounds;
         if (sub.layer.backgroundColor) sub.layer.backgroundColor = NULL;
     }
+    if (content) layoutContent(content);
     lightenText(card);
     SGForEachView(card, ^(UIView *view) {
         if (isActionButton(view)) dressAction(view);
@@ -136,6 +208,16 @@ static void dressAfterSettling(UIView *snackbar) {
 }
 %end
 
+// Spotify lays the label and the action out again for its own width whenever the content lays out.
+%hook SPTSnackbarWithActionView
+- (void)layoutSubviews {
+    %orig;
+    UIView *content = (UIView *)self;
+    UIView *snackbar = content.superview.superview;
+    if (snackbar && objc_getAssociatedObject(snackbar, &kDressedKey)) layoutContent(content);
+}
+%end
+
 %hook SPTSnackbarTextActionButton
 - (BOOL)pointInside:(CGPoint)point withEvent:(UIEvent *)event {
     return CGRectContainsPoint(CGRectInset(((UIView *)self).bounds, -kActionHitX, -kActionHitY), point);
@@ -146,5 +228,5 @@ static void dressAfterSettling(UIView *snackbar) {
     if (!SGRedesignedUI()) return;
     if (!SGBelowiOS26()) return;
     %init;
-    SGRequireClasses(@[@"SPTSnackbarView", @"SPTSnackbarTextActionButton"]);
+    SGRequireClasses(@[@"SPTSnackbarView", @"SPTSnackbarWithActionView", @"SPTSnackbarTextActionButton"]);
 }

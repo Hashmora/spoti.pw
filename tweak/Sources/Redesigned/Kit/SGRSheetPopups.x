@@ -87,10 +87,73 @@ static char kPendingPaneKey;
 // Save in's wrappers are painted an opaque black (#000 or the page's #121212), which the pane's strip leaves alone
 // (it takes only greys a view can see, SGIsVisibleColor) and the queue has none of: laid over the glass they made
 // the popup near black. The full width bands that are black or Spotify's grey go clear, as in a list's rows.
+// An opaque view with no fill is drawn over black, whatever its parent shows (see SGRGlass.m's clearListPaint, which
+// takes the views below the page). The wrappers above it, between the page and the sheet's pane, are Spotify's and
+// kept their flag, so the glass stayed black behind a tree with no paint left in it (trees/continuous/3.txt). Only
+// below the pane, and only when there is one.
+static void clearOpaqueAbove(UIView *view) {
+    UIView *pane = nil;
+    for (UIView *v = view; v && !pane; v = v.superview) {
+        if ([v.accessibilityIdentifier isEqualToString:@"sheet-view"]) pane = v;
+    }
+    if (!pane) return;
+    for (UIView *v = view; v && v != pane; v = v.superview) {
+        if (v.opaque) v.opaque = NO;
+        if (v.layer.opaque) v.layer.opaque = NO;
+        if (!SGKeepsColor(v) && v.layer.backgroundColor && CGColorGetAlpha(v.layer.backgroundColor) > 0.05) v.backgroundColor = UIColor.clearColor;
+    }
+}
+
 static void clearSaveInPaint(UIView *view) {
     UIView *sheet = sgr_sheetChromeRoot;
     if (view && sheet) SGRClearSheetCellPaint(view, sheet);
+    if (view) clearOpaqueAbove(view);
 }
+
+// The page's own views (ATPMainView, and the strip under the list that holds Done), painted by Spotify whenever
+// they are laid out, as the queue's two bars are (Redesigned/NowPlaying/QueueGlass.x): the paint, the opaque flag and the
+// fade Spotify draws behind the button go each time.
+static void clearSaveInView(UIView *view) {
+    if (view.bounds.size.width < 1) return;
+    CGColorRef paint = view.layer.backgroundColor;
+    if (paint && CGColorGetAlpha(paint) > 0.05) view.backgroundColor = UIColor.clearColor;
+    if (view.opaque) view.opaque = NO;
+    if (view.layer.opaque) view.layer.opaque = NO;
+    if ([view.layer isKindOfClass:CAGradientLayer.class]) {
+        CAGradientLayer *gradient = (CAGradientLayer *)view.layer;
+        if (gradient.colors) gradient.colors = nil;
+    }
+    for (CALayer *layer in view.layer.sublayers) {
+        if ([layer isKindOfClass:CAGradientLayer.class] && !layer.hidden) layer.hidden = YES;
+    }
+    clearOpaqueAbove(view);
+}
+
+%group SGRSaveInViews
+%hook SGRSaveInMain
+- (void)layoutSubviews {
+    %orig;
+    clearSaveInView((UIView *)self);
+}
+
+- (void)didMoveToWindow {
+    %orig;
+    clearSaveInView((UIView *)self);
+}
+%end
+
+%hook SGRSaveInDone
+- (void)layoutSubviews {
+    %orig;
+    clearSaveInView((UIView *)self);
+}
+
+- (void)didMoveToWindow {
+    %orig;
+    clearSaveInView((UIView *)self);
+}
+%end
+%end
 
 static void chrome(UIViewController *sheet) {
     UIViewController *content = contentIn(sheet, 0);
@@ -427,6 +490,11 @@ static BOOL loaderIsRate(UIViewController *loader) {
 static void loaderChrome(UIViewController *loader) {
     UIView *pane = loader.viewIfLoaded;
     if (!pane || pane.bounds.size.width < 300 || !isPageSheet(loader) || !loaderIsRate(loader)) return;
+    // The whole app is presented too (a UIDropShadowView r=47.3 under the window), and every page loader in it, the
+    // Library's included, shows only its spinner for a moment: it was taken for the Rate sheet then, and its pane
+    // kept the glass over the whole screen once the page had loaded (trees/continuous/2.txt), with the sheet chrome's
+    // repaint hook clearing the avatar's fill. A page sheet is a card with a gap above it, never as tall as the screen.
+    if (pane.bounds.size.height >= UIScreen.mainScreen.bounds.size.height - 1) return;
     if (pane.layer.mask) pane.layer.mask = nil;
     SGRGlassSheetView(pane);
 }
@@ -512,6 +580,11 @@ static void glassFindBar(UIView *root) {
     if (![list.accessibilityIdentifier isEqualToString:@"AddToPlaylistTableView"]) return;
     glassFindBar(list);
     glassFindBar(list.superview);
+    // An opaque table is drawn over black however clear its fill is.
+    if (list.opaque) list.opaque = NO;
+    if (list.layer.opaque) list.layer.opaque = NO;
+    if (list.layer.backgroundColor && CGColorGetAlpha(list.layer.backgroundColor) > 0.05) list.backgroundColor = UIColor.clearColor;
+    clearOpaqueAbove(list);
 }
 %end
 %end
@@ -529,6 +602,13 @@ static void glassFindBar(UIView *root) {
     if (saveIn) {
         %init(SGRSaveIn, SGRSaveInContainer = saveIn);
         %init(SGRSaveInList);
+    }
+    Class saveInMain = swiftClass(@"PlaylistCuration_AddToPlaylistImpl", @"ATPMainView");
+    Class saveInDone = swiftClass(@"PlaylistCuration_AddToPlaylistImpl", @"ATPDoneButtonView");
+    if (saveInMain && saveInDone) {
+        %init(SGRSaveInViews, SGRSaveInMain = saveInMain, SGRSaveInDone = saveInDone);
+    } else {
+        SGLog(@"classes ATPMainView / ATPDoneButtonView not found, Save in may stay darker than the queue");
     }
     Class picker = swiftClass(@"SmartShuffle_CoreImpl", @"PlayModePickerViewController");
     if (picker) {

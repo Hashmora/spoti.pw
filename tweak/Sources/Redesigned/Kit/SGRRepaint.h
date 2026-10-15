@@ -27,6 +27,10 @@ extern __weak UIView *sgr_sheetChromeRoot;
 extern __weak UIView *sgr_searchHeaderRoot;
 extern __weak UIView *sgr_searchFieldFill;
 
+// Playlist/PlaylistAddSearch.x, iOS < 26: the grey search bar at the bottom of the Add songs sheet's pages, kept clear
+// while it is set (Spotify paints it again when the field is focused).
+extern __weak UIView *sgr_addSongsSearchBar;
+
 // Defined in Redesigned/Library/LibraryHeader.x, declared here because the repaint hook is lower than the
 // part: a library filter chip's fill was just painted (selected, deselected, pressed), so its glass is brought
 // in line with the paint -- shown over a clear fill, hidden under a selected colour -- without a layout pass.

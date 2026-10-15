@@ -254,6 +254,7 @@ static void unclipChip(UIView *chip) {
         if (v.clipsToBounds) v.clipsToBounds = NO;
         if ([NSStringFromClass(v.class) hasSuffix:@"YourLibraryHeaderContentFiltersView"]) break;
         if ([v.accessibilityIdentifier isEqualToString:SGRSearchFiltersIdentifier]) break;
+        if ([NSStringFromClass(v.class) containsString:@"AssistedCurationFiltersElement"]) break;
     }
 }
 
@@ -307,12 +308,14 @@ static BOOL isChipView(UIView *view) {
     return [NSStringFromClass(view.class) isEqualToString:@"EncoreConsumerMobile_BaseKit.FilterChipView"];
 }
 
-// Only the chips of a library header or a folder's, and the search results' (the one other row of these chips that is
-// glass): Home has chips of its own, with their own treatment.
+// Only the chips of a library header or a folder's, the search results' and the Find page's of the Add songs sheet
+// (Songs / Artists / Albums, trees/continuous/14.txt:2160-2187: the same chips in an AssistedCurationFiltersElement),
+// the rows of these chips that are glass: Home has chips of its own, with their own treatment.
 static BOOL inLibraryChips(UIView *view) {
     for (UIView *v = view; v; v = v.superview) {
         if ([NSStringFromClass(v.class) hasSuffix:@"YourLibraryHeaderContentFiltersView"]) return YES;
         if ([v.accessibilityIdentifier isEqualToString:SGRSearchFiltersIdentifier]) return YES;
+        if ([NSStringFromClass(v.class) containsString:@"AssistedCurationFiltersElement"]) return YES;
     }
     return NO;
 }
