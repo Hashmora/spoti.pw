@@ -4,8 +4,7 @@
 // PillView, and are dressed by SGRSheetPills.x on its own.
 //
 // An unselected chip's flat fill (#FFFFFF@0.10) goes and a glass capsule stands behind it, as the library's chips
-// have theirs (Library/LibraryHeader.x); a selected chip keeps the solid colour it is painted, which is never the
-// translucent white. Spotify paints the fill again as a chip is selected or let go, with no layout, so
+// have theirs (Library/LibraryHeader.x); a selected chip is glass tinted with the colour it is painted (below). Spotify paints the fill again as a chip is selected or let go, with no layout, so
 // SGRRepaint.x keeps the tint off a pill of a chip dressed here and tells the chip.
 //
 // Threading: main thread only.
@@ -14,6 +13,14 @@
 // Dresses every chip under `root` and watches each for its own layout, so a row laid out again at new widths (a
 // chip picked) sizes the glass again. Cheap to call on every pass.
 void SGRGlassChipsIn(UIView *root);
+
+// A selected chip is a solid colour of Spotify's (the library's green). Below iOS 26 it is glass with that colour as
+// its tint instead: the colour made translucent over the chip's glass capsule, so the glass shows through it.
+// SGRSelectedChipPaint is that colour for a solid `paint` (any other paint comes back as it is), and
+// SGRTintSelectedFill puts it on a fill or a pill that Spotify painted solid. For the three kinds of chip (the
+// library's, Encore's, the sheet's pills) and SGRRepaint.x, which swaps it in as Spotify paints.
+CGColorRef SGRSelectedChipPaint(CGColorRef paint);
+void SGRTintSelectedFill(UIView *fill);
 
 // Whether `view` is the pill of a chip dressed by SGRGlassChipsIn, and the chip's glass is brought in line with a
 // paint that has just landed on it. For SGRRepaint.x.

@@ -8,7 +8,7 @@
 //
 // The glass goes in the pill itself, first among its subviews, as in the library (Library/LibraryHeader.x): an
 // unselected pill's grey goes and a glass capsule stands behind its label; a selected pill keeps its colour, and
-// its glass is hidden so no rim shows round the edge. Spotify paints the pill again as it is selected and let
+// its colour is made translucent over the glass, which then shows through it as a tint. Spotify paints the pill again as it is selected and let
 // go, which lays nothing out, so SGRRepaint.x keeps the grey off a dressed pill and tells it (SGRIsSheetPill,
 // SGRSheetPillPainted).
 //
@@ -61,8 +61,9 @@ static void glassPill(UIView *pill) {
     if (size.width < 1 || size.height < 1) return;
     unclipPill(pill);
     if (pillIsSelected(pill)) {
-        UIView *glass = objc_getAssociatedObject(pill, &kPillGlassKey);
-        if (glass && !glass.hidden) glass.hidden = YES;
+        // The colour is a tint over the glass, which stands behind it.
+        SGRTintSelectedFill(pill);
+        SGRGlassCapsuleInside(pill, &kPillGlassKey, size, NO);
         return;
     }
     if (pill.layer.backgroundColor) pill.layer.backgroundColor = NULL;

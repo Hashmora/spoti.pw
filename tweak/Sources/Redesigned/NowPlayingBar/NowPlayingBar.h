@@ -27,3 +27,7 @@ CGRect SGRNowPlayingArtworkFrameIn(UIView *host);
 // Lays the bar out again at once, into the minimized tab bar's slot or back above the bar
 // (Navbar.h's SGRTabBarInlineSlot); TabBar.x calls it inside its own animation.
 void SGRNowPlayingBarFollowTabBar(void);
+// How far the bar stands below where Spotify puts it, in the minimized tab bar's row; 0 with the tab bar expanded. The
+// toast over the bar (Kit/SGRSnackbar.x) is moved by the same, which follows the bar from the call above.
+CGFloat SGRNowPlayingBarInlineShift(void);
+void SGRSnackbarFollowNowPlayingBar(void);

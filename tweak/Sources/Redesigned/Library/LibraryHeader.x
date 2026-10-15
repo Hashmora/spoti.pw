@@ -8,7 +8,8 @@
 // something the page cannot do without (issue #20); with them back the header keeps the height Spotify gives
 // it and the list keeps Spotify's own inset, and there is nothing here to resize or to hold. Only the paint
 // changes: an unselected chip's flat grey fill goes (SGRRepaint.x holds it clear when Spotify paints it back)
-// and a glass capsule stands behind it, like the header's round buttons; a selected chip keeps its own colour.
+// and a glass capsule stands behind it, like the header's round buttons; a selected chip is that glass with its own
+// colour over it as a tint (SGRSelectedChipPaint), and so is the cross that clears the filters, left of the chips.
 // The header's own backing ends under the title row and the list runs up under the chips (plateRow, raiseList),
 // so the glass has the rows to show; the root library only, a folder's header is left as Spotify's.
 //
@@ -235,8 +236,9 @@ static UIView *chipFill(UIView *chip, UIView *glass) {
     return nil;
 }
 
-// A selected chip is painted a solid colour of its own to say so; an unselected one a translucent white
-// that SGRRepaint.x now keeps from ever landing.
+// A selected chip is painted a solid colour of its own to say so (made a tint over the glass by SGRRepaint.x, so
+// translucent but never the neutral white); an unselected one a translucent white that SGRRepaint.x now keeps from
+// ever landing.
 static BOOL chipIsSelected(UIView *fill) {
     CGColorRef color = fill.layer.backgroundColor;
     return color && CGColorGetAlpha(color) > 0.3;
@@ -248,6 +250,12 @@ static BOOL chipIsSelected(UIView *fill) {
 // row stops clipping; the row is as wide as the screen, so nothing shows that was not on screen already. The
 // search results' chips (Search/SearchHeader.x) are the same views in a row of their own, and are taken the same way.
 static BOOL inLibraryChips(UIView *view);
+// The cross at the leading end of the chips while a filter is picked (Clear filters, a ClearChipView): a round chip
+// of its own, a grey fill with the icon in it.
+static BOOL isClearChip(UIView *view) {
+    return [NSStringFromClass(view.class) hasSuffix:@"ClearChipView"];
+}
+
 static void unclipChip(UIView *chip) {
     if (!SGUseLegacyGlass() || !inLibraryChips(chip)) return;
     for (UIView *v = chip.superview; v; v = v.superview) {
@@ -269,9 +277,10 @@ static void glassChip(UIView *chip) {
     unclipChip(chip);
     UIView *glass = objc_getAssociatedObject(chip, &kChipGlassKey);
     UIView *fill = chipFill(chip, glass);
-    if (fill && chipIsSelected(fill)) {
-        // Under the colour already; hidden as well, so no rim of it shows round the capsule's edge.
-        if (glass && !glass.hidden) glass.hidden = YES;
+    if (fill && !isClearChip(chip) && chipIsSelected(fill)) {
+        // The colour is a tint over the glass, which stands behind it.
+        SGRTintSelectedFill(fill);
+        SGRGlassCapsuleInside(chip, &kChipGlassKey, size, NO);
         return;
     }
     if (fill && fill.layer.backgroundColor) fill.layer.backgroundColor = NULL;
@@ -298,7 +307,7 @@ static void glassChips(UIView *header) {
     UIView *chips = SGRFindByIdentifier(header, @"Components.UI.FilterChips", &kChipsKey);
     if (!chips) return;
     SGForEachView(chips, ^(UIView *v) {
-        if (![NSStringFromClass(v.class) isEqualToString:@"EncoreConsumerMobile_BaseKit.FilterChipView"]) return;
+        if (![NSStringFromClass(v.class) isEqualToString:@"EncoreConsumerMobile_BaseKit.FilterChipView"] && !isClearChip(v)) return;
         glassChip(v);
         watchChip(v);
     });
@@ -325,7 +334,7 @@ static BOOL inLibraryChips(UIView *view) {
 // hidden from the selected state and at the width of a chip that had been another one in the reused cell,
 // and had no pill at all until the page happened to lay out.
 void SGRLibraryChipPainted(UIView *chip) {
-    if (!chip.window || !isChipView(chip) || !inLibraryChips(chip)) return;
+    if (!chip.window || !(isChipView(chip) || isClearChip(chip)) || !inLibraryChips(chip)) return;
     // What the glass was when the paint came, before it is put right: the line that says whether it was stale.
     static NSInteger logged;
     if (logged < 40) {
@@ -350,7 +359,7 @@ void SGRLibraryChipPainted(UIView *chip) {
     UIView *collection = (UIView *)self;
     if (![collection.accessibilityIdentifier isEqualToString:@"Layout.CollectionView"] || !inLibraryChips(collection)) return;
     SGForEachView(collection, ^(UIView *v) {
-        if (isChipView(v)) { glassChip(v); watchChip(v); }
+        if (isChipView(v) || isClearChip(v)) { glassChip(v); watchChip(v); }
     });
 }
 %end

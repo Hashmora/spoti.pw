@@ -483,6 +483,12 @@ void SGRNowPlayingBarFollowTabBar(void) {
     placeInline(container);
     [container.view setNeedsLayout];
     [container.view layoutIfNeeded];
+    SGRSnackbarFollowNowPlayingBar();
+}
+
+CGFloat SGRNowPlayingBarInlineShift(void) {
+    UIView *view = sg_inline;
+    return view ? view.transform.ty : 0;
 }
 
 static void styleNowPlayingBar(UIViewController *container) {

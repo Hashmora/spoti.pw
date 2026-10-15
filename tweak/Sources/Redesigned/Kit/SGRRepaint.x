@@ -31,10 +31,12 @@ static BOOL isNeutralTint(CGColorRef color) {
 // it again on its own passes (a chip pressed, selected or let go, a cell coming back from reuse), none
 // of which lays the library page out, so clearing it once from the page's pass left the grey back under
 // the glass every time. Told apart by the class of its parent, not by a root: the root library and a
-// folder can both be alive, and each has chips.
+// folder can both be alive, and each has chips. The cross that clears the filters has a fill of the same kind
+// in its ClearChipView.
 static BOOL isChipFill(UIView *view) {
     if (view.superview == nil || ![view isMemberOfClass:UIView.class]) return NO;
-    return [NSStringFromClass(view.superview.class) isEqualToString:@"EncoreConsumerMobile_BaseKit.FilterChipView"];
+    NSString *parent = NSStringFromClass(view.superview.class);
+    return [parent isEqualToString:@"EncoreConsumerMobile_BaseKit.FilterChipView"] || [parent hasSuffix:@"ClearChipView"];
 }
 
 // The opaque backing Spotify paints the library's pinned header with (#121212, black under the AMOLED hook).
@@ -78,6 +80,8 @@ static BOOL isLibraryHeader(UIView *view) {
                 dressedChip = YES;
             }
             if (paintedChip && (isNeutralTint(color) || (dressedChip && SGRIsSheetSurface(color)))) color = NULL;
+            // A selected chip's solid colour lands as a tint over the chip's glass (SGRChips.h).
+            else if (paintedChip) color = SGRSelectedChipPaint(color);
         }
     }
     // A pill of the Add to playlist sheet (SGRSheetPills.x): its grey goes, and the pill's glass is told once the
@@ -88,6 +92,7 @@ static BOOL isLibraryHeader(UIView *view) {
         if ([pill isKindOfClass:UIView.class] && pill.layer == self && SGRIsSheetPill(pill)) {
             paintedPill = pill;
             if (SGRIsPillGrey(color)) color = NULL;
+            else color = SGRSelectedChipPaint(color);
         }
     }
     if (color && (sgr_nowPlayingRoot || sgr_lyricsPageRoot || sgr_playlistRoot || sgr_albumRoot || sgr_artistRoot || sgr_sheetChromeRoot)) {

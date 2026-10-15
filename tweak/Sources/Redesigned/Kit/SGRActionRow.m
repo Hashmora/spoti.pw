@@ -452,6 +452,16 @@ SGRMirrorButton *SGRPinnedMoreRecentButton(void) {
 }
 @end
 
+static const CGFloat kSheetBarHeight = 56;   // trees/continuous/8.txt:2264, the Find page's SPNavigationBar
+
+// Whether the page is presented in one of Navigation's sheets (NavigationUI_SheetImpl).
+static BOOL inSheet(UIView *page) {
+    for (UIResponder *r = page; r; r = r.nextResponder) {
+        if ([NSStringFromClass(r.class) containsString:@"NavigationUI_SheetImpl"]) return YES;
+    }
+    return NO;
+}
+
 // Over the page's list and its header both, and put back on top whenever Spotify adds to the page.
 static void keepOnTop(UIView *page, UIView *button) {
     if (button.superview != page) [page addSubview:button];
@@ -472,6 +482,9 @@ static void placeInCorner(UIView *page, UIView *button, BOOL leading) {
     CGFloat x = leading ? kCornerSide : page.bounds.size.width - kCornerSide - side;
     CGFloat y = space.safeAreaInsets.top;
     if (window) y = [page convertPoint:CGPointMake(0, y) fromView:nil].y;
+    // A page in a sheet (the Add songs sheet's Find) has no status bar over it: its bar is the sheet's own row,
+    // kSheetBarHeight high, with the circle centred in it.
+    if (inSheet(page)) y = (kSheetBarHeight - side) / 2;
     CGRect frame = CGRectMake(x, y, side, side);
     if (!CGRectIsEmpty(frame) && !CGRectEqualToRect(button.frame, frame)) button.frame = frame;
 }

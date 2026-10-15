@@ -10,6 +10,21 @@ static NSString *const kRowClass = @"_TtCE15Encore_ChipsKitO16EncoreFoundation6E
 
 static char kChipGlassKey, kChipWatchedKey;
 
+// How much of its colour a selected chip keeps: enough for the label (#121212 on it) to read, little enough for the
+// glass under it to show as a tint.
+static const CGFloat kSelectedTintAlpha = 0.62;
+
+CGColorRef SGRSelectedChipPaint(CGColorRef paint) {
+    if (!paint || CFGetTypeID(paint) != CGColorGetTypeID() || CGColorGetAlpha(paint) < 0.95) return paint;
+    return (CGColorRef)CFAutorelease(CGColorCreateCopyWithAlpha(paint, kSelectedTintAlpha));
+}
+
+void SGRTintSelectedFill(UIView *fill) {
+    CGColorRef paint = fill.layer.backgroundColor;
+    if (!paint || CGColorGetAlpha(paint) < 0.95) return;
+    fill.layer.backgroundColor = SGRSelectedChipPaint(paint);
+}
+
 static BOOL isChip(UIView *view) {
     return [NSStringFromClass(view.class) isEqualToString:kChipClass];
 }
@@ -44,9 +59,9 @@ static void glassChip(UIView *chip) {
     unclipChip(chip);
     UIView *pill = pillOf(chip);
     if (pill && pillIsSelected(pill)) {
-        // Under the colour already; hidden as well, so no rim of it shows round the capsule's edge.
-        UIView *glass = objc_getAssociatedObject(chip, &kChipGlassKey);
-        if (glass && !glass.hidden) glass.hidden = YES;
+        // The colour is a tint over the glass, which stands behind it.
+        SGRTintSelectedFill(pill);
+        SGRGlassCapsuleInside(chip, &kChipGlassKey, size, NO);
         return;
     }
     if (pill && pill.layer.backgroundColor) pill.layer.backgroundColor = NULL;

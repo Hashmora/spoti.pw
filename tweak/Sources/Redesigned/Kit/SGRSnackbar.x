@@ -18,10 +18,24 @@
 // again (trees/continuous/12.txt:1459-1470: the button's glass ran 26pt past a 342pt card). The strips of the view
 // that are left bare do not take touches.
 //
+// Spotify lays the content out for the 374 again whenever it lays out, whatever size the mod gave it (trees/continuous/6.txt:
+// 1459-1470: the content 374pt wide in a card of 193, the Open button at x=330 past the card's edge, so it was never
+// seen, and the card first drawn for the label alone). So the content is held to the card's size from its own layout,
+// and the action is measured by its word, not by a frame Spotify has not given it yet. A frame Spotify sets on the
+// content is held to the card's as well (setFrame:), so no pass of its own can put the button past the card's edge.
+//
+// A toast without an action (Removed from Liked Songs, trees/continuous/7.txt:1459-1466) holds an
+// SPTSimpleSnackbarContentView with only the label, and is dressed the same way: the card is as wide as the label.
+//
+// Spotify puts the toast above the now playing bar where the bar stands with the tab bar expanded. In the minimized
+// tab bar the bar moves down into the row (NowPlayingBar.x, by a transform Spotify does not know), and the toast
+// kept its height in the air above nothing. The card follows the bar by the same shift, in the animation of the tab bar.
+//
 // The toast is laid out as it comes up, so the pass runs from its layout; it runs again a moment later in case
 // Spotify paints the white back with the content.
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
+#import "Redesigned/NowPlayingBar/NowPlayingBar.h"
 
 static const CGFloat kSideInset = 16;
 static const CGFloat kMaxRadius = 28;
@@ -36,6 +50,8 @@ static const CGFloat kPadLeft = 20, kPadRight = 20;
 static const CGFloat kLabelGap = 10;
 
 static char kGlassKey, kFilmKey, kActionGlassKey, kDressedKey;
+// The toast on screen, for the tab bar's minimize to move.
+static __weak UIView *sg_snackbar;
 
 // The card: the plain UIView the toast holds its content in.
 static UIView *cardOf(UIView *snackbar) {
@@ -84,6 +100,13 @@ static UILabel *innerLabel(UIView *label) {
     return found;
 }
 
+// The action's size: its frame once Spotify has laid it out, its word's until then.
+static CGSize actionSize(UIView *action) {
+    UILabel *text = innerLabel(action);
+    CGSize fit = text ? [text sizeThatFits:CGSizeMake(CGFLOAT_MAX, CGFLOAT_MAX)] : CGSizeZero;
+    return CGSizeMake(MAX(action.bounds.size.width, ceil(fit.width)), MAX(action.bounds.size.height, MAX(ceil(fit.height), 30)));
+}
+
 // How wide the label wants to be within maxWidth (a long one takes all of it and wraps).
 static CGSize labelSize(UIView *label, CGFloat maxWidth) {
     UILabel *text = innerLabel(label);
@@ -95,7 +118,7 @@ static CGSize labelSize(UIView *label, CGFloat maxWidth) {
 static CGFloat cardWidth(UIView *content, CGFloat maxWidth) {
     UIView *label = nil, *action = nil;
     contentParts(content, &label, &action);
-    CGFloat actionWidth = action ? action.bounds.size.width + kActionPadX * 2 + kLabelGap : 0;
+    CGFloat actionWidth = action ? actionSize(action).width + kActionPadX * 2 + kLabelGap : 0;
     CGFloat padRight = action ? kPadRight - kActionPadX : kPadRight;
     CGFloat room = maxWidth - kPadLeft - padRight - actionWidth;
     CGFloat labelWidth = label ? labelSize(label, MAX(room, 1)).width : 0;
@@ -105,14 +128,18 @@ static CGFloat cardWidth(UIView *content, CGFloat maxWidth) {
 // The label and the action inside the card, centred on its height: the label from the left padding, the action
 // against the right one.
 static void layoutContent(UIView *content) {
+    // Spotify sizes the content for its 374; it is the card's size, and the parts are placed in that.
+    UIView *card = content.superview;
+    if (card && !CGRectEqualToRect(content.frame, card.bounds)) content.frame = card.bounds;
     CGSize size = content.bounds.size;
     if (size.width < 1 || size.height < 1) return;
     UIView *label = nil, *action = nil;
     contentParts(content, &label, &action);
     CGFloat padRight = action ? kPadRight - kActionPadX : kPadRight;
-    CGFloat actionWidth = action ? action.bounds.size.width : 0;
+    CGSize actionFit = action ? actionSize(action) : CGSizeZero;
+    CGFloat actionWidth = actionFit.width;
     if (action) {
-        CGRect frame = CGRectMake(size.width - padRight - actionWidth, round((size.height - action.bounds.size.height) / 2), actionWidth, action.bounds.size.height);
+        CGRect frame = CGRectMake(size.width - padRight - actionWidth, round((size.height - actionFit.height) / 2), actionWidth, actionFit.height);
         if (!CGRectEqualToRect(action.frame, frame)) action.frame = frame;
     }
     if (label) {
@@ -129,21 +156,41 @@ static void dressAction(UIView *button) {
     SGRGlassCapsuleInside(button, &kActionGlassKey, CGSizeMake(size.width + kActionPadX * 2, kActionHeight), NO);
 }
 
+// Where the now playing bar stands is where the toast stands over it: the bar's shift into the minimized tab bar's row
+// (0 with the bar expanded) is the card's. Called inside the tab bar's animation as well, so the two move together.
+static void followNowPlayingBar(UIView *snackbar) {
+    UIView *card = cardOf(snackbar);
+    if (!card) return;
+    CGAffineTransform shift = CGAffineTransformMakeTranslation(0, SGRNowPlayingBarInlineShift());
+    if (!CGAffineTransformEqualToTransform(card.transform, shift)) card.transform = shift;
+}
+
+void SGRSnackbarFollowNowPlayingBar(void) {
+    UIView *snackbar = sg_snackbar;
+    if (snackbar.window) followNowPlayingBar(snackbar);
+}
+
 static void dressSnackbar(UIView *snackbar) {
     UIView *card = cardOf(snackbar);
     if (!card || snackbar.bounds.size.width < 1 || snackbar.bounds.size.height < 1) return;
     // Dressed: from here the bare strips beside the card do not take touches (pointInside below).
     if (!objc_getAssociatedObject(snackbar, &kDressedKey)) objc_setAssociatedObject(snackbar, &kDressedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 
-    // The content is the card's one view that is not the mod's glass or film (it is what Spotify added).
+    // The content is the card's one view that is not the mod's glass or film (it is what Spotify added): the
+    // toast with an action holds an SPTSnackbarWithActionView, the one without a SPTSimpleSnackbarContentView.
     UIView *content = nil;
     for (UIView *sub in card.subviews) {
-        if ([NSStringFromClass(sub.class) containsString:@"SPTSnackbarWithActionView"]) content = sub;
+        if ([NSStringFromClass(sub.class) containsString:@"SnackbarWithActionView"] || [NSStringFromClass(sub.class) containsString:@"SnackbarContentView"]) content = sub;
     }
+    sg_snackbar = snackbar;
     CGFloat maxWidth = snackbar.bounds.size.width - kSideInset * 2;
     CGFloat width = content ? cardWidth(content, maxWidth) : maxWidth;
-    CGRect frame = CGRectMake(round((snackbar.bounds.size.width - width) / 2), 0, width, snackbar.bounds.size.height);
-    if (!CGRectEqualToRect(card.frame, frame)) card.frame = frame;
+    // By bounds and centre: the card carries a transform below (the minimized tab bar), and a frame set under one is undefined.
+    CGRect bounds = CGRectMake(0, 0, width, snackbar.bounds.size.height);
+    CGPoint center = CGPointMake(round((snackbar.bounds.size.width - width) / 2) + width / 2, snackbar.bounds.size.height / 2);
+    if (!CGRectEqualToRect(card.bounds, bounds)) card.bounds = bounds;
+    if (!CGPointEqualToPoint(card.center, center)) card.center = center;
+    followNowPlayingBar(snackbar);
     CGFloat radius = MIN(card.bounds.size.height / 2, kMaxRadius);
     if (card.layer.backgroundColor) card.layer.backgroundColor = NULL;
     if (card.layer.cornerRadius != radius) card.layer.cornerRadius = radius;
@@ -209,12 +256,38 @@ static void dressAfterSettling(UIView *snackbar) {
 %end
 
 // Spotify lays the label and the action out again for its own width whenever the content lays out.
-%hook SPTSnackbarWithActionView
-- (void)layoutSubviews {
-    %orig;
-    UIView *content = (UIView *)self;
+static void relayoutContent(UIView *content) {
     UIView *snackbar = content.superview.superview;
     if (snackbar && objc_getAssociatedObject(snackbar, &kDressedKey)) layoutContent(content);
+}
+
+// A frame Spotify gives the content (its 374) is the card's instead, so the Open button is never placed past the card's edge.
+static CGRect heldToCard(UIView *content, CGRect frame) {
+    UIView *card = content.superview;
+    UIView *snackbar = card.superview;
+    if (card && snackbar && objc_getAssociatedObject(snackbar, &kDressedKey) && card.bounds.size.width >= 1) return card.bounds;
+    return frame;
+}
+
+%hook SPTSnackbarWithActionView
+- (void)setFrame:(CGRect)frame {
+    %orig(heldToCard((UIView *)self, frame));
+}
+
+- (void)layoutSubviews {
+    %orig;
+    relayoutContent((UIView *)self);
+}
+%end
+
+%hook SPTSimpleSnackbarContentView
+- (void)setFrame:(CGRect)frame {
+    %orig(heldToCard((UIView *)self, frame));
+}
+
+- (void)layoutSubviews {
+    %orig;
+    relayoutContent((UIView *)self);
 }
 %end
 

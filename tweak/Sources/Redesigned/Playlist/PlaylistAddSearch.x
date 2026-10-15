@@ -8,12 +8,13 @@
 // contents above. Spotify paints the grey again as the field is focused, so SGRRepaint.x keeps it clear
 // (sgr_addSongsSearchBar).
 //
-// The Find page's navigation bar (14.txt:2230-2250) is UIKit's: a _UIButtonBarButton with a bare chevron
-// (_UIModernBarButton) and the title. Its Back gets a glass circle, the one the playlist, album and artist pages
-// and the profile lists give theirs (Profile/ProfileListBar.x). The bar belongs to the sheet's own
-// navigation controller (AssistedCuration_PageImpl.AssistedCurationNavigationController), so nothing is put back: the
-// button, and the glass in it, go with the page. UIKit builds the buttons again while it lays the content view out,
-// after the bar's own pass, so the dressing runs from both.
+// The Find page's navigation bar (8.txt:2264-2284) is UIKit's: a _UIButtonBarButton with a bare chevron
+// (_UIModernBarButton) and the title. It is dressed the way the profile lists' is (Profile/ProfileListBar.x): the
+// bar of Pages/PageBar.m, whose Back is the glass circle the playlist, album and artist pages pin to their corner.
+// (Glass put inside UIKit's own button, 40x20 in a 48pt one, threw its layout off.) The bar belongs to the sheet's
+// own navigation controller (AssistedCuration_PageImpl.AssistedCurationNavigationController), and is given back as
+// the page goes. UIKit builds the buttons again while it lays the content view out, after the bar's own pass, so the
+// dressing runs from both.
 //
 // The chips of the Find page (Songs / Artists / Albums) are the library's FilterChipView: Library/LibraryHeader.x
 // gives them their glass (inLibraryChips takes this row too).
@@ -21,11 +22,12 @@
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
 #import "Redesigned/Kit/SGRRepaint.h"
+#import "Redesigned/Pages/Pages.h"
 
-// As tall as the round buttons beside it on the playlist's pages (Profile/ProfileListBar.x).
-static const CGFloat kBackGlassHeight = 44;
+static char kBarKey, kBarGlassKey;
 
-static char kBarKey, kBarGlassKey, kBackGlassKey;
+// The Find page's container (SGRFind, below), once it is hooked: the page the bar is dressed for.
+static Class sg_findClass;
 
 // A Swift class by module and name, under the mangled spelling or the dotted one the trees print; nil when the
 // app has neither.
@@ -93,13 +95,6 @@ static void searchBarPasses(UIViewController *controller) {
 
 #pragma mark - the Find page's Back
 
-static UIView *subviewNamed(UIView *host, NSString *name) {
-    for (UIView *sub in host.subviews) {
-        if ([NSStringFromClass(sub.class) isEqualToString:name]) return sub;
-    }
-    return nil;
-}
-
 static UINavigationController *navigationOf(UIView *bar) {
     for (UIResponder *r = bar; r; r = r.nextResponder) {
         if ([r isKindOfClass:UINavigationController.class]) return (UINavigationController *)r;
@@ -107,24 +102,38 @@ static UINavigationController *navigationOf(UIView *bar) {
     return nil;
 }
 
-static void glassBack(UIView *bar) {
-    if (bar.bounds.size.width < 1) return;
-    if (![NSStringFromClass(navigationOf(bar).class) containsString:@"AssistedCurationNavigationController"]) return;
-    __block UIView *back = nil;
-    SGForEachView(bar, ^(UIView *v) {
-        if (!back && [NSStringFromClass(v.class) isEqualToString:@"_UIButtonBarButton"] && subviewNamed(v, @"_UIBackButtonMaskView")) back = v;
-    });
-    // The glass goes in the control that draws the chevron, so the circle is centred on the glyph (the bar button
-    // around it is 48pt wide and the glyph sits off its middle).
-    UIView *host = back ? (subviewNamed(back, @"_UIModernBarButton") ?: back) : nil;
-    if (!host || host.bounds.size.width < 1) return;
-    UIView *glass = SGRGlassInside(host, &kBackGlassKey, kBackGlassHeight);
-    if (glass) SGRShowGlass(glass, YES);
+// The Find page inside the sheet's navigation stack: the controller of SGRFind's class on top of the stack, however
+// many hosting controllers it is wrapped in.
+static UIViewController *findPageIn(UIViewController *controller, int depth) {
+    if (sg_findClass && [controller isKindOfClass:sg_findClass]) return controller;
+    if (depth <= 0) return nil;
+    for (UIViewController *child in controller.childViewControllers) {
+        UIViewController *found = findPageIn(child, depth - 1);
+        if (found) return found;
+    }
+    return nil;
+}
 
-    static BOOL logged;
-    if (!logged && bar.window) {
-        logged = YES;
-        SGLog(@"redesign playlist: find page back button %@ in glass", NSStringFromCGRect(host.frame));
+// The Find page dressed now; the bar is given back when it is no longer on top.
+static __weak UIViewController *sg_dressedFind;
+
+static void dressBar(UIView *bar) {
+    if (bar.bounds.size.width < 1) return;
+    UINavigationController *navigation = navigationOf(bar);
+    if (![NSStringFromClass(navigation.class) containsString:@"AssistedCurationNavigationController"]) return;
+    UIViewController *find = findPageIn(navigation.topViewController, 4);
+    if (find && find.viewIfLoaded.window) {
+        if (sg_dressedFind != find) {
+            sg_dressedFind = find;
+            SGLog(@"redesign playlist: find page bar dressed");
+        }
+        SGRDressBarPage(find);
+        return;
+    }
+    UIViewController *dressed = sg_dressedFind;
+    if (dressed) {
+        sg_dressedFind = nil;
+        SGRUndressBarPage(dressed);
     }
 }
 
@@ -132,7 +141,7 @@ static void glassBack(UIView *bar) {
 %hook SPNavigationBar
 - (void)layoutSubviews {
     %orig;
-    glassBack((UIView *)self);
+    dressBar((UIView *)self);
 }
 %end
 
@@ -141,7 +150,7 @@ static void glassBack(UIView *bar) {
 - (void)layoutSubviews {
     %orig;
     UIView *bar = ((UIView *)self).superview;
-    if ([bar isKindOfClass:NSClassFromString(@"SPNavigationBar")]) glassBack(bar);
+    if ([bar isKindOfClass:NSClassFromString(@"SPNavigationBar")]) dressBar(bar);
 }
 %end
 %end
@@ -157,6 +166,7 @@ static void glassBack(UIView *bar) {
     }
     Class find = swiftClass(@"AssistedCuration_SearchImpl", @"AssistedCurationSearchContainerViewController");
     if (find) {
+        sg_findClass = find;
         %init(SGRAddSongsFind, SGRFind = find);
     } else {
         SGLog(@"class AssistedCuration_SearchImpl.AssistedCurationSearchContainerViewController not found, the Find page's search keeps Spotify's grey");
