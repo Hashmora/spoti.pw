@@ -131,6 +131,9 @@ static CGRect sg_leadFrame, sg_trailFrame;
 // tapped, and whether Create's menu is still to be seen off. Once it is gone, that tab against the one
 // Spotify has open then says whether the menu took the user to another tab.
 @property (nonatomic, weak) UIView *sourceBeforeCreate;
+// The same tab by its name: Spotify builds its items anew while the menu is up, so the view above can be gone, or
+// another one, by the time the menu closes, and the tab would read as changed.
+@property (nonatomic, copy) NSString *labelBeforeCreate;
 @property (nonatomic) BOOL awaitingCreateClose;
 @end
 
@@ -564,6 +567,7 @@ static void setCreateOpen(SGRLegacyTabBar *bar, BOOL open) {
         // that was open once the menu is gone.
         UIView *stockBar = self.stockBar;
         self.sourceBeforeCreate = stockBar ? activeStockSource(stockBar) : nil;
+        self.labelBeforeCreate = labelIn(self.sourceBeforeCreate).text;
         forwardTap(source);
         // The apart tab stays the open one while Create's menu is up over it.
         BOOL apartSelected = self.apartSelected;
@@ -609,6 +613,7 @@ static void setCreateOpen(SGRLegacyTabBar *bar, BOOL open) {
     if (!source) return;
     if (isCreateSource(source)) {
         self.sourceBeforeCreate = stockBar ? activeStockSource(stockBar) : nil;
+        self.labelBeforeCreate = labelIn(self.sourceBeforeCreate).text;
         forwardTap(source);
         setCreateOpen(self, YES);
         if (stockBar) followCreateClose(stockBar);
@@ -867,7 +872,9 @@ static void settleAfterCreate(UIView *stockBar) {
     if (!bar) return;
     setCreateOpen(bar, NO);
     UIView *open = activeStockSource(stockBar);
-    if (open && open != bar.sourceBeforeCreate) {
+    // The same tab is the same by its view or by its name; only another one means the menu navigated.
+    BOOL sameTab = open == bar.sourceBeforeCreate || (open && bar.labelBeforeCreate.length && [labelIn(open).text isEqualToString:bar.labelBeforeCreate]);
+    if (open && !sameTab) {
         // The menu took Spotify to another tab: that brings the full bar back, as any other tab does.
         SGRLegacySetTabBarMinimized(NO, YES);
         syncBarExternalChange(stockBar);
@@ -876,6 +883,15 @@ static void settleAfterCreate(UIView *stockBar) {
     UITabBarItem *back = bar.apartSelected ? nil : bar.lastRealItem;
     if ((back || bar.apartSelected) && bar.selectedItem != back) bar.selectedItem = back;
     syncBar(stockBar);
+    // Spotify shows the now playing bar again as the menu goes, in its place above the tab bar: the minimized
+    // bar stays minimized, so the card goes back between the circles at once.
+    if (sg_minimized) {
+        UIView *host = objc_getAssociatedObject(stockBar, &kHostKey);
+        [UIView performWithoutAnimation:^{
+            [host layoutIfNeeded];
+            SGRNowPlayingBarFollowTabBar();
+        }];
+    }
 }
 
 // `seen`: the menu has been up at least once. The first look can come before it has appeared, so it
@@ -1489,7 +1505,7 @@ static void itemDidLayOut(UIView *item) {
         // and hides nothing of it, so the bar stays while the menu is up (settleAfterCreate looks again after).
         UIView *bar = sg_stockBar;
         SGRLegacyTabBar *legacy = bar ? objc_getAssociatedObject(bar, &kBarKey) : nil;
-        if (!(sg_minimized && legacy.awaitingCreateClose)) SGRLegacySetTabBarMinimized(NO, YES);
+        if (!(sg_minimized && bar && (legacy.awaitingCreateClose || createMenuIsUp(bar)))) SGRLegacySetTabBarMinimized(NO, YES);
         if (bar) syncBarExternalChange(bar);
     });
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.25 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{

@@ -95,12 +95,15 @@ static BOOL isLibraryHeader(UIView *view) {
         if ([view isKindOfClass:UIView.class] && view.layer == self && !SGKeepsColor(view)) {
             if (SGIsInside(view, sgr_nowPlayingRoot)) {
                 // Its size is judged when the bar picks its card: Spotify can paint a card before it sizes it.
-                if (SGIsVisibleColor(color) && ![sgr_nowPlayingPainted containsObject:view]) {
-                    [sgr_nowPlayingPainted addObject:view];
-                    UIView *bar = sgr_nowPlayingRoot;
-                    dispatch_async(dispatch_get_main_queue(), ^{ [bar.superview setNeedsLayout]; });
+                // The Jam strip's avatar keeps its colour, or only its initial is left.
+                if (!SGRIsStripAvatar(view)) {
+                    if (SGIsVisibleColor(color) && ![sgr_nowPlayingPainted containsObject:view]) {
+                        [sgr_nowPlayingPainted addObject:view];
+                        UIView *bar = sgr_nowPlayingRoot;
+                        dispatch_async(dispatch_get_main_queue(), ^{ [bar.superview setNeedsLayout]; });
+                    }
+                    color = NULL;
                 }
-                color = NULL;
             } else if (SGIsInside(view, sgr_lyricsPageRoot)) {
                 color = NULL;
             } else if (SGIsBaseSurface(color) && (SGIsInside(view, sgr_playlistRoot) || SGIsInside(view, sgr_albumRoot) || SGIsInside(view, sgr_artistRoot))) {

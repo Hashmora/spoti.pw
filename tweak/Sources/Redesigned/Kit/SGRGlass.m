@@ -204,8 +204,16 @@ CGColorRef SGRSheetCardFill(void) {
     return fill;
 }
 
+// A SwiftUI view of the sheet's content that is a card. The cards are inset from the page (374 of 390pt), while
+// the page's own backdrop -- the full width _UIGraphicsView under a pushed page's scroll view, such as the Connect
+// device menu's (trees/continuous/15.txt) -- fills its host. That one is not a card: tinted like one it laid a
+// white 12% film over the whole page, so it goes clear with the rest of the sheet's grey.
 BOOL SGRIsSwiftUICard(UIView *view) {
-    return [NSStringFromClass(view.class) hasPrefix:@"SwiftUI"];
+    if (![NSStringFromClass(view.class) hasPrefix:@"SwiftUI"]) return NO;
+    UIView *host = view.superview;
+    CGSize size = view.bounds.size;
+    if (host && size.width >= 1 && size.height >= 200 && size.width >= host.bounds.size.width - 1) return NO;
+    return YES;
 }
 
 static void tintCard(UIView *view) {

@@ -12,6 +12,7 @@
 //   Download using mobile data         Offline_ContentOffliningUIImpl.ElementViewController<DownloadOverCellularDialogElement>
 //   Share                              Share_MenuImpl.ShareMenuViewControllerV2
 //   Listening modes                    SmartShuffle_CoreImpl.PlayModePickerViewController
+//   Connect device menu (Log out)      Connect_ContextMenuPageImpl.ContextMenuViewController, pushed in the picker's sheet
 //   Report a problem (a transcript)    Transcript_ReadAlongImpl.ReportReadAlongViewController
 //   Rate show (a podcast's Rate chip)  Ratings_CommonImpl.RatingsAndReviewsRatePodcastViewController, inside the
 //                                      page loader (Tome_PageLoaderViewImpl.SPTMusicClientPageLoaderView)
@@ -589,6 +590,39 @@ static void glassFindBar(UIView *root) {
 %end
 %end
 
+#pragma mark - the Connect device menu
+
+// A device's menu in the Connect picker (Log out and the like) is Connect_ContextMenuPageImpl's page pushed onto the
+// picker's own navigation stack, inside its Navigation sheet (trees/continuous/14.txt). Its SwiftUI content is
+// painted #1F1F1F (a _UIGraphicsView above the scroll view), which stood over the pane for the push and a beat
+// after, until the sheet's own pass cleared it: the sheet does not lay out when a page is pushed in it. Like Save in,
+// the page's own controller puts the pane in and clears the paint on its first layout.
+static void connectMenuChrome(UIViewController *controller) {
+    UIView *view = controller.viewIfLoaded;
+    if (!view || view.bounds.size.width < 1) return;
+    SGRGlassSheetChrome(view);
+    clearSaveInPaint(view);
+}
+
+%group SGRConnectMenu
+%hook SGRConnectMenuController
+- (void)viewWillAppear:(BOOL)animated {
+    %orig;
+    connectMenuChrome((UIViewController *)self);
+}
+
+- (void)viewDidLayoutSubviews {
+    %orig;
+    connectMenuChrome((UIViewController *)self);
+}
+
+- (void)viewDidAppear:(BOOL)animated {
+    %orig;
+    passes((UIViewController *)self, connectMenuChrome);
+}
+%end
+%end
+
 %ctor {
     if (!SGRedesignedUI()) return;
     if (!SGBelowiOS26()) return;
@@ -609,6 +643,12 @@ static void glassFindBar(UIView *root) {
         %init(SGRSaveInViews, SGRSaveInMain = saveInMain, SGRSaveInDone = saveInDone);
     } else {
         SGLog(@"classes ATPMainView / ATPDoneButtonView not found, Save in may stay darker than the queue");
+    }
+    Class connectMenu = swiftClass(@"Connect_ContextMenuPageImpl", @"ContextMenuViewController");
+    if (connectMenu) {
+        %init(SGRConnectMenu, SGRConnectMenuController = connectMenu);
+    } else {
+        SGLog(@"class Connect_ContextMenuPageImpl.ContextMenuViewController not found, the Connect device menu keeps Spotify's grey");
     }
     Class picker = swiftClass(@"SmartShuffle_CoreImpl", @"PlayModePickerViewController");
     if (picker) {

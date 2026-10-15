@@ -28,7 +28,7 @@
 static const CGFloat kCardRadius = 24;
 // The strip's pane is this much smaller than the strip at each end, so a gap parts it from the card's glass.
 static const CGFloat kStripInset = 4;
-static char kGlassKey, kStripGlassKey;
+static char kGlassKey, kStripGlassKey, kStripFilmKey;
 static __weak UIView *sg_card;
 static CGRect sg_stripFrame;
 static __weak UIView *sg_cardGlass;
@@ -67,6 +67,29 @@ static UIView *stripIn(UIView *root) {
     __block UIView *strip = nil;
     SGForEachView(root, ^(UIView *v) { if (!strip && isStrip(v)) strip = v; });
     return strip;
+}
+
+// The listener's avatar at the strip's right end: a small round SwiftUI view (24pt, r=12) whose fill is the
+// colour behind the initial. Stripping it like the rest of the bar's paint left the letter alone on the glass.
+// SGRRepaint.x asks as well, so the fill Spotify paints later stays.
+BOOL SGRIsStripAvatar(UIView *view) {
+    CGSize size = view.bounds.size;
+    if (size.height < 16 || size.height > 44 || fabs(size.width - size.height) > 1) return NO;
+    if (view.layer.cornerRadius < size.height / 2 - 1) return NO;
+    for (UIView *v = view.superview; v; v = v.superview) if (isStrip(v)) return YES;
+    return NO;
+}
+
+// SGStripBackgrounds (Core/SGViewTree.m) for the bar, except that it leaves the strip's avatar and what is in it.
+static void stripBar(UIView *view) {
+    if (SGRIsStripAvatar(view)) return;
+    if ([view isKindOfClass:UIVisualEffectView.class]) return;
+    if (!SGKeepsColor(view)) view.layer.backgroundColor = NULL;
+    if ([view.layer isKindOfClass:CAGradientLayer.class] || [NSStringFromClass(view.class) containsString:@"GradientView"]) view.hidden = YES;
+    for (CALayer *layer in view.layer.sublayers) {
+        if ([layer isKindOfClass:CAGradientLayer.class]) layer.hidden = YES;
+    }
+    for (UIView *sub in view.subviews) stripBar(sub);
 }
 
 // What holds the track on the bar: the title and artist block, else the artwork (a 36 to 48pt square that
@@ -175,8 +198,9 @@ static BOOL paneShown(UIView *pane) {
 
 static void placeStripGlass(UIView *host, UIView *strip, CGRect card, BOOL above) {
     UIView *pane = objc_getAssociatedObject(host, &kStripGlassKey);
+    UIView *oldFilm = objc_getAssociatedObject(host, &kStripFilmKey);
     if (!strip) {
-        if (pane && paneShown(pane)) SGRAnimate(SGRMotionExit, ^{ SGRShowGlass(pane, NO); }, nil);
+        if (pane && paneShown(pane)) SGRAnimate(SGRMotionExit, ^{ SGRShowGlass(pane, NO); oldFilm.alpha = 0; }, nil);
         return;
     }
     BOOL made = pane != nil;
@@ -189,8 +213,12 @@ static void placeStripGlass(UIView *host, UIView *strip, CGRect card, BOOL above
     CGFloat height = strip.bounds.size.height;
     CGRect frame = CGRectMake(card.origin.x, above ? CGRectGetMinY(card) - height : CGRectGetMaxY(card), card.size.width, height);
     pane.frame = CGRectInset(frame, 0, kStripInset);
-    SGShapeGlass(pane, MIN(kCardRadius, pane.bounds.size.height / 2), NO);
-    if (!paneShown(pane)) SGRAnimate(SGRMotionRespond, ^{ SGRShowGlass(pane, YES); }, nil);
+    CGFloat radius = MIN(kCardRadius, pane.bounds.size.height / 2);
+    SGShapeGlass(pane, radius, NO);
+    // The same white film as the card and the tab bar (16%), which comes and goes with the pane.
+    UIView *film = SGRGlassFilm(host, &kStripFilmKey, pane, radius);
+    if (!made) film.alpha = 0;
+    if (!paneShown(pane)) SGRAnimate(SGRMotionRespond, ^{ SGRShowGlass(pane, YES); film.alpha = 1; }, nil);
 }
 
 // The bar's left and right edges in its superview, set through the constants of the constraints that hold
@@ -398,15 +426,33 @@ static void placeTexts(UIView *bar) {
     });
 }
 
+// The track card's frame in the bar's own coordinates, which is the whole bar outside a Jam. In a Jam the bar is
+// the strip and the card one above the other (386x100, the card at y = 44), and it is the card that goes into
+// the row; the strip stays on its side of it, so it comes down with the card and stands right over the row.
+static CGRect inlineCardFrame(UIView *bar, UIView *strip) {
+    CGRect all = bar.bounds;
+    if (!strip) return all;
+    UIView *card = sg_card;
+    if (card && card.window && [card isDescendantOfView:bar] && !stripIn(card)) {
+        CGRect frame = SGFrameIn(card, bar);
+        if (frame.size.height >= 40 && frame.size.height <= 80) return frame;
+    }
+    CGFloat height = MIN(strip.bounds.size.height, all.size.height - 40);
+    BOOL above = CGRectGetMidY(SGFrameIn(strip, bar)) < CGRectGetMidY(all);
+    return CGRectMake(all.origin.x, above ? CGRectGetMaxY(all) - (all.size.height - height) : all.origin.y,
+                      all.size.width, all.size.height - height);
+}
+
 // In the minimized tab bar's row (TabBar.x): the bar narrowed to the slot by its edges, so Spotify's content
 // lays itself out to the width, and moved down by a transform on the container's view, which Spotify's
-// layout leaves alone. Outside a Jam only: its strip has no room in the row.
+// layout leaves alone. In a Jam the card takes the row and the strip stands over it (inlineCardFrame).
 static void placeInline(UIViewController *container) {
     UIView *view = container.view;
     UIView *bar = container.childViewControllers.firstObject.viewIfLoaded;
     UIView *strip = bar ? stripIn(bar) : nil;
     BOOL jam = strip && !strip.hidden && strip.alpha >= 0.01 && strip.window && strip.bounds.size.height >= 1;
-    CGRect slot = !bar || bar.superview != view || jam ? CGRectNull : SGRTabBarInlineSlot(view.superview, bar.bounds.size.height);
+    CGRect cardInBar = bar ? inlineCardFrame(bar, jam ? strip : nil) : CGRectNull;
+    CGRect slot = !bar || bar.superview != view ? CGRectNull : SGRTabBarInlineSlot(view.superview, cardInBar.size.height);
     // Where the view stands untransformed, in the slot's coordinates.
     CGPoint origin = CGPointMake(view.center.x - view.bounds.size.width / 2, view.center.y - view.bounds.size.height / 2);
     if (CGRectIsNull(slot) || !setEdges(bar, CGRectGetMinX(slot) - origin.x, CGRectGetMaxX(slot) - origin.x)) {
@@ -417,7 +463,8 @@ static void placeInline(UIViewController *container) {
         if (bar) placeTexts(bar);
         return;
     }
-    CGAffineTransform move = CGAffineTransformMakeTranslation(0, CGRectGetMidY(slot) - origin.y - CGRectGetMidY(bar.frame));
+    // The card's middle, not the bar's: in a Jam the strip hangs off it above.
+    CGAffineTransform move = CGAffineTransformMakeTranslation(0, CGRectGetMidY(slot) - origin.y - (CGRectGetMinY(bar.frame) + CGRectGetMidY(cardInBar)));
     if (!CGAffineTransformEqualToTransform(view.transform, move)) view.transform = move;
     tuckExtras(bar, YES);
     sg_inline = view;
@@ -448,7 +495,7 @@ static void styleNowPlayingBar(UIViewController *container) {
     // What is painted now, before it goes clear; SGRRepaint.x adds what Spotify paints later. Its size is
     // judged when the card is chosen: in a Jam the card can still be unsized here (harness/tabbar).
     SGForEachView(bar, ^(UIView *v) {
-        if (![v isKindOfClass:UIVisualEffectView.class] && !SGKeepsColor(v) && SGIsVisibleColor(v.layer.backgroundColor)) [sgr_nowPlayingPainted addObject:v];
+        if (![v isKindOfClass:UIVisualEffectView.class] && !SGKeepsColor(v) && !SGRIsStripAvatar(v) && SGIsVisibleColor(v.layer.backgroundColor)) [sgr_nowPlayingPainted addObject:v];
     });
     // The card stays while it still holds the track with no strip in it, whatever Spotify paints after.
     UIView *marker = trackMarker(bar);
@@ -456,7 +503,7 @@ static void styleNowPlayingBar(UIViewController *container) {
     if (!card || !isGoodCard(card, bar, marker) || stripIn(card)) card = sg_card = chooseCard(bar, marker);
 
     container.view.layer.backgroundColor = NULL;
-    SGStripBackgrounds(bar);
+    stripBar(bar);
 
     UIView *strip = stripIn(bar);
     if (strip && (strip.hidden || strip.alpha < 0.01 || !strip.window)) strip = nil;
@@ -524,7 +571,27 @@ static void styleNowPlayingBar(UIViewController *container) {
 // The page the bar stands in passes touches outside the bar through, and the bar in the tab bar's row is
 // below the page's bounds: a touch there reaches the bar only through this. Only the narrowed card takes
 // one: the container's view keeps the screen's width, and took the touches meant for the tab bar's circles.
+// Create's menu (or any sheet of its kind) is on screen.
+static BOOL createMenuUp(UIView *view) {
+    __block BOOL up = NO;
+    SGForEachView(view.window ?: view, ^(UIView *v) {
+        if (up) return;
+        up = [v.accessibilityIdentifier isEqualToString:@"CreateMenu"] || [NSStringFromClass(v.class) containsString:@"CreateMenuView"];
+    });
+    return up;
+}
+
 %hook _TtC22NowPlaying_BarPageImplP33_CCC0D2EEA6D4725EECD8965E8C38C86D20TouchPassthroughView
+// Spotify hides the bar while Create's menu is up, because the menu covers the bar's place above the tab bar. The
+// card in the minimized row is below the menu, so it stays: the minimized bar does not go away with the menu.
+- (void)setHidden:(BOOL)hidden {
+    if (hidden && sg_inline && [sg_inline isDescendantOfView:(UIView *)self] && SGRTabBarMinimized() && createMenuUp((UIView *)self)) {
+        %orig(NO);
+        return;
+    }
+    %orig;
+}
+
 - (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
     UIView *hit = %orig;
     UIView *moved = sg_inline;

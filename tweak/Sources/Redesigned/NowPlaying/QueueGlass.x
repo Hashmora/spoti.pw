@@ -1,6 +1,6 @@
 // Now playing redesign: glass for the queue sheet and its controls. Clear and Edit (QueueHeaderView's
 // PillButton) and the edit-mode toolbar's Move up / Remove / Clear selection are flat 10%-white capsules,
-// like the playlist's sort/find toolbar. The sheet itself (id=sheet-view, as in
+// like the playlist's sort/find toolbar, and so is the Reshuffle capsule over the list. The sheet itself (id=sheet-view, as in
 // the ⋯ context menu) gets its pane from SGRGlassSheetChrome, the call Playlist/PlaylistMenu.x makes too. That
 // call also clears the grey (#1F1F1F) of the queue's table and rows, and the Kit's repaint hook keeps it
 // clear.
@@ -15,7 +15,7 @@
 // NowPlaying_ECMKit.QueueHeader.UI.Private.PillButton, as NSStringFromClass prints it.
 static NSString *const kPillButtonClass = @"_TtCOOO17NowPlaying_ECMKit11QueueHeader2UI7Private10PillButton";
 
-static char kPillGlassKey, kChipGlassKey;
+static char kPillGlassKey, kChipGlassKey, kReshuffleKey, kReshuffleGlassKey;
 
 // Clear and Edit: wherever QueueHeaderView has put them this pass.
 static void glassPills(UIView *root) {
@@ -32,11 +32,19 @@ static void glassChip(UIView *root, NSString *buttonIdentifier) {
     if (button && button.superview) SGRGlassFlatBox(button.superview, &kChipGlassKey);
 }
 
+// The Reshuffle capsule (Encore Primary button, id=reshuffle-button) that floats over the list once the
+// queue has been played through: glass like Clear and Edit.
+static void glassReshuffle(UIView *root) {
+    UIView *button = SGRFindByIdentifier(root, @"reshuffle-button", &kReshuffleKey);
+    if (button) SGRGlassFlatBox(button, &kReshuffleGlassKey);
+}
+
 static void chrome(UIViewController *controller) {
     UIView *root = controller.viewIfLoaded;
     if (!root) return;
     SGRGlassSheetChrome(root);
     glassPills(root);
+    glassReshuffle(root);
     glassChip(root, @"queue-edit-toolbar-move-up");
     glassChip(root, @"queue-edit-toolbar-remove");
     glassChip(root, @"queue-edit-toolbar-clear-selection");
