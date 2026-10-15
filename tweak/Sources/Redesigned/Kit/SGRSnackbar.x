@@ -44,10 +44,14 @@ static const CGFloat kActionPadX = 10;
 static const CGFloat kActionHeight = 32;
 // How far past the button the touch still counts, so the capsule is all button.
 static const CGFloat kActionHitX = 10, kActionHitY = 8;
-// The card's padding left of the label, and right of the glass round the action (or of the label when it has none).
+// The card's padding left of the label, and right of the label when the toast has no action.
 static const CGFloat kPadLeft = 20, kPadRight = 20;
+// The glass round the action stands this far inside the card's edge: (50 - kActionHeight) / 2, so the two capsules
+// are concentric and the glass never reaches the card's rim (trees/continuous/1.txt:1409-1418, 6.txt:1637-1646: the
+// glass ended on the card's edge, and its corners stood out of the card's).
+static const CGFloat kActionInset = 9;
 // The space between the label and the glass round the action.
-static const CGFloat kLabelGap = 10;
+static const CGFloat kLabelGap = 16;
 
 static char kGlassKey, kFilmKey, kActionGlassKey, kDressedKey;
 // The toast on screen, for the tab bar's minimize to move.
@@ -114,12 +118,18 @@ static CGSize labelSize(UIView *label, CGFloat maxWidth) {
     return CGSizeMake(MIN(ceil(size.width), maxWidth), ceil(size.height));
 }
 
+// What the card holds to the right of the label: the action's word is this far from the card's edge (its glass's
+// padding and the inset the glass keeps from the rim), the label's end when there is no action.
+static CGFloat trailingPad(UIView *action) {
+    return action ? kActionInset + kActionPadX : kPadRight;
+}
+
 // The card's width for its content: padding, label, and the action's glass when there is one.
 static CGFloat cardWidth(UIView *content, CGFloat maxWidth) {
     UIView *label = nil, *action = nil;
     contentParts(content, &label, &action);
-    CGFloat actionWidth = action ? actionSize(action).width + kActionPadX * 2 + kLabelGap : 0;
-    CGFloat padRight = action ? kPadRight - kActionPadX : kPadRight;
+    CGFloat actionWidth = action ? actionSize(action).width + kActionPadX + kLabelGap : 0;
+    CGFloat padRight = trailingPad(action);
     CGFloat room = maxWidth - kPadLeft - padRight - actionWidth;
     CGFloat labelWidth = label ? labelSize(label, MAX(room, 1)).width : 0;
     return MIN(kPadLeft + labelWidth + actionWidth + padRight, maxWidth);
@@ -135,7 +145,7 @@ static void layoutContent(UIView *content) {
     if (size.width < 1 || size.height < 1) return;
     UIView *label = nil, *action = nil;
     contentParts(content, &label, &action);
-    CGFloat padRight = action ? kPadRight - kActionPadX : kPadRight;
+    CGFloat padRight = trailingPad(action);
     CGSize actionFit = action ? actionSize(action) : CGSizeZero;
     CGFloat actionWidth = actionFit.width;
     if (action) {
@@ -143,7 +153,7 @@ static void layoutContent(UIView *content) {
         if (!CGRectEqualToRect(action.frame, frame)) action.frame = frame;
     }
     if (label) {
-        CGFloat room = size.width - kPadLeft - padRight - (action ? actionWidth + kActionPadX * 2 + kLabelGap : 0);
+        CGFloat room = size.width - kPadLeft - padRight - (action ? actionWidth + kActionPadX + kLabelGap : 0);
         CGSize fit = labelSize(label, MAX(room, 1));
         CGRect frame = CGRectMake(kPadLeft, round((size.height - fit.height) / 2), fit.width, fit.height);
         if (!CGRectEqualToRect(label.frame, frame)) label.frame = frame;
@@ -246,7 +256,16 @@ static void dressAfterSettling(UIView *snackbar) {
     dressAfterSettling(snackbar);
 }
 
-// The bare strips either side of the card are not the toast's: a touch there reaches the controls under them.
+// The bare strips either side of the card are not the toast's: a touch there reaches the controls under them. Both the
+// test and the hit are held to the card, so a hit test of Spotify's own that answers for the whole 374 does not take
+// the strips either.
+- (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
+    UIView *snackbar = (UIView *)self;
+    UIView *card = objc_getAssociatedObject(snackbar, &kDressedKey) ? cardOf(snackbar) : nil;
+    if (card && !CGRectContainsPoint(card.frame, point)) return nil;
+    return %orig;
+}
+
 - (BOOL)pointInside:(CGPoint)point withEvent:(UIEvent *)event {
     UIView *snackbar = (UIView *)self;
     UIView *card = objc_getAssociatedObject(snackbar, &kDressedKey) ? cardOf(snackbar) : nil;
