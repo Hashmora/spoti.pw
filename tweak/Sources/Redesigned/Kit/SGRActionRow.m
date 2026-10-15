@@ -475,11 +475,14 @@ static void keepOnTop(UIView *page, UIView *button) {
 // the page's own bounds and not converted from the window: the swipe back slides the page across the
 // window, and a frame converted from the window's x would hold the button still while the page left under
 // it, over the screen below, until the page was gone and took it along.
-static void placeInCorner(UIView *page, UIView *button, BOOL leading) {
+static const CGFloat kCornerGap = 8;
+
+static void placeInCorner(UIView *page, UIView *button, BOOL leading, NSUInteger slot) {
     UIWindow *window = page.window;
     UIView *space = window ?: page;
     CGFloat side = SGRGlassCircleSize;
-    CGFloat x = leading ? kCornerSide : page.bounds.size.width - kCornerSide - side;
+    CGFloat step = (side + kCornerGap) * slot;
+    CGFloat x = leading ? kCornerSide + step : page.bounds.size.width - kCornerSide - side - step;
     CGFloat y = space.safeAreaInsets.top;
     if (window) y = [page convertPoint:CGPointMake(0, y) fromView:nil].y;
     // A page in a sheet (the Add songs sheet's Find) has no status bar over it: its bar is the sheet's own row,
@@ -507,7 +510,23 @@ SGRMirrorButton *SGRPinnedMore(UIView *page, const void *key, UIView *source) {
     keepOnTop(page, button);
     if (source) [button feedFrom:source];
     if (button.hidden != (source == nil)) button.hidden = source == nil;
-    placeInCorner(page, button, NO);
+    placeInCorner(page, button, NO, 0);
+    return button;
+}
+
+SGRMirrorButton *SGRPinnedTrailing(UIView *page, const void *key, UIView *source, NSUInteger slot, UIImage *glyph) {
+    if (!page) return nil;
+    SGRMirrorButton *button = objc_getAssociatedObject(page, key);
+    if (!button) {
+        button = [[SGRMirrorButton alloc] initWithFrame:CGRectZero];
+        button.glyphColor = SGRPrimary();
+        objc_setAssociatedObject(page, key, button, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    if (button.fallbackGlyph != glyph) button.fallbackGlyph = glyph;
+    keepOnTop(page, button);
+    if (source) [button feedFrom:source];
+    if (button.hidden != (source == nil)) button.hidden = source == nil;
+    placeInCorner(page, button, NO, slot);
     return button;
 }
 
@@ -539,7 +558,7 @@ static SGRMirrorButton *pinBack(UIView *page, UIView *source) {
     concealBack(source);
     if (source) [button feedFrom:source];
     if (button.hidden != (source == nil)) button.hidden = source == nil;
-    placeInCorner(page, button, YES);
+    placeInCorner(page, button, YES, 0);
     return button;
 }
 

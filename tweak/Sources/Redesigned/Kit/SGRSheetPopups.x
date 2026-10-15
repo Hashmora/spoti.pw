@@ -14,6 +14,7 @@
 //   Share                              Share_MenuImpl.ShareMenuViewControllerV2
 //   Listening modes                    SmartShuffle_CoreImpl.PlayModePickerViewController
 //   Connect device menu (Log out)      Connect_ContextMenuPageImpl.ContextMenuViewController, pushed in the picker's sheet
+//   About SongDNA (the info button)    SongDNA_AboutSongDNAPageImpl.AboutSongDNASheetViewController
 //   Report a problem (a transcript)    Transcript_ReadAlongImpl.ReportReadAlongViewController
 //   Rate show (a podcast's Rate chip)  Ratings_CommonImpl.RatingsAndReviewsRatePodcastViewController, inside the
 //                                      page loader (Tome_PageLoaderViewImpl.SPTMusicClientPageLoaderView)
@@ -51,7 +52,8 @@ static NSArray<NSString *> *contentMarkers(void) {
              @"TrackCredits_CreditsPageImpl",
              @"PlaylistCuration_AddToPlaylistImpl",
              @"Offline_ContentOffliningUIImpl",
-             @"PlaylistMixing_MessagingImpl"];
+             @"PlaylistMixing_MessagingImpl",
+             @"SongDNA_AboutSongDNAPageImpl"];
 }
 
 static BOOL isContent(UIViewController *controller) {

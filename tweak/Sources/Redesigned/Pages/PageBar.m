@@ -25,7 +25,7 @@
 #import "Redesigned/Kit/SGRKit.h"
 #import "Pages.h"
 
-static char kMoreKey, kProxyKey, kTitleGlassKey, kTitleWatchedKey, kBarStyleKey, kHeldKey;
+static char kMoreKey, kExtraKey, kProxyKey, kTitleGlassKey, kTitleWatchedKey, kBarStyleKey, kHeldKey;
 
 // The pages dressed now, weakly: the bar is given back only when none is left.
 static NSHashTable<UIViewController *> *sg_dressed;
@@ -65,6 +65,20 @@ static UIView *moreOf(UIView *content) {
 }
 
 // Whether the page's trailing control is a Share (Listening stats' Top artists and Top songs) rather than a ⋯.
+// A second control after the ⋯ in the trailing stack (SongDNA's bar: Share, then Close, trees/continuous/37.txt), the
+// one nearest the corner. Pages with a single control have none.
+static UIView *extraOf(UIView *content) {
+    UIView *stack = subviewNamed(content, @"_UIButtonBarStackView");
+    BOOL first = YES;
+    UIView *found = nil;
+    for (UIView *sub in stack.subviews) {
+        if (sub.bounds.size.width < 1 || sub.bounds.size.height < 1) continue;
+        if (first) { first = NO; continue; }
+        found = sub;
+    }
+    return found;
+}
+
 static BOOL isShare(UIView *control) {
     __block BOOL share = [NSStringFromClass(control.class) containsString:@"ShareButton"];
     SGForEachView(control, ^(UIView *v) {
@@ -138,12 +152,14 @@ static void holdControls(UINavigationController *navigation, BOOL wanted) {
         if (!held) objc_setAssociatedObject(bar, &kHeldKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         conceal(subviewNamed(content, @"_UIButtonBarButton"));
         conceal(moreOf(content));
+        conceal(extraOf(content));
         conceal(title);
     } else if (held) {
         reveal(title);
         if (!sg_dressed.count) {
             reveal(subviewNamed(content, @"_UIButtonBarButton"));
             reveal(moreOf(content));
+            reveal(extraOf(content));
             objc_setAssociatedObject(bar, &kHeldKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         }
     }
@@ -273,15 +289,31 @@ void SGRDressBarPage(UIViewController *page) {
     SGRPinnedBackOf(view, proxy);
 
     UIView *more = moreOf(content);
+    UIView *extra = extraOf(content);
     conceal(more);
-    SGRMirrorButton *pinned = SGRPinnedMore(view, &kMoreKey, more);
-    if (more && isShare(more)) {
+    // With a second control (SongDNA's Close) the first, Share, steps one place in from the corner and Close takes it.
+    SGRMirrorButton *pinned = nil;
+    if (extra) {
+        static UIImage *shareGlyph, *moreGlyph;
+        if (!shareGlyph) shareGlyph = [UIImage systemImageNamed:@"square.and.arrow.up"];
+        if (!moreGlyph) moreGlyph = [UIImage systemImageNamed:@"ellipsis"];
+        pinned = SGRPinnedTrailing(view, &kMoreKey, more, 1, more && isShare(more) ? shareGlyph : moreGlyph);
+    } else {
+        pinned = SGRPinnedMore(view, &kMoreKey, more);
+    }
+    if (!extra && more && isShare(more)) {
         static UIImage *shareGlyph;
         if (!shareGlyph) shareGlyph = [UIImage systemImageNamed:@"square.and.arrow.up"];
         if (pinned.fallbackGlyph != shareGlyph) {
             pinned.fallbackGlyph = shareGlyph;
             [pinned feedFrom:more];
         }
+    }
+    if (extra) {
+        conceal(extra);
+        static UIImage *closeGlyph;
+        if (!closeGlyph) closeGlyph = [UIImage systemImageNamed:@"xmark"];
+        SGRPinnedTrailing(view, &kExtraKey, extra, 0, closeGlyph);
     }
 
     UIView *title = subviewNamed(content, @"_UINavigationBarTitleControl");
@@ -307,6 +339,7 @@ void SGRUndressBarPage(UIViewController *page) {
     UIView *content = contentOf(bar);
     reveal(subviewNamed(content, @"_UIButtonBarButton"));
     reveal(moreOf(content));
+    reveal(extraOf(content));
     bar.userInteractionEnabled = YES;
     objc_setAssociatedObject(bar, &kHeldKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     reveal(subviewNamed(content, @"_UINavigationBarTitleControl"));

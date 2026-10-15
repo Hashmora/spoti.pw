@@ -1,6 +1,6 @@
 // Redesign, iOS < 26: the pages that sit under UIKit's own navigation bar instead of drawing a header of
 // their own -- Chapters (Show all of an episode's Chapters), Listening stats and its Top artists and Top
-// songs, a track or an artist opened from them, Your Premium and its Manage subscription. Each is a controller
+// songs, a track or an artist opened from them, Your Premium and its Manage subscription, and SongDNA (its Share and Close pinned as glass circles, 37.txt). Each is a controller
 // hosted by Navigation_PageAPIIntegrationImpl.MusicAppPageHostingViewController (trees/continuous/9 to 13, 18).
 //
 // The bar is dressed by Pages/PageBar.m, as Recents' and Your Updates' are: Spotify's blur behind it drawn by
@@ -30,7 +30,7 @@ static Class sg_hosting;
 // A part of the name of a page's own controller, below the hosting one.
 static NSArray<NSString *> *pageMarkers(void) {
     return @[@"EntitySegmentsViewController", @"UserTimelineViewController", @"StatsDetailsViewController",
-             @"YourPremiumViewController", @"PlanOverviewViewController"];
+             @"YourPremiumViewController", @"PlanOverviewViewController", @"SongDNAViewController"];
 }
 
 static BOOL isPage(UIViewController *controller, int depth) {

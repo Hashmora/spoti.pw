@@ -1,0 +1,86 @@
+// SongDNA redesign: the contributor's pop-up on glass. Tapping a contributor on the map opens a card over it
+// (SongDNA_MapKit.DNAPopupView, trees/continuous/38.txt): a #1F1F1F rounded card, r=16, holding the contributor's name
+// with a chevron at its trailing edge, a two-line story, and the "View 81 songs together" button (an Encore
+// Secondary, id=dna-blend-button-cta).
+//
+// The card's grey goes and a glass pane of the sheets' body (SGRThickenSheetGlass, as the redesign's dialogs have)
+// stands behind its content; the chevron gets a glass circle of its own behind it, and the button is made a glass
+// capsule. Nothing of Spotify's is replaced, so the name still opens the contributor and the button still plays the
+// blend.
+//
+// The card is laid out and painted after it is attached, so the pass runs from its layout and again a moment later.
+// The little arrow (SongDNA_MapKit.ArrowView) that points from the card at the contributor is left as Spotify draws it.
+#import "Core/SGCore.h"
+#import "Redesigned/Kit/SGRKit.h"
+#import "Redesigned/Pages/Pages.h"
+
+static const CGFloat kPopupRadius = 16, kChevronSide = 28;
+
+static char kPaneKey, kChevronKey, kButtonKey;
+
+// The card's own paint: its one subview that is the opaque grey, as wide as the card.
+static UIView *cardOf(UIView *popup) {
+    for (UIView *sub in popup.subviews) {
+        if (SGRIsSheetSurface(sub.layer.backgroundColor)) return sub;
+    }
+    return nil;
+}
+
+static void dressPopup(UIView *popup) {
+    if (popup.bounds.size.width < 1 || popup.bounds.size.height < 1) return;
+    UIView *card = cardOf(popup);
+    if (!card) return;
+    UIView *glass = SGGlassFor(card, &kPaneKey);
+    if (glass.overrideUserInterfaceStyle != UIUserInterfaceStyleDark) glass.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
+    glass.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    if (!CGRectEqualToRect(glass.frame, card.bounds)) glass.frame = card.bounds;
+    SGShapeGlass(glass, kPopupRadius, NO);
+    SGRThickenSheetGlass(glass, kPopupRadius);
+    card.backgroundColor = UIColor.clearColor;
+
+    SGForEachView(popup, ^(UIView *view) {
+        NSString *name = NSStringFromClass(view.class);
+        if ([name hasSuffix:@"ChevronView"] && view.bounds.size.width > 1) {
+            SGRGlassInside(view, &kChevronKey, kChevronSide);
+        } else if ([view.accessibilityIdentifier isEqualToString:@"dna-blend-button-cta"]) {
+            view.layer.borderWidth = 0;
+            SGRGlassFlatBox(view, &kButtonKey);
+        }
+    });
+}
+
+static Class popupClass(void) {
+    return SGRPageClass(@"SongDNA_MapKit", @"DNAPopupView");
+}
+
+%group SGRSongDNAPopup
+%hook SGRDNAPopupView
+- (void)layoutSubviews {
+    %orig;
+    dressPopup((UIView *)self);
+}
+
+- (void)didMoveToWindow {
+    %orig;
+    UIView *popup = (UIView *)self;
+    if (!popup.window) return;
+    __weak UIView *weak = popup;
+    for (NSNumber *wait in @[@0.0, @0.1, @0.3]) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(wait.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            UIView *shown = weak;
+            if (shown.window) dressPopup(shown);
+        });
+    }
+}
+%end
+%end
+
+%ctor {
+    if (!SGRedesignedUI()) return;
+    Class popup = popupClass();
+    if (!popup) {
+        SGLog(@"class SongDNA_MapKit.DNAPopupView not found, the contributor pop-up keeps Spotify's grey");
+        return;
+    }
+    %init(SGRSongDNAPopup, SGRDNAPopupView = popup);
+}
