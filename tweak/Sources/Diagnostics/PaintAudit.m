@@ -67,6 +67,15 @@ static BOOL shownIn(UIView *view) {
     return YES;
 }
 
+// Inside a Navigation sheet's pane: where black paint and the opaque flag, which kindOf leaves out, are what hides
+// the glass.
+static BOOL inSheet(UIView *view) {
+    for (UIView *v = view; v; v = v.superview) {
+        if ([v.accessibilityIdentifier isEqualToString:@"sheet-view"]) return YES;
+    }
+    return NO;
+}
+
 static NSString *brief(NSString *name) {
     return name.length > 48 ? [[name substringToIndex:48] stringByAppendingString:@"…"] : name;
 }
@@ -141,6 +150,11 @@ static void inspect(UIWindow *window, NSMutableArray<NSDictionary *> *findings, 
         CALayer *layer = view.layer;
         NSString *kind = kindOf(layer.backgroundColor);
         if (kind) note(findings, seen, view, frame, kind, @"bg", layer.backgroundColor);
+        else if (inSheet(view)) {
+            CGColorRef bg = layer.backgroundColor;
+            if (bg && CFGetTypeID(bg) == CGColorGetTypeID() && CGColorGetAlpha(bg) >= 0.95) note(findings, seen, view, frame, @"BLACK", @"bg", bg);
+            else if (layer.opaque) note(findings, seen, view, frame, @"FLAG", @"opaque, no fill", NULL);
+        }
         if ([layer isKindOfClass:CAShapeLayer.class]) {
             CGColorRef fill = ((CAShapeLayer *)layer).fillColor;
             kind = kindOf(fill);

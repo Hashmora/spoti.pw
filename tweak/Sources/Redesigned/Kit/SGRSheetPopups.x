@@ -122,12 +122,20 @@ static void clearOpaqueAbove(UIView *view) {
     }
 }
 
+// Glass is the mod's own: a visual effect view or a view of ours (SGLegacyGlassView and its body, rim and dim).
+static BOOL isGlass(UIView *view) {
+    return [view isKindOfClass:UIVisualEffectView.class] || [NSStringFromClass(view.class) hasPrefix:@"SG"];
+}
+
 // Every view below `view`, whatever its width: the flag the width-gated clearing leaves on the narrow views inside a
-// row (the title stack, the artwork's holder) draws black over the glass just the same.
+// row (the title stack, the artwork's holder) draws black over the glass just the same, and so does a black fill
+// narrower than a band (SGIsBaseSurface: the page black, which the list pass only takes at band width, and which
+// PaintAudit does not list). Glass is skipped: its own dim is black on purpose.
 static void clearOpaqueBelow(UIView *view, int depth) {
-    if (depth > 24) return;
+    if (depth > 24 || isGlass(view)) return;
     if (view.opaque) view.opaque = NO;
     if (view.layer.opaque) view.layer.opaque = NO;
+    if (!SGKeepsColor(view) && SGIsBaseSurface(view.layer.backgroundColor)) view.backgroundColor = UIColor.clearColor;
     for (UIView *sub in view.subviews) clearOpaqueBelow(sub, depth + 1);
 }
 
@@ -137,6 +145,11 @@ static void clearSaveInPaint(UIView *view) {
     if (view) {
         clearOpaqueAbove(view);
         clearOpaqueBelow(view, 0);
+        // clearOpaqueAbove stops below the pane, so the pane's own flag was never cleared: an opaque layer with
+        // no fill is drawn black under the glass that blurs it.
+        UIView *pane = paneOf(view);
+        if (pane.opaque) pane.opaque = NO;
+        if (pane.layer.opaque) pane.layer.opaque = NO;
     }
 }
 
