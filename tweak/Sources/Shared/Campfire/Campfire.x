@@ -37,10 +37,11 @@ static void logSwitches(id object, BOOL feature) {
 %group Campfire
 %hook _TtC21Campfire_SettingsImpl31CampfireFeatureAvailabilityImpl
 - (BOOL)isFeatureEnabled {
+    BOOL own = %orig;
     static BOOL logged;
     if (!logged) {
         logged = YES;
-        logSwitches(self, %orig);
+        logSwitches(self, own);
     }
     return YES;
 }
