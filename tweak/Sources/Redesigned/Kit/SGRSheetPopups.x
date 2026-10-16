@@ -22,6 +22,12 @@
 //   Rate show (a podcast's Rate chip)  Ratings_CommonImpl.RatingsAndReviewsRatePodcastViewController, inside the
 //                                      page loader (Tome_PageLoaderViewImpl.SPTMusicClientPageLoaderView)
 //
+//   More sheets, picked from the class dump of 9.1.78 and not from a screen of yours (the last entries of
+//   contentMarkers below): Jam messages, SongDNA contributor, account picker, confirmation dialogs, editors picker,
+//   video settings, badges, DSA, Campfire's pickers, podcast comments and reactions, Contribution's menus, surveys,
+//   live events, merch, sticker pickers, transcript picker, partner linking. A page that Spotify presents outside
+//   Navigation's sheet is not met by the list and keeps its own look, as before.
+//
 // The first seven are the same Navigation sheet (NavigationUI_SheetImpl.ContainerViewController, id=sheet-view),
 // each holding its own controller. That class is Swift and generic for SwiftUI pages, so a sheet is recognised by
 // part of the inner controller's name. The pane goes in from the sheet's own passes because its rows are built
@@ -58,7 +64,47 @@ static NSArray<NSString *> *contentMarkers(void) {
              @"PlaylistMixing_MessagingImpl",
              @"MixingEditMoreMenuViewController",
              @"SongDNA_AboutSongDNAPageImpl",
-             @"FolderRenameViewController"];
+             @"FolderRenameViewController",
+             @"Jam_MessagingSheetImpl",
+             @"SongDNA_ContributorSheetPageImpl",
+             @"AccountSwitching_AccountPickerImpl",
+             @"Settings_ConfirmationDialogPageImpl",
+             @"PlaylistCollaboration_PlaylistEditorsPickerPageImpl",
+             @"MusicVideos_VideoConnectSheetImpl",
+             @"VideoSettingsBottomSheetViewController",
+             @"VideoDisabledByPolicySheetViewController",
+             @"ArtistBadgesSheetViewController",
+             @"Audiobook_SupplementaryContentBottomSheetImpl",
+             @"DSA_MessagingImpl",
+             @"DSA_InlineToggleImpl",
+             @"MarqueeContextMenuViewController",
+             @"DisclaimerSheetViewController",
+             @"Campfire_ChatDisclaimerImpl",
+             @"ChatPhotoPickerViewController",
+             @"Campfire_ChatGifPickerPageImpl",
+             @"Campfire_ChatEntityPickerPageImpl",
+             @"Campfire_ChatContentPickerPageImpl",
+             @"PodcastMembershipBottomSheetViewController",
+             @"GatedContent_GatedContentBottomSheetPageImpl",
+             @"ModalReactionPickerViewController",
+             @"PodcastInteractivity_CommentsImpl",
+             @"ReactionSheetViewController",
+             @"ReactionSheetPageViewController",
+             @"PodcastInteractivity_TermsSheetPageImpl",
+             @"Contribution_ContextMenuImpl",
+             @"Creator_AgentsPresentationImpl",
+             @"Reflection_SurveySheetPageImpl",
+             @"OnTour_MultiEventBottomSheetImpl",
+             @"LiveEvents_FilterSheetImpl",
+             @"Merchandising_BottomSheetDialogKit",
+             @"FontPickerViewController",
+             @"ColorPickerViewController",
+             @"ImagePickerViewController",
+             @"StickerPickerViewController",
+             @"Transcript_TranscriptSelectionImpl",
+             @"AllBoarding_AllBoardingPlatformImpl",
+             @"SocialListeningPartnerIntegrations_UIImpl",
+             @"ClientMessagingPlatformBottomSheetPageViewController"];
 }
 
 static BOOL isContent(UIViewController *controller) {
