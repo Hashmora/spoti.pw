@@ -11,6 +11,8 @@
 //   Save in                            PlaylistCuration_AddToPlaylistImpl.ATPContainerViewController
 //   Download using mobile data         Offline_ContentOffliningUIImpl.ElementViewController<DownloadOverCellularDialogElement>
 //   Smart Reorder popups (Edit playlist) PlaylistMixing_MessagingImpl.MixingMessagingViewController
+//   Mix transition's ⋯ menu            PlaylistMixing_MixingUIImpl.MixingEditMoreMenuViewController (Add to other playlist,
+//                                      Share; trees/continuous/7.txt)
 //   Share                              Share_MenuImpl.ShareMenuViewControllerV2
 //   Listening modes                    SmartShuffle_CoreImpl.PlayModePickerViewController
 //   Connect device menu (Log out)      Connect_ContextMenuPageImpl.ContextMenuViewController, pushed in the picker's sheet
@@ -53,6 +55,7 @@ static NSArray<NSString *> *contentMarkers(void) {
              @"PlaylistCuration_AddToPlaylistImpl",
              @"Offline_ContentOffliningUIImpl",
              @"PlaylistMixing_MessagingImpl",
+             @"MixingEditMoreMenuViewController",
              @"SongDNA_AboutSongDNAPageImpl"];
 }
 

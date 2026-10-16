@@ -484,7 +484,17 @@ static void placeInCorner(UIView *page, UIView *button, BOOL leading, NSUInteger
     CGFloat step = (side + kCornerGap) * slot;
     CGFloat x = leading ? kCornerSide + step : page.bounds.size.width - kCornerSide - side - step;
     CGFloat y = space.safeAreaInsets.top;
-    if (window) y = [page convertPoint:CGPointMake(0, y) fromView:nil].y;
+    if (window) {
+        // A page a sheet is being presented over, or has just been dismissed from, is moved down and scaled by UIKit
+        // for the length of the transition (trees/continuous/5.txt: the presenting view at {16, 47}; 8.txt: back at
+        // {0, 0} with the pinned buttons left at y=0). A pass inside it converted the window's inset into the
+        // displaced page and got 0, and no pass came after the page was home, so Back and ⋯ stuck to the top of the
+        // screen. While the page is moved down and scaled the inset is the window's own, which is where the
+        // page is about to be.
+        CGRect inWindow = [page convertRect:page.bounds toView:nil];
+        BOOL displaced = CGRectGetMinY(inWindow) > 1 && fabs(inWindow.size.width - page.bounds.size.width) > 0.5;
+        if (!displaced) y = [page convertPoint:CGPointMake(0, y) fromView:nil].y;
+    }
     // A page in a sheet (the Add songs sheet's Find) has no status bar over it: its bar is the sheet's own row,
     // kSheetBarHeight high, with the circle centred in it.
     if (inSheet(page)) y = (kSheetBarHeight - side) / 2;

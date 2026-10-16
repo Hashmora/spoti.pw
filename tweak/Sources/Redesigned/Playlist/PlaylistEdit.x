@@ -17,6 +17,13 @@
 //  - The two Smart Reorder popups (get smoother transitions, you have custom transitions) are Navigation sheets and are
 //    glassed by SGRSheetPopups.x (the PlaylistMixing_MessagingImpl marker); their big Primary button (Continue, Keep
 //    custom transitions) is glass tinted with the accent here, since its label is black.
+//  - The undo / redo pill is dressed from its own layout passes (PillStackView), not only from the bar's: it is made
+//    inside the title control as the first track is dragged, after the bar's pass that would have found it, so its glass
+//    came only once the list was scrolled and the bar laid out again (trees/continuous/5.txt, 6.txt: the pill with no
+//    glass in it).
+//  - The row that is being dragged is lifted on a #2A2A2A plate with the screen's corners (5.txt: a view in the main
+//    window with that fill around a copy of the row). The plate's color is a preview parameter of Spotify's, set clear
+//    while the sheet is up, so the track is lifted bare.
 // Threading: main thread only.
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
@@ -64,11 +71,31 @@ static void moveBar(UINavigationController *navigation) {
     }
 }
 
-static void glassPill(UIView *root) {
-    UIView *pill = SGRFindByIdentifier(root, @"UndoRedoBarElement", &kPillKey);
-    if (!pill) return;
+static void dressPill(UIView *pill) {
+    if (pill.bounds.size.width < 1 || pill.bounds.size.height < 1) return;
     if (pill.layer.backgroundColor) pill.layer.backgroundColor = NULL;
     SGRGlassFlatBox(pill, &kPillGlassKey);
+    objc_setAssociatedObject(pill, &kDressedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+}
+
+static void glassPill(UIView *root) {
+    UIView *pill = SGRFindByIdentifier(root, @"UndoRedoBarElement", &kPillKey);
+    if (pill) dressPill(pill);
+}
+
+// A class of PlaylistEditing_ElementsKit whose mangled name carries a private discriminator (P33_...), found from the
+// trees' spelling by its ending.
+static Class privateClass(NSString *suffix) {
+    Class found = nil;
+    int count = objc_getClassList(NULL, 0);
+    Class *all = (Class *)malloc(sizeof(Class) * count);
+    count = objc_getClassList(all, count);
+    for (int i = 0; i < count && !found; i++) {
+        NSString *name = NSStringFromClass(all[i]);
+        if ([name hasPrefix:@"_TtC27PlaylistEditing_ElementsKit"] && [name hasSuffix:suffix]) found = all[i];
+    }
+    free(all);
+    return found;
 }
 
 static void chrome(UIViewController *controller) {
@@ -225,6 +252,39 @@ static void dressButton(UIView *button) {
 %end
 %end
 
+// The pill is made inside the bar's title control after the bar's own passes, so it is dressed by its own: as it lays
+// out, as it comes into the window, and as Encore paints its fill again.
+%group SGREditPill
+%hook SGRPillView
+- (void)layoutSubviews {
+    %orig;
+    dressPill((UIView *)self);
+}
+
+- (void)didMoveToWindow {
+    %orig;
+    if (((UIView *)self).window) dressPill((UIView *)self);
+}
+
+- (void)setBackgroundColor:(UIColor *)color {
+    UIView *pill = (UIView *)self;
+    if ([objc_getAssociatedObject(pill, &kDressedKey) boolValue] && color && CGColorGetAlpha(color.CGColor) > 0.05) color = UIColor.clearColor;
+    %orig(color);
+}
+%end
+%end
+
+// The plate a dragged row is lifted on. UIPreviewParameters is where UIDragPreviewParameters has its backgroundColor.
+// Only Spotify's grey, and only while the Edit playlist sheet is up.
+%group SGREditDrag
+%hook UIPreviewParameters
+- (void)setBackgroundColor:(UIColor *)color {
+    if (color && sg_editNavigation.viewIfLoaded.window && SGRIsSheetSurface(color.CGColor)) color = UIColor.clearColor;
+    %orig(color);
+}
+%end
+%end
+
 %ctor {
     if (!SGRedesignedUI()) return;
     if (!SGBelowiOS26()) return;
@@ -241,21 +301,17 @@ static void dressButton(UIView *button) {
     } else {
         SGLog(@"class Encore.Button.Primary not found, the Edit playlist buttons and the Smart Reorder popups keep Spotify's fills");
     }
-    Class toolbar = swiftClass(@"PlaylistEditing_ElementsKit", @"ToolbarContainerView");
-    if (!toolbar) {
-        // Private discriminator in the mangled name (P33_...): found from the trees' spelling by suffix.
-        int count = objc_getClassList(NULL, 0);
-        Class *all = (Class *)malloc(sizeof(Class) * count);
-        count = objc_getClassList(all, count);
-        for (int i = 0; i < count && !toolbar; i++) {
-            NSString *name = NSStringFromClass(all[i]);
-            if ([name hasPrefix:@"_TtC27PlaylistEditing_ElementsKit"] && [name hasSuffix:@"ToolbarContainerView"]) toolbar = all[i];
-        }
-        free(all);
-    }
+    Class toolbar = swiftClass(@"PlaylistEditing_ElementsKit", @"ToolbarContainerView") ?: privateClass(@"ToolbarContainerView");
     if (toolbar) {
         %init(SGREditToolbar, SGRToolbarContainer = toolbar);
     } else {
         SGLog(@"class PlaylistEditing_ElementsKit ToolbarContainerView not found, the Edit playlist toolbar may keep Spotify's grey");
     }
+    Class pill = swiftClass(@"PlaylistEditing_ElementsKit", @"PillStackView") ?: privateClass(@"PillStackView");
+    if (pill) {
+        %init(SGREditPill, SGRPillView = pill);
+    } else {
+        SGLog(@"class PlaylistEditing_ElementsKit PillStackView not found, the undo / redo pill gets its glass from the bar's passes only");
+    }
+    if (NSClassFromString(@"UIPreviewParameters")) %init(SGREditDrag);
 }

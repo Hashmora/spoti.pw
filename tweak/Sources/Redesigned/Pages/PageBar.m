@@ -346,9 +346,8 @@ void SGRDressBarPage(UIViewController *page) {
     }
 }
 
-void SGRUndressBarPage(UIViewController *page) {
+static void undressBar(UIViewController *page, UINavigationController *navigation) {
     [sg_dressed removeObject:page];
-    UINavigationController *navigation = page.navigationController;
     if (!navigation) return;
     // A page pushed over this one dressed the bar before this one went: it is that page's now.
     if (sg_dressed.count) return;
@@ -372,4 +371,20 @@ void SGRUndressBarPage(UIViewController *page) {
     // the page that wants one makes it again.
     UIView *title = subviewNamed(content, @"_UINavigationBarTitleControl");
     [(UIView *)objc_getAssociatedObject(title, &kTitleGlassKey) removeFromSuperview];
+}
+
+// A swipe back says the page is going the moment the finger moves, and the page is still under it, following the
+// finger, until it is let go. The bar is given back at the end of the swipe and not at its start: the title's capsule
+// (Song DNA's logo, trees/continuous/10.txt) went with the first move while the page was still on screen. A swipe the
+// finger takes back leaves the page dressed, and the pass its own appearing makes finds it so.
+void SGRUndressBarPage(UIViewController *page) {
+    UINavigationController *navigation = page.navigationController;
+    id<UIViewControllerTransitionCoordinator> coordinator = page.transitionCoordinator;
+    if (navigation && coordinator.isInteractive) {
+        [coordinator animateAlongsideTransition:nil completion:^(id<UIViewControllerTransitionCoordinatorContext> context) {
+            if (!context.isCancelled) undressBar(page, navigation);
+        }];
+        return;
+    }
+    undressBar(page, navigation);
 }

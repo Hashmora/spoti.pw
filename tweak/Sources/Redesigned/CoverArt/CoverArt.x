@@ -1,8 +1,12 @@
 // Redesign: glass for the controls of three small screens that were still Spotify's flat ones.
 //
-//   Eat this playlist   PlaylistCuration_CoverArtSnakeImpl.SnakeViewController (trees/continuous/27.txt): the two
-//                       buttons of its navigation bar become glass circles like the playlist's Back and ⋯, and the
-//                       green Try again button becomes green glass.
+//   Eat this playlist   PlaylistCuration_CoverArtSnakeImpl.SnakeViewController (trees/continuous/9.txt): the two
+//                       buttons of its navigation bar become the playlist's own glass circles (Kit/SGRActionRow.h:
+//                       SGRPinnedBackOf and SGRPinnedTrailing, pinned to the page's corners and firing Spotify's
+//                       buttons), and the green Try again button becomes green glass. The circles were once glass
+//                       laid inside the bar's buttons, where the cross sat 1.5pt off the middle of its circle: the
+//                       bar button is 51pt wide with its glyph inset to one side of it, and the glass is centred in
+//                       the button.
 //   Spotify code        Scannables_ScannablesImpl.ScannablesImageViewController, in the ⋯ sheet (28.txt): Save to
 //                       photos becomes white glass.
 //   Create cover art    PlaylistArtwork_EditPlaylistCoverArtPageImpl.EditPlaylistCoverArtView (30.txt): the Back
@@ -19,7 +23,7 @@
 #import "Redesigned/Kit/SGRKit.h"
 #import "Redesigned/Pages/Pages.h"
 
-static char kBarGlassKey, kButtonGlassKey, kTintKey;
+static char kButtonGlassKey, kTintKey, kSnakeCloseKey;
 
 // The film over a shape's glass, in the effect's content view so the corners clip it: white for the white buttons,
 // green for Try again. Kept on the shape's frame and cheap to call on every pass.
@@ -84,24 +88,50 @@ static UIColor *greenFilm(void) { return [UIColor colorWithRed:0.215 green:0.949
 
 #pragma mark - Eat this playlist
 
+// The first control of the bar's stack at the leading or the trailing half of its content view.
+static UIView *snakeBarButton(UIView *content, BOOL leading) {
+    for (UIView *stack in content.subviews) {
+        if (![NSStringFromClass(stack.class) isEqualToString:@"_UIButtonBarStackView"]) continue;
+        if ((CGRectGetMidX(stack.frame) < content.bounds.size.width / 2) != leading) continue;
+        for (UIView *button in stack.subviews) {
+            if (button.bounds.size.width > 1 && button.bounds.size.height > 1) return button;
+        }
+    }
+    return nil;
+}
+
+// Out of sight and out of reach, the way the pinned back button conceals Spotify's: a mask survives Spotify showing
+// the view again, which hidden does not. The mirror fires it.
+static void concealButton(UIView *button) {
+    if (!button.layer.hidden) button.layer.hidden = YES;
+    if (!button.layer.mask) button.layer.mask = [CALayer layer];
+    if (button.userInteractionEnabled) button.userInteractionEnabled = NO;
+    button.accessibilityElementsHidden = YES;
+}
+
 static void dressSnakeBar(UIViewController *page) {
     if (!SGBelowiOS26()) return;
     UINavigationBar *bar = page.navigationController.navigationBar;
-    if (!bar || !page.viewIfLoaded.window) return;
+    UIView *view = page.viewIfLoaded;
+    if (!bar || !view.window) return;
     UIView *content = nil;
     for (UIView *sub in bar.subviews) {
         if ([NSStringFromClass(sub.class) isEqualToString:@"_UINavigationBarContentView"]) content = sub;
     }
     if (!content) return;
-    for (UIView *stack in content.subviews) {
-        if (![NSStringFromClass(stack.class) isEqualToString:@"_UIButtonBarStackView"]) continue;
-        for (UIView *button in stack.subviews) {
-            if (button.bounds.size.width < 1) continue;
-            SGRGlassInside(button, &kBarGlassKey, SGRGlassCircleSize);
-        }
-        if (stack.clipsToBounds) stack.clipsToBounds = NO;
+    // The bar is above the page and would take the touches meant for the buttons pinned to it.
+    if (bar.userInteractionEnabled) bar.userInteractionEnabled = NO;
+    // Add to the left (a plus, or a check once saved: the mirror draws the state Spotify reports), the cross at the
+    // corner on the right.
+    UIView *add = snakeBarButton(content, YES);
+    if (add) SGRPinnedBackOf(view, add);
+    UIView *close = snakeBarButton(content, NO);
+    if (close) {
+        static UIImage *closeGlyph;
+        if (!closeGlyph) closeGlyph = [UIImage systemImageNamed:@"xmark"];
+        concealButton(close);
+        SGRPinnedTrailing(view, &kSnakeCloseKey, close, 0, closeGlyph);
     }
-    if (content.clipsToBounds) content.clipsToBounds = NO;
 }
 
 static void dressSnake(UIViewController *page) {
