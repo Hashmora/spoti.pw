@@ -13,6 +13,9 @@
 //    toolbar goes with it (SGRRepaint.x keeps it clear).
 //  - The bar's blur plate goes, and the bar and the list are moved down 10pt: with the screen's corner radius on the
 //    pane the Cancel and Save at 8pt from the edge, 6pt from the top, would be cut.
+//  - With the plate gone the rows scrolled up under Cancel, the title and Save, and everything ran together
+//    (trees/continuous/8.txt: the table is the whole height of the sheet under the bar). The view holding the table
+//    and the toolbar is masked from the bar's bottom down, so the rows end where the header does.
 //  - Every button of the toolbar and the undo / redo pill is a glass capsule (SGRGlassFlatBox).
 //  - The two Smart Reorder popups (get smoother transitions, you have custom transitions) are Navigation sheets and are
 //    glassed by SGRSheetPopups.x (the PlaylistMixing_MessagingImpl marker); their big Primary button (Continue, Keep
@@ -21,9 +24,11 @@
 //    inside the title control as the first track is dragged, after the bar's pass that would have found it, so its glass
 //    came only once the list was scrolled and the bar laid out again (trees/continuous/5.txt, 6.txt: the pill with no
 //    glass in it).
-//  - The row that is being dragged is lifted on a #2A2A2A plate with the screen's corners (5.txt: a view in the main
-//    window with that fill around a copy of the row). The plate's color is a preview parameter of Spotify's, set clear
-//    while the sheet is up, so the track is lifted bare.
+//  - The row that is being dragged is lifted on a #2A2A2A plate, r=8 (trees/continuous/1.txt: a plain UIView in the main
+//    window, scaled up a little, around a UIView with that fill that clips and holds a copy of the row). The plate's
+//    color is a preview parameter of Spotify's, set clear while the sheet is up; that alone did not take (the grey was
+//    still there in 1.txt), so the plate itself is cleared as well, when it comes into the window and as it is painted.
+//    The track is lifted bare.
 // Threading: main thread only.
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
@@ -37,6 +42,7 @@ static const CGFloat kEditShift = 10;
 static const CGFloat kEditDim = 0.4;
 
 static char kToolbarGlassKey, kPopupGlassKey, kPopupTintKey, kPillKey, kPillGlassKey, kDressedKey;
+static char kListKey, kListClipKey;
 
 static Class swiftClass(NSString *module, NSString *name) {
     NSString *mangled = [NSString stringWithFormat:@"_TtC%lu%@%lu%@", (unsigned long)module.length, module, (unsigned long)name.length, name];
@@ -69,6 +75,28 @@ static void moveBar(UINavigationController *navigation) {
         CGAffineTransform shift = CGAffineTransformMakeTranslation(0, kEditShift);
         if (!CGAffineTransformEqualToTransform(sub.transform, shift)) sub.transform = shift;
     }
+}
+
+// The rows stop at the bottom of the bar. The mask is on the table's superview, which does not scroll, so it holds
+// still while the rows move under it; the toolbar below is inside it whole.
+static void clipListBelowBar(UIViewController *controller, UINavigationController *navigation) {
+    UIView *table = SGRFindByIdentifier(controller.viewIfLoaded, @"EditItemsViewController.TableView", &kListKey);
+    UIView *host = table.superview;
+    if (!host || host.bounds.size.height < 1) return;
+    CGFloat top = barOf(navigation).bounds.size.height + kEditShift;
+    CALayer *mask = objc_getAssociatedObject(host, &kListClipKey);
+    if (!mask) {
+        mask = [CALayer layer];
+        mask.backgroundColor = UIColor.blackColor.CGColor;
+        objc_setAssociatedObject(host, &kListClipKey, mask, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    if (host.layer.mask != mask) host.layer.mask = mask;
+    CGRect frame = CGRectMake(0, top, host.bounds.size.width, MAX(0, host.bounds.size.height - top));
+    if (CGRectEqualToRect(mask.frame, frame)) return;
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    mask.frame = frame;
+    [CATransaction commit];
 }
 
 static void dressPill(UIView *pill) {
@@ -116,6 +144,7 @@ static void chrome(UIViewController *controller) {
         controller.additionalSafeAreaInsets = extra;
     }
     glassPill(barOf(navigation));
+    clipListBelowBar(controller, navigation);
 }
 
 static void passes(UIViewController *controller) {
@@ -274,12 +303,53 @@ static void dressButton(UIView *button) {
 %end
 %end
 
-// The plate a dragged row is lifted on. UIPreviewParameters is where UIDragPreviewParameters has its backgroundColor.
-// Only Spotify's grey, and only while the Edit playlist sheet is up.
+// The plate a dragged row is lifted on, cleared at its source (UIPreviewParameters is where UIDragPreviewParameters has
+// its backgroundColor) and on the plate itself. Only Spotify's grey, and only while the Edit playlist sheet is up.
+static char kLiftPlateKey;
+
+// The plate in the main window (trees/continuous/1.txt): a plain UIView that clips, r=8, inside a plain UIView that is
+// a child of the window itself (the holder the drag scales up). Nothing else of the app sits like that.
+static BOOL isLiftPlate(UIView *view) {
+    if (!sg_editNavigation.viewIfLoaded.window) return NO;
+    if (object_getClass(view) != UIView.class) return NO;
+    UIView *holder = view.superview;
+    if (!holder || object_getClass(holder) != UIView.class || ![holder.superview isKindOfClass:UIWindow.class]) return NO;
+    return view.layer.masksToBounds && view.layer.cornerRadius > 0 && view.layer.cornerRadius <= 12;
+}
+
+static void clearLiftPlate(UIView *view) {
+    if (!isLiftPlate(view)) return;
+    if (!SGRIsSheetSurface(view.layer.backgroundColor) && ![objc_getAssociatedObject(view, &kLiftPlateKey) boolValue]) return;
+    objc_setAssociatedObject(view, &kLiftPlateKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    if (view.layer.backgroundColor) view.backgroundColor = UIColor.clearColor;
+}
+
 %group SGREditDrag
 %hook UIPreviewParameters
 - (void)setBackgroundColor:(UIColor *)color {
     if (color && sg_editNavigation.viewIfLoaded.window && SGRIsSheetSurface(color.CGColor)) color = UIColor.clearColor;
+    %orig(color);
+}
+%end
+
+%hook UIView
+- (void)didMoveToWindow {
+    %orig;
+    if (sg_editNavigation && ((UIView *)self).window) clearLiftPlate((UIView *)self);
+}
+
+// The plate is painted before it is in the window or after, depending on the pass; once it is the plate, it stays clear.
+- (void)setBackgroundColor:(UIColor *)color {
+    // Every view of the app comes through here: nothing is looked at unless the Edit playlist sheet is up.
+    if (color && sg_editNavigation) {
+        UIView *view = (UIView *)self;
+        if ([objc_getAssociatedObject(view, &kLiftPlateKey) boolValue]) {
+            if (CGColorGetAlpha(color.CGColor) > 0.05) color = UIColor.clearColor;
+        } else if (SGRIsSheetSurface(color.CGColor) && isLiftPlate(view)) {
+            objc_setAssociatedObject(view, &kLiftPlateKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            color = UIColor.clearColor;
+        }
+    }
     %orig(color);
 }
 %end

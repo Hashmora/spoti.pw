@@ -31,6 +31,8 @@ extern __weak UIView *sgr_searchHeaderRoot;
 extern __weak UIView *sgr_searchFieldFill;
 // Pages/ShowSearch.x, iOS < 26: the "Find in this show" field of a podcast's search page, whose grey Spotify paints again as it is focused.
 extern __weak UIView *sgr_showSearchField;
+// The same page's header, the SearchHeader view around the field and Cancel that Spotify paints #000000: kept clear while it is set.
+extern __weak UIView *sgr_showSearchHeader;
 
 // Playlist/PlaylistAddSearch.x, iOS < 26: the grey search bar at the bottom of the Add songs sheet's pages, kept clear
 // while it is set (Spotify paints it again when the field is focused).

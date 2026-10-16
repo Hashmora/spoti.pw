@@ -6,7 +6,8 @@
 //                       buttons), and the green Try again button becomes green glass. The circles were once glass
 //                       laid inside the bar's buttons, where the cross sat 1.5pt off the middle of its circle: the
 //                       bar button is 51pt wide with its glyph inset to one side of it, and the glass is centred in
-//                       the button.
+//                       the button. Copying Spotify's own cross into the mirror left it off the middle too (its canvas
+//                       is padded unevenly), so the cross is the system's, drawn centred (SGRMirrorButton.ownGlyph).
 //   Spotify code        Scannables_ScannablesImpl.ScannablesImageViewController, in the ⋯ sheet (28.txt): Save to
 //                       photos becomes white glass.
 //   Create cover art    PlaylistArtwork_EditPlaylistCoverArtPageImpl.EditPlaylistCoverArtView (30.txt): the Back
@@ -127,10 +128,19 @@ static void dressSnakeBar(UIViewController *page) {
     if (add) SGRPinnedBackOf(view, add);
     UIView *close = snakeBarButton(content, NO);
     if (close) {
+        // Spotify's own cross has uneven padding in its canvas and sat off the middle of the circle once copied (9.txt),
+        // so the mirror draws the system cross at its own size, centred.
         static UIImage *closeGlyph;
-        if (!closeGlyph) closeGlyph = [UIImage systemImageNamed:@"xmark"];
+        if (!closeGlyph) {
+            closeGlyph = [UIImage systemImageNamed:@"xmark"
+                                 withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:17 weight:UIImageSymbolWeightSemibold]];
+        }
         concealButton(close);
-        SGRPinnedTrailing(view, &kSnakeCloseKey, close, 0, closeGlyph);
+        SGRMirrorButton *pinned = SGRPinnedTrailing(view, &kSnakeCloseKey, close, 0, closeGlyph);
+        if (pinned && !pinned.ownGlyph) {
+            pinned.ownGlyph = YES;
+            [pinned feedFrom:close];
+        }
     }
 }
 

@@ -16,6 +16,7 @@ __weak UIView *sgr_searchHeaderRoot = nil;
 __weak UIView *sgr_addSongsSearchBar = nil;
 __weak UIView *sgr_searchFieldFill = nil;
 __weak UIView *sgr_showSearchField = nil;
+__weak UIView *sgr_showSearchHeader = nil;
 
 // The flat, translucent white Spotify tints an unselected filter chip with (#FFFFFF@0.10). A selected chip is painted a solid colour of its own, which is never this.
 static BOOL isNeutralTint(CGColorRef color) {
@@ -41,9 +42,8 @@ static BOOL isChipFill(UIView *view) {
 }
 
 // The opaque backing Spotify paints the library's pinned header with (#121212, black under the AMOLED hook).
-// Library/LibraryHeader.x puts a black plate behind the title row alone
-// so the filter chips can be glass over the list; this keeps Spotify's own paint from covering them again
-// on its passes. Size first, name second: this runs for every colour any layer is given.
+// Library/LibraryHeader.x leaves the header with no backing at all, so the title row and the filter chips
+// float over the page as glass; this keeps Spotify's own paint from covering them again on its passes. Size first, name second: this runs for every colour any layer is given.
 static BOOL isLibraryHeader(UIView *view) {
     CGSize size = view.bounds.size;
     if (size.width < 300 || size.height < 100 || size.height > 260) return NO;
@@ -58,7 +58,7 @@ static BOOL isLibraryHeader(UIView *view) {
         UIView *header = (UIView *)self.delegate;
         if ([header isKindOfClass:UIView.class] && header.layer == self && isLibraryHeader(header)) color = NULL;
     }
-    // The search results header's backing and the grey in its field: glass and the page's black plate stand in their place.
+    // The search results header's backing and the grey in its field: the glass of the field stands in its place, the header has none.
     if (legacyLook && color && (sgr_searchHeaderRoot || sgr_searchFieldFill)) {
         id owner = self.delegate;
         if (owner == sgr_searchHeaderRoot && CGColorGetAlpha(color) > 0.5) color = NULL;
@@ -66,6 +66,8 @@ static BOOL isLibraryHeader(UIView *view) {
     }
     // The podcast search page's field: the grey goes, the glass (Pages/ShowSearch.x) stands in its place.
     if (legacyLook && color && sgr_showSearchField && self.delegate == sgr_showSearchField && (isNeutralTint(color) || CGColorGetAlpha(color) > 0.5)) color = NULL;
+    // The podcast search page's header, Spotify's black behind the field row: it goes and the field and Cancel float.
+    if (legacyLook && color && sgr_showSearchHeader && self.delegate == sgr_showSearchHeader && CGColorGetAlpha(color) > 0.5) color = NULL;
     // The Add songs sheet's search bar: its grey goes, the glass (Playlist/PlaylistAddSearch.x) stands in its place.
     if (legacyLook && color && sgr_addSongsSearchBar && self.delegate == sgr_addSongsSearchBar && CGColorGetAlpha(color) > 0.5) color = NULL;
     // A chip's fill painted: the grey goes, and either way the chip's glass is told (below, once the paint is

@@ -346,9 +346,21 @@ static BOOL indicatorOn(UIView *button, BOOL *found) {
     if ([self sgr_feedDownloadFrom:source]) return;
     if ([self sgr_feedAddToFrom:source]) return;
 
-    UIImageView *glyph = glyphIn(source, 0);
     NSString *word = source.accessibilityLabel ?: wordIn(source);
     if (word && ![self.accessibilityLabel isEqualToString:word]) self.accessibilityLabel = word;
+    if (self.ownGlyph && self.fallbackGlyph) {
+        UIViewContentMode mode = UIViewContentModeCenter;
+        if (_glyph.contentMode != mode) _glyph.contentMode = mode;
+        if (_glyph.image != self.fallbackGlyph) {
+            _takenGlyph = nil;
+            _glyph.image = self.fallbackGlyph;
+        }
+        UIColor *own = self.glyphColor ?: SGRPrimary();
+        if (![_glyph.tintColor isEqual:own]) _glyph.tintColor = own;
+        return;
+    }
+
+    UIImageView *glyph = glyphIn(source, 0);
     // A button that says "on" with its dot is drawn in our colors, on and off. One expected to have a dot
     // and found without keeps Spotify's colors, which are then all that tells on from off.
     BOOL hasDot = NO;

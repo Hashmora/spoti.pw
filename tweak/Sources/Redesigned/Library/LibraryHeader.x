@@ -10,9 +10,9 @@
 // changes: an unselected chip's flat grey fill goes (SGRRepaint.x holds it clear when Spotify paints it back)
 // and a glass capsule stands behind it, like the header's round buttons; a selected chip is that glass with its own
 // colour over it as a tint (SGRSelectedChipPaint), and so is the cross that clears the filters, left of the chips.
-// The header's own backing ends under the title row and the list runs up under the chips (plateRow, raiseList),
-// so the glass has the rows to show; a folder's header gets the same, and its Back and ⋯ a glass circle each,
-// like the root header's buttons (trees/continuous/21.txt).
+// The header's own backing is gone and the list runs up under the chips (clearBacking, raiseList), so the glass
+// has the rows to show; a folder's header gets the same, and its Back, ⋯ and + a glass circle each,
+// like the root header's buttons (trees/continuous/21.txt, 10.txt).
 //
 // Tree (trees/clean/library/03.txt:1159-1247): YourLibraryView holds YourLibraryContentView, the size of the
 // page, and after it -- so over it -- YourLibraryHeaderView 402x159.33: LiquidGlass.GradientView (the scrim), a
@@ -62,7 +62,7 @@ static char kRecentsKey, kSearchKey, kPlusKey, kHeaderTitleKey;
 static char kRoundGlassKey;
 static char kBackKey, kMenuKey, kFolderPlusKey, kPlayKey, kPauseKey, kFolderTitleKey;
 static char kChipsKey, kChipGlassKey, kChipWatchedKey;
-static char kPlateKey, kContentKey, kListKey, kInsetKey;
+static char kContentKey, kListKey, kInsetKey;
 
 static void vanish(UIView *view) {
     if (!view) return;
@@ -366,28 +366,17 @@ void SGRLibraryChipPainted(UIView *chip) {
 %end
 %end
 
-#pragma mark - the backing behind the title row only
+#pragma mark - no backing
 
 // Spotify backs the whole header, chips row included, with an opaque surface, and lays the list out below
 // it, so the chips' glass had nothing but black behind it. The header's own paint goes (SGRRepaint.x holds it
-// clear), a black plate stands behind the title row alone, and the list is stretched up under the chips row
-// with an inset of the same height, so its first row still starts below the chips and the rest scroll under
-// the glass. The chips row is YourLibraryHeaderContentFiltersView {0, 95} 390x52 of the 390x147 header.
-static void plateRow(UIView *header, UIView *filters) {
-    CGFloat edge = CGRectGetMinY(filters.frame);
-    if (edge < 1) return;
+// clear) and nothing stands in its place: the title row, the buttons and the chips float over the page. A plate
+// of ours behind the title row stood at the size of the last layout pass and cut off any animation of the header,
+// and the page behind it is black already. The list is stretched up under the chips row with an inset of the same
+// height, so its first row still starts below the chips and the rest scroll under the glass. The chips row is
+// YourLibraryHeaderContentFiltersView {0, 95} 390x52 of the 390x147 header.
+static void clearBacking(UIView *header) {
     if (header.layer.backgroundColor) header.layer.backgroundColor = NULL;
-    UIView *plate = objc_getAssociatedObject(header, &kPlateKey);
-    if (!plate) {
-        plate = [UIView new];
-        plate.backgroundColor = UIColor.blackColor;
-        plate.userInteractionEnabled = NO;
-        plate.accessibilityElementsHidden = YES;
-        objc_setAssociatedObject(header, &kPlateKey, plate, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    }
-    if (header.subviews.firstObject != plate) [header insertSubview:plate atIndex:0];
-    CGRect frame = CGRectMake(0, 0, header.bounds.size.width, edge);
-    if (!CGRectEqualToRect(plate.frame, frame)) plate.frame = frame;
 }
 
 // The list's page view moved up to the chips row and made taller by as much, and the list's top inset
@@ -429,7 +418,7 @@ static void layoutRoot(UIView *page) {
         glassChips(header);
         UIView *filters = childNamed(header, @"YourLibraryHeaderContentFiltersView");
         if (filters && header.bounds.size.height > 1) {
-            plateRow(header, filters);
+            clearBacking(header);
             raiseList(page, header, filters);
         }
     }
@@ -467,7 +456,7 @@ static void layoutFolder(UIView *page) {
         glassChips(header);
         UIView *filters = childNamed(header, @"YourLibraryHeaderContentFiltersView");
         if (filters && header.bounds.size.height > 1) {
-            plateRow(header, filters);
+            clearBacking(header);
             raiseList(page, header, filters);
         }
     }
@@ -475,11 +464,12 @@ static void layoutFolder(UIView *page) {
     NSArray<UIView *> *placed = placeFolder(header);
     if (!placed.count) return;
 
-    // Back and ⋯ are plain buttons with nothing behind them; Create playlist and Play are left as Spotify's.
+    // Back, ⋯ and Create playlist (+) are plain buttons with nothing behind them; Play is left as Spotify's.
     if (SGBelowiOS26()) {
         UIView *back = SGRFindByIdentifier(header, @"YourLibraryFolderHeader.back", &kBackKey);
         UIView *more = SGRFindByIdentifier(header, @"YourLibraryFolderHeader.contextMenu", &kMenuKey);
-        for (UIView *control in @[back ?: (id)NSNull.null, more ?: (id)NSNull.null]) {
+        UIView *plus = SGRFindByIdentifier(header, @"YourLibraryFolderHeader.plus", &kFolderPlusKey);
+        for (UIView *control in @[back ?: (id)NSNull.null, more ?: (id)NSNull.null, plus ?: (id)NSNull.null]) {
             if (![control isKindOfClass:UIView.class] || control.bounds.size.width < 1) continue;
             SGGlassInteractive(control, SGRGlassInside(control, &kRoundGlassKey, 44));
         }

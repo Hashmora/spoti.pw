@@ -1,7 +1,8 @@
 // Search redesign, iOS < 26: the header of the results page, the one that holds the field once something is typed
 // and sent with return (and the recents under it). Spotify draws it as a flat #1F1F1F backing with a grey capsule
-// for the field and grey capsules for the chips. Here the backing goes, the field is a glass capsule and the chips
-// are glass the way the Library's are (Library/LibraryHeader.x takes them: it answers to this row's identifier too).
+// for the field and grey capsules for the chips. Here the backing goes and nothing stands in its place: the field
+// and Cancel are glass capsules floating over the page and the chips are glass the way the Library's are
+// (Library/LibraryHeader.x takes them: it answers to this row's identifier too).
 //
 // Tree (trees/continuous/14.txt:511-610): Search_FeatureImpl.HeaderViewController's view is a plain UIView
 // 390x143 bg=#1F1F1F, holding at {0, 47} a 96pt UIView with a vertical UIStackView of
@@ -12,15 +13,20 @@
 //     a 40pt row   id=Components.UI.FiltersView, a collection of FilterChipView (the chips' fills are plain
 //                  UIViews bg=#FFFFFF@0.10 r=16, as in the Library)
 //
-// With the backing gone the results would run up under the status bar and the field with nothing behind them, so a
-// black plate stands behind everything above the chips, and the chips are glass over the list. The page's own paint
-// is held clear by SGRRepaint.x (sgr_searchHeaderRoot, sgr_searchFieldFill), which Spotify puts back on its passes.
+// The page used to get a black plate behind the status bar and the field row. A plate is a view of ours that is
+// sized on Spotify's layout passes, so when the header grew or shrank in an animation (the keyboard, the chips
+// coming and going) it stood at the old size and cut the move off. There is none now: the header's own paint is
+// held clear by SGRRepaint.x (sgr_searchHeaderRoot, sgr_searchFieldFill), which Spotify puts back on its passes,
+// and the page behind it is black already.
 // Threading: main thread only.
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
 #import "Search.h"
 
-static char kContainerKey, kFiltersKey, kPlateKey, kFieldGlassKey;
+static char kContainerKey, kFiltersKey, kFieldGlassKey, kCancelGlassKey;
+
+// Room the Cancel capsule takes beside its label at most, on each side.
+static const CGFloat kCancelPadding = 12;
 
 // The field's own fill: a plain UIView with the text view in it, one level under the container's wrapper. Known
 // again once it is ours (its corners stay, its paint is gone).
@@ -35,25 +41,37 @@ static UIView *fieldFill(UIView *container) {
     return nil;
 }
 
-// A black plate behind the status bar and the field row; the chips under it are glass over the list.
-static void plateBehindField(UIView *root) {
-    UIView *filters = SGRFindByIdentifier(root, SGRSearchFiltersIdentifier, &kFiltersKey);
-    CGFloat edge = root.bounds.size.height;
-    if (filters.superview) {
-        CGFloat top = SGFrameIn(filters, root).origin.y;
-        if (top > 1) edge = MIN(edge, top);
+// Cancel: the button beside the field, found by an identifier that says so, else as the one button in the container
+// that is not the field and stands clear of it. It is wider than its label and the glass capsule is a little wider
+// again, so it reaches past the button by what the gap to the field leaves it.
+static UIView *cancelBeside(UIView *container, UIView *fill) {
+    CGRect fieldFrame = [fill.superview convertRect:fill.frame toView:container];
+    __block UIView *byName = nil, *byShape = nil;
+    SGForEachView(container, ^(UIView *v) {
+        if (v == container || v == fill || SGIsInside(v, fill) || v.bounds.size.width < 1) return;
+        if ([v.accessibilityIdentifier containsString:@"Cancel"] && !byName) byName = v;
+        if (byShape || ![NSStringFromClass(v.class) containsString:@"Button"]) return;
+        CGRect frame = [v.superview convertRect:v.frame toView:container];
+        if (v.bounds.size.height >= 20 && v.bounds.size.width <= 140 && !CGRectIntersectsRect(frame, fieldFrame)) byShape = v;
+    });
+    return byName ?: byShape;
+}
+
+static void glassCancel(UIView *container, UIView *fill) {
+    UIView *cancel = cancelBeside(container, fill);
+    if (!cancel) return;
+    CGRect fieldFrame = [fill.superview convertRect:fill.frame toView:container];
+    CGRect frame = [cancel.superview convertRect:cancel.frame toView:container];
+    CGFloat gap = MIN(fabs(CGRectGetMinX(frame) - CGRectGetMaxX(fieldFrame)), fabs(CGRectGetMinX(fieldFrame) - CGRectGetMaxX(frame)));
+    CGFloat pad = MIN(kCancelPadding, MAX(0, floor(gap / 2) - 1));
+    for (UIView *v = cancel; v && v != container.superview; v = v.superview) {
+        if (v.clipsToBounds) v.clipsToBounds = NO;
     }
-    UIView *plate = objc_getAssociatedObject(root, &kPlateKey);
-    if (!plate) {
-        plate = [UIView new];
-        plate.backgroundColor = UIColor.blackColor;
-        plate.userInteractionEnabled = NO;
-        plate.accessibilityElementsHidden = YES;
-        objc_setAssociatedObject(root, &kPlateKey, plate, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    }
-    if (plate.superview != root || root.subviews.firstObject != plate) [root insertSubview:plate atIndex:0];
-    CGRect frame = CGRectMake(0, 0, root.bounds.size.width, edge);
-    if (!CGRectEqualToRect(plate.frame, frame)) plate.frame = frame;
+    UIView *shape = SGRGlassCapsuleInside(cancel, &kCancelGlassKey, CGSizeMake(cancel.bounds.size.width + 2 * pad, fill.bounds.size.height), NO);
+    if (shape) SGGlassInteractive(cancel, shape);
+    SGForEachView(cancel, ^(UIView *v) {
+        if ([v isKindOfClass:UILabel.class] && ((UILabel *)v).textColor != UIColor.whiteColor) ((UILabel *)v).textColor = UIColor.whiteColor;
+    });
 }
 
 static void dress(UIView *root) {
@@ -66,8 +84,8 @@ static void dress(UIView *root) {
     if (fill) {
         if (sgr_searchFieldFill != fill) sgr_searchFieldFill = fill;
         SGRGlassFlatBox(fill, &kFieldGlassKey);
+        glassCancel(container, fill);
     }
-    plateBehindField(root);
 
     static BOOL logged;
     if (!logged && root.window && fill) {

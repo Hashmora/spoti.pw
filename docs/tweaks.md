@@ -475,6 +475,13 @@ Redesigned:
                   card with 35pt corners and capsule buttons (SGRAlertScreen.m, swapped in at presentViewController by
                   SGRAlertHook.x); the system's alert is never shown, its handlers and text fields are used as they are.
                   The page behind it is only dimmed a little (kScrimAlert, kScrimSheet), never blurred
+                  Spotify's own white pop-up dialogs (Get smoother transitions, Discard changes?, Make this playlist private?,
+                  Update preferred location: id=PopUp.Dialog and PopUpConfirmationDialog, each in a window of its own) are
+                  shown the same way, on every OS: the window goes invisible the moment the dialog comes into it, the dialog's
+                  title, text and buttons are read once Spotify has filled them in, and a UIAlertController made of them is
+                  presented over the app's window (SGRDialogPopups.x), its actions firing Spotify's own buttons. Nothing of
+                  Spotify's is repainted, so there is no frame of the white dialog first; one that cannot be read in a second
+                  is shown as Spotify's and dressed
     Navbar/       the glass tab bar (TabBar.x) over its own composition (Navbar.x, NavbarLayout.m) and editor, the glass search field.
                   Spotify is made to leave the glass bar its height where its own bar is shorter (a phone with a home button,
                   Offline or Private Session under the bar), so the now playing bar and the pages move up with it. Under both
@@ -586,8 +593,10 @@ Redesigned:
                   carousels and promos collapse, and the cards move up by the spacing they leave), the header the way Home
                   has it without the camera, and each card as Liquid Glass tinted by its own color, read off the Box's
                   shape layer (Search.h lists its files). Below iOS 26 the results page's header (SearchHeader.x) loses
-                  Spotify's #1F1F1F backing, with a black plate behind the status bar and the field row, the field is a
-                  glass capsule and the filter chips are glass as the Library's are (LibraryHeader.x takes both rows)
+                  Spotify's #1F1F1F backing and nothing put in its place (a plate sized on layout passes
+                  cut the header's animations off), the field and Cancel are glass capsules floating over the page and the filter
+                  chips are glass as the Library's are (LibraryHeader.x takes both rows). The search in the Library, the podcast
+                  "Find in this show" page and "Find on this page" have their field and Cancel on glass the same way
     Profile/      below iOS 26, the lists a profile opens (Followers, Following, playlists): UIKit's bar with the back
                   button on a glass circle, the title on a glass capsule and Spotify's dark blur behind the bar hidden
                   while such a page is on top (Profile.h lists its files)

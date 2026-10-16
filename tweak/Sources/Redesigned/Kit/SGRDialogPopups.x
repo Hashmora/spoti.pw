@@ -1,6 +1,7 @@
-// Redesign: Spotify's own white pop-up dialogs, dressed as the redesign's system notification (SGRAlertScreen.m): a
-// glass card with 35pt corners, white text, a capsule button filled with the accent for the main action and one of
-// 10% white for the rest.
+// Redesign: Spotify's own white pop-up dialogs, shown as the system's notification: a UIAlertController, which
+// SGRAlertHook.x draws as the redesign's alert below iOS 26 (SGRAlertScreen.m: a glass card with 35pt corners, white
+// text, a capsule button filled with the accent for the main action and one of 10% white for the rest) and the system
+// draws as its own glass alert from iOS 26 on.
 //
 //   Get smoother transitions     trees/continuous/8.txt:1731   id=PopUp.Dialog, white r=8
 //   Discard changes?             trees/continuous/9.txt:1805   id=PopUp.Dialog
@@ -9,13 +10,28 @@
 //                                                              the Cancel button under it, in a window of its own
 //
 // Each lives in a UIWindow of level 1000 over a 54% black dim, and is not a UIAlertController, so SGRAlertHook.x never
-// sees it. Spotify's views and buttons stay: only their paint is replaced, so every tap still reaches Spotify's own
-// handler. The Encore buttons are told apart by their identifiers (Components.UI.PrimaryButton, ...TertiaryButton).
-// Spotify lays the dialog out after it is attached, so the pass runs again a moment later.
+// sees it. Repainting Spotify's views (what this file did before) showed the white dialog for a moment and then
+// redrew it, because Spotify lays the dialog out and fills it in after it is attached. So nothing of Spotify's is
+// repainted now:
 //
-// Create cover art > Cancel > "Are you sure" (trees/continuous/11.txt) is a web page, not a view of Spotify's: nothing to dress.
+//  1. The moment a dialog's view comes into its window, the window is made invisible (alpha 0, and hidden from
+//     VoiceOver), in the same turn of the run loop, before the first frame is drawn.
+//  2. Its title, text and buttons are read once Spotify has filled them in: every 40 ms until two reads in a row
+//     agree. The main button is Components.UI.PrimaryButton, the others Components.UI.TertiaryButton.
+//  3. A UIAlertController is built from them and presented over the app's own window. Each action fires Spotify's own
+//     button (SGRActivate), so the handler Spotify attached to it runs exactly as for a tap, and Spotify takes its own
+//     window down. A tap outside the alert is its Cancel, as for any alert.
+//  4. If the alert cannot be shown (no window of the app to show it in, or the dialog never fills in), the window is
+//     made visible again and the dialog is repainted as it was before (dressDialog): a dialog that cannot be
+//     replaced is still a dialog.
+//
+// The window is made visible again a second after the dialog is gone, so a window Spotify keeps and uses for the next
+// dialog is not left invisible. If Spotify takes the dialog down itself while the alert is up, the alert goes too.
+//
+// Create cover art > Cancel > "Are you sure" (trees/continuous/11.txt) is a web page, not a view of Spotify's: nothing to replace.
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
+#import "Settings/SGPageStyle.h"
 
 static const CGFloat kDialogRadius = 35;
 
@@ -138,6 +154,222 @@ static void dressDialog(UIView *host) {
     });
 }
 
+#pragma mark - the notification
+
+static char kTakeKey;
+
+// How often a dialog that is not filled in yet is read again, how many times before it is given up and shown as
+// Spotify's own (1 s), and how long after it is gone its window stays invisible before it is made visible again.
+static const NSTimeInterval kPollInterval = 0.04, kRestoreDelay = 1.0;
+static const NSUInteger kMaxPolls = 25;
+
+// A dialog's window taken over: kept on the window itself, so one dialog is taken once however many of its views
+// come into the window.
+@interface SGRDialogTake : NSObject
+@property (nonatomic, weak) UIWindow *window;
+@property (nonatomic, weak) UIViewController *presenter;
+@property (nonatomic, copy) NSString *signature;
+@property (nonatomic) NSUInteger polls;
+@property (nonatomic) BOOL presented, done;
+@end
+
+@implementation SGRDialogTake
+@end
+
+static BOOL visibleUnder(UIView *view, UIView *root) {
+    for (UIView *v = view; v && v != root; v = v.superview) {
+        if (v.hidden || v.alpha < 0.01) return NO;
+    }
+    return YES;
+}
+
+static NSString *trimmed(NSString *text) {
+    return [text stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet] ?: @"";
+}
+
+static NSString *titleOfButton(UIView *button) {
+    __block NSString *title = nil;
+    SGForEachView(button, ^(UIView *v) {
+        if (!title.length && [v isKindOfClass:UILabel.class]) title = trimmed(((UILabel *)v).text);
+    });
+    return title.length ? title : trimmed(button.accessibilityLabel);
+}
+
+static BOOL before(UIView *a, UIView *b, UIView *root) {
+    CGPoint pa = [a convertPoint:CGPointZero toView:root], pb = [b convertPoint:CGPointZero toView:root];
+    return fabs(pa.y - pb.y) > 1 ? pa.y < pb.y : pa.x < pb.x;
+}
+
+// What the dialog says, read off its views: @"title", @"message", @"buttons" (dictionaries of @"title" and @"view",
+// in reading order) and @"signature", which is empty until the dialog is filled in: a title and at least one button,
+// every button with its label.
+static NSDictionary *readDialog(UIWindow *window) {
+    NSMutableArray<UILabel *> *labels = [NSMutableArray array];
+    NSMutableArray<UIView *> *buttons = [NSMutableArray array];
+    SGForEachView(window, ^(UIView *v) {
+        if (v == window || !visibleUnder(v, window)) return;
+        if (isButton(v)) {
+            if (!insideButton(v.superview, window)) [buttons addObject:v];
+        } else if ([v isKindOfClass:UILabel.class] && trimmed(((UILabel *)v).text).length && !insideButton(v, window)) {
+            [labels addObject:(UILabel *)v];
+        }
+    });
+    [labels sortUsingComparator:^NSComparisonResult(UILabel *a, UILabel *b) {
+        return before(a, b, window) ? NSOrderedAscending : NSOrderedDescending;
+    }];
+    [buttons sortUsingComparator:^NSComparisonResult(UIView *a, UIView *b) {
+        return before(a, b, window) ? NSOrderedAscending : NSOrderedDescending;
+    }];
+
+    NSString *title = labels.count ? trimmed(labels.firstObject.text) : @"";
+    NSMutableArray<NSString *> *rest = [NSMutableArray array];
+    for (NSUInteger i = 1; i < labels.count; i++) [rest addObject:trimmed(labels[i].text)];
+    NSString *message = [rest componentsJoinedByString:@"\n"];
+
+    NSMutableArray<NSDictionary *> *found = [NSMutableArray array];
+    BOOL filled = title.length && buttons.count;
+    for (UIView *button in buttons) {
+        NSString *name = titleOfButton(button);
+        if (!name.length) filled = NO;
+        else [found addObject:@{@"title": name, @"view": button}];
+    }
+    NSMutableArray<NSString *> *names = [NSMutableArray array];
+    for (NSDictionary *b in found) [names addObject:b[@"title"]];
+    NSString *signature = filled ? [NSString stringWithFormat:@"%@|%@|%@", title, message, [names componentsJoinedByString:@"/"]] : @"";
+    return @{@"title": title, @"message": message, @"buttons": found, @"signature": signature};
+}
+
+// The top controller of the app's own window: the notification is shown there, under the invisible window of Spotify's.
+static UIViewController *appPresenter(UIWindow *except) {
+    UIWindow *best = nil;
+    for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
+        if (![scene isKindOfClass:UIWindowScene.class]) continue;
+        for (UIWindow *window in ((UIWindowScene *)scene).windows) {
+            if (window == except || window.hidden || window.windowLevel != UIWindowLevelNormal || !window.rootViewController) continue;
+            if (!best || window.isKeyWindow) best = window;
+        }
+    }
+    UIViewController *top = best.rootViewController;
+    while (top.presentedViewController) top = top.presentedViewController;
+    return top;
+}
+
+// Makes the window visible again after a delay, unless another dialog has taken it since.
+static void restoreLater(SGRDialogTake *take) {
+    if (take.done) return;
+    take.done = YES;
+    __weak UIWindow *weak = take.window;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kRestoreDelay * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        UIWindow *window = weak;
+        if (!window || objc_getAssociatedObject(window, &kTakeKey) != take) return;
+        window.alpha = 1;
+        window.accessibilityElementsHidden = NO;
+        objc_setAssociatedObject(window, &kTakeKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    });
+}
+
+static BOOL presentNotification(SGRDialogTake *take, NSDictionary *read) {
+    UIViewController *presenter = appPresenter(take.window);
+    if (!presenter || presenter.isBeingDismissed || presenter.isBeingPresented) return NO;
+
+    NSString *message = read[@"message"];
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:read[@"title"] message:message.length ? message : nil
+                                                            preferredStyle:UIAlertControllerStyleAlert];
+    alert.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
+    BOOL haveCancel = NO;
+    UIAlertAction *main = nil;
+    for (NSDictionary *entry in read[@"buttons"]) {
+        UIView *button = entry[@"view"];
+        BOOL primary = [button.accessibilityIdentifier isEqualToString:@"Components.UI.PrimaryButton"];
+        // One Cancel at most, and only among the quiet buttons: an alert refuses two.
+        UIAlertActionStyle style = UIAlertActionStyleDefault;
+        if (!primary && !haveCancel) {
+            style = UIAlertActionStyleCancel;
+            haveCancel = YES;
+        }
+        __weak UIView *weakButton = button;
+        UIAlertAction *action = [UIAlertAction actionWithTitle:entry[@"title"] style:style handler:^(UIAlertAction *picked) {
+            // Spotify's own button, so what Spotify attached to it runs and Spotify takes its own window down.
+            UIView *spotify = weakButton;
+            if (spotify.window) SGRActivate(spotify);
+            restoreLater(take);
+        }];
+        if (primary && !main) main = action;
+        [alert addAction:action];
+    }
+    if (main) alert.preferredAction = main;
+
+    [presenter presentViewController:alert animated:YES completion:nil];
+    take.presenter = presenter;
+    take.presented = YES;
+    return YES;
+}
+
+static void dressWindow(UIWindow *window);
+
+// The dialog could not be replaced: Spotify's own is shown, dressed the way it was before.
+static void giveUp(SGRDialogTake *take) {
+    UIWindow *window = take.window;
+    take.done = YES;
+    if (!window) return;
+    window.alpha = 1;
+    window.accessibilityElementsHidden = NO;
+    objc_setAssociatedObject(window, &kTakeKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    SGLog(@"redesign dialogs: a pop-up could not be shown as a notification, left as Spotify's");
+    dressWindow(window);
+}
+
+static void poll(SGRDialogTake *take) {
+    UIWindow *window = take.window;
+    if (!window || take.done || take.presented) return;
+    take.polls++;
+    NSDictionary *read = readDialog(window);
+    NSString *signature = read[@"signature"];
+    // Two reads in a row that agree: Spotify fills a dialog in over a few passes, and a title read half way is not the title.
+    BOOL steady = signature.length && [signature isEqualToString:take.signature];
+    take.signature = signature;
+    if (steady && presentNotification(take, read)) {
+        static BOOL logged;
+        if (!logged) {
+            logged = YES;
+            SGLog(@"redesign dialogs: \"%@\" shown as a notification after %lu reads", read[@"title"], (unsigned long)take.polls);
+        }
+        return;
+    }
+    if (take.polls >= kMaxPolls) {
+        giveUp(take);
+        return;
+    }
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kPollInterval * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ poll(take); });
+}
+
+// A dialog's view came into its window: the window goes dark before a frame is drawn and the dialog is read.
+// NO for a dialog that is not in a window of its own: the app's main window is never made invisible, and such a
+// dialog is dressed as Spotify's own instead.
+static BOOL takeOver(UIWindow *window) {
+    SGRDialogTake *current = objc_getAssociatedObject(window, &kTakeKey);
+    if (current && !current.done) return YES;
+    if (window.windowLevel <= UIWindowLevelNormal) return NO;
+    SGRDialogTake *take = [SGRDialogTake new];
+    take.window = window;
+    objc_setAssociatedObject(window, &kTakeKey, take, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    window.alpha = 0;
+    window.accessibilityElementsHidden = YES;
+    dispatch_async(dispatch_get_main_queue(), ^{ poll(take); });
+    return YES;
+}
+
+// Spotify took the dialog down: the notification, if it is still up, goes with it.
+static void abandon(UIWindow *window) {
+    SGRDialogTake *take = objc_getAssociatedObject(window, &kTakeKey);
+    if (!take || take.done) return;
+    UIViewController *shown = take.presenter.presentedViewController;
+    if (take.presented && shown && SGIsAlertController(shown) && !shown.isBeingDismissed) [shown dismissViewControllerAnimated:YES completion:nil];
+    restoreLater(take);
+}
+
+#pragma mark - the fallback: Spotify's own dialog, dressed
+
 // The view that carries the card: the white ScrollView itself, or for the location dialog the element view that holds the card and Cancel.
 static UIView *hostOf(UIView *view) {
     NSString *ident = view.accessibilityIdentifier;
@@ -149,13 +381,8 @@ static UIView *hostOf(UIView *view) {
     return nil;
 }
 
-%hook UIView
-- (void)didMoveToWindow {
-    %orig;
-    UIView *view = (UIView *)self;
-    if (!view.window || !view.accessibilityIdentifier.length) return;
-    UIView *host = hostOf(view);
-    if (!host) return;
+// The dialog dressed, now and as Spotify lays it out after it is attached.
+static void dressLater(UIView *host) {
     __weak UIView *weak = host;
     for (NSNumber *wait in @[@0.0, @0.1, @0.3]) {
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(wait.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
@@ -163,6 +390,31 @@ static UIView *hostOf(UIView *view) {
             if (shown.window) dressDialog(shown);
         });
     }
+}
+
+static void dressWindow(UIWindow *window) {
+    NSMutableSet<UIView *> *hosts = [NSMutableSet set];
+    SGForEachView(window, ^(UIView *view) {
+        UIView *host = view.accessibilityIdentifier.length ? hostOf(view) : nil;
+        if (host) [hosts addObject:host];
+    });
+    for (UIView *host in hosts) dressLater(host);
+}
+
+%hook UIView
+- (void)willMoveToWindow:(UIWindow *)newWindow {
+    UIView *view = (UIView *)self;
+    UIWindow *old = view.window;
+    if (old && !newWindow && old.windowLevel > UIWindowLevelNormal && view.accessibilityIdentifier.length && hostOf(view)) abandon(old);
+    %orig;
+}
+
+- (void)didMoveToWindow {
+    %orig;
+    UIView *view = (UIView *)self;
+    if (!view.window || !view.accessibilityIdentifier.length) return;
+    UIView *host = hostOf(view);
+    if (host && !takeOver(view.window)) dressLater(host);
 }
 %end
 
