@@ -1,6 +1,8 @@
 #import <UIKit/UIKit.h>
 #import <objc/runtime.h>
 #import <objc/message.h>
+#import "Core/SGLog.h"
+#import "Core/SGUIMode.h"
 
 // ============================================================================
 // MARK: - Associated Keys & Constants
@@ -517,6 +519,8 @@ static void SGHookViewClassForGlass(NSString *className, CGFloat cornerRadius) {
     SGSwizzleMethod(cls, selLayout, newImp, NULL, "v@:");
 }
 
+// Not installed by default: no audited class list for presentation controllers yet.
+__attribute__((unused))
 static void SGHookPresentationControllerClass(NSString *className) {
     Class cls = NSClassFromString(className);
     if (!cls) return;
@@ -526,3 +530,92 @@ static void SGHookPresentationControllerClass(NSString *className) {
     IMP origImp = m ? method_getImplementation(m) : NULL;
 
     IMP newImp = imp_implementationWithBlock(^(UIPresentationController *self) {
+        if (origImp) {
+            ((void (*)(id, SEL))origImp)(self, selLayout);
+        }
+        UIView *presented = self.presentedView;
+        if (presented) {
+            SGDressViewWithGlass(presented, 24.0, YES, 3);
+        }
+    });
+
+    SGSwizzleMethod(cls, selLayout, newImp, NULL, "v@:");
+}
+
+// ============================================================================
+// MARK: - 4. Campfire Entry Action & SideDrawer Hook
+// ============================================================================
+
+static void SGHookSideDrawerForCampfire(void) {
+    Class cls = NSClassFromString(@"_TtC23SideDrawer_ListPageImpl18ListViewController");
+    if (!cls) return;
+
+    // Target of the banner button added by SGInjectCampfireIntoSideDrawer.
+    IMP tapImp = imp_implementationWithBlock(^(UIViewController *self, id sender) {
+        SGOpenCampfireFromController(self);
+    });
+    class_addMethod(cls, NSSelectorFromString(@"sg_didTapCampfireEntry:"), tapImp, "v@:@");
+
+    SEL selLayout = @selector(viewDidLayoutSubviews);
+    Method m = class_getInstanceMethod(cls, selLayout);
+    IMP origImp = m ? method_getImplementation(m) : NULL;
+
+    IMP newImp = imp_implementationWithBlock(^(UIViewController *self) {
+        if (origImp) {
+            ((void (*)(id, SEL))origImp)(self, selLayout);
+        }
+        SGInjectCampfireIntoSideDrawer(self);
+    });
+    SGSwizzleMethod(cls, selLayout, newImp, NULL, "v@:");
+}
+
+// ============================================================================
+// MARK: - 5. Installation
+// ============================================================================
+
+static void SGInstallAuditHooks(void) {
+    // Once per class: a second pass must not stack another layout hook on top of the first.
+    static NSMutableSet<NSString *> *hooked;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ hooked = [NSMutableSet set]; });
+
+    NSUInteger count = 0;
+    for (NSString *name in SGAuditPopupAndSheetControllerClasses()) {
+        if ([hooked containsObject:name] || !NSClassFromString(name)) continue;
+        [hooked addObject:name];
+        SGHookControllerClassForGlass(name, YES);
+        count++;
+    }
+    for (NSString *name in SGAuditFullScreenControllerClasses()) {
+        if ([hooked containsObject:name] || !NSClassFromString(name)) continue;
+        [hooked addObject:name];
+        SGHookControllerClassForGlass(name, NO);
+        count++;
+    }
+    for (NSString *name in SGAuditToastAndSheetViewClasses()) {
+        if ([hooked containsObject:name] || !NSClassFromString(name)) continue;
+        [hooked addObject:name];
+        SGHookViewClassForGlass(name, 16.0);
+        count++;
+    }
+    if (![hooked containsObject:@"SideDrawer"] && NSClassFromString(@"_TtC23SideDrawer_ListPageImpl18ListViewController")) {
+        [hooked addObject:@"SideDrawer"];
+        SGHookSideDrawerForCampfire();
+        count++;
+    }
+    SGLog(@"audit glass: hooked %lu classes", (unsigned long)count);
+}
+
+__attribute__((constructor))
+static void SGAuditCoverageAndCampfireInit(void) {
+    // The glass fallbacks are for the native look below iOS 26, where the system draws no glass.
+    if (!SGNativeUI() || !SGBelowiOS26()) return;
+    SGInstallAuditHooks();
+    // Classes of lazily loaded Swift modules appear after launch: a second pass picks them up.
+    [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification
+                                                      object:nil
+                                                       queue:NSOperationQueue.mainQueue
+                                                  usingBlock:^(__unused NSNotification *note) {
+        SGInstallAuditHooks();
+    }];
+}
