@@ -28,9 +28,25 @@
 static Class sg_hosting;
 
 // A part of the name of a page's own controller, below the hosting one.
+//
+// The second group is the same kind of page, found in the class dump of 9.1.78 and not yet seen on a phone: pages of
+// Navigation's page API (a module named ...PageImpl, so the hosting controller above holds them) from the families of the
+// ones above -- the rest of Subscription management beside Your Premium and Plan overview, the listening activity
+// pages beside Listening stats, Highlights stats' summary and details, the friends list, the new episodes list. The
+// markers carry the module so a controller of another module with the same name is not taken for one. A page that keeps
+// a header of its own (the audit's report lists a fill the bar should have taken, or the bar looks doubled) comes out
+// of this list.
 static NSArray<NSString *> *pageMarkers(void) {
     return @[@"EntitySegmentsViewController", @"UserTimelineViewController", @"StatsDetailsViewController",
-             @"YourPremiumViewController", @"PlanOverviewViewController", @"SongDNAViewController"];
+             @"YourPremiumViewController", @"PlanOverviewViewController", @"SongDNAViewController",
+             @"SubscriptionManagement_AvailablePlansPageImpl", @"SubscriptionManagement_PlanDetailsPageImpl",
+             @"SubscriptionManagement_BillingPageImpl", @"SubscriptionManagement_AddOnManagementPageImpl",
+             @"SubscriptionManagement_MemberDetailsPageImpl", @"SubscriptionManagement_RegularMemberSubAccountDetailsPageImpl",
+             @"SubscriptionManagement_DenominationSelectionPageImpl",
+             @"ListeningActivity_ListeningActivityDetailsPageImpl", @"ListeningActivity_GroupDetailsPageImpl",
+             @"ListeningActivity_AudienceSettingPageImpl",
+             @"HighlightsStats_SummaryPageImpl", @"HighlightsStats_HighlightDetailsPageImpl",
+             @"Profile_FriendsListPageImpl", @"CollectionPodcast_NewEpisodesPageImpl"];
 }
 
 static BOOL isPage(UIViewController *controller, int depth) {
