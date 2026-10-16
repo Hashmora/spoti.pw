@@ -18,6 +18,7 @@
 //   Connect device menu (Log out)      Connect_ContextMenuPageImpl.ContextMenuViewController, pushed in the picker's sheet
 //   About SongDNA (the info button)    SongDNA_AboutSongDNAPageImpl.AboutSongDNASheetViewController
 //   Report a problem (a transcript)    Transcript_ReadAlongImpl.ReportReadAlongViewController
+//   Rename folder (Your Library)       PlaylistEditing_EditPlaylistImpl.FolderRenameViewController
 //   Rate show (a podcast's Rate chip)  Ratings_CommonImpl.RatingsAndReviewsRatePodcastViewController, inside the
 //                                      page loader (Tome_PageLoaderViewImpl.SPTMusicClientPageLoaderView)
 //
@@ -56,7 +57,8 @@ static NSArray<NSString *> *contentMarkers(void) {
              @"Offline_ContentOffliningUIImpl",
              @"PlaylistMixing_MessagingImpl",
              @"MixingEditMoreMenuViewController",
-             @"SongDNA_AboutSongDNAPageImpl"];
+             @"SongDNA_AboutSongDNAPageImpl",
+             @"FolderRenameViewController"];
 }
 
 static BOOL isContent(UIViewController *controller) {

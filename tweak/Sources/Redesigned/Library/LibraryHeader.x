@@ -11,7 +11,8 @@
 // and a glass capsule stands behind it, like the header's round buttons; a selected chip is that glass with its own
 // colour over it as a tint (SGRSelectedChipPaint), and so is the cross that clears the filters, left of the chips.
 // The header's own backing ends under the title row and the list runs up under the chips (plateRow, raiseList),
-// so the glass has the rows to show; the root library only, a folder's header is left as Spotify's.
+// so the glass has the rows to show; a folder's header gets the same, and its Back and ⋯ a glass circle each,
+// like the root header's buttons (trees/continuous/21.txt).
 //
 // Tree (trees/clean/library/03.txt:1159-1247): YourLibraryView holds YourLibraryContentView, the size of the
 // page, and after it -- so over it -- YourLibraryHeaderView 402x159.33: LiquidGlass.GradientView (the scrim), a
@@ -462,10 +463,27 @@ static void layoutFolder(UIView *page) {
     if (!header) return;
     [header layoutIfNeeded];
     SGRLibraryClearScrim(header);
-    if (SGBelowiOS26()) glassChips(header);
+    if (SGBelowiOS26()) {
+        glassChips(header);
+        UIView *filters = childNamed(header, @"YourLibraryHeaderContentFiltersView");
+        if (filters && header.bounds.size.height > 1) {
+            plateRow(header, filters);
+            raiseList(page, header, filters);
+        }
+    }
 
     NSArray<UIView *> *placed = placeFolder(header);
     if (!placed.count) return;
+
+    // Back and ⋯ are plain buttons with nothing behind them; Create playlist and Play are left as Spotify's.
+    if (SGBelowiOS26()) {
+        UIView *back = SGRFindByIdentifier(header, @"YourLibraryFolderHeader.back", &kBackKey);
+        UIView *more = SGRFindByIdentifier(header, @"YourLibraryFolderHeader.contextMenu", &kMenuKey);
+        for (UIView *control in @[back ?: (id)NSNull.null, more ?: (id)NSNull.null]) {
+            if (![control isKindOfClass:UIView.class] || control.bounds.size.width < 1) continue;
+            SGGlassInteractive(control, SGRGlassInside(control, &kRoundGlassKey, 44));
+        }
+    }
 
     UIView *back = SGRFindByIdentifier(header, @"YourLibraryFolderHeader.back", &kBackKey);
     NSUInteger trailing = placed.count - (back ? 1 : 0);

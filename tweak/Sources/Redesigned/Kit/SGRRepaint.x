@@ -47,7 +47,8 @@ static BOOL isChipFill(UIView *view) {
 static BOOL isLibraryHeader(UIView *view) {
     CGSize size = view.bounds.size;
     if (size.width < 300 || size.height < 100 || size.height > 260) return NO;
-    return [NSStringFromClass(view.class) hasSuffix:@"YourLibraryHeaderView"];
+    NSString *name = NSStringFromClass(view.class);
+    return [name hasSuffix:@"YourLibraryHeaderView"] || [name hasSuffix:@"FolderHeaderView"];
 }
 
 %hook CALayer

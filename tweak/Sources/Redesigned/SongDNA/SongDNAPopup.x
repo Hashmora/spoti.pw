@@ -10,6 +10,7 @@
 //
 // The card is laid out and painted after it is attached, so the pass runs from its layout and again a moment later.
 // The little arrow (SongDNA_MapKit.ArrowView) that points from the card at the contributor is left as Spotify draws it.
+#import <objc/runtime.h>
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
 #import "Redesigned/Pages/Pages.h"
@@ -18,10 +19,13 @@ static const CGFloat kPopupRadius = 16, kChevronSide = 28;
 
 static char kPaneKey, kChevronKey, kButtonKey;
 
-// The card's own paint: its one subview that is the opaque grey, as wide as the card.
+// The card's own paint: its one subview that is the opaque grey, as wide as the card. Once dressed its grey is
+// clear, so it is then the subview that holds our pane. Looking for the grey alone found no card from the second
+// pass on, and the first one runs before the heading and the button are laid out (the chevron 0pt wide), so the
+// chevron and the button never got their glass (trees/continuous/16.txt).
 static UIView *cardOf(UIView *popup) {
     for (UIView *sub in popup.subviews) {
-        if (SGRIsSheetSurface(sub.layer.backgroundColor)) return sub;
+        if (objc_getAssociatedObject(sub, &kPaneKey) || SGRIsSheetSurface(sub.layer.backgroundColor)) return sub;
     }
     return nil;
 }
@@ -65,7 +69,7 @@ static Class popupClass(void) {
     UIView *popup = (UIView *)self;
     if (!popup.window) return;
     __weak UIView *weak = popup;
-    for (NSNumber *wait in @[@0.0, @0.1, @0.3]) {
+    for (NSNumber *wait in @[@0.0, @0.1, @0.3, @0.7]) {
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(wait.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
             UIView *shown = weak;
             if (shown.window) dressPopup(shown);

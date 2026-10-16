@@ -1,5 +1,10 @@
-// Song DNA's page of the songs two people share (SongDNA_ArtistsDNAPageImpl.BlendViewController, reached from a
-// contributor's "view N songs together"): the redesign's bar over it (Pages/PageBar.m).
+// Song DNA's pages under SPNavigationBar, the redesign's bar over each (Pages/PageBar.m):
+//
+//   BlendViewController         the songs two people share, reached from a contributor's "view N songs together"
+//   ArtistsDNAViewController    the contributors' page (trees/continuous/15.txt): the same bar (Back, Share and Close
+//                               in the trailing stack, the Song DNA logo and its Beta tag as the title), which had
+//                               none of the redesign. Its first row is a view above the list, not a row in it, so
+//                               only the bar is dressed and the list is left as Spotify's
 //
 // Tree (trees/continuous/41.txt): a black page holding a radial gradient and the list from y=91, over it the navigation
 // controller's blur (a plain 390x91 view with a UIVisualEffectView, #1C1C1C@0.73) and SPNavigationBar with Back, a
@@ -115,6 +120,36 @@ static void dress(UIViewController *page) {
 %end
 %end
 
+%group SGRSongDNAArtists
+%hook SGRArtistsController
+- (void)viewWillAppear:(BOOL)animated {
+    %orig;
+    SGRDressBarPage((UIViewController *)self);
+}
+
+- (void)viewDidLayoutSubviews {
+    %orig;
+    SGRDressBarPage((UIViewController *)self);
+}
+
+- (void)viewDidAppear:(BOOL)animated {
+    %orig;
+    // The bar's buttons and title are made after the first layout.
+    __weak UIViewController *weak = (UIViewController *)self;
+    for (NSNumber *delay in @[@0.25, @0.6]) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            if (weak) SGRDressBarPage(weak);
+        });
+    }
+}
+
+- (void)viewWillDisappear:(BOOL)animated {
+    %orig;
+    SGRUndressBarPage((UIViewController *)self);
+}
+%end
+%end
+
 %ctor {
     if (!SGRedesignedUI()) return;
     if (!SGBelowiOS26()) return;
@@ -125,5 +160,12 @@ static void dress(UIViewController *page) {
         %init(SGRSongDNABlend, SGRBlendController = page);
     } else {
         SGLog(@"class SongDNA_ArtistsDNAPageImpl.BlendViewController not found, Song DNA keeps Spotify's bar");
+    }
+    Class artists = SGRPageClass(@"SongDNA_ArtistsDNAPageImpl", @"ArtistsDNAViewController");
+    if (artists) {
+        SGRRegisterBarPages(^BOOL(UIViewController *top) { return SGRPageIsOrHolds(top, artists); });
+        %init(SGRSongDNAArtists, SGRArtistsController = artists);
+    } else {
+        SGLog(@"class SongDNA_ArtistsDNAPageImpl.ArtistsDNAViewController not found, the contributors' page keeps Spotify's bar");
     }
 }

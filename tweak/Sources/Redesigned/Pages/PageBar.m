@@ -247,7 +247,11 @@ static void glassTitle(UIView *title) {
         if (content < 1) return;
     }
     CGFloat screen = title.window ? title.window.bounds.size.width : 390;
-    CGFloat room = screen - 2 * (kCorner + SGRGlassCircleSize + kGap);
+    // Two glass circles at the trailing edge (Song DNA's Share and Close) take two places from the corner, and the
+    // capsule is centred, so it leaves as much on the leading side: with one place it ran to 2pt from Share
+    // (trees/continuous/10.txt, 15.txt).
+    CGFloat places = extraOf(title.superview) ? 2 : 1;
+    CGFloat room = screen - 2 * (kCorner + places * (SGRGlassCircleSize + kGap));
     CGFloat wanted = content + 2 * kTitlePadding;
     CGFloat width = MIN(MAX(wanted, kTitleHeight), room);
     // The control is as small as its label, and the capsule is a subview that reaches past it.
