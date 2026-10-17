@@ -141,7 +141,7 @@ void SGRShowGlass(UIView *shape, BOOL shown) {
 
 #pragma mark - flat boxes and floating films
 
-UIView *SGRGlassFlatBox(UIView *box, const void *key) {
+static UIView *flatBox(UIView *box, const void *key, BOOL prominent) {
     if (@available(iOS 26.0, *)) return nil;
     CGSize size = box.bounds.size;
     if (!box || size.width < 1 || size.height < 1) return nil;
@@ -151,7 +151,15 @@ UIView *SGRGlassFlatBox(UIView *box, const void *key) {
     // Not clipped below iOS 26 with the legacy glass: its press grows past the box, and the pane has its own corners.
     BOOL grows = SGUseLegacyGlass();
     if (box.layer.masksToBounds != !grows) box.layer.masksToBounds = !grows;
-    return SGRGlassCapsuleInside(box, key, size, NO);
+    return SGRGlassCapsuleInside(box, key, size, prominent);
+}
+
+UIView *SGRGlassFlatBox(UIView *box, const void *key) {
+    return flatBox(box, key, NO);
+}
+
+UIView *SGRGlassFlatBoxFilm(UIView *box, const void *key) {
+    return flatBox(box, key, YES);
 }
 
 UIView *SGRGlassFilm(UIView *host, const void *key, UIView *glass, CGFloat radius) {

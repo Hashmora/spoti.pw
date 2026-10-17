@@ -32,6 +32,9 @@ void SGRShowGlass(UIView *shape, BOOL shown);
 // Glass behind a flat box Spotify draws as a grey rounded rect (a search field, a sort button): the box is
 // cleared and made a capsule, and a glass capsule goes inside it. Safe to call on every pass.
 UIView *SGRGlassFlatBox(UIView *box, const void *key);
+// The same with the white film SGRGlassCapsuleInside lays in a prominent shape, for a box that floats over a page it
+// scrolls above (a search field over the list under it), where plain glass over black or over text reads as no plate at all.
+UIView *SGRGlassFlatBoxFilm(UIView *box, const void *key);
 
 // The faint white film over a floating bar's glass (the tab bar's platter, the now playing card), without
 // which the bar disappears into Spotify's near-black chrome. Made once under `key`, kept just above `glass`

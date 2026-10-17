@@ -594,7 +594,9 @@ Redesigned:
                   has it without the camera, and each card as Liquid Glass tinted by its own color, read off the Box's
                   shape layer (Search.h lists its files). Below iOS 26 the results page's header (SearchHeader.x) loses
                   Spotify's #1F1F1F backing and nothing put in its place (a plate sized on layout passes
-                  cut the header's animations off), the field and Cancel are glass capsules floating over the page and the filter
+                  cut the header's animations off), the field and Cancel are glass capsules with a faint white film floating over
+                  the page (dressed from the field's own layout as well as the header's, since Spotify rebuilds the field's fill
+                  on passes the header never sees) and the filter
                   chips are glass as the Library's are (LibraryHeader.x takes both rows). The search in the Library, the podcast
                   "Find in this show" page and "Find on this page" have their field and Cancel on glass the same way
     Profile/      below iOS 26, the lists a profile opens (Followers, Following, playlists): UIKit's bar with the back

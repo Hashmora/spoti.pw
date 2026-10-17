@@ -18,6 +18,12 @@
 // coming and going) it stood at the old size and cut the move off. There is none now: the header's own paint is
 // held clear by SGRRepaint.x (sgr_searchHeaderRoot, sgr_searchFieldFill), which Spotify puts back on its passes,
 // and the page behind it is black already.
+//
+// Spotify lays the field out and rebuilds its fill on passes that never reach the controller (the recents under it
+// coming and going, the keyboard, a focus change), so the field is also dressed from the layout of its own container
+// (MultilineSearchBarContainer, trees/continuous/1.txt:1544), and the controller's passes are repeated a moment after the
+// page appears. The glass carries a white film (SGRGlassFlatBoxFilm): the header has no backing, so the recents and the
+// results scroll under the field, and plain glass over them read as no plate at all.
 // Threading: main thread only.
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
@@ -67,11 +73,22 @@ static void glassCancel(UIView *container, UIView *fill) {
     for (UIView *v = cancel; v && v != container.superview; v = v.superview) {
         if (v.clipsToBounds) v.clipsToBounds = NO;
     }
-    UIView *shape = SGRGlassCapsuleInside(cancel, &kCancelGlassKey, CGSizeMake(cancel.bounds.size.width + 2 * pad, fill.bounds.size.height), NO);
+    UIView *shape = SGRGlassCapsuleInside(cancel, &kCancelGlassKey, CGSizeMake(cancel.bounds.size.width + 2 * pad, fill.bounds.size.height), YES);
     if (shape) SGGlassInteractive(cancel, shape);
     SGForEachView(cancel, ^(UIView *v) {
         if ([v isKindOfClass:UILabel.class] && ((UILabel *)v).textColor != UIColor.whiteColor) ((UILabel *)v).textColor = UIColor.whiteColor;
     });
+}
+
+// The field and Cancel of the header the container is in: glass capsules, Spotify's grey gone. Cheap to call on every pass.
+static UIView *dressField(UIView *container) {
+    if (!container || container.bounds.size.width < 1) return nil;
+    UIView *fill = fieldFill(container);
+    if (!fill) return nil;
+    if (sgr_searchFieldFill != fill) sgr_searchFieldFill = fill;
+    SGRGlassFlatBoxFilm(fill, &kFieldGlassKey);
+    glassCancel(container, fill);
+    return fill;
 }
 
 static void dress(UIView *root) {
@@ -80,12 +97,7 @@ static void dress(UIView *root) {
     if (root.layer.backgroundColor) root.layer.backgroundColor = NULL;
 
     UIView *container = SGRFindByIdentifier(root, @"SearchBarSearch", &kContainerKey);
-    UIView *fill = container ? fieldFill(container) : nil;
-    if (fill) {
-        if (sgr_searchFieldFill != fill) sgr_searchFieldFill = fill;
-        SGRGlassFlatBox(fill, &kFieldGlassKey);
-        glassCancel(container, fill);
-    }
+    UIView *fill = dressField(container);
 
     static BOOL logged;
     if (!logged && root.window && fill) {
@@ -105,6 +117,42 @@ static void dress(UIView *root) {
     %orig;
     dress(((UIViewController *)self).viewIfLoaded);
 }
+
+// Spotify builds the field's content again once the page is up; the passes after it dress what it built.
+- (void)viewDidAppear:(BOOL)animated {
+    %orig;
+    __weak UIViewController *weak = (UIViewController *)self;
+    for (NSNumber *wait in @[@0.0, @0.25, @0.6]) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(wait.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            UIViewController *page = weak;
+            if (page.viewIfLoaded.window) dress(page.viewIfLoaded);
+        });
+    }
+}
+%end
+
+// Whether the container is the search page's own: the same class holds the field wherever Spotify's search results header is used.
+static BOOL inSearchPage(UIView *container) {
+    for (UIResponder *r = container.nextResponder; r; r = r.nextResponder) {
+        if ([r isKindOfClass:UIViewController.class]) return [NSStringFromClass(r.class) containsString:@"Search_FeatureImpl"];
+    }
+    return NO;
+}
+
+%group SGRSearchFieldContainer
+%hook SGRSearchBarContainer
+- (void)layoutSubviews {
+    %orig;
+    UIView *container = (UIView *)self;
+    if (container.window && inSearchPage(container)) dressField(container);
+}
+
+- (void)didMoveToWindow {
+    %orig;
+    UIView *container = (UIView *)self;
+    if (container.window && inSearchPage(container)) dressField(container);
+}
+%end
 %end
 
 %ctor {
@@ -112,4 +160,10 @@ static void dress(UIView *root) {
     if (!SGBelowiOS26()) return;
     %init;
     SGRequireClasses(@[@"_TtC18Search_FeatureImpl20HeaderViewController"]);
+    Class container = NSClassFromString(@"_TtC13Search_ECMKitP33_4AAD529A9116A2BD7185A1FC1B0C084527MultilineSearchBarContainer");
+    if (container) {
+        %init(SGRSearchFieldContainer, SGRSearchBarContainer = container);
+    } else {
+        SGLog(@"class Search_ECMKit MultilineSearchBarContainer not found, the results header's field is dressed from the header's passes only");
+    }
 }

@@ -18,6 +18,16 @@ __weak UIView *sgr_searchFieldFill = nil;
 __weak UIView *sgr_showSearchField = nil;
 __weak UIView *sgr_showSearchHeader = nil;
 
+// Views whose fill is kept clear for good (SGRHoldClear): a dressed button's or a dressed disc's own paint, which Encore
+// paints again as the control is pressed, let go or reused.
+static NSHashTable<UIView *> *heldClear;
+
+void SGRHoldClear(UIView *view) {
+    if (!view) return;
+    if (!heldClear) heldClear = [NSHashTable weakObjectsHashTable];
+    [heldClear addObject:view];
+}
+
 // The flat, translucent white Spotify tints an unselected filter chip with (#FFFFFF@0.10). A selected chip is painted a solid colour of its own, which is never this.
 static BOOL isNeutralTint(CGColorRef color) {
     if (!color || CFGetTypeID(color) != CGColorGetTypeID()) return NO;
@@ -70,6 +80,11 @@ static BOOL isLibraryHeader(UIView *view) {
     if (legacyLook && color && sgr_showSearchHeader && self.delegate == sgr_showSearchHeader && CGColorGetAlpha(color) > 0.5) color = NULL;
     // The Add songs sheet's search bar: its grey goes, the glass (Playlist/PlaylistAddSearch.x) stands in its place.
     if (legacyLook && color && sgr_addSongsSearchBar && self.delegate == sgr_addSongsSearchBar && CGColorGetAlpha(color) > 0.5) color = NULL;
+    // A fill the Kit holds clear (SGRHoldClear): the button or disc is on glass, and Spotify's paint goes whenever it is set.
+    if (legacyLook && color && heldClear.count && CGColorGetAlpha(color) > 0.05 && NSThread.isMainThread) {
+        UIView *held = (UIView *)self.delegate;
+        if ([held isKindOfClass:UIView.class] && held.layer == self && [heldClear containsObject:held]) color = NULL;
+    }
     // A chip's fill painted: the grey goes, and either way the chip's glass is told (below, once the paint is
     // in), because selecting and deselecting a chip repaints the fill and lays nothing out, so the glass kept
     // whatever state the last layout gave it (hidden under a selected colour that was gone again).

@@ -9,12 +9,18 @@
 // It is dressed the way the snackbar's card is: the white goes, a glass pane and the faint film that keeps a floating
 // card from sinking into the page stand behind the content, the corners are rounder (kRadius), the black text turns
 // white, and Reload gets a glass capsule of its own, bigger than the word so it has room.
+//
+// Two things stood under Reload besides its capsule (trees/continuous/2.txt:895-906): Encore's own fill, which it paints
+// again as the button is pressed or let go, so the button read as a plate inside the capsule (it is held clear now,
+// SGRHoldClear, with the plain view Encore lays inside it), and the glass was only dressed on the toast's own passes.
+// The cross at the top-left of the page (a Tertiary button beside the toast, 24x48) gets the round glass every top bar
+// button has (Kit/SGRGlass.h), the way the cover art page's does.
 // Threading: main thread only.
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
 #import "Pages.h"
 
-static char kGlassKey, kFilmKey, kReloadGlassKey;
+static char kGlassKey, kFilmKey, kReloadGlassKey, kCloseGlassKey;
 
 static const CGFloat kRadius = 24;
 // The glass round Reload: its padding on each side of the word and its height.
@@ -45,6 +51,32 @@ static UIView *reloadIn(UIView *toast) {
     return found;
 }
 
+// Spotify's own fill of Reload: the button's and the plain view Encore lays inside it, whatever their size. Cleared now and
+// kept clear (SGRHoldClear) as Encore paints them again.
+static void clearReloadFill(UIView *reload, UIView *shape) {
+    if (reload.backgroundColor && ![reload.backgroundColor isEqual:UIColor.clearColor]) reload.backgroundColor = UIColor.clearColor;
+    if (reload.layer.backgroundColor) reload.layer.backgroundColor = NULL;
+    SGRHoldClear(reload);
+    for (UIView *sub in reload.subviews) {
+        if (sub == shape || ![sub isMemberOfClass:UIView.class]) continue;
+        if (sub.backgroundColor && ![sub.backgroundColor isEqual:UIColor.clearColor]) sub.backgroundColor = UIColor.clearColor;
+        if (sub.layer.backgroundColor) sub.layer.backgroundColor = NULL;
+        SGRHoldClear(sub);
+    }
+    // The press of the legacy glass grows past the button and would be cut off at its edge.
+    if (reload.clipsToBounds) reload.clipsToBounds = NO;
+}
+
+// The cross: the Tertiary button at the top-left of the page the toast stands on, as on the cover art page.
+static void glassClose(UIView *page) {
+    for (UIView *sub in page.subviews) {
+        if (![NSStringFromClass(sub.class) hasSuffix:@"Button8Tertiary"]) continue;
+        if (CGRectGetMinY(sub.frame) > 120 || CGRectGetMinX(sub.frame) > 120 || sub.bounds.size.width > 80) continue;
+        SGRGlassInside(sub, &kCloseGlassKey, SGRGlassCircleSize);
+        if (sub.clipsToBounds) sub.clipsToBounds = NO;
+    }
+}
+
 static void dressToast(UIView *toast) {
     CGSize size = toast.bounds.size;
     if (!toast.window || size.width < 1 || size.height < 1) return;
@@ -68,13 +100,10 @@ static void dressToast(UIView *toast) {
     UIView *reload = reloadIn(toast);
     if (reload && reload.bounds.size.width > 1 && reload.bounds.size.height > 1) {
         // The button's own fill goes; the capsule stands in it.
-        if (reload.layer.backgroundColor) reload.layer.backgroundColor = NULL;
-        for (UIView *sub in reload.subviews) {
-            if ([sub isKindOfClass:UILabel.class]) continue;
-            if (sub.layer.backgroundColor && sub.bounds.size.width >= reload.bounds.size.width - 1) sub.layer.backgroundColor = NULL;
-        }
-        SGRGlassCapsuleInside(reload, &kReloadGlassKey, CGSizeMake(reload.bounds.size.width + kReloadPadX * 2, kReloadHeight), NO);
+        UIView *shape = SGRGlassCapsuleInside(reload, &kReloadGlassKey, CGSizeMake(reload.bounds.size.width + kReloadPadX * 2, kReloadHeight), NO);
+        clearReloadFill(reload, shape);
     }
+    if (toast.superview) glassClose(toast.superview);
 
     static dispatch_once_t once;
     dispatch_once(&once, ^{ SGLog(@"error toast: glass over a card of %@", NSStringFromCGRect(toast.bounds)); });
