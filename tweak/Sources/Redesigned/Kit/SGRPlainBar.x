@@ -36,6 +36,14 @@ static Class sg_hosting;
 // markers carry the module so a controller of another module with the same name is not taken for one. A page that keeps
 // a header of its own (the audit's report lists a fill the bar should have taken, or the bar looks doubled) comes out
 // of this list.
+//
+// The third group is found in the same class dump and not yet seen on a phone either: the rest of Subscription
+// management (add a child, add-ons, member name and birthday, invitations, remove member, video settings), the audience
+// picker of Listening activity, the profile's small editors (blocked list, bio, social handle, pronouns, completion),
+// and the settings-like lists under the same bar (notifications, podcast, auto download, language, fitness, legal
+// information, remote downloads, episodes settings, Your Library's offline sync, Settings search, the DJ's language and
+// feedback pages, the reports of Lyrics and AI playlists, the AI disclosure, Martini's history). Pages of these
+// modules that turn out to be sheets or to have a header of their own come out of the list, as above.
 static NSArray<NSString *> *pageMarkers(void) {
     return @[@"EntitySegmentsViewController", @"UserTimelineViewController", @"StatsDetailsViewController",
              @"YourPremiumViewController", @"PlanOverviewViewController", @"SongDNAViewController",
@@ -46,7 +54,22 @@ static NSArray<NSString *> *pageMarkers(void) {
              @"ListeningActivity_ListeningActivityDetailsPageImpl", @"ListeningActivity_GroupDetailsPageImpl",
              @"ListeningActivity_AudienceSettingPageImpl",
              @"HighlightsStats_SummaryPageImpl", @"HighlightsStats_HighlightDetailsPageImpl",
-             @"Profile_FriendsListPageImpl", @"CollectionPodcast_NewEpisodesPageImpl"];
+             @"Profile_FriendsListPageImpl", @"CollectionPodcast_NewEpisodesPageImpl",
+             @"SubscriptionManagement_AddChildPlanMemberPageImpl", @"SubscriptionManagement_AddOnConsiderationPageImpl",
+             @"SubscriptionManagement_AudiobookConsiderationPageImpl", @"SubscriptionManagement_MemberDetailsUpdateNamePageImpl",
+             @"SubscriptionManagement_MemberDetailsUpdateBirthdayPageImpl", @"SubscriptionManagement_PlanMemberInvitationImpl",
+             @"SubscriptionManagement_RemoveMemberPageImpl", @"SubscriptionManagement_VideoSettingsPageImpl",
+             @"ListeningActivity_GroupAudienceSelectionPageImpl",
+             @"Profile_BlockedListImpl", @"Profile_EditBioPageImpl", @"Profile_EditSocialHandlePageImpl",
+             @"Profile_PronounsPageImpl", @"Profile_CompletionImpl",
+             @"Notifications_NotificationPreferencesImpl", @"Notifications_PodcastNewEpisodeNotificationImpl",
+             @"PodcastSettings_CommonImpl", @"AutoDownload_CommonImpl", @"Language_LanguageSettingsImpl",
+             @"Fitness_SettingsPageImpl", @"LegalInformation_BusinessInformationPageImpl",
+             @"RemoteDownloads_RemoteDownloadsUIImpl", @"CollectionEpisodes_EpisodesSettingsImpl",
+             @"YourLibraryOfflineSyncViewController", @"Settings_SearchPageImpl",
+             @"Endless_DJSettingsLanguagePageImpl", @"Endless_DJSubmitFeedbackPageImpl",
+             @"Lyrics_ReportPageImpl", @"AIPlaylist_ReportAProblemPageImpl",
+             @"Martini_AiDisclosurePageImpl", @"Martini_HistoryPageImpl"];
 }
 
 static BOOL isPage(UIViewController *controller, int depth) {
