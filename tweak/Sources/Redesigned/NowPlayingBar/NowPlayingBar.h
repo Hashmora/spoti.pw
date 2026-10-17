@@ -31,3 +31,5 @@ void SGRNowPlayingBarFollowTabBar(void);
 // toast over the bar (Kit/SGRSnackbar.x) is moved by the same, which follows the bar from the call above.
 CGFloat SGRNowPlayingBarInlineShift(void);
 void SGRSnackbarFollowNowPlayingBar(void);
+// The same for the tooltips over the bar (Kit/SGRTooltip.x).
+void SGRTooltipFollowNowPlayingBar(void);

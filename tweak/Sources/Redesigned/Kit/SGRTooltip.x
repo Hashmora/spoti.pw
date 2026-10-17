@@ -13,15 +13,28 @@
 // material is made in its place, on the card's edge at the arrow's x. The tail is a pane with a triangle for a mask, so
 // the film and the glass are cut to the same shape and its top lies 1pt inside the card, which leaves no seam.
 //
+// Over the now playing bar the tooltip follows it: in the minimized tab bar the bar moves down into the row by a transform
+// Spotify does not know (NowPlayingBar.x), and the tooltip, laid out for the bar's usual place, hung in the air above
+// nothing. The whole container moves by the bar's shift, in the tab bar's animation, as the toasts' card does
+// (Kit/SGRSnackbar.x). Only a tooltip that stands over the bar moves, so one pointing at something else stays where it is.
+//
 // Spotify's own sizes are kept: the card is the width SwiftUI laid it out for. The pass runs from the container's layout
 // and again a moment later, in case SwiftUI draws the text or paints the white back after it.
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
 #import "Redesigned/Pages/Pages.h"
+#import "Redesigned/NowPlayingBar/NowPlayingBar.h"
 
 static const CGFloat kMaxRadius = 28;
 // The tail: how wide it is at the card's edge and how far it stands out from it, and how far it lies under the card.
 static const CGFloat kTailWidth = 18, kTailHeight = 8, kTailOverlap = 1;
+
+// How far below the bar's top (where Spotify keeps it, without the shift) the tooltip's lowest edge may be and still count as
+// standing over the bar.
+static const CGFloat kBarClearance = 24;
+
+// The tooltips on screen, for the tab bar's minimize to move.
+static NSHashTable<UIView *> *sg_tooltips;
 
 static char kGlassKey, kFilmKey, kTailKey, kTailGlassKey, kTailFilmKey, kTailMaskKey, kTailBelowKey;
 
@@ -90,6 +103,34 @@ static void dressTail(UIView *container, UIView *card, UIView *arrow, CGFloat ra
     }
 }
 
+// How far the tooltip moves with the bar: the bar's shift into the minimized tab bar's row (0 with the bar expanded), but only
+// for a tooltip that stands over the bar. Worked out from where the container stands without its own transform.
+static CGFloat barShiftFor(UIView *container, UIView *card) {
+    CGFloat shift = SGRNowPlayingBarInlineShift();
+    UIWindow *window = container.window;
+    if (shift == 0 || !window || !container.superview) return 0;
+    CGRect bar = SGRNowPlayingCardFrameIn(window, NULL);
+    if (CGRectIsNull(bar)) return shift;
+    CGPoint origin = CGPointMake(container.center.x - container.bounds.size.width / 2, container.center.y - container.bounds.size.height / 2);
+    CGRect inParent = CGRectOffset(card.frame, origin.x - container.bounds.origin.x, origin.y - container.bounds.origin.y);
+    CGRect shown = [container.superview convertRect:inParent toView:window];
+    return CGRectGetMaxY(shown) <= CGRectGetMinY(bar) - shift + kBarClearance ? shift : 0;
+}
+
+static void followNowPlayingBar(UIView *container) {
+    UIView *card = nil, *arrow = nil;
+    partsOf(container, &card, &arrow);
+    if (!card) return;
+    CGAffineTransform move = CGAffineTransformMakeTranslation(0, barShiftFor(container, card));
+    if (!CGAffineTransformEqualToTransform(container.transform, move)) container.transform = move;
+}
+
+void SGRTooltipFollowNowPlayingBar(void) {
+    for (UIView *container in sg_tooltips.allObjects) {
+        if (container.window) followNowPlayingBar(container);
+    }
+}
+
 static void dressTooltip(UIView *container) {
     if (container.bounds.size.width < 1 || container.bounds.size.height < 1) return;
     UIView *card = nil, *arrow = nil;
@@ -123,6 +164,10 @@ static void dressTooltip(UIView *container) {
         if (arrow.layer.backgroundColor) arrow.layer.backgroundColor = NULL;
         dressTail(container, card, arrow, radius);
     }
+
+    if (!sg_tooltips) sg_tooltips = [NSHashTable weakObjectsHashTable];
+    [sg_tooltips addObject:container];
+    followNowPlayingBar(container);
 
     static dispatch_once_t once;
     dispatch_once(&once, ^{ SGLog(@"tooltip: glass over a card of %@", NSStringFromCGRect(card.bounds)); });

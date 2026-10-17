@@ -10,6 +10,7 @@
 //     ArtistConcerts.x an artist's concerts page (LiveEvents_ArtistLiveEventsPageImpl): the bar
 //     LocationSearch.x the Preferred location page (LiveEvents_LiveEventsImpl), whose header is the page's own: title, Back and field on glass
 //     ShowSearch.x    a podcast's "Find in this show" page (ShowPage_ShowSearchPageImpl): the bar, the field and Cancel on glass
+//     ErrorToast.x    the page loader's "Something went wrong" toast (Tome_MusicClientPageLoaderViewKit): glass card, Reload on glass
 //
 // Every hook installs only while Redesigned UI is on and below iOS 26, where the bars are the system's.
 // Threading: main thread only.

@@ -484,6 +484,7 @@ void SGRNowPlayingBarFollowTabBar(void) {
     [container.view setNeedsLayout];
     [container.view layoutIfNeeded];
     SGRSnackbarFollowNowPlayingBar();
+    SGRTooltipFollowNowPlayingBar();
 }
 
 CGFloat SGRNowPlayingBarInlineShift(void) {

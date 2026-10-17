@@ -16,6 +16,8 @@
 //   Share                              Share_MenuImpl.ShareMenuViewControllerV2
 //   Listening modes                    SmartShuffle_CoreImpl.PlayModePickerViewController
 //   Connect device menu (Log out)      Connect_ContextMenuPageImpl.ContextMenuViewController, pushed in the picker's sheet
+//   Connect volume (another device's   a SwiftUI hosting controller of Connect_VolumeUXImpl's BottomSheetElement, with no
+//   slider, "Andrew's MacBook Air")    BottomSheetViewController in it (trees/continuous/4.txt), so NowPlaying/VolumeSheetGlass.x never met it
 //   About SongDNA (the info button)    SongDNA_AboutSongDNAPageImpl.AboutSongDNASheetViewController
 //   Report a problem (a transcript)    Transcript_ReadAlongImpl.ReportReadAlongViewController
 //   Rename folder (Your Library)       PlaylistEditing_EditPlaylistImpl.FolderRenameViewController
@@ -52,7 +54,8 @@ static Class swiftClass(NSString *module, NSString *name) {
 // A part of the class name of the controller that fills each sheet above: the module, where every class of the
 // module is that page, and the class itself where the module is UIKit's old picker.
 static NSArray<NSString *> *contentMarkers(void) {
-    return @[@"Jam_InvitationFlowImpl",
+    return @[@"Connect_VolumeUXImpl",
+             @"Jam_InvitationFlowImpl",
              @"Jam_ParticipantSettingsPageImpl",
              @"AssistedCuration_",
              @"SPTSortingFilteringPickerViewController",

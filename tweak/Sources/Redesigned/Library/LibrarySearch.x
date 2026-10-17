@@ -24,8 +24,10 @@
 
 static char kFieldKey, kCancelKey, kCancelButtonKey, kFieldGlassKey, kCancelGlassKey;
 
-// Room Cancel's capsule takes beside its label on each side, and its height (the field's).
-static const CGFloat kCancelPadding = 10, kCancelHeight = 32;
+// Room Cancel's capsule takes beside its label on each side, and its height (the field's). The capsule keeps
+// kEdgeInset from the screen's edge (the header's own inset) and kFieldGap from the field, so it narrows
+// and slides in before it reaches past either (trees/continuous/1.txt: the 60pt capsule ended at 392 on a 390pt screen).
+static const CGFloat kCancelPadding = 10, kCancelHeight = 32, kEdgeInset = 8, kFieldGap = 6;
 
 static UIView *childNamed(UIView *host, NSString *marker) {
     for (UIView *sub in host.subviews) {
@@ -45,9 +47,19 @@ static void capsule(UIView *shape) {
 
 // The field and Cancel on glass, below iOS 26.
 static void glassSearch(UIView *page, UIView *field, UIView *cancel) {
+    CGFloat fieldMaxX = 0;
     if (field) {
         if (sgr_showSearchField != field) sgr_showSearchField = field;
-        SGRGlassFlatBox(field, &kFieldGlassKey);
+        UIView *glass = SGRGlassFlatBox(field, &kFieldGlassKey);
+        // Spotify grows the field from its collapsed size to the full row as the page opens, and the page's own
+        // pass does not run again for that: the glass made at the collapsed size stayed 50pt wide in the middle of
+        // a 318pt field (trees/continuous/1.txt). It follows the field's bounds itself.
+        if (glass) {
+            UIViewAutoresizing follow = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+            if (glass.autoresizingMask != follow) glass.autoresizingMask = follow;
+            if (!CGRectEqualToRect(glass.frame, field.bounds)) glass.frame = field.bounds;
+        }
+        fieldMaxX = CGRectGetMaxX([field.superview convertRect:field.frame toView:page]);
     }
     UIView *button = cancel ? SGRFindByIdentifier(cancel, @"Components.Header.UI.Toolbar.Button", &kCancelButtonKey) : nil;
     if (!button || button.bounds.size.width < 1 || button.bounds.size.height < 1) return;
@@ -55,7 +67,19 @@ static void glassSearch(UIView *page, UIView *field, UIView *cancel) {
     for (UIView *v = button; v && v != page && v != field.superview; v = v.superview) {
         if (v.clipsToBounds) v.clipsToBounds = NO;
     }
-    SGRGlassCapsuleInside(button, &kCancelGlassKey, CGSizeMake(button.bounds.size.width + 2 * kCancelPadding, kCancelHeight), NO);
+    // The capsule's width: the label's with its padding, but no wider than the room between the field and the
+    // screen's edge. Its centre then goes where it ends kEdgeInset from the edge; the button (and the capsule
+    // inside it) is moved by the difference, so the label stays in the middle of its capsule.
+    CGFloat pageWidth = page.bounds.size.width;
+    CGFloat width = button.bounds.size.width + 2 * kCancelPadding;
+    if (fieldMaxX > 0) width = MIN(width, pageWidth - kEdgeInset - (fieldMaxX + kFieldGap));
+    width = MAX(width, button.bounds.size.width);
+    CGFloat buttonMid = [button.superview convertPoint:button.center toView:page].x;
+    CGFloat shift = (pageWidth - kEdgeInset - width / 2) - buttonMid;
+    if (fabs(shift - button.transform.tx) > 0.5 || button.transform.ty != 0) {
+        button.transform = CGAffineTransformMakeTranslation(shift, 0);
+    }
+    SGRGlassCapsuleInside(button, &kCancelGlassKey, CGSizeMake(width, kCancelHeight), NO);
 }
 
 %hook _TtC28YourLibrary_YourLibraryXImpl21YourLibrarySearchView
