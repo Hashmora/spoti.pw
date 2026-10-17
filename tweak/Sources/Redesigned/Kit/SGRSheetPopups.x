@@ -16,6 +16,10 @@
 //   Share                              Share_MenuImpl.ShareMenuViewControllerV2
 //   Listening modes                    SmartShuffle_CoreImpl.PlayModePickerViewController
 //   Connect device menu (Log out)      Connect_ContextMenuPageImpl.ContextMenuViewController, pushed in the picker's sheet
+//   More Navigation sheets found in the class dump of 9.1.78 with no hook (the last markers of contentMarkers): SongDNA's
+//   more-info, Connect's where-to-play and device predictability, the picker's bottom sheet container, Upsell, e-reader
+//   settings, version sunsetting, accessory onboarding, kids avatar picker, listener stats, podcast member options, live
+//   events' multi-event sheet, Music Quiz, subscription allocation, the AI playlist and personalized episode prompts.
 //   Connect volume (another device's   a SwiftUI hosting controller of Connect_VolumeUXImpl's BottomSheetElement, with no
 //   slider, "Andrew's MacBook Air")    BottomSheetViewController in it (trees/continuous/4.txt), so NowPlaying/VolumeSheetGlass.x never met it
 //   About SongDNA (the info button)    SongDNA_AboutSongDNAPageImpl.AboutSongDNASheetViewController
@@ -107,7 +111,28 @@ static NSArray<NSString *> *contentMarkers(void) {
              @"Transcript_TranscriptSelectionImpl",
              @"AllBoarding_AllBoardingPlatformImpl",
              @"SocialListeningPartnerIntegrations_UIImpl",
-             @"ClientMessagingPlatformBottomSheetPageViewController"];
+             @"ClientMessagingPlatformBottomSheetPageViewController",
+             @"SongDNA_MapKit",
+             @"Connect_DevicePickerPageImpl",
+             @"DevicePredictability_",
+             @"YourLibrary_YourLibraryXImpl25BottomSheetViewController",
+             @"AIPlaylist_PlaylistCreationPageImpl25BottomSheetViewController",
+             @"Upsells_SheetPageImpl",
+             @"EReader_EReaderPageImpl",
+             @"VersionSunsetting_DialogPageImpl",
+             @"SpotifyTap_AccessoryOnboardingImpl",
+             @"Profile_KidsProfileAvatarPickerImpl",
+             @"HighlightsStats_StatsDetailsPageImpl",
+             @"ModalContainerViewController",
+             @"PodcastUIPlatform_MemberButtonElementKit",
+             @"LiveEvents_MultiEventsBottomSheetPageImpl",
+             @"MusicQuiz_",
+             @"SubscriptionManagement_AllocationRequestDialogPageImpl",
+             @"PromptablePlaylists_",
+             @"PromptedPlaylistRefining_",
+             @"PersonalizedEpisodes_",
+             @"Home_PromptEntryKit",
+             @"Blend_SocialPromptingImpl"];
 }
 
 static BOOL isContent(UIViewController *controller) {
