@@ -21,16 +21,23 @@
 // What is concealed is Spotify's own controls, not replaced: the pinned ⋯ fires the page's own ⋯ -- the Encore
 // button in this page's bar, or the Share of a Listening stats list, drawn as a share glyph -- and Back pops the
 // navigation controller.
+//
+// A page dressed with SGRDressBarPageBackOnly gets Back and the title and nothing at the trailing edge: Settings and its
+// sections (trees/continuous/9.txt, 11.txt to 18.txt) and the mod's own pages (8.txt) have no ⋯, and what sits in
+// their trailing stack is not one (a 22pt button the tree gives no name, and on the Settings root a hidden pair), so
+// those controls are left as Spotify has them.
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
 #import "Pages.h"
 
-static char kMoreKey, kExtraKey, kProxyKey, kTitleGlassKey, kTitleWatchedKey, kBarStyleKey, kHeldKey;
+static char kMoreKey, kExtraKey, kProxyKey, kTitleGlassKey, kTitleWatchedKey, kBarStyleKey, kHeldKey, kConcealedKey;
 
 // The pages dressed now, weakly: the bar is given back only when none is left.
 static NSHashTable<UIViewController *> *sg_dressed;
 // The dressed pages whose bar has no title to carry (SGRDressBarPageTitleless), weakly too.
 static NSHashTable<UIViewController *> *sg_titleless;
+// The dressed pages whose trailing controls are left alone (SGRDressBarPageBackOnly), weakly too.
+static NSHashTable<UIViewController *> *sg_backOnly;
 
 // Side padding of the title inside its capsule, and the room the two corner buttons leave it: the same as the
 // playlist's name has (Playlist/PlaylistBar.x).
@@ -91,6 +98,7 @@ static BOOL isShare(UIView *control) {
 
 static void conceal(UIView *view) {
     if (!view) return;
+    objc_setAssociatedObject(view, &kConcealedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     if (!view.layer.hidden) view.layer.hidden = YES;
     if (!view.layer.mask) view.layer.mask = [CALayer layer];
     if (view.userInteractionEnabled) view.userInteractionEnabled = NO;
@@ -99,10 +107,17 @@ static void conceal(UIView *view) {
 
 static void reveal(UIView *view) {
     if (!view) return;
+    objc_setAssociatedObject(view, &kConcealedKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     view.layer.hidden = NO;
     view.layer.mask = nil;
     view.userInteractionEnabled = YES;
     view.accessibilityElementsHidden = NO;
+}
+
+// Gives back a control this file concealed, and only one of those: a control Spotify hides itself (the hidden, masked
+// pair at the trailing edge of the Settings root's bar, trees/continuous/9.txt) stays hidden.
+static void restore(UIView *view) {
+    if (view && objc_getAssociatedObject(view, &kConcealedKey)) reveal(view);
 }
 
 // Spotify's blur: the plain view of the navigation controller's that holds a visual effect view.
@@ -244,6 +259,14 @@ static BOOL topIsTitleless(UINavigationController *navigation) {
     return NO;
 }
 
+// Whether the page on top of `navigation` is one dressed with Back only.
+static BOOL topIsBackOnly(UINavigationController *navigation) {
+    for (UIViewController *page in sg_backOnly.allObjects) {
+        if (isOnScreen(page, navigation)) return YES;
+    }
+    return NO;
+}
+
 static void dropTitleGlass(UIView *title) {
     [(UIView *)objc_getAssociatedObject(title, &kTitleGlassKey) removeFromSuperview];
 }
@@ -278,7 +301,8 @@ static void glassTitle(UIView *title) {
     // Two glass circles at the trailing edge (Song DNA's Share and Close) take two places from the corner, and the
     // capsule is centred, so it leaves as much on the leading side: with one place it ran to 2pt from Share
     // (trees/continuous/10.txt, 15.txt).
-    CGFloat places = extraOf(title.superview) ? 2 : 1;
+    BOOL backOnly = sg_backOnly.count && topIsBackOnly(navigationOfView(title));
+    CGFloat places = !backOnly && extraOf(title.superview) ? 2 : 1;
     CGFloat room = screen - 2 * (kCorner + places * (SGRGlassCircleSize + kGap));
     CGFloat wanted = content + 2 * kTitlePadding;
     CGFloat width = MIN(MAX(wanted, kTitleHeight), room);
@@ -305,6 +329,36 @@ static BOOL isOnScreen(UIViewController *page, UINavigationController *navigatio
         if (vc == navigation.topViewController) return YES;
     }
     return NO;
+}
+
+// The page's trailing controls, pinned: the ⋯ (or the Share, drawn as a share glyph) in the corner and, with a second
+// control, the Share one place in from it and Close in the corner.
+static void pinTrailing(UIView *view, UIView *more, UIView *extra) {
+    conceal(more);
+    // With a second control (SongDNA's Close) the first, Share, steps one place in from the corner and Close takes it.
+    SGRMirrorButton *pinned = nil;
+    if (extra) {
+        static UIImage *shareGlyph, *moreGlyph;
+        if (!shareGlyph) shareGlyph = [UIImage systemImageNamed:@"square.and.arrow.up"];
+        if (!moreGlyph) moreGlyph = [UIImage systemImageNamed:@"ellipsis"];
+        pinned = SGRPinnedTrailing(view, &kMoreKey, more, 1, more && isShare(more) ? shareGlyph : moreGlyph);
+    } else {
+        pinned = SGRPinnedMore(view, &kMoreKey, more);
+    }
+    if (!extra && more && isShare(more)) {
+        static UIImage *shareGlyph;
+        if (!shareGlyph) shareGlyph = [UIImage systemImageNamed:@"square.and.arrow.up"];
+        if (pinned.fallbackGlyph != shareGlyph) {
+            pinned.fallbackGlyph = shareGlyph;
+            [pinned feedFrom:more];
+        }
+    }
+    if (extra) {
+        conceal(extra);
+        static UIImage *closeGlyph;
+        if (!closeGlyph) closeGlyph = [UIImage systemImageNamed:@"xmark"];
+        SGRPinnedTrailing(view, &kExtraKey, extra, 0, closeGlyph);
+    }
 }
 
 void SGRDressBarPage(UIViewController *page) {
@@ -344,30 +398,12 @@ void SGRDressBarPage(UIViewController *page) {
 
     UIView *more = moreOf(content);
     UIView *extra = extraOf(content);
-    conceal(more);
-    // With a second control (SongDNA's Close) the first, Share, steps one place in from the corner and Close takes it.
-    SGRMirrorButton *pinned = nil;
-    if (extra) {
-        static UIImage *shareGlyph, *moreGlyph;
-        if (!shareGlyph) shareGlyph = [UIImage systemImageNamed:@"square.and.arrow.up"];
-        if (!moreGlyph) moreGlyph = [UIImage systemImageNamed:@"ellipsis"];
-        pinned = SGRPinnedTrailing(view, &kMoreKey, more, 1, more && isShare(more) ? shareGlyph : moreGlyph);
+    if ([sg_backOnly containsObject:page]) {
+        // What holdControls concealed before this page's own controller existed is given back.
+        restore(more);
+        restore(extra);
     } else {
-        pinned = SGRPinnedMore(view, &kMoreKey, more);
-    }
-    if (!extra && more && isShare(more)) {
-        static UIImage *shareGlyph;
-        if (!shareGlyph) shareGlyph = [UIImage systemImageNamed:@"square.and.arrow.up"];
-        if (pinned.fallbackGlyph != shareGlyph) {
-            pinned.fallbackGlyph = shareGlyph;
-            [pinned feedFrom:more];
-        }
-    }
-    if (extra) {
-        conceal(extra);
-        static UIImage *closeGlyph;
-        if (!closeGlyph) closeGlyph = [UIImage systemImageNamed:@"xmark"];
-        SGRPinnedTrailing(view, &kExtraKey, extra, 0, closeGlyph);
+        pinTrailing(view, more, extra);
     }
 
     UIView *title = subviewNamed(content, @"_UINavigationBarTitleControl");
@@ -376,6 +412,12 @@ void SGRDressBarPage(UIViewController *page) {
         glassTitle(title);
         watchTitle(title);
     }
+}
+
+void SGRDressBarPageBackOnly(UIViewController *page) {
+    if (!sg_backOnly) sg_backOnly = [NSHashTable weakObjectsHashTable];
+    [sg_backOnly addObject:page];
+    SGRDressBarPage(page);
 }
 
 void SGRDressBarPageTitleless(UIViewController *page) {
@@ -387,6 +429,7 @@ void SGRDressBarPageTitleless(UIViewController *page) {
 static void undressBar(UIViewController *page, UINavigationController *navigation) {
     [sg_dressed removeObject:page];
     [sg_titleless removeObject:page];
+    [sg_backOnly removeObject:page];
     if (!navigation) return;
     // A page pushed over this one dressed the bar before this one went: it is that page's now.
     if (sg_dressed.count) return;

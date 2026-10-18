@@ -20,6 +20,10 @@
 //     ImportMusic.x   Import your music (TheStage_VtecImpl.VtecContainerController): the bar, Back on glass
 //     BlendInvite.x   Create a Blend (Blend_BlendInvitationImpl.BIViewController): the bar, Back on glass
 //     MadeForYou.x    Made For You (SPTMadeForYouHubViewController): the bar, the title on glass, the covers at Home's radius
+//     ModPageBar.x    the mod's own pages (Mod Settings and every SGModPage on Spotify's stack): the bar, Back on glass
+//
+// The hosted pages that are dressed by what they hold -- Messages, Settings and its sections, Listening stats, Your Premium
+// and the rest -- are listed in Kit/SGRPlainBar.x.
 //
 
 // Every hook installs only while Redesigned UI is on and below iOS 26, where the bars are the system's.
@@ -41,6 +45,9 @@ void SGRDressBarPage(UIViewController *page);
 // Back is pinned and the blur is gone as above, and the title carries no capsule, however the control is laid out.
 // Given back with the rest, by SGRUndressBarPage.
 void SGRDressBarPageTitleless(UIViewController *page);
+// The same for a page with no ⋯ of its own (Settings and its sections, the mod's pages): Back and the title are dressed,
+// and the controls at the trailing edge are left as Spotify has them. Given back with the rest, by SGRUndressBarPage.
+void SGRDressBarPageBackOnly(UIViewController *page);
 // Gives the bar back the way Spotify made it, for the next page: as `page` goes.
 void SGRUndressBarPage(UIViewController *page);
 

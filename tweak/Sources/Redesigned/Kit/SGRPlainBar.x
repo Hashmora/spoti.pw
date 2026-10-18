@@ -3,6 +3,11 @@
 // songs, a track or an artist opened from them, Your Premium and its Manage subscription, and SongDNA (its Share and Close pinned as glass circles, 37.txt). Each is a controller
 // hosted by Navigation_PageAPIIntegrationImpl.MusicAppPageHostingViewController (trees/continuous/9 to 13, 18).
 //
+// So are Messages (Campfire_RecentChatsPageImpl, 7.txt: Back, the title and the compose button, which the ⋯'s pinned
+// button draws in glass) and Settings with all its sections (Settings_PlatformImpl.SettingsListViewController, 9.txt and
+// 11.txt to 18.txt). Settings has no ⋯: its bar is dressed with Back and the title only (SGRDressBarPageBackOnly),
+// whatever else Spotify keeps at the trailing edge.
+//
 // The bar is dressed by Pages/PageBar.m, as Recents' and Your Updates' are: Spotify's blur behind it drawn by
 // nothing, its Back and its Share pinned to the page as glass circles at the corners, the title on a glass
 // capsule in white. Pinned, and not a glass put inside the bar's own buttons: the Back of the bar is UIKit's, and
@@ -69,19 +74,33 @@ static NSArray<NSString *> *pageMarkers(void) {
              @"YourLibraryOfflineSyncViewController", @"Settings_SearchPageImpl",
              @"Endless_DJSettingsLanguagePageImpl", @"Endless_DJSubmitFeedbackPageImpl",
              @"Lyrics_ReportPageImpl", @"AIPlaylist_ReportAProblemPageImpl",
-             @"Martini_AiDisclosurePageImpl", @"Martini_HistoryPageImpl"];
+             @"Martini_AiDisclosurePageImpl", @"Martini_HistoryPageImpl",
+             @"Campfire_RecentChatsPageImpl", @"SettingsListViewController"];
 }
 
-static BOOL isPage(UIViewController *controller, int depth) {
+// The pages above that have no ⋯ of their own and keep what Spotify has at the trailing edge.
+static NSArray<NSString *> *backOnlyMarkers(void) {
+    return @[@"SettingsListViewController"];
+}
+
+static BOOL holdsMarker(UIViewController *controller, NSArray<NSString *> *markers, int depth) {
     if (depth > 6) return NO;
     for (UIViewController *child in controller.childViewControllers) {
         NSString *name = NSStringFromClass(child.class);
-        for (NSString *marker in pageMarkers()) {
+        for (NSString *marker in markers) {
             if ([name containsString:marker]) return YES;
         }
-        if (isPage(child, depth + 1)) return YES;
+        if (holdsMarker(child, markers, depth + 1)) return YES;
     }
     return NO;
+}
+
+static BOOL isPage(UIViewController *controller, int depth) {
+    return holdsMarker(controller, pageMarkers(), depth);
+}
+
+static BOOL isBackOnlyPage(UIViewController *controller) {
+    return holdsMarker(controller, backOnlyMarkers(), 0);
 }
 
 // The white UICollectionView Spotify's Stats lists paint.
@@ -116,7 +135,8 @@ static void dress(UIViewController *page) {
     clearStatsLists(root);
     clearTopBand(root);
     if (!SGBelowiOS26()) return;
-    SGRDressBarPage(page);
+    if (isBackOnlyPage(page)) SGRDressBarPageBackOnly(page);
+    else SGRDressBarPage(page);
 }
 
 static void undress(UIViewController *page) {

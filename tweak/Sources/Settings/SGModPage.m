@@ -754,10 +754,18 @@ static void showWaiting(UITableViewCell *cell, BOOL waiting, NSString *switchTit
 - (void)viewDidLayoutSubviews {
     [super viewDidLayoutSubviews];
     SGInsetForBars(self.tableView);
+    SGDressPageBar(self);
+}
+
+// The page is its own table, so the glass Back pinned to it is a subview of what scrolls: it is put back at the
+// top of the screen as the table moves.
+- (void)scrollViewDidScroll:(UIScrollView *)scrollView {
+    SGDressPageBar(self);
 }
 
 - (void)viewWillAppear:(BOOL)animated {
     [super viewWillAppear:animated];
+    SGDressPageBar(self);
     // Reloaded whether or not anything ticks: a choice row is showing whatever was picked on the
     // page it opened, which is gone by the time this one comes back, and may bring rows or take them.
     _shown = [self rowsToShow];
@@ -784,6 +792,20 @@ static void showWaiting(UITableViewCell *cell, BOOL waiting, NSString *switchTit
             cell.accessoryView = [self menuButtonFor:row];
         }
     }
+}
+
+- (void)viewDidAppear:(BOOL)animated {
+    [super viewDidAppear:animated];
+    // UIKit makes the bar's Back and title once the push has settled.
+    __weak SGModPage *weak = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.25 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        if (weak) SGDressPageBar(weak);
+    });
+}
+
+- (void)viewWillDisappear:(BOOL)animated {
+    [super viewWillDisappear:animated];
+    SGUndressPageBar(self);
 }
 
 - (void)viewDidDisappear:(BOOL)animated {
