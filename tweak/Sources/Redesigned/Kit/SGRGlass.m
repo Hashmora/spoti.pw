@@ -67,7 +67,7 @@ static void keepFilm(UIView *shape, BOOL prominent, SGRGlassMode mode) {
     UIView *content = glassContent(shape);
     if (!film) {
         film = [UIView new];
-        film.backgroundColor = [UIColor colorWithWhite:1 alpha:0.14];
+        film.backgroundColor = [UIColor colorWithWhite:1 alpha:0.10];
         film.userInteractionEnabled = NO;
         film.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
         objc_setAssociatedObject(shape, &kFilmKey, film, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
@@ -166,7 +166,7 @@ UIView *SGRGlassFilm(UIView *host, const void *key, UIView *glass, CGFloat radiu
     if (@available(iOS 26.0, *)) return nil;
     UIView *film = SGLazyChild(host, key, ^UIView *{
         UIView *view = [UIView new];
-        view.backgroundColor = [UIColor colorWithWhite:1 alpha:0.16];
+        view.backgroundColor = [UIColor colorWithWhite:1 alpha:0.10];
         view.userInteractionEnabled = NO;
         view.layer.cornerCurve = kCACornerCurveContinuous;
         view.layer.masksToBounds = YES;

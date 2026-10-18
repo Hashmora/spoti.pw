@@ -43,6 +43,7 @@ static const CGFloat kNavItemSpacing = 4;
 static const CGFloat kNavCircleSide = 48;   // the compact bar's circles before the now playing card has a radius to follow
 static const CGFloat kNavItemWidth = 90;    // fixed, so the capsule hugs its items instead of stretching them
 static const CGFloat kSelPillInset = 3;     // gap between the selection pill and the capsule's edge
+static const CGFloat kLensOverhang = 6;     // how far the held bubble stands out of the capsule's rim, above and below
 static __weak UIView *sg_stockBar;
 static CGFloat sg_room, sg_glassHeight;   // see "room for the glass bar"
 // See "compact". The circles' frames in the host's coordinates, the trailing one empty when no tab is set apart.
@@ -765,8 +766,10 @@ static void setCreateOpen(SGRLegacyTabBar *bar, BOOL open) {
             [lens moveTouchToX:hostX];
         }
     } else if (g.state == UIGestureRecognizerStateEnded) {
-        // Let go first: the tab picked below then moves the pill it settles on.
+        // Let go first: the tab picked below then moves the pill it settles on. The bubble's run is on the screen
+        // before the tab starts loading, which can hold the main thread for a while.
         [[self lens] endTouch];
+        [[self lens] flush];
         if (item) {
             if (!itemIsCreate && item != self.selectedItem) {
                 self.selectedItem = item;
@@ -1497,6 +1500,7 @@ static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
     // anything under ~50% alpha reads as washed-out grey instead of a clean black capsule.
     SGRLegacyLens *selPill = (SGRLegacyLens *)SGLazyChild(host, &kSelPillKey, ^UIView *{ return [SGRLegacyLens new]; });
     if (selPill.superview != host) [host insertSubview:selPill aboveSubview:navTint];
+    selPill.heldOutset = kSelPillInset + kLensOverhang;
     // bar.selectedItem updates the instant UIKit processes a real tap (or our own drag handler sets
     // it), well before Spotify repaints the label isActive polls below -- keying the pill off that
     // polled state was the ~1s lag between tapping a tab and the pill actually moving there. syncBar is

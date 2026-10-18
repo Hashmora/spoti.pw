@@ -25,12 +25,18 @@ static id SGMakeFilter(NSString *type) {
     return ((id (*)(Class, SEL, NSString *))objc_msgSend)(filterClass, sel, type);
 }
 
-// Saturation and contrast boost under the blur, as Telegram does, so the backdrop is not just a flat blur.
+// Saturation under the blur, so the backdrop is not just a flat blur. Telegram's matrix also lifts every channel by
+// 1.45x and adds 0.05, which is right for its light-on-dark chat but washed out the player's artwork and the pages
+// behind the bars here (bright, low contrast glass). This one keeps the saturation, takes a little light off
+// (kGain < 1) and adds none, so a bright backdrop stays under the white icons' contrast and a dark one stays dark.
+static const float kSaturation = 1.7f, kGain = 0.86f;
+
 static id SGSaturationFilter(void) {
-    static const float matrix[20] = {
-        2.6705f, -1.1087999f, -0.1117f, 0.0f, 0.049999997f,
-        -0.3295f, 1.8914f, -0.111899994f, 0.0f, 0.049999997f,
-        -0.3297f, -1.1084f, 2.8881f, 0.0f, 0.049999997f,
+    const float lr = 0.2126f, lg = 0.7152f, lb = 0.0722f, s = kSaturation, g = kGain;
+    const float matrix[20] = {
+        g * (lr * (1 - s) + s), g * lg * (1 - s),       g * lb * (1 - s),       0.0f, 0.0f,
+        g * lr * (1 - s),       g * (lg * (1 - s) + s), g * lb * (1 - s),       0.0f, 0.0f,
+        g * lr * (1 - s),       g * lg * (1 - s),       g * (lb * (1 - s) + s), 0.0f, 0.0f,
         0.0f, 0.0f, 0.0f, 1.0f, 0.0f,
     };
     id filter = SGMakeFilter(@"colorMatrix");
