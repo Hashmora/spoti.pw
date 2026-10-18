@@ -1,4 +1,4 @@
-// Redesign: the Add account circle of Who's listening on glass.
+// Redesign: Who's listening: the Add account circle on glass, and no blur behind its bar.
 //
 //   Who's listening   AccountSwitching_AccountPickerImpl.AccountPickerAddAccountTableViewCell (trees/continuous/5.txt):
 //                     the 64pt circle at the head of the row, a plain UIView filled white at 7%, with the plus drawn
@@ -8,6 +8,10 @@
 // Nothing clips the circle: it is a plain view with a corner radius and no mask, in a content view that does not clip
 // either (the table's own clip is the screen's). The accounts' avatars are not touched: they are photographs and
 // initials on colour, not controls drawn as a fill.
+//
+// The page has no title in its bar, yet Spotify's blur stands over the top 91pt of it (trees/continuous/5.txt:109-112, the
+// plain view of the navigation controller's that holds a UIVisualEffectView, #1C1C1C at 73%), a grey band over the heading.
+// The page is registered with the bar pages (Pages.h), which keep that blur off while it is on top.
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
 #import "Redesigned/Pages/Pages.h"
@@ -50,5 +54,11 @@ static void dressAdd(UITableViewCell *cell) {
         %init(SGRAccountPickerGlass, SGRAddAccountCell = cell);
     } else {
         SGLog(@"class AccountSwitching_AccountPickerImpl.AccountPickerAddAccountTableViewCell not found, Who's listening keeps Spotify's Add account circle");
+    }
+    Class page = SGRPageClass(@"AccountSwitching_AccountPickerImpl", @"AccountPickerViewController");
+    if (page) {
+        SGRRegisterBarPages(^BOOL(UIViewController *top) { return SGRPageIsOrHolds(top, page); });
+    } else {
+        SGLog(@"class AccountSwitching_AccountPickerImpl.AccountPickerViewController not found, Who's listening keeps Spotify's blur behind its bar");
     }
 }

@@ -1,4 +1,9 @@
-// Redesign, iOS < 26: the plus of "Add account" on glass, in both lists of accounts Spotify has.
+// Redesign, iOS < 26: the plus of "Add account" on glass: the one in the left menu's facepile and in both lists of accounts
+// Spotify has.
+//
+// The facepile (trees/continuous/3.txt:1516-1523, AccountSwitching_AccountSwitchingUIImpl.FacepileEntryView at the right of
+// the menu's profile row) ends with the plus, an Encore FacepileIconView 32x32 holding the SPTEncoreIconView that draws it.
+// A glass circle goes inside it, behind the icon, the way a top bar button has one.
 //
 // Tree (trees/continuous/4.txt:1102-1110): the left menu's list of accounts (AccountSwitching_AccountSwitchingUIImpl.
 // AddAccountCell, 72x79) holds a plain UIView 48x48 bg=#FFFFFF@0.07 r=24 and, after it, the SPTEncoreIconView that draws the
@@ -10,12 +15,17 @@
 // (the disc was a 7% white plate; plain glass over the list's black would read as nothing). The icon above it is
 // Spotify's and is left alone. Spotify paints the disc again as the row is selected, highlighted or reused, so the fill is
 // held clear (SGRHoldClear) and the row dresses it again from its own passes.
+//
+// The left menu's row is not laid out the way the picker's is: the disc sits in an Encore Box, 2 views below the cell, and is
+// sized by that Box's pass or after it, so the cell's own layout and its move to the window met a disc of no size and the
+// disc stayed the grey of trees/continuous/4.txt:1110. The Box's pass dresses the cell it is in, and a cell not dressed yet
+// is tried again a moment later.
 // Threading: main thread only.
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
 #import "Pages.h"
 
-static char kDiscKey, kGlassKey;
+static char kDiscKey, kGlassKey, kFacepileGlassKey;
 
 // The disc: the one square plain view in the row with nothing in it, 40 to 80pt across. Found once; once it holds the glass it has a
 // subview, so it is known from the row afterwards, not by its look.
@@ -33,24 +43,86 @@ static UIView *plusDisc(UIView *row) {
     return found;
 }
 
-static void dressPlus(UIView *row) {
-    if (!row.window) return;
+// Whether the row is dressed: it is in a window and its disc has a size.
+static BOOL dressPlus(UIView *row) {
+    if (!row.window) return NO;
     UIView *disc = plusDisc(row);
-    if (!disc || disc.bounds.size.width < 1 || disc.bounds.size.height < 1) return;
+    if (!disc || disc.bounds.size.width < 1 || disc.bounds.size.height < 1) return NO;
     SGRHoldClear(disc);
     SGRGlassFlatBoxFilm(disc, &kGlassKey);
+    return YES;
+}
+
+// A row Spotify has not laid out yet is tried again once its pass has run, and after the menu's own animation.
+static void dressPlusSoon(UIView *row) {
+    if (dressPlus(row)) return;
+    __weak UIView *weak = row;
+    for (NSNumber *wait in @[@0.0, @0.25]) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(wait.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            UIView *shown = weak;
+            if (shown.window) dressPlus(shown);
+        });
+    }
+}
+
+static Class sDrawerCell;
+
+// The plus of the facepile: the FacepileIconView of the accounts' facepile only (other facepiles, the creators of a
+// playlist, have none).
+static BOOL inAccountFacepile(UIView *icon) {
+    int depth = 0;
+    for (UIView *v = icon.superview; v && depth < 8; v = v.superview, depth++) {
+        if ([NSStringFromClass(v.class) containsString:@"AccountSwitching"]) return YES;
+    }
+    return NO;
+}
+
+static void dressFacepilePlus(UIView *icon) {
+    CGSize size = icon.bounds.size;
+    if (!icon.window || size.width < 1 || fabs(size.width - size.height) > 0.5 || !inAccountFacepile(icon)) return;
+    SGRGlassCapsuleInside(icon, &kFacepileGlassKey, size, YES);
+    // The press of the glass grows past the circle.
+    if (icon.clipsToBounds) icon.clipsToBounds = NO;
 }
 
 %group SGRDrawerPlus
 %hook SGRDrawerAddAccount
 - (void)layoutSubviews {
     %orig;
-    dressPlus((UIView *)self);
+    dressPlusSoon((UIView *)self);
 }
 
 - (void)didMoveToWindow {
     %orig;
-    dressPlus((UIView *)self);
+    dressPlusSoon((UIView *)self);
+}
+%end
+
+// The Box the disc is in: its pass is the one that sizes the disc.
+%hook _TtCE16Encore_LayoutKitO16EncoreFoundation6Encore3Box
+- (void)layoutSubviews {
+    %orig;
+    int depth = 0;
+    for (UIView *v = ((UIView *)self).superview; v && depth < 3; v = v.superview, depth++) {
+        if ([v isKindOfClass:sDrawerCell]) {
+            dressPlusSoon(v);
+            return;
+        }
+    }
+}
+%end
+%end
+
+%group SGRFacepilePlus
+%hook SGRFacepileIcon
+- (void)layoutSubviews {
+    %orig;
+    dressFacepilePlus((UIView *)self);
+}
+
+- (void)didMoveToWindow {
+    %orig;
+    dressFacepilePlus((UIView *)self);
 }
 %end
 %end
@@ -85,6 +157,7 @@ static void dressPlus(UIView *row) {
     if (!SGBelowiOS26()) return;
     Class drawer = SGRPageClass(@"AccountSwitching_AccountSwitchingUIImpl", @"AddAccountCell");
     if (drawer) {
+        sDrawerCell = drawer;
         %init(SGRDrawerPlus, SGRDrawerAddAccount = drawer);
     } else {
         SGLog(@"class AccountSwitching_AccountSwitchingUIImpl.AddAccountCell not found, the left menu's Add account keeps its grey plus");
@@ -94,5 +167,11 @@ static void dressPlus(UIView *row) {
         %init(SGRPickerPlus, SGRPickerAddAccount = picker);
     } else {
         SGLog(@"class AccountSwitching_AccountPickerImpl.AccountPickerAddAccountTableViewCell not found, Who's listening keeps its grey plus");
+    }
+    Class facepile = NSClassFromString(@"_TtCE14Encore_FaceKitO16EncoreFoundation6Encore16FacepileIconView");
+    if (facepile) {
+        %init(SGRFacepilePlus, SGRFacepileIcon = facepile);
+    } else {
+        SGLog(@"class Encore_FaceKit FacepileIconView not found, the left menu's facepile keeps its plain plus");
     }
 }

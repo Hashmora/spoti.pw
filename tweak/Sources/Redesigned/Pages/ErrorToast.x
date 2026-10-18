@@ -1,5 +1,5 @@
 // Redesign, iOS < 26: the page loader's error toast, "Something went wrong / Have another go?" with its Reload button,
-// on glass like Spotify's other toasts (Kit/SGRSnackbar.x).
+// on glass like Spotify's other toasts (Kit/SGRSnackbar.x), Reload itself as Spotify made it.
 //
 // Tree (trees/continuous/3.txt): not an SPTSnackbarView. Tome_MusicClientPageLoaderViewKit.DefaultErrorToastView,
 // id=default-error-toast-view, 358x128 at the foot of a page that failed to load, #FFFFFF r=8 clips, holding two
@@ -7,12 +7,9 @@
 // hooks never met it, so it stayed a flat white card in the middle of the glass look.
 //
 // It is dressed the way the snackbar's card is: the white goes, a glass pane and the faint film that keeps a floating
-// card from sinking into the page stand behind the content, the corners are rounder (kRadius), the black text turns
-// white, and Reload gets a glass capsule of its own, bigger than the word so it has room.
-//
-// Two things stood under Reload besides its capsule (trees/continuous/2.txt:895-906): Encore's own fill, which it paints
-// again as the button is pressed or let go, so the button read as a plate inside the capsule (it is held clear now,
-// SGRHoldClear, with the plain view Encore lays inside it), and the glass was only dressed on the toast's own passes.
+// card from sinking into the page stand behind the content, the corners are rounder (kRadius), and the black text turns
+// white. Reload is left as Spotify draws it, its green and its black word: a glass capsule round it showed as a white rim
+// either side of the green (trees/continuous/2.txt:1221-1226), so the button takes none and nothing of its own is touched.
 // The cross at the top-left of the page (a Tertiary button beside the toast, 24x48) gets the round glass every top bar
 // button has (Kit/SGRGlass.h), the way the cover art page's does.
 // Threading: main thread only.
@@ -20,11 +17,9 @@
 #import "Redesigned/Kit/SGRKit.h"
 #import "Pages.h"
 
-static char kGlassKey, kFilmKey, kReloadGlassKey, kCloseGlassKey;
+static char kGlassKey, kFilmKey, kCloseGlassKey;
 
 static const CGFloat kRadius = 24;
-// The glass round Reload: its padding on each side of the word and its height.
-static const CGFloat kReloadPadX = 12, kReloadHeight = 36;
 
 // Only a dark neutral is lightened, so a colour Spotify chose on purpose stays.
 static BOOL isDarkNeutral(UIColor *color) {
@@ -34,37 +29,22 @@ static BOOL isDarkNeutral(UIColor *color) {
     return [color getWhite:&white alpha:&a] && white < 0.3;
 }
 
-static void lightenText(UIView *root) {
+// Reload's word stays black: it is on the green.
+static void lightenText(UIView *root, UIView *except) {
     SGForEachView(root, ^(UIView *view) {
-        if (![view isKindOfClass:UILabel.class]) return;
+        if (![view isKindOfClass:UILabel.class] || (except && [view isDescendantOfView:except])) return;
         UILabel *label = (UILabel *)view;
         if (isDarkNeutral(label.textColor)) label.textColor = UIColor.whiteColor;
     });
 }
 
-// The Reload button: Spotify's Primary button, found by its identifier.
+// The Reload button: Spotify's Primary button, found by its identifier. Only found, to keep its word as it is.
 static UIView *reloadIn(UIView *toast) {
     __block UIView *found = nil;
     SGForEachView(toast, ^(UIView *view) {
         if (!found && [view.accessibilityIdentifier isEqualToString:@"Encore.Button.Primary"]) found = view;
     });
     return found;
-}
-
-// Spotify's own fill of Reload: the button's and the plain view Encore lays inside it, whatever their size. Cleared now and
-// kept clear (SGRHoldClear) as Encore paints them again.
-static void clearReloadFill(UIView *reload, UIView *shape) {
-    if (reload.backgroundColor && ![reload.backgroundColor isEqual:UIColor.clearColor]) reload.backgroundColor = UIColor.clearColor;
-    if (reload.layer.backgroundColor) reload.layer.backgroundColor = NULL;
-    SGRHoldClear(reload);
-    for (UIView *sub in reload.subviews) {
-        if (sub == shape || ![sub isMemberOfClass:UIView.class]) continue;
-        if (sub.backgroundColor && ![sub.backgroundColor isEqual:UIColor.clearColor]) sub.backgroundColor = UIColor.clearColor;
-        if (sub.layer.backgroundColor) sub.layer.backgroundColor = NULL;
-        SGRHoldClear(sub);
-    }
-    // The press of the legacy glass grows past the button and would be cut off at its edge.
-    if (reload.clipsToBounds) reload.clipsToBounds = NO;
 }
 
 // The cross: the Tertiary button at the top-left of the page the toast stands on, as on the cover art page.
@@ -96,13 +76,7 @@ static void dressToast(UIView *toast) {
     SGShapeGlass(glass, radius, NO);
     SGRGlassFilm(toast, &kFilmKey, glass, radius);
 
-    lightenText(toast);
-    UIView *reload = reloadIn(toast);
-    if (reload && reload.bounds.size.width > 1 && reload.bounds.size.height > 1) {
-        // The button's own fill goes; the capsule stands in it.
-        UIView *shape = SGRGlassCapsuleInside(reload, &kReloadGlassKey, CGSizeMake(reload.bounds.size.width + kReloadPadX * 2, kReloadHeight), NO);
-        clearReloadFill(reload, shape);
-    }
+    lightenText(toast, reloadIn(toast));
     if (toast.superview) glassClose(toast.superview);
 
     static dispatch_once_t once;

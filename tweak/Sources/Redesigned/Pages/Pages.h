@@ -10,9 +10,10 @@
 //     ArtistConcerts.x an artist's concerts page (LiveEvents_ArtistLiveEventsPageImpl): the bar
 //     LocationSearch.x the Preferred location page (LiveEvents_LiveEventsImpl), whose header is the page's own: title, Back and field on glass
 //     ShowSearch.x    a podcast's "Find in this show" page (ShowPage_ShowSearchPageImpl): the bar, the field and Cancel on glass
-//     ErrorToast.x    the page loader's "Something went wrong" toast (Tome_MusicClientPageLoaderViewKit): glass card, Reload on glass
-//                     with Encore's fill held clear, and the cross at the top-left of the page on a glass circle
-//     AccountPlus.x   the plus of Add account on glass, in the left menu's list of accounts and on "Who's listening?"
+//     ErrorToast.x    the page loader's "Something went wrong" toast (Tome_MusicClientPageLoaderViewKit): glass card with Reload as Spotify
+//                     draws it, and the cross at the top-left of the page on a glass circle
+//     AccountPlus.x   the plus of Add account on glass, in the left menu's facepile and list of accounts and on "Who's listening?"
+//     AccountPickerGlass.x  "Who's listening?": the Add account circle on glass, and Spotify's blur behind its bar off
 //
 // Every hook installs only while Redesigned UI is on and below iOS 26, where the bars are the system's.
 // Threading: main thread only.
