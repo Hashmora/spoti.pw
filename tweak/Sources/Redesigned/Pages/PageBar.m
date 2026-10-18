@@ -29,6 +29,8 @@ static char kMoreKey, kExtraKey, kProxyKey, kTitleGlassKey, kTitleWatchedKey, kB
 
 // The pages dressed now, weakly: the bar is given back only when none is left.
 static NSHashTable<UIViewController *> *sg_dressed;
+// The dressed pages whose bar has no title to carry (SGRDressBarPageTitleless), weakly too.
+static NSHashTable<UIViewController *> *sg_titleless;
 
 // Side padding of the title inside its capsule, and the room the two corner buttons leave it: the same as the
 // playlist's name has (Playlist/PlaylistBar.x).
@@ -227,7 +229,33 @@ BOOL SGRPageIsOrHolds(UIViewController *top, Class page) {
 
 #pragma mark - the title
 
+static UINavigationController *navigationOfView(UIView *view) {
+    for (UIResponder *r = view; r; r = r.nextResponder) {
+        if ([r isKindOfClass:UINavigationController.class]) return (UINavigationController *)r;
+    }
+    return nil;
+}
+
+// Whether the page on top of `navigation` is one dressed without a title.
+static BOOL topIsTitleless(UINavigationController *navigation) {
+    for (UIViewController *page in sg_titleless.allObjects) {
+        if (isOnScreen(page, navigation)) return YES;
+    }
+    return NO;
+}
+
+static void dropTitleGlass(UIView *title) {
+    [(UIView *)objc_getAssociatedObject(title, &kTitleGlassKey) removeFromSuperview];
+}
+
 static void glassTitle(UIView *title) {
+    // A page with no title has an empty item in the title control (a SwiftUI bar item that draws nothing), which the
+    // branch for a title that is a picture below would wrap in a capsule all the same. The title control is the bar's,
+    // shared by the pages of the stack, and is watched for its layout, so this holds for every pass that reaches it.
+    if (sg_titleless.count && topIsTitleless(navigationOfView(title))) {
+        dropTitleGlass(title);
+        return;
+    }
     UILabel *label = nil;
     for (UIView *sub in title.subviews) {
         for (UIView *inner in sub.subviews) {
@@ -350,8 +378,15 @@ void SGRDressBarPage(UIViewController *page) {
     }
 }
 
+void SGRDressBarPageTitleless(UIViewController *page) {
+    if (!sg_titleless) sg_titleless = [NSHashTable weakObjectsHashTable];
+    [sg_titleless addObject:page];
+    SGRDressBarPage(page);
+}
+
 static void undressBar(UIViewController *page, UINavigationController *navigation) {
     [sg_dressed removeObject:page];
+    [sg_titleless removeObject:page];
     if (!navigation) return;
     // A page pushed over this one dressed the bar before this one went: it is that page's now.
     if (sg_dressed.count) return;

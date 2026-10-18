@@ -30,6 +30,10 @@ BOOL SGRPageIsOrHolds(UIViewController *top, Class page);
 // Dresses the bar of the navigation controller `page` is in, while `page` is the one on screen: from its layout
 // passes and as it appears. Cheap to call again.
 void SGRDressBarPage(UIViewController *page);
+// The same for a page whose bar has no title (the profile's Add playlist page: an empty SwiftUI item in the title control):
+// Back is pinned and the blur is gone as above, and the title carries no capsule, however the control is laid out.
+// Given back with the rest, by SGRUndressBarPage.
+void SGRDressBarPageTitleless(UIViewController *page);
 // Gives the bar back the way Spotify made it, for the next page: as `page` goes.
 void SGRUndressBarPage(UIViewController *page);
 
