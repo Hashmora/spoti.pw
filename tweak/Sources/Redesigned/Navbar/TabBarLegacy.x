@@ -1221,8 +1221,32 @@ CGRect SGRLegacyTabBarInlineSlot(UIView *host, CGFloat height) {
     return slot;
 }
 
+// What the bar's layout is made of that moves it when it changes: how many tabs, which one is set apart, whether the
+// labels are shown, whether it is minimized. A change of it that nothing else animates (the settings rebuilding the
+// bar, Spotify adding or dropping the split tab) is laid out on the bar's own spring rather than cut in.
+static char kLayoutSigKey;
+
 static void syncBar(UIView *stockBar) {
-    syncBarCore(stockBar, NO);
+    NSArray<UIView *> *all = tabItems(stockBar);
+    UIView *host = objc_getAssociatedObject(stockBar, &kHostKey);
+    if (!all.count || !host) {
+        syncBarCore(stockBar, NO);
+        return;
+    }
+    NSString *sig = [NSString stringWithFormat:@"%lu|%p|%d|%d", (unsigned long)all.count, trailingSource(all),
+                     SGHidden(SGRKeyNavbarHideLabels) ? 1 : 0, sg_minimized ? 1 : 0];
+    NSString *prev = objc_getAssociatedObject(stockBar, &kLayoutSigKey);
+    if (![sig isEqualToString:prev]) objc_setAssociatedObject(stockBar, &kLayoutSigKey, sig, OBJC_ASSOCIATION_COPY_NONATOMIC);
+    BOOL moves = prev && ![sig isEqualToString:prev] && host.window && !SGRReduceMotion()
+        && UIView.areAnimationsEnabled && UIView.inheritedAnimationDuration <= 0;
+    if (!moves) {
+        syncBarCore(stockBar, NO);
+        return;
+    }
+    SGRAnimate(SGRMotionBar, ^{
+        syncBarCore(stockBar, NO);
+        [host layoutIfNeeded];
+    }, nil);
 }
 
 static void syncBarExternalChange(UIView *stockBar) {
@@ -1524,6 +1548,18 @@ static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
         selPill.hidden = YES;
     }
     placeCompact(stockBar, bar, host, sources, platterFrame, apartFrame, navGlass, navTint, selPill);
+    // The now playing card fills what the circles leave of the row. A split tab that came or went while minimized
+    // moves the trailing circle, and the card did not hear of it until the bar was expanded and minimized again.
+    static CGRect lastLead, lastTrail;
+    static BOOL following;
+    BOOL circlesMoved = !CGRectEqualToRect(lastLead, sg_leadFrame) || !CGRectEqualToRect(lastTrail, sg_trailFrame);
+    lastLead = sg_leadFrame;
+    lastTrail = sg_trailFrame;
+    if (circlesMoved && sg_minimized && !following) {
+        following = YES;
+        SGRNowPlayingBarFollowTabBar();
+        following = NO;
+    }
 
     if (host.superview != stockBar) [stockBar addSubview:host];
     else if (stockBar.subviews.lastObject != host) [stockBar bringSubviewToFront:host];
