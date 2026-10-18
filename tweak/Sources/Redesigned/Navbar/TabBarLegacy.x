@@ -5,6 +5,9 @@
 // TabBar.x is the iOS 26 bar. The hooks here run only where SGRLegacyTabBarOn() says so and TabBar.x's do not,
 // so exactly one of the two is ever in place. Reads of Spotify's own items are shared (Shared/Navigation/TabItems.h).
 //
+// The selection pill is SGRLegacyLens (TabBarLens.m): a finger on the bar lifts it into a glass bubble that follows the
+// finger on springs, stretches with the move and settles on the tab it is let go over, as the system bar of iOS 26 does.
+//
 // A page scrolled down minimizes the bar to a circle with the open tab, a circle for the set-apart tab, and the
 // now playing card between them. The last set-apart tab never sits on the capsule: it has its own round button
 // at the trailing end. A tab picked here is passed on as a tap on the hidden Spotify item it mirrors, and
@@ -14,6 +17,7 @@
 // ElementContentView<TabBarItemElement>, each with an SPTEncoreIconView and an SPTEncoreLabel.
 #import "Core/SGCore.h"
 #import "Navbar.h"
+#import "TabBarLens.h"
 #import "Redesigned/Kit/SGRGlass.h"
 #import "Redesigned/Kit/SGRTokens.h"
 #import "Redesigned/NowPlayingBar/NowPlayingBar.h"
@@ -539,16 +543,31 @@ static void setCreateOpen(SGRLegacyTabBar *bar, BOOL open) {
     // finally puts them, and nothing placed it again. Every layout pass re-checks it against the buttons.
     UIView *stock = self.stockBar;
     UIView *host = stock ? objc_getAssociatedObject(stock, &kHostKey) : nil;
-    UIView *pill = host ? objc_getAssociatedObject(host, &kSelPillKey) : nil;
+    SGRLegacyLens *pill = host ? objc_getAssociatedObject(host, &kSelPillKey) : nil;
     CGFloat centerX = pill && !pill.hidden ? [self renderedCenterXForItem:self.selectedItem] : NAN;
-    if (!isnan(centerX) && pill.frame.size.width > 0) {
-        CGFloat wantX = self.frame.origin.x + centerX - pill.frame.size.width / 2;
-        if (fabs(pill.frame.origin.x - wantX) > 0.5) {
-            [UIView animateWithDuration:0.25 delay:0
-                options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionCurveEaseInOut
-                animations:^{ CGRect f = pill.frame; f.origin.x = wantX; pill.frame = f; } completion:nil];
+    CGRect rest = pill.restFrame;
+    if (!isnan(centerX) && rest.size.width > 0) {
+        CGFloat wantX = self.frame.origin.x + centerX - rest.size.width / 2;
+        if (fabs(rest.origin.x - wantX) > 0.5) {
+            rest.origin.x = wantX;
+            [pill setRestFrame:rest animated:YES];
         }
     }
+}
+
+// The centers of the first and the last tab in the host's coordinates: how far the bubble may run under a finger.
+- (void)trackBoundsMin:(CGFloat *)minCenter max:(CGFloat *)maxCenter {
+    CGFloat a = [self renderedCenterXForItem:self.items.firstObject];
+    CGFloat b = [self renderedCenterXForItem:self.items.lastObject];
+    CGFloat x = self.frame.origin.x;
+    *minCenter = isnan(a) ? -CGFLOAT_MAX : x + a;
+    *maxCenter = isnan(b) ? CGFLOAT_MAX : x + b;
+}
+
+- (SGRLegacyLens *)lens {
+    UIView *stock = self.stockBar;
+    UIView *host = stock ? objc_getAssociatedObject(stock, &kHostKey) : nil;
+    return host ? objc_getAssociatedObject(host, &kSelPillKey) : nil;
 }
 
 - (void)setSelectedItem:(UITabBarItem *)item {
@@ -735,7 +754,19 @@ static void setCreateOpen(SGRLegacyTabBar *bar, BOOL open) {
             self.selectedItem = item;
             if (stockBar) syncBar(stockBar);
         }
+        // The bubble follows the finger from the first frame, over whatever tab it is on.
+        SGRLegacyLens *lens = [self lens];
+        CGFloat hostX = self.frame.origin.x + g.currentLocation.x;
+        if (g.state == UIGestureRecognizerStateBegan) {
+            CGFloat lo, hi;
+            [self trackBoundsMin:&lo max:&hi];
+            [lens beginTouchAtX:hostX minCenter:lo maxCenter:hi];
+        } else {
+            [lens moveTouchToX:hostX];
+        }
     } else if (g.state == UIGestureRecognizerStateEnded) {
+        // Let go first: the tab picked below then moves the pill it settles on.
+        [[self lens] endTouch];
         if (item) {
             if (!itemIsCreate && item != self.selectedItem) {
                 self.selectedItem = item;
@@ -750,6 +781,7 @@ static void setCreateOpen(SGRLegacyTabBar *bar, BOOL open) {
         }
         self.gestureStartItem = nil;
     } else if (g.state == UIGestureRecognizerStateCancelled) {
+        [[self lens] endTouch];
         if (stockBar) syncBar(stockBar);
         self.gestureStartItem = nil;
     }
@@ -1042,7 +1074,15 @@ static void placeCompact(UIView *stockBar, SGRLegacyTabBar *bar, UIView *host, N
         lead.accessibilityLabel = leadIndex < sources.count ? labelIn(sources[leadIndex]).text : nil;
         if (!lead.onTap) {
             __weak SGRLegacyCircle *weakLead = lead;
-            lead.onTap = ^{ tapItem(weakStock, weakLead.item); };
+            // As the Music app's circle and TabBar.x's do: a tap on the minimized bar's tab brings the whole bar back and
+            // opens nothing (passed on, the tap would take Spotify's stack to its root).
+            lead.onTap = ^{
+                if (sg_minimized) {
+                    SGRLegacySetTabBarMinimized(NO, YES);
+                    return;
+                }
+                tapItem(weakStock, weakLead.item);
+            };
         }
     }
     if (trail) {
@@ -1065,10 +1105,39 @@ static void placeCompact(UIView *stockBar, SGRLegacyTabBar *bar, UIView *host, N
     [lead setShown:compact];
     // The apart tab's button is there in both states, but a folded one only while minimized: expanded, it is in the capsule.
     [trail setShown:trailSource != nil && (!folded || compact)];
-    SGRShowGlass(navGlass, !compact);
-    navTint.alpha = compact ? 0 : 1;
-    selPill.alpha = compact ? 0 : 1;
-    bar.alpha = compact ? 0 : 1;
+
+    // The capsule is drawn as the circle's size and place while minimized, so the full bar grows out of the circle
+    // and goes back into it, on the one spring the card moves on. The pane keeps its own size (no glass is laid
+    // out again on the way); only a transform carries it, and the film over it takes the same. Under the circle's
+    // size the capsule has faded out, so its ends going from round to oval is not seen.
+    CGAffineTransform morph = CGAffineTransformIdentity;
+    if (compact && !CGRectIsEmpty(platter) && !CGRectIsEmpty(sg_leadFrame)) {
+        morph = CGAffineTransformMake(sg_leadFrame.size.width / platter.size.width, 0, 0, sg_leadFrame.size.height / platter.size.height,
+                                      CGRectGetMidX(sg_leadFrame) - CGRectGetMidX(platter), CGRectGetMidY(sg_leadFrame) - CGRectGetMidY(platter));
+    }
+    navGlass.transform = morph;
+    navTint.transform = morph;
+
+    // The glass comes in fast as the capsule grows, and the tabs on it a beat after, once there is room for them;
+    // going away, the tabs leave first. Run inside the animation that is already going (the bar's own change), once
+    // per change; any other pass sets the same values and moves nothing.
+    static BOOL sg_compactApplied;
+    BOOL changed = compact != sg_compactApplied;
+    sg_compactApplied = compact;
+    void (^glassFade)(void) = ^{
+        SGRShowGlass(navGlass, !compact);
+        navTint.alpha = compact ? 0 : 1;
+        selPill.alpha = compact ? 0 : 1;
+    };
+    void (^tabsFade)(void) = ^{ bar.alpha = compact ? 0 : 1; };
+    if (changed && UIView.inheritedAnimationDuration > 0 && !SGRReduceMotion()) {
+        UIViewAnimationOptions options = UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionAllowUserInteraction | UIViewAnimationOptionCurveEaseOut;
+        [UIView animateWithDuration:compact ? 0.16 : 0.2 delay:compact ? 0.04 : 0 options:options animations:glassFade completion:nil];
+        [UIView animateWithDuration:compact ? 0.1 : 0.22 delay:compact ? 0 : 0.1 options:options animations:tabsFade completion:nil];
+    } else {
+        glassFade();
+        tabsFade();
+    }
     bar.userInteractionEnabled = !compact;
 }
 
@@ -1091,7 +1160,15 @@ static void setMinimized(BOOL minimized, BOOL animated) {
         [UIView performWithoutAnimation:apply];
         return;
     }
-    SGRAnimate(SGRMotionBar, apply, nil);
+    // Minimizing is SGRMotionBar's spring with no overshoot. The full bar coming back has a little: the capsule
+    // grows out of the circle and settles, the card goes back above it on the same spring.
+    if (minimized || SGRReduceMotion()) {
+        SGRAnimate(SGRMotionBar, apply, nil);
+        return;
+    }
+    [UIView animateWithDuration:0.5 delay:0 usingSpringWithDamping:0.8 initialSpringVelocity:0
+        options:UIViewAnimationOptionAllowUserInteraction | UIViewAnimationOptionBeginFromCurrentState
+        animations:apply completion:nil];
 }
 
 BOOL SGRLegacyTabBarMinimized(void) {
@@ -1400,23 +1477,25 @@ static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
     UIView *navGlass = SGGlassFor(host, &kNavGlassKey);
     navGlass.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
     CGRect glassFrame = platterFrame;
-    if (!CGRectEqualToRect(navGlass.frame, glassFrame)) navGlass.frame = glassFrame;
+    // By bounds and center, not frame: placeCompact turns the capsule into the circle with a transform, and a frame
+    // is undefined under one.
+    CGPoint glassCenter = CGPointMake(CGRectGetMidX(glassFrame), CGRectGetMidY(glassFrame));
+    if (!CGSizeEqualToSize(navGlass.bounds.size, glassFrame.size)) navGlass.bounds = (CGRect){CGPointZero, glassFrame.size};
+    if (!CGPointEqualToPoint(navGlass.center, glassCenter)) navGlass.center = glassCenter;
     SGShapeGlass(navGlass, glassFrame.size.height / 2, NO);
 
     UIView *navTint = SGRGlassFilm(host, &kNavTintKey, navGlass, glassFrame.size.height / 2);
+    // SGRGlassFilm sets the film's frame from the pane's, which under the morph's transform is the stretched box;
+    // the film is given the pane's bounds and center instead, and its transform in placeCompact.
+    if (!CGSizeEqualToSize(navTint.bounds.size, glassFrame.size)) navTint.bounds = (CGRect){CGPointZero, glassFrame.size};
+    if (!CGPointEqualToPoint(navTint.center, glassCenter)) navTint.center = glassCenter;
 
     // A dark capsule behind the selected icon only - the closest legacy stand-in for iOS 26+'s glass
     // "selection bubble". Sits above the tint so it reads as a shadow in the material, below the
     // (transparent) bar itself so the icon still draws on top of it.
     // Solid black (not Telegram's ~10% white lens glow): over navTint's 16% white film,
     // anything under ~50% alpha reads as washed-out grey instead of a clean black capsule.
-    UIView *selPill = SGLazyChild(host, &kSelPillKey, ^UIView *{
-        UIView *v = [UIView new];
-        v.userInteractionEnabled = NO;
-        v.backgroundColor = [UIColor colorWithWhite:0 alpha:0.55];
-        v.layer.cornerCurve = kCACornerCurveContinuous;
-        return v;
-    });
+    SGRLegacyLens *selPill = (SGRLegacyLens *)SGLazyChild(host, &kSelPillKey, ^UIView *{ return [SGRLegacyLens new]; });
     if (selPill.superview != host) [host insertSubview:selPill aboveSubview:navTint];
     // bar.selectedItem updates the instant UIKit processes a real tap (or our own drag handler sets
     // it), well before Spotify repaints the label isActive polls below -- keying the pill off that
@@ -1431,20 +1510,12 @@ static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
             ? bar.frame.origin.x + selIndex * (itemWidth + kNavItemSpacing) + kSelPillInset
             : bar.frame.origin.x + centerX - pillWidth / 2;
         CGRect pillFrame = CGRectMake(slotX, bar.frame.origin.y + kSelPillInset, pillWidth, bar.frame.size.height - kSelPillInset * 2);
-        selPill.layer.cornerRadius = pillFrame.size.height / 2;
         BOOL wasVisible = !selPill.hidden;
         selPill.hidden = NO;
-        if (!CGRectEqualToRect(selPill.frame, pillFrame)) {
-            if (wasVisible && !CGRectIsEmpty(selPill.frame)) {
-                // Slides to the new slot instead of jumping -- the pill's one and only animation now,
-                // on a tap or a drag alike, with no raw finger-tracking step before it.
-                [UIView animateWithDuration:0.25 delay:0
-                    options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionCurveEaseInOut
-                    animations:^{ selPill.frame = pillFrame; } completion:nil];
-            } else {
-                selPill.frame = pillFrame;
-            }
-        }
+        // The lens moves the pill: a tap, a tab picked on release and a layout pass slide it to the new slot on the
+        // bubble's springs, and a pill that was hidden appears where it belongs. While a finger has the bubble, the
+        // slot is only remembered.
+        if (!CGRectEqualToRect(selPill.restFrame, pillFrame)) [selPill setRestFrame:pillFrame animated:wasVisible];
     } else {
         selPill.hidden = YES;
     }
