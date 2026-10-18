@@ -65,10 +65,28 @@ static UIView *contentOf(UINavigationBar *bar) {
     return nil;
 }
 
+// The bar's stacks of controls, told apart by the half of the bar they stand in: one at the trailing edge (the page's
+// ⋯, a Share) and, when the page put an item of its own at the leading edge, one there (Add artists' cross,
+// trees/continuous/20.txt, 22.txt). The system's back button is no such item: it is a direct subview of the content view.
+static UIView *stackIn(UIView *content, BOOL leading) {
+    CGFloat middle = content.bounds.size.width / 2;
+    for (UIView *sub in content.subviews) {
+        if (![NSStringFromClass(sub.class) isEqualToString:@"_UIButtonBarStackView"]) continue;
+        if ((CGRectGetMidX(sub.frame) < middle) == leading) return sub;
+    }
+    return nil;
+}
+
+// The button of such an item at the leading edge.
+static UIView *leadingItemOf(UIView *content) {
+    UIView *button = subviewNamed(stackIn(content, YES), @"_UIButtonBarButton");
+    return button.bounds.size.width > 1 ? button : nil;
+}
+
 // The page's own ⋯: the first control of the bar's trailing stack, which holds nothing on a page without one.
 // Looked for in this bar and nowhere else, so what the ⋯ fires can never be a ⋯ of the player's.
 static UIView *moreOf(UIView *content) {
-    UIView *stack = subviewNamed(content, @"_UIButtonBarStackView");
+    UIView *stack = stackIn(content, NO);
     UIView *button = stack.subviews.firstObject;
     return button.bounds.size.width > 1 ? button : nil;
 }
@@ -77,7 +95,7 @@ static UIView *moreOf(UIView *content) {
 // A second control after the ⋯ in the trailing stack (SongDNA's bar: Share, then Close, trees/continuous/37.txt), the
 // one nearest the corner. Pages with a single control have none.
 static UIView *extraOf(UIView *content) {
-    UIView *stack = subviewNamed(content, @"_UIButtonBarStackView");
+    UIView *stack = stackIn(content, NO);
     BOOL first = YES;
     UIView *found = nil;
     for (UIView *sub in stack.subviews) {
@@ -168,6 +186,7 @@ static void holdControls(UINavigationController *navigation, BOOL wanted) {
         }
         if (!held) objc_setAssociatedObject(bar, &kHeldKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         conceal(subviewNamed(content, @"_UIButtonBarButton"));
+        conceal(leadingItemOf(content));
         conceal(moreOf(content));
         conceal(extraOf(content));
         conceal(title);
@@ -175,6 +194,7 @@ static void holdControls(UINavigationController *navigation, BOOL wanted) {
         reveal(title);
         if (!sg_dressed.count) {
             reveal(subviewNamed(content, @"_UIButtonBarButton"));
+            reveal(leadingItemOf(content));
             reveal(moreOf(content));
             reveal(extraOf(content));
             objc_setAssociatedObject(bar, &kHeldKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
@@ -387,14 +407,21 @@ void SGRDressBarPage(UIViewController *page) {
     if (bar.userInteractionEnabled) bar.userInteractionEnabled = NO;
 
     UIView *back = subviewNamed(content, @"_UIButtonBarButton");
-    conceal(back);
-    SGRBackProxy *proxy = objc_getAssociatedObject(view, &kProxyKey);
-    if (!proxy) {
-        proxy = [[SGRBackProxy alloc] initWithFrame:CGRectZero];
-        objc_setAssociatedObject(view, &kProxyKey, proxy, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    UIView *item = back ? nil : leadingItemOf(content);
+    conceal(back ?: item);
+    if (item) {
+        // An item the page set (a cross that dismisses it) does what the page made it do, which popping would not: the
+        // glass circle mirrors and fires that button, as the pinned ⋯ does the page's own.
+        SGRPinnedBackOf(view, item);
+    } else {
+        SGRBackProxy *proxy = objc_getAssociatedObject(view, &kProxyKey);
+        if (!proxy) {
+            proxy = [[SGRBackProxy alloc] initWithFrame:CGRectZero];
+            objc_setAssociatedObject(view, &kProxyKey, proxy, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        }
+        proxy.navigation = navigation;
+        SGRPinnedBackOf(view, proxy);
     }
-    proxy.navigation = navigation;
-    SGRPinnedBackOf(view, proxy);
 
     UIView *more = moreOf(content);
     UIView *extra = extraOf(content);
@@ -441,6 +468,7 @@ static void undressBar(UIViewController *page, UINavigationController *navigatio
     }
     UIView *content = contentOf(bar);
     reveal(subviewNamed(content, @"_UIButtonBarButton"));
+    reveal(leadingItemOf(content));
     reveal(moreOf(content));
     reveal(extraOf(content));
     bar.userInteractionEnabled = YES;
