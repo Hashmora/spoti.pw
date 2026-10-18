@@ -14,7 +14,11 @@
 //                     draws it, and the cross at the top-left of the page on a glass circle
 //     AccountPlus.x   the plus of Add account on glass, in the left menu's facepile and list of accounts and on "Who's listening?"
 //     AccountPickerGlass.x  "Who's listening?": the Add account circle on glass, and Spotify's blur behind its bar off
+//     AIPlaylistGlass.x the AI playlist's chat (AIPlaylist_PlaylistCreationPageImpl): the header's cross, Cancel and ⋯ on glass
+//     AIPlaylistChat.x  the same chat's last response, the Try asking cards and the Refine field on glass, the black behind them gone
+//     AIPlaylistMore.x  the popup of its ⋯ (Report a problem, Clear conversation) as the queue's glass
 //
+
 // Every hook installs only while Redesigned UI is on and below iOS 26, where the bars are the system's.
 // Threading: main thread only.
 #import <UIKit/UIKit.h>
@@ -45,3 +49,8 @@ void SGRRegisterBarPages(SGRBarPageTest wants);
 // Puts the blur of `navigation` where its top page wants it: drawn by nothing for a dressed page, Spotify's again for any other.
 // Cheap to call again.
 void SGRSyncBarBlur(UINavigationController *navigation);
+
+// The AI playlist chat's body on glass, from the page's own passes (Pages/AIPlaylistChat.x): the opaque black and the fades
+// behind the last response and the footer go, and any card, bubble or field the views' own passes have not met yet is dressed.
+// Cheap to call again; below iOS 26 only.
+void SGRAIPlaylistDressChat(UIView *page);

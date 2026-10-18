@@ -1,8 +1,15 @@
-// Redesign: the cross of the AI playlist's chat on glass.
+// Redesign: the header of the AI playlist's chat on glass.
 //
 //   AI playlist   AIPlaylist_PlaylistCreationPageImpl.PlaylistCreationView (trees/continuous/6.txt): the header row's
 //                 "Abort Playlist Creation" cross, and the "Close Chat" cross that takes its place once the chat has
 //                 started, become glass circles, as the cross of Create cover art is (CoverArt/CoverArt.x).
+//                 "Cancel" (shown in the cross's place while the playlist is being made) is a glass capsule and the
+//                 row's "More Options" ⋯ at the other corner a glass circle (trees/continuous/1.txt, 2.txt). The ⋯ is
+//                 32 x 32 at (346, 12) in the row, 2pt higher than the cross's centre, and is moved down by that much. It is
+//                 dimmed to 0.4 until the chat has started, and glass drawn under a button's fading alpha is drawn wrongly
+//                 (Kit/SGRGlass.h, SGRShowGlass), so its glass is shown only while the button is not dimmed.
+//                 The chat below the header (message, cards, field, the black behind them) is AIPlaylistChat.x, the popup
+//                 the ⋯ opens AIPlaylistMore.x.
 //
 //   Onboarding    the first screen, "Your playlist playground awaits" (trees/continuous/6.txt:243-258): a plain container the size of
 //                 the screen that is the page's sibling, over it, holds the story and its own cross, "Components.UI.OnboardingView.CloseButton",
@@ -20,7 +27,19 @@
 #import "Redesigned/Kit/SGRKit.h"
 #import "Redesigned/Pages/Pages.h"
 
-static char kCrossGlassKey;
+static char kCrossGlassKey, kCancelGlassKey;
+
+static NSString *const kOnboardingCross = @"Components.UI.OnboardingView.CloseButton";
+static NSString *const kCancelButton = @"Components.UI.PlaylistCreationHeaderRow.CancelButton";
+static NSString *const kMoreButton = @"Components.UI.PlaylistCreationHeaderRow.MoreOptionsButton";
+
+// Where the header row's cross is from the onboarding's: its button sits at (4, 4) in the row, this one at the row's own corner, and
+// 52pt high against 48 puts the centre of its glyph 2pt lower still.
+static const CGFloat kOnboardingShiftX = 4, kOnboardingShiftY = 6;
+// The ⋯'s button is centred at y = 28 in the row, the cross's glass at 30.
+static const CGFloat kMoreShiftY = 2;
+// Cancel's button is 72 x 52 (a 40pt label with 16pt on each side); its capsule is as wide and as high as the cross's circle.
+static const CGFloat kCancelGlassHeight = 44;
 
 static NSArray<NSString *> *crossIdentifiers(void) {
     return @[@"Components.UI.PlaylistCreationHeaderRow.DismissButton",
@@ -35,40 +54,46 @@ static void unclipPath(UIView *button, UIView *page) {
     }
 }
 
-static void dressCross(UIView *page) {
-    if (!page.window) return;
-    NSArray<NSString *> *identifiers = crossIdentifiers();
-    SGForEachView(page, ^(UIView *view) {
-        if (![identifiers containsObject:view.accessibilityIdentifier ?: @""]) return;
-        if (view.bounds.size.width < 1 || view.bounds.size.height < 1) return;
-        UIView *glass = SGRGlassInside(view, &kCrossGlassKey, SGRGlassCircleSize);
-        SGGlassInteractive(view, glass);
-        unclipPath(view, page);
-    });
+static void shiftButton(UIView *button, CGFloat x, CGFloat y) {
+    CGAffineTransform shift = CGAffineTransformMakeTranslation(x, y);
+    if (!CGAffineTransformEqualToTransform(button.transform, shift)) button.transform = shift;
 }
 
-#pragma mark - the first screen's cross
-
-static NSString *const kOnboardingCross = @"Components.UI.OnboardingView.CloseButton";
-// Where the header row's cross is from this one: its button sits at (4, 4) in the row, this one at the row's own corner, and
-// 52pt high against 48 puts the centre of its glyph 2pt lower still.
-static const CGFloat kOnboardingShiftX = 4, kOnboardingShiftY = 6;
-
-// A cross dressed from its own button's passes, not only from the page's: the page is not laid out again while the first screen
-// stands over it (6.txt:42-47 holds the header row's buttons with no glass in them), and a button laid out at no size on the
-// page's first pass is met again only by its own.
+// A button of the header dressed from its own passes, not only from the page's: the page is not laid out again while the first
+// screen stands over it (6.txt:42-47 holds the header row's buttons with no glass in them), and a button laid out at no size on
+// the page's first pass is met again only by its own.
 static void dressCrossButton(UIView *button) {
     NSString *identifier = button.accessibilityIdentifier;
     if (!identifier.length) return;
     BOOL onboarding = [identifier isEqualToString:kOnboardingCross];
-    if (!onboarding && ![crossIdentifiers() containsObject:identifier]) return;
+    BOOL cancel = [identifier isEqualToString:kCancelButton];
+    BOOL more = [identifier isEqualToString:kMoreButton];
+    if (!onboarding && !cancel && !more && ![crossIdentifiers() containsObject:identifier]) return;
     if (!button.window || button.bounds.size.width < 1 || button.bounds.size.height < 1) return;
-    UIView *glass = SGRGlassInside(button, &kCrossGlassKey, SGRGlassCircleSize);
+    UIView *glass = cancel
+        ? SGRGlassCapsuleInside(button, &kCancelGlassKey, CGSizeMake(button.bounds.size.width, kCancelGlassHeight), NO)
+        : SGRGlassInside(button, &kCrossGlassKey, SGRGlassCircleSize);
     SGGlassInteractive(button, glass);
     if (button.clipsToBounds) button.clipsToBounds = NO;
-    if (!onboarding) return;
-    CGAffineTransform shift = CGAffineTransformMakeTranslation(kOnboardingShiftX, kOnboardingShiftY);
-    if (!CGAffineTransformEqualToTransform(button.transform, shift)) button.transform = shift;
+    if (more) {
+        if (glass) SGRShowGlass(glass, button.alpha >= 0.99);
+        shiftButton(button, 0, kMoreShiftY);
+    } else if (onboarding) {
+        shiftButton(button, kOnboardingShiftX, kOnboardingShiftY);
+    }
+}
+
+static void dressCross(UIView *page) {
+    if (!page.window) return;
+    SGForEachView(page, ^(UIView *view) {
+        NSString *identifier = view.accessibilityIdentifier ?: @"";
+        if (![crossIdentifiers() containsObject:identifier] && ![identifier isEqualToString:kCancelButton] && ![identifier isEqualToString:kMoreButton]) return;
+        if (view.bounds.size.width < 1 || view.bounds.size.height < 1) return;
+        dressCrossButton(view);
+        unclipPath(view, page);
+    });
+    // The chat under the header: its message, cards, field and the black behind them (AIPlaylistChat.x).
+    SGRAIPlaylistDressChat(page);
 }
 
 %group SGRAIPlaylistButtons
@@ -81,6 +106,13 @@ static void dressCrossButton(UIView *button) {
 - (void)didMoveToWindow {
     %orig;
     dressCrossButton((UIView *)self);
+}
+
+// The ⋯ is dimmed and lit again by its alpha alone, which lays nothing out.
+- (void)setAlpha:(CGFloat)alpha {
+    %orig;
+    UIView *button = (UIView *)self;
+    if ([button.accessibilityIdentifier isEqualToString:kMoreButton]) dressCrossButton(button);
 }
 %end
 %end
@@ -107,7 +139,7 @@ static void dressCrossButton(UIView *button) {
     } else {
         SGLog(@"class AIPlaylist_PlaylistCreationPageImpl.PlaylistCreationView not found, the AI playlist's cross keeps Spotify's button");
     }
-    // Encore's Tertiary button, by the name the trees print: the three crosses are, the first screen's outside the page's view.
+    // Encore's Tertiary button, by the name the trees print: the three crosses, Cancel and the ⋯ are, the first screen's cross outside the page's view.
     Class tertiary = NSClassFromString(@"_TtCCE16Encore_ButtonKitO16EncoreFoundation6Encore6Button8Tertiary");
     if (tertiary) {
         %init(SGRAIPlaylistButtons, SGRTertiaryButton = tertiary);
