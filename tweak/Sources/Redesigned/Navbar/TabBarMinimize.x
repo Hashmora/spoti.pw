@@ -1,5 +1,6 @@
 // What minimizes the glass bar and what brings it back (TabBar.x draws it): a page scrolled down by a
-// finger or the fling after it, and scrolled back up or to its top (MinimizeStep.h; the capsule bar of iOS < 26 only at the top). After the bar changes some
+// finger or the fling after it, and scrolled back up or to its top (MinimizeStep.h; the capsule bar of iOS < 26 only at the top,
+// unless SGRKeyNavbarExpandOnScrollUp is on). After the bar changes some
 // other way (a tap on its circle, a tab, the player), only a new touch minimizes it again: the fling still
 // running would otherwise undo the tap at once; another tab (TabBar.x);
 // and the full screen player opening or closing, which takes Spotify's pictures of the bars to move with it
@@ -53,7 +54,8 @@ static void scrolled(UIScrollView *scrollView, CGFloat before) {
     if (scrollView.isTracking) sg_waitForTouch = NO;
     UIEdgeInsets inset = scrollView.adjustedContentInset;
     CGFloat top = -inset.top, bottom = scrollView.contentSize.height + inset.bottom - scrollView.bounds.size.height;
-    BOOL minimized = SGRMinimizeStepEx(&sg_track, offset, top, bottom, !SGRLegacyTabBarOn());
+    BOOL expandsOnUp = !SGRLegacyTabBarOn() || SGHidden(SGRKeyNavbarExpandOnScrollUp);
+    BOOL minimized = SGRMinimizeStepEx(&sg_track, offset, top, bottom, expandsOnUp);
     if (minimized == SGRTabBarMinimized() || (minimized && !SGEnabled(SGRKeyNavbarMinimize))) return;
     if (minimized && sg_waitForTouch) return;
     SGRSetTabBarMinimized(minimized, YES);

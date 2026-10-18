@@ -56,6 +56,9 @@ void SGRNavbarForgetTab(void);
 // The glass bar minimizes as a page scrolls down (TabBarMinimize.x): it shrinks to two of its tabs, the
 // now playing card coming down between them. On unless switched off; read as each scroll goes.
 #define SGRKeyNavbarMinimize @"spotifyglass.redesign.navbar.minimize"
+// The capsule bar (iOS < 26) comes back as the page is scrolled up when this is on; off until asked for, it
+// comes back only at the top of the page or on a tap on its tab (TabBarMinimize.x). The glass bar always does.
+#define SGRKeyNavbarExpandOnScrollUp @"spotifyglass.redesign.navbar.minimize.expandOnScrollUp"
 BOOL SGRTabBarMinimized(void);
 // TabBar.x lays both bars out for it, the now playing bar in the same animation, at once; asked for inside an
 // animation, on the main queue's next turn (SGRTabBarMinimized changes then too). `animated` NO is a cut, made

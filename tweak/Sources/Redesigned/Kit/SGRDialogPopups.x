@@ -8,6 +8,9 @@
 //   Make this playlist private?  trees/continuous/10.txt:1253  id=PopUp.Dialog
 //   Update preferred location    trees/continuous/12.txt:472   id=PopUpConfirmationDialog, a grey r=16 card with
 //                                                              the Cancel button under it, in a window of its own
+//   Want this playlist to        trees/continuous/5.txt:435    id=PlaylistsProfileVisibility.MakePublicDialog, an
+//   appear on your profile?                                    Encore Dialog, white r=8, with Encore.Button.Primary
+//                                                              and Encore.Button.Tertiary instead of Components.UI's
 //
 // Each lives in a UIWindow of level 1000 over a 54% black dim, and is not a UIAlertController, so SGRAlertHook.x never
 // sees it. Repainting Spotify's views (what this file did before) showed the white dialog for a moment and then
@@ -17,7 +20,7 @@
 //  1. The moment a dialog's view comes into its window, the window is made invisible (alpha 0, and hidden from
 //     VoiceOver), in the same turn of the run loop, before the first frame is drawn.
 //  2. Its title, text and buttons are read once Spotify has filled them in: every 40 ms until two reads in a row
-//     agree. The main button is Components.UI.PrimaryButton, the others Components.UI.TertiaryButton.
+//     agree. The main button is Components.UI.PrimaryButton (Encore.Button.Primary in the Encore Dialog), the others Components.UI.TertiaryButton (Encore.Button.Tertiary).
 //  3. A UIAlertController is built from them and presented over the app's own window. Each action fires Spotify's own
 //     button (SGRActivate), so the handler Spotify attached to it runs exactly as for a tap, and Spotify takes its own
 //     window down. A tap outside the alert is its Cancel, as for any alert.
@@ -37,9 +40,15 @@ static const CGFloat kDialogRadius = 35;
 
 static char kGlassKey, kFillKey;
 
+// The main button of a dialog: Components.UI's in the PopUp dialogs, Encore's in the Encore Dialog.
+static BOOL isPrimary(UIView *view) {
+    NSString *ident = view.accessibilityIdentifier;
+    return [ident isEqualToString:@"Components.UI.PrimaryButton"] || [ident isEqualToString:@"Encore.Button.Primary"];
+}
+
 static BOOL isButton(UIView *view) {
     NSString *ident = view.accessibilityIdentifier;
-    return [ident isEqualToString:@"Components.UI.PrimaryButton"] || [ident isEqualToString:@"Components.UI.TertiaryButton"];
+    return isPrimary(view) || [ident isEqualToString:@"Components.UI.TertiaryButton"] || [ident isEqualToString:@"Encore.Button.Tertiary"];
 }
 
 static BOOL insideButton(UIView *view, UIView *root) {
@@ -59,7 +68,7 @@ static UIColor *onAccent(UIColor *accent) {
 static void dressButton(UIView *button) {
     CGSize size = button.bounds.size;
     if (size.width < 1 || size.height < 1) return;
-    BOOL primary = [button.accessibilityIdentifier isEqualToString:@"Components.UI.PrimaryButton"];
+    BOOL primary = isPrimary(button);
     UIView *fill = objc_getAssociatedObject(button, &kFillKey);
     if (!fill) {
         fill = [UIView new];
@@ -280,7 +289,7 @@ static BOOL presentNotification(SGRDialogTake *take, NSDictionary *read) {
     UIAlertAction *main = nil;
     for (NSDictionary *entry in read[@"buttons"]) {
         UIView *button = entry[@"view"];
-        BOOL primary = [button.accessibilityIdentifier isEqualToString:@"Components.UI.PrimaryButton"];
+        BOOL primary = isPrimary(button);
         // One Cancel at most, and only among the quiet buttons: an alert refuses two.
         UIAlertActionStyle style = UIAlertActionStyleDefault;
         if (!primary && !haveCancel) {
@@ -373,7 +382,7 @@ static void abandon(UIWindow *window) {
 // The view that carries the card: the white ScrollView itself, or for the location dialog the element view that holds the card and Cancel.
 static UIView *hostOf(UIView *view) {
     NSString *ident = view.accessibilityIdentifier;
-    if ([ident isEqualToString:@"PopUp.Dialog"]) return view;
+    if ([ident isEqualToString:@"PopUp.Dialog"] || [ident isEqualToString:@"PlaylistsProfileVisibility.MakePublicDialog"]) return view;
     if ([ident isEqualToString:@"PopUpConfirmationDialog"]) {
         UIView *parent = view.superview;
         return parent && CGSizeEqualToSize(parent.bounds.size, view.bounds.size) ? parent : view;

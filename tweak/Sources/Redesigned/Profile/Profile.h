@@ -9,6 +9,7 @@
 //     ProfilePlaylists.x the page that adds playlists to the profile (PlaylistEditing_PlaylistsProfileVisibilityPageImpl): the
 //                       same bar with no capsule, since the page has no title, and the black plate behind its Remove from
 //                       profile button replaced by the queue's glass
+//     ProfileEdit.x     the Edit profile sheet: the pane on the queue's glass, Cancel, Save and the title on glass capsules
 //
 // Every hook installs only while Redesigned UI is on (SGRedesignedUI), and below iOS 26: from 26 on UIKit's own
 // bar is glass already.
