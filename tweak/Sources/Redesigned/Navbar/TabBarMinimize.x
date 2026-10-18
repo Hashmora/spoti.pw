@@ -22,12 +22,15 @@ static BOOL inContainer(UIView *view) {
     return NO;
 }
 
-static void scrolled(UIScrollView *scrollView) {
+static void scrolled(UIScrollView *scrollView, CGFloat before) {
     if (!scrollView.isTracking && !scrollView.isDecelerating) {
         // The capsule bar only comes back at the top of the page, and a scroll to the top that no finger made (a tap
-        // on the status bar, Home tapped again) gets there too.
-        if (SGRTabBarMinimized() && SGRLegacyTabBarOn() && scrollView.contentOffset.y <= -scrollView.adjustedContentInset.top + 1
-            && inContainer(scrollView)) {
+        // on the status bar, Home tapped again) gets there too. That is a page that was off its top and now is on it:
+        // any scroll view of the container laid out again at its own top (a shelf, a page of another tab) is not.
+        if (!SGRTabBarMinimized() || !SGRLegacyTabBarOn()) return;
+        UIEdgeInsets inset = scrollView.adjustedContentInset;
+        CGFloat top = -inset.top, bottom = scrollView.contentSize.height + inset.bottom - scrollView.bounds.size.height;
+        if (before > top + 1 && scrollView.contentOffset.y <= top + 1 && bottom - top >= kSGRMinimizeRange && inContainer(scrollView)) {
             SGRSetTabBarMinimized(NO, YES);
         }
         return;
@@ -58,8 +61,9 @@ static void scrolled(UIScrollView *scrollView) {
 
 %hook UIScrollView
 - (void)setContentOffset:(CGPoint)offset {
+    CGFloat before = self.contentOffset.y;
     %orig;
-    scrolled(self);
+    scrolled(self, before);
 }
 %end
 

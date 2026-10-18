@@ -86,6 +86,11 @@ static const CGFloat kPlayStep = 1.0 / 120;
     [UIView performWithoutAnimation:^{ SGRShowGlass(self->_pane, NO); }];
     _film = SGRGlassFilm(self, &kLensFilmKey, _pane, 0);
     _film.alpha = 0;
+    // The bubble has to read against the bar it sits in, which is the same glass under the same film: its own film is
+    // brighter and it has a rim, so held, it stands out of the capsule instead of melting into it.
+    _film.backgroundColor = [UIColor colorWithWhite:1 alpha:0.30];
+    _film.layer.borderWidth = 1.0 / UIScreen.mainScreen.scale;
+    _film.layer.borderColor = [UIColor colorWithWhite:1 alpha:0.45].CGColor;
     return self;
 }
 
