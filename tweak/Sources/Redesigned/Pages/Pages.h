@@ -17,6 +17,9 @@
 //     AIPlaylistGlass.x the AI playlist's chat (AIPlaylist_PlaylistCreationPageImpl): the header's cross, Cancel and ⋯ on glass
 //     AIPlaylistChat.x  the same chat's last response, the Try asking cards and the Refine field on glass, the black behind them gone
 //     AIPlaylistMore.x  the popup of its ⋯ (Report a problem, Clear conversation) as the queue's glass
+//     ImportMusic.x   Import your music (TheStage_VtecImpl.VtecContainerController): the bar, Back on glass
+//     BlendInvite.x   Create a Blend (Blend_BlendInvitationImpl.BIViewController): the bar, Back on glass
+//     MadeForYou.x    Made For You (SPTMadeForYouHubViewController): the bar, the title on glass, the covers at Home's radius
 //
 
 // Every hook installs only while Redesigned UI is on and below iOS 26, where the bars are the system's.
