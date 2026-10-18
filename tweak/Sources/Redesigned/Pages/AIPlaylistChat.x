@@ -1,6 +1,11 @@
 // Redesign, iOS < 26: the body of the AI playlist's chat on glass (AIPlaylist_PlaylistCreationPageImpl.PlaylistCreationView,
 // trees/continuous/4.txt, 5.txt). The header's buttons are AIPlaylistGlass.x, the ⋯'s popup AIPlaylistMore.x.
 //
+//   Responses       every message of Spotify AI is a glass plate, the one the chat pins above the footer and the ones in its list (the
+//                   "Great, let me look through our catalog..." that stands in while a request is answered, trees/continuous/2.txt:165, and
+//                   the replies, 4.txt:1008): bubbles painted #2A2A2A, told from the user's own (#000000, 320 wide, 2.txt:176), which stay
+//                   Spotify's. The plate carries the Kit's white film, since plain glass over the black page is a hole, not a plate, and
+//                   no border of its own or Spotify's.
 //   Last response   the message the chat pins above the footer ("Here's a playlist of your top played songs..."):
 //                   Components.UI.ChatItemOverlayRow.Button, a plain view 390 x 76 that is the page's own child, holding a fade
 //                   to black (two GradientViews and a 16pt black strip, 4.txt:1596-1600), the ChatBubble #2A2A2A and the
@@ -16,10 +21,15 @@
 //                   back as the list scrolls, and a hidden Encore view can crash its stack). The page's own black stays
 //                   behind: nothing but the page is opaque there now, and the glass shows the list scrolling under it.
 //   Refine field    the white capsule (a stack #FFFFFF r=24, 227 x 48) is a glass capsule with the Kit's white film
-//                   (SGRGlassFlatBoxFilm), not a flat white. Its dark text goes light, as the placeholder (#5A5A5A) and
-//                   the icon, which were drawn for white.
+//                   (SGRGlassFillBox), not a flat white. The glass is the box's own size by autoresizing, as Create narrows the box
+//                   from 358 to 227pt (a pane sized from outside stayed 358 wide, 3.txt:903), and it answers no press: the grown,
+//                   stretched glass of one lagged behind a finger on a field that is typed into. Its dark text goes light, as the
+//                   placeholder (#5A5A5A) and the icon, which were drawn for white, and the 13pt GradientView along its top, a fade
+//                   white to clear for text scrolling under it, is concealed: on glass it is a white band (1.txt:131).
 //   Try asking      Components.UI.PromptsCarouselRow.CardButton, 212 x 120: a view #FFFFFF@0.07 r=16 inside the button, which
-//                   goes clear, and a glass card of the same size and radius behind it. The card's text stays Spotify's.
+//                   goes clear, and a glass card of the same size and radius behind it. The card's text stays Spotify's. The card
+//                   fills its scroll view, and the scroll view and the cell clip to their bounds (1.txt:75-77), so the press's grown
+//                   glass was cut off at the card's own edge: they are let go of their clip, up to the collection view.
 //
 // The bubble, the cards and the field are dressed from their own layout passes (the collection lays its cells out
 // without laying the page out, and typing lays out only the field), the plates from the page's (AIPlaylistGlass.x calls
@@ -34,7 +44,7 @@ static NSString *const kOverlayRow = @"Components.UI.ChatItemOverlayRow.Button";
 static NSString *const kCardButton = @"Components.UI.PromptsCarouselRow.CardButton";
 static NSString *const kInputText = @"Components.UI.ChatFooter.InputTextView";
 
-static char kBubbleGlassKey, kPlateKey, kCardGlassKey, kFieldGlassKey;
+static char kBubbleGlassKey, kPlateKey, kPlateSizeKey, kCardGlassKey, kFieldGlassKey;
 
 // Where the plate of a bubble is when its mask tells nothing: 16pt in from each side of the full width view.
 static const CGFloat kBubbleInset = 16;
@@ -107,30 +117,59 @@ static void rememberPlate(UIView *bubble, CALayer *mask) {
     if (box.size.width < 100 || box.size.height < 20) return;
     if (!CGRectContainsRect(CGRectInset(bubble.bounds, -1, -1), box)) return;
     objc_setAssociatedObject(bubble, &kPlateKey, [NSValue valueWithCGRect:box], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    objc_setAssociatedObject(bubble, &kPlateSizeKey, [NSValue valueWithCGSize:bubble.bounds.size], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+}
+
+// A list's bubble is reused for another message and is resized with its text: a plate read for one size says nothing of the next.
+static CGRect plateOf(UIView *bubble) {
+    NSValue *stored = objc_getAssociatedObject(bubble, &kPlateKey);
+    NSValue *size = objc_getAssociatedObject(bubble, &kPlateSizeKey);
+    if (stored && size && CGSizeEqualToSize(size.CGSizeValue, bubble.bounds.size)) return stored.CGRectValue;
+    return CGRectInset(bubble.bounds, kBubbleInset, 0);
+}
+
+// The grey of Spotify AI's bubbles (#2A2A2A), which the user's own (#000000) are not.
+static BOOL isAIPaint(CGColorRef color) {
+    if (!color || CGColorGetAlpha(color) < 0.9) return NO;
+    const CGFloat *c = CGColorGetComponents(color);
+    size_t n = CGColorGetNumberOfComponents(color);
+    if (n < 2) return NO;
+    for (size_t i = 0; i + 1 < n; i++) if (c[i] < 0.12 || c[i] > 0.22) return NO;
+    return YES;
 }
 
 static void dressBubble(UIView *bubble) {
-    UIView *row = bubble.superview;
-    if (![row.accessibilityIdentifier isEqualToString:kOverlayRow]) return;
     CGSize size = bubble.bounds.size;
     if (!bubble.window || size.width < 1 || size.height < 1) return;
+    UIView *row = bubble.superview;
+    BOOL pinned = [row.accessibilityIdentifier isEqualToString:kOverlayRow];
+    BOOL dressed = objc_getAssociatedObject(bubble, &kBubbleGlassKey) != nil;
+    // The pinned one is always Spotify AI's. In the list, the grey paint tells AI's from the user's, and a bubble already on glass has
+    // none left to tell by.
+    if (!pinned && !dressed && !isAIPaint(bubble.layer.backgroundColor)) return;
 
-    // The row's fade and the page's plate under it: the black behind the message goes, and its page's below.
-    clearFadePlates(row);
-    if (row.superview) clearFadePlates(row.superview);
+    if (pinned) {
+        // The row's fade and the page's plate under it: the black behind the message goes, and its page's below.
+        clearFadePlates(row);
+        if (row.superview) clearFadePlates(row.superview);
+    }
 
-    // The plate, from the mask Spotify cuts the bubble to: read once, since the mask is gone from the next pass on.
+    // The plate, from the mask Spotify cuts the bubble to: read while there is one, since the mask is gone from the next pass on.
     rememberPlate(bubble, bubble.layer.mask);
-    NSValue *stored = objc_getAssociatedObject(bubble, &kPlateKey);
-    CGRect plate = stored ? stored.CGRectValue : CGRectInset(bubble.bounds, kBubbleInset, 0);
+    CGRect plate = plateOf(bubble);
     if (bubble.layer.mask) bubble.layer.mask = nil;
     clearPaint(bubble);
+    // No border of the bubble's own.
+    if (bubble.layer.borderWidth > 0) bubble.layer.borderWidth = 0;
 
     UIView *glass = SGGlassFor(bubble, &kBubbleGlassKey);
     if (glass.overrideUserInterfaceStyle != UIUserInterfaceStyleDark) glass.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
     glass.autoresizingMask = UIViewAutoresizingNone;
     if (!CGRectEqualToRect(glass.frame, plate)) glass.frame = plate;
-    SGShapeGlass(glass, MIN(SGRRadiusCard, plate.size.height / 2), NO);
+    CGFloat radius = MIN(SGRRadiusCard, plate.size.height / 2);
+    SGShapeGlass(glass, radius, NO);
+    if (glass.layer.borderWidth > 0) glass.layer.borderWidth = 0;
+    SGRGlassSetFilm(glass, YES, radius);
     if (bubble.subviews.firstObject != glass) [bubble insertSubview:glass atIndex:0];
 }
 
@@ -182,8 +221,12 @@ static void dressField(UITextView *text) {
     UIView *box = fieldBox(text);
     if (!box || box.bounds.size.width < 1 || box.bounds.size.height < 1) return;
 
-    SGRGlassFlatBoxFilm(box, &kFieldGlassKey);
+    SGRGlassFillBox(box, &kFieldGlassKey, YES);
     SGRHoldClear(box);
+    // The fade along the top of the field, white to clear for a white field's text, is a white band over the glass.
+    SGForEachView(box, ^(UIView *view) {
+        if (isGradient(view)) concealFade(view);
+    });
     // The footer's black under and around the field, from the first pass that meets the field.
     for (UIView *view = box; view; view = view.superview) {
         if (isFooter(view)) {
@@ -237,6 +280,16 @@ static void dressCard(UIView *button) {
         radius = sub.layer.cornerRadius;
         clearPaint(sub);
         break;
+    }
+
+    // The scroll view the cards stand in and the cell around it clip to their bounds, which the card fills: the press's grown glass would be
+    // cut off at the card's own edge. Let go of them, up to the collection view, whose clip keeps the list under the header.
+    UIView *list = button.superview;
+    while (list && ![list isKindOfClass:UICollectionView.class] && ![list isKindOfClass:UITableView.class]) list = list.superview;
+    if (list) {
+        for (UIView *view = button.superview; view && view != list; view = view.superview) {
+            if (view.clipsToBounds) view.clipsToBounds = NO;
+        }
     }
 
     UIView *glass = SGGlassFor(button, &kCardGlassKey);

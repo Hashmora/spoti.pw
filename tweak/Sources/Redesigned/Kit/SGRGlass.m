@@ -162,6 +162,56 @@ UIView *SGRGlassFlatBoxFilm(UIView *box, const void *key) {
     return flatBox(box, key, YES);
 }
 
+static char kFillSizeKey;
+
+UIView *SGRGlassFillBox(UIView *box, const void *key, BOOL prominent) {
+    if (@available(iOS 26.0, *)) return nil;
+    CGSize size = box.bounds.size;
+    if (!box || !key || size.width < 1 || size.height < 1) return nil;
+    SGRGlassMode mode = glassMode();
+    if (box.backgroundColor != UIColor.clearColor) box.backgroundColor = UIColor.clearColor;
+    if (box.layer.cornerRadius != size.height / 2) box.layer.cornerRadius = size.height / 2;
+    if (box.layer.cornerCurve != kCACornerCurveContinuous) box.layer.cornerCurve = kCACornerCurveContinuous;
+    if (box.layer.masksToBounds) box.layer.masksToBounds = NO;
+
+    UIView *shape = objc_getAssociatedObject(box, key);
+    if (shape && [objc_getAssociatedObject(shape, &kInsideModeKey) integerValue] != mode) {
+        [shape removeFromSuperview];
+        shape = nil;
+    }
+    if (!shape) {
+        shape = newShape(mode);
+        shape.accessibilityElementsHidden = YES;
+        objc_setAssociatedObject(shape, &kInsideModeKey, @(mode), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        objc_setAssociatedObject(box, key, shape, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    // The size follows the box by autoresizing, not by a centre worked out from outside: a frame set on a pass goes stale the moment the
+    // box is resized without that pass (3.txt: a 358pt pane at x = -65.7 in the 227pt field Create had narrowed).
+    shape.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    if (shape.superview != box) [box addSubview:shape];
+    if (box.subviews.firstObject != shape) [box insertSubview:shape atIndex:0];
+    shape.hidden = NO;
+    if (!CGRectEqualToRect(shape.frame, box.bounds)) shape.frame = box.bounds;
+    NSNumber *shaped = objc_getAssociatedObject(shape, &kFillSizeKey);
+    if (!shaped || shaped.doubleValue != size.height) {
+        SGShapeGlass(shape, size.height / 2, YES);
+        objc_setAssociatedObject(shape, &kFillSizeKey, @(size.height), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    keepFilm(shape, prominent, mode);
+    return shape;
+}
+
+void SGRGlassSetFilm(UIView *shape, BOOL on, CGFloat radius) {
+    if (!shape) return;
+    SGRGlassMode mode = glassMode();
+    keepFilm(shape, on, mode);
+    UIView *film = objc_getAssociatedObject(shape, &kFilmKey);
+    if (film && on && film.layer.cornerRadius != radius) {
+        film.layer.cornerRadius = radius;
+        film.layer.cornerCurve = kCACornerCurveContinuous;
+    }
+}
+
 UIView *SGRGlassFilm(UIView *host, const void *key, UIView *glass, CGFloat radius) {
     if (@available(iOS 26.0, *)) return nil;
     UIView *film = SGLazyChild(host, key, ^UIView *{

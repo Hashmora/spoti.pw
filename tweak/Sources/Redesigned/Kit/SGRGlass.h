@@ -36,6 +36,16 @@ UIView *SGRGlassFlatBox(UIView *box, const void *key);
 // scrolls above (a search field over the list under it), where plain glass over black or over text reads as no plate at all.
 UIView *SGRGlassFlatBoxFilm(UIView *box, const void *key);
 
+// A glass capsule that is the whole of `box` and follows it: the box is cleared and made a capsule, and the glass is its first subview with
+// the box's size kept by autoresizing, so a box that is resized (the AI playlist's Refine field, which Create narrows) takes its glass along
+// frame by frame. It answers no press: for a field that is typed into, the grown, stretched glass of a press lags behind the finger and
+// reads as a fault. `prominent` lays the white film in as SGRGlassFlatBoxFilm does. Safe to call on every pass; nil on iOS 26.
+UIView *SGRGlassFillBox(UIView *box, const void *key, BOOL prominent);
+
+// Lays the white film SGRGlassCapsuleInside gives a prominent shape inside any shape of the Kit's (a pane made by SGGlassFor), or takes it
+// away, so a card or bubble on glass over black reads as a plate instead of a hole. The film carries the corners `radius`.
+void SGRGlassSetFilm(UIView *shape, BOOL on, CGFloat radius);
+
 // The faint white film over a floating bar's glass (the tab bar's platter, the now playing card), without
 // which the bar disappears into Spotify's near-black chrome. Made once under `key`, kept just above `glass`
 // and on its frame, with corners of `radius`. Nil on iOS 26, where the system glass needs none.
