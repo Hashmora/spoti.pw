@@ -16,6 +16,12 @@
 // The list is made as tall as the page, and what the bars below took of it goes to its bottom inset, so the last event
 // clears them and the rows run on under the glass, as Recents' (Pages/Recents.x) do. Spotify's constraints put the frame
 // back after each pass of the page's view, so it is set again after every one.
+//
+// The pages Live Events opens (LiveEvents_GalleryPageImpl.GalleryPageViewController: Popular events in ..., Your top pop
+// events, Venues, All events, Live events just for you) have the same header and a list of their own
+// (GalleryPage.ContentScrollView, trees/continuous/7.txt to 11.txt, 705pt of a 844pt page). They get the playlist pages'
+// look: Back on the pinned glass circle, the header's gradients gone (Playlist/PlaylistBar.x refuses them on a Gallery
+// page, SGRGalleryPageOf), the name in the bar on the glass capsule, and the list as tall as the page, under the bars.
 // Threading: main thread only.
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
@@ -36,8 +42,18 @@ static void conceal(UIView *view) {
     view.accessibilityElementsHidden = YES;
 }
 
-static UIScrollView *listIn(UIView *page) {
-    UIView *list = SGRFindByIdentifier(page, @"LiveEventsPage.ContentScrollView", &kListKey);
+static Class sg_galleryPage;
+
+UIView *SGRGalleryPageOf(UIView *view) {
+    if (!sg_galleryPage) return nil;
+    for (UIView *v = view; v; v = v.superview) {
+        if ([v.nextResponder isKindOfClass:sg_galleryPage]) return v;
+    }
+    return nil;
+}
+
+static UIScrollView *listIn(UIView *page, NSString *identifier) {
+    UIView *list = SGRFindByIdentifier(page, identifier, &kListKey);
     return [list isKindOfClass:UIScrollView.class] ? (UIScrollView *)list : nil;
 }
 
@@ -100,6 +116,24 @@ static void glassTitle(UIView *page) {
     }
 }
 
+// The page's list run on under the bars, and again after each layout pass of the view it is in.
+static void listUnderBars(UIViewController *controller, NSString *identifier) {
+    UIScrollView *list = listIn(controller.viewIfLoaded, identifier);
+    if (!list) return;
+    extendList(list);
+    UIView *host = list.superview;
+    if (host && !objc_getAssociatedObject(host, &kWatchedKey)) {
+        __weak UIViewController *weakPage = controller;
+        if (SGRObserveLayout(host, ^(UIView *laidOut) {
+                UIViewController *strong = weakPage;
+                UIScrollView *found = strong ? listIn(strong.viewIfLoaded, identifier) : nil;
+                if (found) extendList(found);
+            })) {
+            objc_setAssociatedObject(host, &kWatchedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        }
+    }
+}
+
 static void dress(UIViewController *controller) {
     UIView *view = controller.viewIfLoaded;
     if (!view.window || view.bounds.size.width < 1) return;
@@ -116,21 +150,16 @@ static void dress(UIViewController *controller) {
     SGRPinnedTrailing(view, &kBellPinKey, notifications, 0, bell);
     SGRPinnedTrailing(view, &kSavedPinKey, saved, 1, heart);
     glassTitle(view);
+    listUnderBars(controller, @"LiveEventsPage.ContentScrollView");
+}
 
-    UIScrollView *list = listIn(view);
-    if (!list) return;
-    extendList(list);
-    UIView *host = list.superview;
-    if (host && !objc_getAssociatedObject(host, &kWatchedKey)) {
-        __weak UIViewController *weakPage = controller;
-        if (SGRObserveLayout(host, ^(UIView *laidOut) {
-                UIViewController *strong = weakPage;
-                UIScrollView *found = strong ? listIn(strong.viewIfLoaded) : nil;
-                if (found) extendList(found);
-            })) {
-            objc_setAssociatedObject(host, &kWatchedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        }
-    }
+// A Gallery page: Back pinned and the name on glass; the gradients are refused by PlaylistBar.x.
+static void dressGallery(UIViewController *controller) {
+    UIView *view = controller.viewIfLoaded;
+    if (!view.window || view.bounds.size.width < 1) return;
+    SGRPinnedBack(view, view);
+    glassTitle(view);
+    listUnderBars(controller, @"GalleryPage.ContentScrollView");
 }
 
 %group SGRLiveEvents
@@ -158,6 +187,30 @@ static void dress(UIViewController *controller) {
 %end
 %end
 
+%group SGRGalleryEvents
+%hook SGRGalleryController
+- (void)viewWillAppear:(BOOL)animated {
+    %orig;
+    dressGallery((UIViewController *)self);
+}
+
+- (void)viewDidLayoutSubviews {
+    %orig;
+    dressGallery((UIViewController *)self);
+}
+
+- (void)viewDidAppear:(BOOL)animated {
+    %orig;
+    __weak UIViewController *weak = (UIViewController *)self;
+    for (NSNumber *delay in @[@0.25, @0.6]) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            if (weak) dressGallery(weak);
+        });
+    }
+}
+%end
+%end
+
 %ctor {
     if (!SGRedesignedUI()) return;
     if (!SGBelowiOS26()) return;
@@ -166,5 +219,12 @@ static void dress(UIViewController *controller) {
         %init(SGRLiveEvents, SGRLiveEventsController = page);
     } else {
         SGLog(@"class LiveEvents_LiveEventsPageImpl.LiveEventsPageViewController not found, Live Events keeps Spotify's header and list");
+    }
+    Class gallery = SGRPageClass(@"LiveEvents_GalleryPageImpl", @"GalleryPageViewController");
+    if (gallery) {
+        sg_galleryPage = gallery;
+        %init(SGRGalleryEvents, SGRGalleryController = gallery);
+    } else {
+        SGLog(@"class LiveEvents_GalleryPageImpl.GalleryPageViewController not found, the Live Events pages keep Spotify's header and list");
     }
 }

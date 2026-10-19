@@ -23,7 +23,8 @@
 //     NewEpisodes.x   the Library's New Episodes (SPTYourLibraryPodcastNewEpisodesViewController): the bar, the title and Back on glass
 //     ContentPicker.x Add artists and Add podcasts (AllBoarding_AllBoardingPlatformImpl): the cross and the search field on glass
 //     WebBrowser.x    Spotify's in-app browser (SPTWebViewControllerImplementation, Settings > About): close, Back and Forward on glass
-//     LiveEvents.x    Live Events (LiveEvents_LiveEventsPageImpl): the title, Back, Saved and Notifications on glass, the list under the bars
+//     LiveEvents.x    Live Events (LiveEvents_LiveEventsPageImpl): the title, Back, Saved and Notifications on glass, the list under the bars;
+//                     the pages it opens (LiveEvents_GalleryPageImpl): Back and the title on glass, no gradients, the list under the bars
 //     ModPageBar.x    the mod's own pages (Mod Settings and every SGModPage on Spotify's stack): the bar, Back on glass
 //
 // The hosted pages that are dressed by what they hold -- Messages, Settings and its sections, Listening stats, Your Premium
@@ -41,6 +42,10 @@ Class SGRPageClass(NSString *module, NSString *name);
 // Whether `top` is a view controller of class `page` or holds one among its children (pages are hosted by Spotify's
 // page template, so the top of the stack is the host).
 BOOL SGRPageIsOrHolds(UIViewController *top, Class page);
+
+// The Live Events gallery page (LiveEvents_GalleryPageImpl.GalleryPageViewController: Popular events, Venues, All events...)
+// `view` is on, as its root view, or nil: Playlist/PlaylistBar.x refuses the gradients of such a page.
+UIView *SGRGalleryPageOf(UIView *view);
 
 // Dresses the bar of the navigation controller `page` is in, while `page` is the one on screen: from its layout
 // passes and as it appears. Cheap to call again.

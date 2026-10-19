@@ -21,6 +21,7 @@
 #import "Redesigned/Album/Album.h"
 #import "Redesigned/Artist/Artist.h"
 #import "Redesigned/Profile/Profile.h"
+#import "Redesigned/Pages/Pages.h"
 #import <objc/message.h>
 
 static char kBubbleKey;
@@ -49,7 +50,7 @@ static void hideScrim(UIView *view) {
     if (!view.layer.mask) view.layer.mask = [CALayer layer];
 }
 
-// A GradientView of a page the redesign dresses -- playlist (Liked Songs apart), album, artist -- that is not
+// A GradientView of a page the redesign dresses -- playlist (Liked Songs apart), album, artist, profile, Live Events gallery -- that is not
 // inside one of the list's cells: the wash behind the header, the header's own fade and the bar's scrim.
 static BOOL isPageScrim(UIView *view) {
     for (UIView *v = view.superview; v; v = v.superview) {
@@ -58,8 +59,8 @@ static BOOL isPageScrim(UIView *view) {
     UIViewController *headerVC = SGRPlaylistHeaderOf(view);
     if (headerVC) return !isLikedSongs(headerVC);
     // A dressed profile's wash (the HeaderView's GradientView, still #000 at 57% over the header, trees/continuous/4.txt)
-    // and the bar's scrim go the same way.
-    return isDressedAlbumOrArtist(view) || isDressedProfile(view);
+    // and the bar's scrim go the same way, and so do the two of a Live Events gallery page (Pages/LiveEvents.x).
+    return isDressedAlbumOrArtist(view) || isDressedProfile(view) || SGRGalleryPageOf(view) != nil;
 }
 
 // The name: the one SPTEncoreLabel directly under the bar that holds text (the Back button's is a glyph
