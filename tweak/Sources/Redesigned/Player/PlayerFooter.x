@@ -93,7 +93,7 @@ void SGRPlayerLyricsChanged(void) {
     else mark();
 }
 
-SGRGlyphButton *SGRPlayerLyricsGlyphIn(UIView *host) {
+static SGRGlyphButton *lyricsGlyphIn(UIView *host) {
     SGRGlyphButton *glyph = objc_getAssociatedObject(host, &kLyricsGlyphKey);
     if (!glyph) {
         glyph = [SGRGlyphButton buttonWithSymbol:kLyricsSymbol pointSize:kLyricsGlyphSize title:@"Lyrics"];
@@ -256,7 +256,7 @@ static void lowerRow(UIView *row) {
     SGRPlayerVanish(sharedBy);
     SGRPlayerVanish(arrangedAround(sharedBy, host));
 
-    SGRGlyphButton *lyrics = SGRPlayerLyricsGlyphIn(host);
+    SGRGlyphButton *lyrics = lyricsGlyphIn(host);
     lyrics.bounds = CGRectMake(0, 0, 44, 44);
     lyrics.center = CGPointMake(round(width * (rtl ? kTrailing : kLeading)), middleY);
     SGRPlayerLyricsChanged();

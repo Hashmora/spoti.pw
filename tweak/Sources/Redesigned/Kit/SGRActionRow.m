@@ -464,6 +464,43 @@ SGRMirrorButton *SGRPinnedMoreRecentButton(void) {
 }
 @end
 
+SGRMirrorButton *SGRPinnedMore(UIView *page, const void *key, UIView *source) {
+    if (!page) return nil;
+    SGRMirrorButton *button = objc_getAssociatedObject(page, key);
+    if (!button) {
+        button = [[SGRMirrorButton alloc] initWithFrame:CGRectZero];
+        button.fallbackGlyph = [UIImage systemImageNamed:@"ellipsis"];
+        // ⋯ sits in an Encore Tertiary button in Spotify's own row, which draws it gray; in the corner of
+        // the page it is the one control there and reads white, like the back button opposite it.
+        button.glyphColor = SGRPrimary();
+        // Held by the button, which is held by the page, so the recorder lives exactly as long as both.
+        SGRPinnedMoreRecorder *recorder = [SGRPinnedMoreRecorder new];
+        objc_setAssociatedObject(button, &kRecorderKey, recorder, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        [button addTarget:recorder action:@selector(sgr_moreTapped:) forControlEvents:UIControlEventTouchDown];
+        objc_setAssociatedObject(page, key, button, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    // Over the page's list and its header both, and put back on top whenever Spotify adds to the page.
+    if (button.superview != page) [page addSubview:button];
+    else if (page.subviews.lastObject != button) [page bringSubviewToFront:button];
+    if (source) [button feedFrom:source];
+    if (button.hidden != (source == nil)) button.hidden = source == nil;
+
+    // Measured in the window and converted back, never from the page's own safe area: a page under a
+    // navigation bar counts the bar into its inset, so the playlist's read 116 where the window's reads 62
+    // and the button sat a bar's height below the back button (device, trees/continuous/1.txt 2026-09-20).
+    UIWindow *window = page.window;
+    CGFloat side = SGRGlassCircleSize;
+    CGRect frame;
+    if (window) {
+        CGRect inWindow = CGRectMake(window.bounds.size.width - kCornerSide - side, window.safeAreaInsets.top, side, side);
+        frame = [page convertRect:inWindow fromView:nil];
+    } else {
+        frame = CGRectMake(page.bounds.size.width - kCornerSide - side, page.safeAreaInsets.top, side, side);
+    }
+    if (!CGRectIsEmpty(frame) && !CGRectEqualToRect(button.frame, frame)) button.frame = frame;
+    return button;
+}
+
 static const CGFloat kSheetBarHeight = 56;   // trees/continuous/8.txt:2264, the Find page's SPNavigationBar
 
 // Whether the page is presented in one of Navigation's sheets (NavigationUI_SheetImpl).
@@ -475,7 +512,7 @@ static BOOL inSheet(UIView *page) {
 }
 
 // Over the page's list and its header both, and put back on top whenever Spotify adds to the page.
-static void keepOnTop(UIView *page, UIView *button) {
+static void pinKeepOnTop(UIView *page, UIView *button) {
     if (button.superview != page) [page addSubview:button];
     else if (page.subviews.lastObject != button) [page bringSubviewToFront:button];
 }
@@ -489,7 +526,7 @@ static void keepOnTop(UIView *page, UIView *button) {
 // it, over the screen below, until the page was gone and took it along.
 static const CGFloat kCornerGap = 8;
 
-static void placeInCorner(UIView *page, UIView *button, BOOL leading, NSUInteger slot) {
+static void pinPlaceInCorner(UIView *page, UIView *button, BOOL leading, NSUInteger slot) {
     UIWindow *window = page.window;
     UIView *space = window ?: page;
     CGFloat side = SGRGlassCircleSize;
@@ -514,28 +551,6 @@ static void placeInCorner(UIView *page, UIView *button, BOOL leading, NSUInteger
     if (!CGRectIsEmpty(frame) && !CGRectEqualToRect(button.frame, frame)) button.frame = frame;
 }
 
-SGRMirrorButton *SGRPinnedMore(UIView *page, const void *key, UIView *source) {
-    if (!page) return nil;
-    SGRMirrorButton *button = objc_getAssociatedObject(page, key);
-    if (!button) {
-        button = [[SGRMirrorButton alloc] initWithFrame:CGRectZero];
-        button.fallbackGlyph = [UIImage systemImageNamed:@"ellipsis"];
-        // ⋯ sits in an Encore Tertiary button in Spotify's own row, which draws it gray; in the corner of
-        // the page it is the one control there and reads white, like the back button opposite it.
-        button.glyphColor = SGRPrimary();
-        // Held by the button, which is held by the page, so the recorder lives exactly as long as both.
-        SGRPinnedMoreRecorder *recorder = [SGRPinnedMoreRecorder new];
-        objc_setAssociatedObject(button, &kRecorderKey, recorder, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        [button addTarget:recorder action:@selector(sgr_moreTapped:) forControlEvents:UIControlEventTouchDown];
-        objc_setAssociatedObject(page, key, button, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    }
-    keepOnTop(page, button);
-    if (source) [button feedFrom:source];
-    if (button.hidden != (source == nil)) button.hidden = source == nil;
-    placeInCorner(page, button, NO, 0);
-    return button;
-}
-
 SGRMirrorButton *SGRPinnedTrailing(UIView *page, const void *key, UIView *source, NSUInteger slot, UIImage *glyph) {
     if (!page) return nil;
     SGRMirrorButton *button = objc_getAssociatedObject(page, key);
@@ -545,10 +560,10 @@ SGRMirrorButton *SGRPinnedTrailing(UIView *page, const void *key, UIView *source
         objc_setAssociatedObject(page, key, button, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
     if (button.fallbackGlyph != glyph) button.fallbackGlyph = glyph;
-    keepOnTop(page, button);
+    pinKeepOnTop(page, button);
     if (source) [button feedFrom:source];
     if (button.hidden != (source == nil)) button.hidden = source == nil;
-    placeInCorner(page, button, NO, slot);
+    pinPlaceInCorner(page, button, NO, slot);
     return button;
 }
 
@@ -576,11 +591,11 @@ static SGRMirrorButton *pinBack(UIView *page, UIView *source) {
         button.accessibilityLabel = source.accessibilityLabel ?: @"Back";
         objc_setAssociatedObject(page, &kBackButtonKey, button, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
-    keepOnTop(page, button);
+    pinKeepOnTop(page, button);
     concealBack(source);
     if (source) [button feedFrom:source];
     if (button.hidden != (source == nil)) button.hidden = source == nil;
-    placeInCorner(page, button, YES, 0);
+    pinPlaceInCorner(page, button, YES, 0);
     return button;
 }
 
