@@ -1,7 +1,7 @@
 #import <Foundation/Foundation.h>
 
 // Spotify's streaming quality settings, cellular (metered) and Wi-Fi (non-metered), as its own levels.
-// NO until Spotify has made its preferences object.
+// NO until Spotify has read its user's settings (SGSpotifyPreferences).
 BOOL SGStreamQuality(NSInteger *metered, NSInteger *nonMetered);
 BOOL SGSetStreamQuality(NSInteger metered, NSInteger nonMetered);
 // Main thread. Spotify's lowest quality while `lower` (where low is not offered, Spotify plays its next lowest),

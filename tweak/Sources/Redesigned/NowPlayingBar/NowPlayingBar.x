@@ -492,7 +492,24 @@ CGFloat SGRNowPlayingBarInlineShift(void) {
     return view ? view.transform.ty : 0;
 }
 
+// The same bar class also stands at the top of Spotify's sheets (the DJ request one: Up next, device, play).
+// It is not the tab bar's card there: the sheet has its own blue ground and corners, and a dark 24pt pane of
+// the bar's full width on it reads as a frame round the track. It is left as Spotify draws it, and it must not
+// become the bar this file tracks (sg_container, sg_cardGlass, sgr_nowPlayingRoot): the player takes its card
+// frame from those.
+static BOOL inSheet(UIView *view) {
+    for (UIView *v = view.superview; v; v = v.superview) {
+        if ([v.accessibilityIdentifier isEqualToString:@"sheet-view"] || [NSStringFromClass(v.class) containsString:@"SheetImpl"]) return YES;
+    }
+    return NO;
+}
+
 static void styleNowPlayingBar(UIViewController *container) {
+    if (container.isViewLoaded && inSheet(container.view)) {
+        UIVisualEffectView *pane = objc_getAssociatedObject(container.view, &kGlassKey);
+        if (pane) [pane removeFromSuperview];
+        return;
+    }
     UIViewController *barVC = container.childViewControllers.firstObject;
     UIView *bar = barVC.viewIfLoaded ?: container.view;
     sg_container = container;
@@ -612,14 +629,14 @@ static BOOL createMenuUp(UIView *view) {
 %hook _TtC18NowPlaying_BarImpl17InformationCellV2
 - (void)layoutSubviews {
     %orig;
-    if (sgr_nowPlayingRoot) placeText((UIView *)self);
+    if (sgr_nowPlayingRoot && [(UIView *)self isDescendantOfView:sgr_nowPlayingRoot]) placeText((UIView *)self);
 }
 %end
 
 %hook _TtC18NowPlaying_BarImpl15InformationCell
 - (void)layoutSubviews {
     %orig;
-    if (sgr_nowPlayingRoot) placeText((UIView *)self);
+    if (sgr_nowPlayingRoot && [(UIView *)self isDescendantOfView:sgr_nowPlayingRoot]) placeText((UIView *)self);
 }
 %end
 

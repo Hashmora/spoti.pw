@@ -1,32 +1,14 @@
-// Spotify's streaming quality, read and set through its own preferences object (captured as Spotify makes it).
+// Spotify's streaming quality, read and set through its own preferences object (Shared/SpotifyPrefs).
 #import "Core/SGCore.h"
+#import "Shared/SpotifyPrefs/SpotifyPrefs.h"
 #import "LosslessQuality.h"
 #import "SGLossless.h"
 
 #define SGKeyLosslessSavedQuality @"spotifyglass.lossless.savedQuality"   // [cellular, Wi-Fi] while lowered
 static const NSInteger kLowest = 1;
 
-@interface _TtC31Preferences_CorePreferencesImpl28SPTPreferencesImplementation : NSObject
-- (NSInteger)audioPlayBitrate;
-- (NSInteger)audioPlayBitrateNonMetered;
-- (void)setAudioPlayBitrate:(NSInteger)level;
-- (void)setAudioPlayBitrateNonMetered:(NSInteger)level;
-@end
-
-static __weak _TtC31Preferences_CorePreferencesImpl28SPTPreferencesImplementation *sg_preferences;
-
-%hook _TtC31Preferences_CorePreferencesImpl28SPTPreferencesImplementation
-- (id)initWithScheduler:(id)scheduler {
-    id made = %orig;
-    sg_preferences = made;
-    // Lowered when Spotify last quit, and lossless is off now: nothing else would put it back.
-    if (!SGHidden(SGKeyLossless)) dispatch_async(dispatch_get_main_queue(), ^{ SGLosslessLowerQuality(NO); });
-    return made;
-}
-%end
-
 BOOL SGStreamQuality(NSInteger *metered, NSInteger *nonMetered) {
-    __auto_type preferences = sg_preferences;
+    SPTPreferences *preferences = SGSpotifyPreferences();
     if (!preferences) return NO;
     *metered = preferences.audioPlayBitrate;
     *nonMetered = preferences.audioPlayBitrateNonMetered;
@@ -34,7 +16,7 @@ BOOL SGStreamQuality(NSInteger *metered, NSInteger *nonMetered) {
 }
 
 BOOL SGSetStreamQuality(NSInteger metered, NSInteger nonMetered) {
-    __auto_type preferences = sg_preferences;
+    SPTPreferences *preferences = SGSpotifyPreferences();
     if (!preferences) return NO;
     preferences.audioPlayBitrate = metered;
     preferences.audioPlayBitrateNonMetered = nonMetered;
@@ -56,12 +38,4 @@ void SGLosslessLowerQuality(BOOL lower) {
         [defaults removeObjectForKey:SGKeyLosslessSavedQuality];
         SGLog(@"lossless: Spotify's quality back to %ld, %ld", (long)saved[0].integerValue, (long)saved[1].integerValue);
     }
-}
-
-%ctor {
-    #if !SG_DRIVER
-    if (!SGHidden(SGKeyLossless) && ![NSUserDefaults.standardUserDefaults arrayForKey:SGKeyLosslessSavedQuality]) return;
-    #endif
-    %init;
-    SGRequireClasses(@[@"_TtC31Preferences_CorePreferencesImpl28SPTPreferencesImplementation"]);
 }

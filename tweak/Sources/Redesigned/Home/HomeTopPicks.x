@@ -11,7 +11,9 @@
 // the card grows: the card to its new width plus kFooter, the row that holds the cards by the same amount.
 // The page's cell is made taller by the same amount.
 //
-// The shelf drawn large is the one nearest the top of the page: the lowest index any shelf has been measured at.
+// The shelf drawn large is the one nearest the top of the page: the lowest index any shelf has been measured at. One
+// Cards from names is taken from the feed's model (HomeFeed.swift) as soon as any section is measured, since its own
+// cell is built only once it nears the screen; the heading on screen still decides when the model can't be read.
 // Cells are reused across shelves, so each measuring sets or clears the mark on the layout it holds.
 //
 // A large card (SGRHomeStyleLargeCard, from HomeCards.x on every layout of the card) keeps Spotify's button, cover
@@ -36,7 +38,7 @@ static const CGFloat kBandAbove = -2;
 // The footer's text, in from the card's edges (the reference's first glyph sits 13.7pt in; a glyph's side bearing
 // is about 1.5).
 static const CGFloat kFooterInset = 12;
-static char kLargeKey, kNaturalKey, kWrappedKey, kGrowKey, kAskedKey, kListKey, kOffsetKey, kHeldKey, kShowAllKey, kHeadingKey;
+static char kLargeKey, kNaturalKey, kWrappedKey, kGrowKey, kAskedKey, kListKey, kOffsetKey, kHeldKey, kShowAllKey, kHeadingKey, kServedKey;
 static __weak UICollectionView *sg_largeShelf;
 static _Thread_local BOOL sg_enlarging;
 // The list section the shortcuts grid is in, from its measuring; NSNotFound until one is.
@@ -215,8 +217,11 @@ static void move(UICollectionViewLayoutAttributes *attributes, CGRect grid, CGRe
     CGRect grid, shelf;
     CGFloat before;
     BOOL swap = blocks((UICollectionViewLayout *)self, &grid, &shelf, &before);
-    // Everything between the two blocks moves within their band, so the band is asked for whole.
-    CGRect band = swap ? CGRectUnion(grid, shelf) : CGRectZero;
+    // Everything between the two blocks moves within their band, so the band is asked for whole. The moved blocks reach
+    // kBandAbove past the layout's own: a rect that touches only that strip (the prefetch rect above the feed's top,
+    // as Home is pulled to refresh) gets the shelf too, or the list takes its cell for gone and keeps it hidden.
+    CGRect own = CGRectUnion(grid, shelf);
+    CGRect band = swap ? CGRectUnion(own, CGRectOffset(own, 0, kBandAbove)) : CGRectZero;
     if (!swap || !CGRectIntersectsRect(rect, band)) {
         SGRHomeProbeEnd(SGRHomeProbeListAttrs, began);
         return %orig;
@@ -267,10 +272,79 @@ static void move(UICollectionViewLayoutAttributes *attributes, CGRect grid, CGRe
 }
 %end
 
+#pragma mark - the shelf Cards from names, from the feed
+
+// HomeFeed.swift.
+@interface SGRHomeFeed : NSObject
++ (NSArray *)headingsOf:(id)page;
+@end
+
+// The model's identities as last read (NSNull for a section with no heading) and the list's section count then.
+// Spotify's feed comes again with a new count nearly always (30 to 31 at launch, 18, 20, 21 through a refresh on
+// 9.1.90); one that keeps the count is caught by the first heading read off a cell that disagrees with it.
+static NSArray *sg_feed;
+static NSInteger sg_feedSections = -1;
+// The model the top was taken from, while no heading has borne it out; and the model a heading read off the top's
+// own cell contradicted, with the Cards from it was for: that answer is not taken again, or the top would be lost
+// and found on every pass.
+static NSArray *sg_topFeed, *sg_overruled;
+static NSString *sg_overruledFrom;
+
+// One identity per section of the list from the model, nil when the model can't be read or does not match the
+// list's sections (a snapshot the list has not taken yet).
+static NSArray *feed(UICollectionView *list) {
+    NSInteger sections = list.numberOfSections;
+    if (sg_feed && sg_feedSections == sections) return sg_feed;
+    CFTimeInterval began = SGRHomeProbeBegin();
+    NSArray *headings = [SGRHomeFeed headingsOf:list.delegate];
+    NSMutableArray *identities = [NSMutableArray arrayWithCapacity:headings.count];
+    for (id heading in headings) {
+        [identities addObject:[heading isKindOfClass:NSArray.class] ? SGRHomeShelfIdentityFrom(heading[0], heading[1]) : NSNull.null];
+    }
+    SGRHomeProbeEnd(SGRHomeProbeFeed, began);
+    sg_feed = headings && (NSInteger)headings.count == sections ? identities : nil;
+    sg_feedSections = sections;
+    return sg_feed;
+}
+
+// The section's identity in the model, nil for none or when the model can't be read.
+static NSString *feedIdentity(UICollectionView *list, NSInteger section) {
+    NSArray *identities = feed(list);
+    id identity = section < (NSInteger)identities.count ? identities[section] : nil;
+    return [identity isKindOfClass:NSString.class] ? identity : nil;
+}
+
+// A heading read off a shelf's cell that is not what the model last said of its section: the model moved on under
+// the same section count, and is read again.
+static void feedRead(UICollectionView *list, NSInteger section, NSString *onScreen) {
+    if (!sg_feed || sg_feedSections != list.numberOfSections || section >= (NSInteger)sg_feed.count) return;
+    id entry = sg_feed[section];
+    if ([entry isKindOfClass:NSString.class] && [entry isEqualToString:onScreen]) return;
+    SGLog(@"redesign home: the feed's model moved on under section %ld (\"%@\" on screen, %@ in the model)", (long)section, onScreen, entry);
+    sg_feed = nil;
+}
+
+// With no top yet and Cards from naming a shelf, the top is that shelf's section in the model, measured or not: the
+// swap brings its cell on screen, and its measuring draws it large.
+static void topFromFeed(UICollectionView *list) {
+    NSString *from = SGRHomeTopPicksFrom();
+    if (sg_topIndex != NSIntegerMax || !from || SGRHomeShelfHidden(from)) return;
+    NSArray *identities = feed(list);
+    NSUInteger section = [identities indexOfObject:from];
+    if (section == NSNotFound || ([identities isEqualToArray:sg_overruled] && [from isEqualToString:sg_overruledFrom])) return;
+    sg_topIndex = (NSInteger)section * 10000;
+    sg_topFeed = identities;
+    sg_blocksKnown = NO;
+    // Mid-measure here: the list lays out again once this pass is over, so the swap shows now and not on a scroll.
+    __weak UICollectionView *weakList = list;
+    dispatch_async(dispatch_get_main_queue(), ^{ [weakList.collectionViewLayout invalidateLayout]; });
+}
+
 // The top shelf is no longer one (hidden, not the one Cards from names, or gone with the feed): the page's color goes,
 // and every shelf on screen is measured again, so the next one takes the place now rather than on the next scroll.
 static void topLost(UICollectionView *list) {
     sg_topIndex = NSIntegerMax;
+    sg_topFeed = nil;
     sg_blocksKnown = NO;
     sg_largeShelf = nil;
     SGRHomeSetPageTint(nil);
@@ -282,19 +356,54 @@ static void topLost(UICollectionView *list) {
     }
 }
 
+// A shelf stops being large: its mark goes, and what read the mark as "the top" (the Show all control, the page's
+// color) with it. Its cells are made again from Spotify's layout: a cell the new layout puts off screen kept its old
+// frame on screen.
+static void dropLarge(UICollectionView *shelf) {
+    objc_setAssociatedObject(shelf.collectionViewLayout, &kLargeKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    if (sg_largeShelf == shelf) sg_largeShelf = nil;
+    SGRHomeSetPageTint(nil);
+    [shelf.collectionViewLayout invalidateLayout];
+    __weak UICollectionView *weakShelf = shelf;
+    dispatch_async(dispatch_get_main_queue(), ^{ [weakShelf reloadData]; });
+}
+
 %hook _TtC12Element_List18CollectionViewCell
 - (UICollectionViewLayoutAttributes *)preferredLayoutAttributesFittingAttributes:(UICollectionViewLayoutAttributes *)attributes {
-    UICollectionViewLayoutAttributes *result = %orig;
     static Class shelf;
     if (!shelf) shelf = NSClassFromString(@"_TtC16Home_CarouselKit29TouchCancellingCollectionView");
     UIView *content = ((UICollectionViewCell *)self).contentView.subviews.firstObject;
     // Home's sections only, as HomeSections.x tells them: a shelf on another page is not Home's top.
-    if (![NSStringFromClass(object_getClass(content)) containsString:@"Home_EvoPageImpl13HomeStructure"]) return result;
+    if (![NSStringFromClass(object_getClass(content)) containsString:@"Home_EvoPageImpl13HomeStructure"]) return %orig;
     UIView *root = content.subviews.firstObject;
     NSInteger index = attributes.indexPath.section * 10000 + attributes.indexPath.item;
     UIView *list = ((UIView *)self).superview;
     while (list && ![list isKindOfClass:UICollectionView.class]) list = list.superview;
     if (list) objc_setAssociatedObject(((UICollectionView *)list).collectionViewLayout, &kListKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    // The heading on screen, read before the measuring sizes the cell; nil while the shelf has none to read, when
+    // the model's heading for the section stands in.
+    NSString *onScreen = nil;
+    // Spotify reuses a shelf's view for another section as the feed scrolls (and for another shelf at the same index
+    // when the feed comes again), and its layout, which carries the mark and the sizes read from it, comes along. A
+    // view serving a new shelf drops both before Spotify lays it out for this measuring: the other shelf's cards are
+    // never drawn large for a pass, and a view back on the top is measured at Spotify's size first, then made large.
+    if (shelf && [root isKindOfClass:shelf]) {
+        UICollectionViewLayout *layout = ((UICollectionView *)root).collectionViewLayout;
+        BOOL marked = objc_getAssociatedObject(layout, &kLargeKey) != nil;
+        if (marked && index != sg_topIndex) dropLarge((UICollectionView *)root);
+        onScreen = SGRHomeShelfIdentity(root);
+        if (list && onScreen) feedRead((UICollectionView *)list, attributes.indexPath.section, onScreen);
+        // The same name before and after the heading comes in, so the sizes and the mark stay with the shelf.
+        NSString *served = onScreen ?: (list ? feedIdentity((UICollectionView *)list, attributes.indexPath.section) : nil) ?: [@(index) stringValue];
+        if (![served isEqualToString:objc_getAssociatedObject(layout, &kServedKey)]) {
+            objc_setAssociatedObject(layout, &kServedKey, served, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            char *keys[] = {&kNaturalKey, &kGrowKey, &kOffsetKey, &kAskedKey};
+            for (size_t i = 0; i < sizeof(keys) / sizeof(keys[0]); i++) objc_setAssociatedObject(layout, keys[i], nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            if (objc_getAssociatedObject(layout, &kLargeKey)) dropLarge((UICollectionView *)root);
+        }
+    }
+    UICollectionViewLayoutAttributes *result = %orig;
+    if (list) topFromFeed((UICollectionView *)list);
     if (!shelf || ![root isKindOfClass:shelf] || result.size.height <= kHeading) {
         // The top's place holds something else now (the feed came again): the next shelf measured takes it.
         if (index == sg_topIndex) topLost((UICollectionView *)list);
@@ -309,23 +418,30 @@ static void topLost(UICollectionView *list) {
     }
     UICollectionViewLayout *layout = ((UICollectionView *)root).collectionViewLayout;
     // The shelf drawn large: the one Cards from names, else the one nearest the top; never one switched off.
-    NSString *identity = SGRHomeShelfIdentity(root), *from = SGRHomeTopPicksFrom();
+    NSString *identity = onScreen ?: feedIdentity((UICollectionView *)list, attributes.indexPath.section), *from = SGRHomeTopPicksFrom();
     BOOL candidate = !SGRHomeShelfHidden(identity) && (!from || [identity isEqualToString:from]);
+    // The heading bears the model's top out, or reads otherwise: then that model's answer is not taken again.
+    if (onScreen && index == sg_topIndex && sg_topFeed) {
+        if (!candidate) {
+            sg_overruled = sg_topFeed;
+            sg_overruledFrom = from;
+            SGLog(@"redesign home: top picks from the model read \"%@\" on screen, not \"%@\": going by headings until the feed changes", onScreen, from);
+        }
+        sg_topFeed = nil;
+    }
     if (candidate && index < sg_topIndex) sg_topIndex = index;
     else if (!candidate && index == sg_topIndex) topLost((UICollectionView *)list);
     BOOL large = index == sg_topIndex, was = objc_getAssociatedObject(layout, &kLargeKey) != nil;
     if (large) sg_largeShelf = (UICollectionView *)root;
     // The shelf's height as Spotify sizes it, from a measuring before it was large.
     if (!was) objc_setAssociatedObject(layout, &kNaturalKey, @(result.size.height), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    if (large != was) {
-        objc_setAssociatedObject(layout, &kLargeKey, large ? @YES : nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        if (!large) SGRHomeSetPageTint(nil);
+    if (was && !large) dropLarge((UICollectionView *)root);
+    if (large && !was) {
+        objc_setAssociatedObject(layout, &kLargeKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         [layout invalidateLayout];
-        // The shelf laid its cells out at Spotify's sizes before the mark changed (reading its heading lays it out), and
-        // a cell the new layout puts off screen kept its old frame on screen: the cells are made again from the new
-        // layout, the heading with them.
-        __weak UICollectionView *weakShelf = (UICollectionView *)root;
-        dispatch_async(dispatch_get_main_queue(), ^{ [weakShelf reloadData]; });
+        // Laid out large now, so the band its heading took (kOffsetKey) and the cards' height are known to the size
+        // below on this pass, not on a later one, which would set the cell to a wrong height in between.
+        [root layoutIfNeeded];
         static dispatch_once_t once;
         dispatch_once(&once, ^{
             SGLog(@"redesign home: top picks at %ld, its layout %@ (%@)", (long)index, NSStringFromClass(layout.class),
@@ -496,12 +612,15 @@ static void tintCard(UIView *card, UIImageView *cover) {
     SGRLargeCardParts *parts = objc_getAssociatedObject(card, &kPartsKey);
     UIImage *image = cover.image;
     if (!parts) return;
-    if (!image || !SGEnabled(SGRKeyHomeTopPicksColour)) {
+    if (!SGEnabled(SGRKeyHomeTopPicksColour)) {
         objc_setAssociatedObject(card, &kShownKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         setColor(parts, nil, NO);
         if (isFirstCard(card)) SGRHomeSetPageTint(nil);
         return;
     }
+    // A cover Spotify is loading again (back on Home) has no image for a moment: the colors stay until it comes,
+    // rather than the card and the page going black between.
+    if (!image) return;
     if (objc_getAssociatedObject(card, &kShownKey) == image) return;
     objc_setAssociatedObject(card, &kShownKey, image, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     __weak UIView *weakCard = card;
