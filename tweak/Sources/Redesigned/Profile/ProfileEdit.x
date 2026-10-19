@@ -7,10 +7,9 @@
 // _UIButtonBarButton at the leading edge), Save (the trailing one, #37F200@0.30 while there is nothing to save) and the
 // title "Edit Profile" in a _UINavigationBarTitleControl, all plain text.
 //
-//  - The pane gets the queue's glass and the screen's top corners (SGRGlassSheetView), darkened a little the way the Edit
-//    playlist sheet is, and the black of the navigation view and the page goes with it.
-//  - The bar's black backing goes (alpha, never hidden), and the bar is moved down 10pt: with the screen's corner radius
-//    on the pane the Cancel and Save at 8pt from the edge, 6pt from the top, would be cut.
+//  - The pane is left black, as Spotify draws it: it gets no glass and no corners (it had the queue's, which showed for a
+//    beat and then gave way to black). Whatever glass the page loader put on it while it showed its spinner is taken off.
+//  - The bar's black backing goes (alpha, never hidden), and the bar is moved down 10pt, clear of the sheet's top corners.
 //  - Cancel, Save and the title are on glass capsules, wider than their labels, as the other pages' titles are. They
 //    reach past their controls, so the views between them and the bar stop clipping.
 // UIKit builds the bar's buttons and its title control again whenever the item changes, after the bar's own pass, so the
@@ -18,11 +17,10 @@
 // Threading: main thread only.
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
+#import "Redesigned/Kit/SGRRepaint.h"
 #import "Redesigned/Pages/Pages.h"
 
 static const CGFloat kEditShift = 10;
-// How much black the pane's glass carries over its body: the Edit playlist sheet's.
-static const CGFloat kEditDim = 0.4;
 // Side padding of a capsule beside its label, and its height (the title's are the other pages': Pages/PageBar.m).
 static const CGFloat kButtonPadding = 12, kButtonHeight = 36, kTitlePadding = 18, kTitleHeight = 44;
 
@@ -96,9 +94,11 @@ static void chrome(UIViewController *controller) {
         sg_profileNavigation = navigation;
         SGLog(@"redesign profile: Edit profile sheet on glass");
     }
-    if (pane.layer.mask) pane.layer.mask = nil;
-    UIView *glass = SGRGlassSheetView(pane);
-    if (glass && !SGRReduceTransparency()) SGRDimSheetGlass(glass, kEditDim);
+    // The sheet stays Spotify's black: no glass, no corners of the mod's. The page loader the sheet opens on has been given
+    // the queue's glass while it showed its spinner (Kit/SGRSheetPopups.x, loaderChrome) when this was not yet known to be
+    // Edit profile; that is taken off here, so a sheet that got it ends black rather than glass.
+    SGRRemoveSheetGlass(pane);
+    if (sgr_sheetChromeRoot == pane) sgr_sheetChromeRoot = nil;
     UIEdgeInsets extra = controller.additionalSafeAreaInsets;
     if (extra.top != kEditShift) {
         extra.top = kEditShift;

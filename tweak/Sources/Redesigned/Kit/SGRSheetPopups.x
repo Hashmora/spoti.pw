@@ -625,9 +625,28 @@ static BOOL loaderIsRate(UIViewController *loader) {
     return YES;
 }
 
+// Whether the page sheet was opened over a profile page: its loader is the one Edit profile opens on (Profile/ProfileEdit.x),
+// which stays black. The loader shows the same spinner as the Rate sheet's until Edit profile arrives, so the page it was
+// opened from is the only tell. Looks through the controllers under the sheet, the pages of every stack among them.
+static BOOL underneathIsProfile(UIViewController *controller, int depth) {
+    if (!controller || depth > 8) return NO;
+    if ([NSStringFromClass(controller.class) containsString:@"Profile_CommonImpl"]) return YES;
+    for (UIViewController *child in controller.childViewControllers) {
+        if (underneathIsProfile(child, depth + 1)) return YES;
+    }
+    return NO;
+}
+
+static BOOL openedFromProfile(UIViewController *loader) {
+    UIViewController *under = loader.navigationController.presentingViewController ?: loader.presentingViewController;
+    return underneathIsProfile(under, 0);
+}
+
 static void loaderChrome(UIViewController *loader) {
     UIView *pane = loader.viewIfLoaded;
     if (!pane || pane.bounds.size.width < 300 || !isPageSheet(loader) || !loaderIsRate(loader)) return;
+    // Edit profile's sheet is black, not glass: glassing it for the beat the spinner shows made it flash as the queue's.
+    if (openedFromProfile(loader)) return;
     // The whole app is presented too (a UIDropShadowView r=47.3 under the window), and every page loader in it, the
     // Library's included, shows only its spinner for a moment: it was taken for the Rate sheet then, and its pane
     // kept the glass over the whole screen once the page had loaded (trees/continuous/2.txt), with the sheet chrome's

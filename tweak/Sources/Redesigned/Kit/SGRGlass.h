@@ -61,6 +61,10 @@ UIView *SGRGlassSheetChrome(UIView *content);
 // (the share menu's ShareMenuSheetView, which UIKit presents over the screen on its own, not in Navigation's
 // sheet): the pane, the screen's top corners and the cleared grey, as above.
 UIView *SGRGlassSheetView(UIView *sheet);
+// Takes SGRGlassSheetView's pane off a sheet and gives the pane back its corners and paint (black when it had none). For a sheet
+// that was glassed before it was known to be one that stays Spotify's, as Edit profile (Profile/ProfileEdit.x). Safe to call on
+// every pass; does nothing on a sheet that was never glassed.
+void SGRRemoveSheetGlass(UIView *sheet);
 // The top corner radius of every sheet the mod glasses: the screen's, as the Genius meanings sheet has it.
 CGFloat SGRSheetCornerRadius(void);
 // The body SGRGlassSheetChrome puts on a sheet's pane (heavier blur, dark tint, hairline rim), for a sheet
