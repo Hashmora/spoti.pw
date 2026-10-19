@@ -9,7 +9,11 @@ static char kLensPaneKey, kLensFilmKey;
 // rim, as the system's does), and may be dragged this far past the first and the last tab.
 static const CGFloat kLensGrow = 12, kLensOverscroll = 14;
 // Past this speed of the bubble's middle (pt/s) it is stretched on top of what the two edges' lag gives.
-static const CGFloat kLensStretchSpeed = 3200, kLensMaxSpeedStretch = 0.28;
+// The extra stretch grows with the square of the speed, so a slow drag stays a pill and a flick pulls a drop.
+static const CGFloat kLensStretchSpeed = 2200, kLensMaxSpeedStretch = 0.45;
+// The surface tension: the edges pull each other back to the bubble's width, so a stretched bubble snaps in and
+// overshoots instead of the two edges settling separately (k per unit of width error, unit mass).
+static const CGFloat kLensTension = 500;
 
 typedef struct { CGFloat k, c; } SGRSpring;   // unit mass
 typedef struct { CGFloat mass, k, c; } SGRMassSpring;
@@ -203,11 +207,12 @@ static const CGFloat kPlayStep = 1.0 / 120;
     CGFloat nominal = _restFrame.size.width + kLensGrow * st.lift;
     CGFloat lag = MAX(0, width / MAX(1, nominal) - 1);
     CGFloat speed = fabs(st.vL + st.vR) / 2;
-    CGFloat extra = MIN(kLensMaxSpeedStretch, speed / kLensStretchSpeed) * st.lift;
+    CGFloat t = speed / kLensStretchSpeed;
+    CGFloat extra = MIN(kLensMaxSpeedStretch, kLensMaxSpeedStretch * t * t) * st.lift;
     // Longer is thinner, so the bubble keeps its volume while it runs.
     CGFloat held = 1 + 2 * _heldOutset / baseHeight * st.lift;
     *sx = width * (1 + extra) / baseWidth;
-    *sy = MAX(0.7, held / (1 + 0.55 * (lag + extra)));
+    *sy = MAX(0.6, held / (1 + 0.8 * (lag + extra)));
     *center = CGPointMake((st.L + st.R) / 2, CGRectGetMidY(_restFrame));
 }
 
@@ -262,10 +267,13 @@ static const CGFloat kPlayStep = 1.0 / 120;
 - (void)advance:(CGFloat)h {
     CGFloat dir = (_tL + _tR) / 2 - (_L + _R) / 2;
     BOOL moving = fabs(dir) > 0.75;
-    SGRSpring front = spring(1800, 0.82), back = spring(700, 0.66), even = spring(1100, 0.74);
+    SGRSpring front = spring(1800, 0.7), back = spring(800, 0.5), even = spring(1100, 0.62);
     SGRSpring forL = !moving ? even : (dir < 0 ? front : back);
     SGRSpring forR = !moving ? even : (dir > 0 ? front : back);
     SGRMassSpring lift = _liftTarget > 0.5 ? kLiftOn : kLiftOff;
+    CGFloat pull = kLensTension * ((_R - _L) - (_tR - _tL));
+    _vL += pull * h;
+    _vR -= pull * h;
     stepEdge(&_L, &_vL, _tL, forL, h);
     stepEdge(&_R, &_vR, _tR, forR, h);
     CGFloat a = (-lift.k * (_lift - _liftTarget) - lift.c * _vLift) / lift.mass;
