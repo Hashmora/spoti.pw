@@ -230,6 +230,13 @@ UIView *SGRGlassFilm(UIView *host, const void *key, UIView *glass, CGFloat radiu
     return film;
 }
 
+UIView *SGRGlassFilmDark(UIView *host, const void *key, UIView *glass, CGFloat radius) {
+    UIView *film = SGRGlassFilm(host, key, glass, radius);
+    UIColor *black = [UIColor colorWithWhite:0 alpha:0.35];
+    if (film && ![film.backgroundColor isEqual:black]) film.backgroundColor = black;
+    return film;
+}
+
 #pragma mark - a sheet's own chrome
 
 // Whether `view` is sheet chrome rather than a row or card in the sheet's own list: it sits under `root`

@@ -1,5 +1,5 @@
 // The selection bubble of the capsule bar (TabBarLegacy.x), made to move the way iOS 26's does. At rest it is the
-// dark pill under the open tab. A finger on the bar lifts it into a glass bubble that follows the finger on two
+// dark pill under the open tab. A finger on the bar lifts it into a transparent glass bubble that follows the finger on two
 // springs, one for each edge: the edge in front of the move is the stiffer one, so the bubble stretches along the
 // move and the back edge trails, then overshoots a little as it stops. A released bubble settles on the tab it was
 // let go over, and turns back into the pill on the way.

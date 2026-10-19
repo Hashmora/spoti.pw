@@ -14,8 +14,8 @@
 // SGRRepaint.x keeps Spotify's grey off it as it is focused, as it does for the podcast search field).
 //
 // Trees (trees/continuous/4.txt): the header and the field are on glass already. Three things were left:
-//  - The plate behind the header (the 414x144 UIView, hidden) has glass in its place: a plain pane behind the header, as tall
-//    as the header's row and field, with no dark film or body of its own, so no black cap sits over it.
+//  - The plate behind the header (the 414x144 UIView, hidden) stays hidden with nothing in its place: the header as a whole
+//    has no glass behind it, only the title capsule, the Back circle and the field have their own.
 //  - The cross of a recent search (the Encore Tertiary button "Clear" in each LocationRowSearch row, 32x32) is on a glass circle.
 //    Rows are reused as the list scrolls, so the table's own layout passes dress the buttons that are on screen.
 //  - Search mode swaps the title for "Browse location" (and back). The label keeps its place and only its text changes, which lays
@@ -26,7 +26,7 @@
 #import "Redesigned/Kit/SGRRepaint.h"
 #import "Pages.h"
 
-static char kHeaderKey, kFieldKey, kFieldGlassKey, kTitleGlassKey, kPlateGlassKey, kClearGlassKey, kTableKey;
+static char kHeaderKey, kFieldKey, kFieldGlassKey, kTitleGlassKey, kClearGlassKey, kTableKey;
 
 // The page on screen and the label its title is on, for the text watch below.
 static __weak UIViewController *sg_locationPage;
@@ -42,7 +42,7 @@ static UIView *pageView(UIViewController *page) {
 }
 
 // The plain black view behind the header: a direct, childless UIView of the page that ends where the header does. It stays
-// hidden and unpainted, and a glass pane takes its place.
+// hidden and unpainted.
 static void clearPlate(UIView *root, UIView *header) {
     CGFloat bottom = CGRectGetMaxY(header.frame);
     for (UIView *sub in root.subviews) {
@@ -52,13 +52,6 @@ static void clearPlate(UIView *root, UIView *header) {
         if (!sub.hidden) sub.hidden = YES;
         if (sub.layer.backgroundColor) sub.layer.backgroundColor = NULL;
     }
-    // The pane: first in the page, from its top edge to the bottom of the header, thin glass with no dark body or film.
-    UIView *glass = SGGlassFor(root, &kPlateGlassKey);
-    CGRect frame = CGRectMake(0, 0, root.bounds.size.width, bottom);
-    if (!CGRectEqualToRect(glass.frame, frame)) glass.frame = frame;
-    glass.userInteractionEnabled = NO;
-    SGShapeGlass(glass, 0, NO);
-    if (root.subviews.firstObject != glass) [root insertSubview:glass atIndex:0];
 }
 
 // The cross of each recent search: an Encore Tertiary "Clear" button of a row, on a glass circle.
@@ -137,7 +130,7 @@ static void dress(UIViewController *page) {
     static BOOL logged;
     if (!logged && field) {
         logged = YES;
-        SGLog(@"redesign location search: header glass, back %@, title %@, field %@", back ? @"pinned" : @"not found", title ? @"capsule" : @"not found", NSStringFromCGRect(field.frame));
+        SGLog(@"redesign location search: back %@, title %@, field %@", back ? @"pinned" : @"not found", title ? @"capsule" : @"not found", NSStringFromCGRect(field.frame));
     }
 }
 

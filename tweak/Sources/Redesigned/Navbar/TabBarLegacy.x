@@ -186,7 +186,7 @@ static void followCreateClose(UIView *stockBar);
     _pane = SGGlassFor(self, &kCirclePaneKey);
     _pane.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
     SGGlassInteractive(self, _pane);
-    _film = SGRGlassFilm(self, &kCircleFilmKey, _pane, 0);
+    _film = SGRGlassFilmDark(self, &kCircleFilmKey, _pane, 0);
     _glyph = [UIImageView new];
     _glyph.userInteractionEnabled = NO;
     _glyph.contentMode = UIViewContentModeCenter;
@@ -207,7 +207,7 @@ static void followCreateClose(UIView *stockBar);
     if (!CGRectEqualToRect(_pane.frame, bounds)) _pane.frame = bounds;
     SGShapeGlass(_pane, radius, YES);
     _pane.layer.cornerCurve = kCACornerCurveCircular;
-    SGRGlassFilm(self, &kCircleFilmKey, _pane, radius).layer.cornerCurve = kCACornerCurveCircular;
+    SGRGlassFilmDark(self, &kCircleFilmKey, _pane, radius).layer.cornerCurve = kCACornerCurveCircular;
     // bounds and center, not frame: the glyph is turned while Create's menu is up.
     _glyph.bounds = (CGRect){CGPointZero, bounds.size};
     _glyph.center = CGPointMake(CGRectGetMidX(bounds), CGRectGetMidY(bounds));
@@ -766,6 +766,12 @@ static void setCreateOpen(SGRLegacyTabBar *bar, BOOL open) {
             [lens moveTouchToX:hostX];
         }
     } else if (g.state == UIGestureRecognizerStateEnded) {
+        // Create's selection is made before the bubble is let go: its rest frame is then Create's, under the finger,
+        // and it settles there. Let go first, it ran back to the open tab and only then to Create.
+        if (itemIsCreate && !self.apartSelected) {
+            self.selectedItem = item;
+            if (stockBar) syncBar(stockBar);
+        }
         // Let go first: the tab picked below then moves the pill it settles on. The bubble's run is on the screen
         // before the tab starts loading, which can hold the main thread for a while.
         [[self lens] endTouch];
@@ -1511,7 +1517,7 @@ static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
     if (!CGPointEqualToPoint(navGlass.center, glassCenter)) navGlass.center = glassCenter;
     SGShapeGlass(navGlass, glassFrame.size.height / 2, NO);
 
-    UIView *navTint = SGRGlassFilm(host, &kNavTintKey, navGlass, glassFrame.size.height / 2);
+    UIView *navTint = SGRGlassFilmDark(host, &kNavTintKey, navGlass, glassFrame.size.height / 2);
     // SGRGlassFilm sets the film's frame from the pane's, which under the morph's transform is the stretched box;
     // the film is given the pane's bounds and center instead, and its transform in placeCompact.
     if (!CGSizeEqualToSize(navTint.bounds.size, glassFrame.size)) navTint.bounds = (CGRect){CGPointZero, glassFrame.size};

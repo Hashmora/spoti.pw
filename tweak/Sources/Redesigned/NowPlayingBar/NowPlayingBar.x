@@ -216,7 +216,7 @@ static void placeStripGlass(UIView *host, UIView *strip, CGRect card, BOOL above
     CGFloat radius = MIN(kCardRadius, pane.bounds.size.height / 2);
     SGShapeGlass(pane, radius, NO);
     // The same white film as the card and the tab bar (16%), which comes and goes with the pane.
-    UIView *film = SGRGlassFilm(host, &kStripFilmKey, pane, radius);
+    UIView *film = SGRGlassFilmDark(host, &kStripFilmKey, pane, radius);
     if (!made) film.alpha = 0;
     if (!paneShown(pane)) SGRAnimate(SGRMotionRespond, ^{ SGRShowGlass(pane, YES); film.alpha = 1; }, nil);
 }
@@ -571,7 +571,7 @@ static void styleNowPlayingBar(UIViewController *container) {
     SGShapeGlass(glass, radius, NO);
     placeStripGlass(container.view, strip, frame, stripAbove);
 
-    SGRGlassFilm(container.view, &kTintKey, glass, radius);
+    SGRGlassFilmDark(container.view, &kTintKey, glass, radius);
 
     static dispatch_once_t once;
     dispatch_once(&once, ^{
