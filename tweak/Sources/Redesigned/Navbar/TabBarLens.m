@@ -8,12 +8,17 @@ static char kLensPaneKey, kLensFilmKey;
 // The held bubble is this much wider than the pill (and taller by 2 * heldOutset, so it stands out of the capsule's
 // rim, as the system's does), and may be dragged this far past the first and the last tab.
 static const CGFloat kLensGrow = 12, kLensOverscroll = 14;
-// Past this speed of the bubble's middle (pt/s) it is stretched on top of what the two edges' lag gives.
-// The extra stretch grows with the square of the speed, so a slow drag stays a pill and a flick pulls a drop.
-static const CGFloat kLensStretchSpeed = 2200, kLensMaxSpeedStretch = 0.45;
-// The surface tension: the edges pull each other back to the bubble's width, so a stretched bubble snaps in and
-// overshoots instead of the two edges settling separately (k per unit of width error, unit mass).
-static const CGFloat kLensTension = 500;
+// On top of what the two edges' lag gives, the bubble is stretched by the speed of its middle (pt/s): tanh, so it
+// answers a slow drag at once, and a flick fills it out towards the cap without the kink a hard limit has.
+static const CGFloat kLensStretchSpeed = 2800, kLensMaxSpeedStretch = 0.40;
+// How much of the stretch is taken from the height: 1 would keep the area exactly, which pinches a glass bubble
+// too thin; the old 0.55 left it fat. Below kLensMinHeight it is not squeezed further.
+static const CGFloat kLensVolume = 0.75, kLensMinHeight = 0.66;
+// The surface tension: once the edges are near their targets, they pull each other back to the bubble's width, with
+// a damper of their own, so a stretched bubble draws in and gives one small bounce rather than ringing. It is off
+// while the bubble is chasing a finger (the stretch is what shows the chase), and fades in over the last
+// kLensTensionReach points of the middle's distance.
+static const CGFloat kLensTension = 420, kLensTensionRatio = 0.55, kLensTensionReach = 24;
 
 typedef struct { CGFloat k, c; } SGRSpring;   // unit mass
 typedef struct { CGFloat mass, k, c; } SGRMassSpring;
@@ -207,12 +212,11 @@ static const CGFloat kPlayStep = 1.0 / 120;
     CGFloat nominal = _restFrame.size.width + kLensGrow * st.lift;
     CGFloat lag = MAX(0, width / MAX(1, nominal) - 1);
     CGFloat speed = fabs(st.vL + st.vR) / 2;
-    CGFloat t = speed / kLensStretchSpeed;
-    CGFloat extra = MIN(kLensMaxSpeedStretch, kLensMaxSpeedStretch * t * t) * st.lift;
-    // Longer is thinner, so the bubble keeps its volume while it runs.
+    CGFloat extra = kLensMaxSpeedStretch * tanh(speed / kLensStretchSpeed) * st.lift;
+    // Longer is thinner, so the bubble keeps (most of) its volume while it runs.
     CGFloat held = 1 + 2 * _heldOutset / baseHeight * st.lift;
     *sx = width * (1 + extra) / baseWidth;
-    *sy = MAX(0.6, held / (1 + 0.8 * (lag + extra)));
+    *sy = MAX(kLensMinHeight, held * pow(1 + lag + extra, -kLensVolume));
     *center = CGPointMake((st.L + st.R) / 2, CGRectGetMidY(_restFrame));
 }
 
@@ -263,17 +267,26 @@ static const CGFloat kPlayStep = 1.0 / 120;
 }
 
 // One step of the springs towards the targets. The edge in front of the move is the stiff one, the one behind it the
-// loose one; standing still they are alike.
+// loose one; standing still they are alike. How far the bubble stretches on the run is the difference of how far
+// each edge trails a target going at speed v, (c / k) * v, so the stretch is the front being stiffer and better
+// damped than the back: a stiffer, tighter front and a looser back draw a drop, while loosening or softening both
+// only makes it wobble.
 - (void)advance:(CGFloat)h {
     CGFloat dir = (_tL + _tR) / 2 - (_L + _R) / 2;
     BOOL moving = fabs(dir) > 0.75;
-    SGRSpring front = spring(1800, 0.7), back = spring(800, 0.5), even = spring(1100, 0.62);
+    SGRSpring front = spring(2400, 0.80), back = spring(650, 0.62), even = spring(1100, 0.74);
     SGRSpring forL = !moving ? even : (dir < 0 ? front : back);
     SGRSpring forR = !moving ? even : (dir > 0 ? front : back);
     SGRMassSpring lift = _liftTarget > 0.5 ? kLiftOn : kLiftOff;
-    CGFloat pull = kLensTension * ((_R - _L) - (_tR - _tL));
-    _vL += pull * h;
-    _vR -= pull * h;
+    // The edges' pull on each other, as a spring and a damper on the width (each edge takes half of the force, so
+    // the damper is set for a pair of unit masses).
+    CGFloat reach = MIN(1, MAX(0, 1 - fabs(dir) / kLensTensionReach));
+    if (reach > 0) {
+        CGFloat damper = kLensTensionRatio * sqrt(2 * kLensTension);
+        CGFloat pull = reach * (kLensTension * ((_R - _L) - (_tR - _tL)) + damper * (_vR - _vL));
+        _vL += pull * h;
+        _vR -= pull * h;
+    }
     stepEdge(&_L, &_vL, _tL, forL, h);
     stepEdge(&_R, &_vR, _tR, forR, h);
     CGFloat a = (-lift.k * (_lift - _liftTarget) - lift.c * _vLift) / lift.mass;

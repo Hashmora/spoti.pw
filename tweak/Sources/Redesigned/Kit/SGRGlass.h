@@ -50,8 +50,6 @@ void SGRGlassSetFilm(UIView *shape, BOOL on, CGFloat radius);
 // which the bar disappears into Spotify's near-black chrome. Made once under `key`, kept just above `glass`
 // and on its frame, with corners of `radius`. Nil on iOS 26, where the system glass needs none.
 UIView *SGRGlassFilm(UIView *host, const void *key, UIView *glass, CGFloat radius);
-// The same film in black instead of white (16% white lifts the glass; the now playing card is tinted dark, the tab bar keeps the white film).
-UIView *SGRGlassFilmDark(UIView *host, const void *key, UIView *glass, CGFloat radius);
 
 // The chrome of a bottom sheet Spotify draws around an opaque "sheet-view" pane: the ⋯ context menu, the
 // queue, and the pop-art track info under the now playing bar. A glass pane goes behind the pane's own
