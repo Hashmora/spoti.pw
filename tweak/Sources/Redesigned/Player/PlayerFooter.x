@@ -314,6 +314,23 @@ void SGRPlayerLowerRow(UIView *row) {
 }
 %end
 
+// The footer's own layout is the only one that places the volume row, and it does not run when the stack moves the
+// arranged views around (the lyrics, a track whose title wraps, a row that comes or goes), so the row stayed where the
+// stack once had them, over the controls (continuous/1.txt: the row at 188 of a stack whose controls end at 212).
+// The stack's layout places it again. The re-entry guard covers the row's first addSubview, which lays the stack out.
+%hook UIStackView
+- (void)layoutSubviews {
+    %orig;
+    UIView *row = SGRPlayerVolumeFooter(self);
+    if (!row) return;
+    static BOOL placing;
+    if (placing) return;
+    placing = YES;
+    SGRPlayerLowerRow(row);
+    placing = NO;
+}
+%end
+
 %ctor {
     if (!SGRedesignedUI()) return;
     %init;

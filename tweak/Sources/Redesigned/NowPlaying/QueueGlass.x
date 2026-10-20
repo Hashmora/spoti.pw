@@ -22,7 +22,7 @@
 // NowPlaying_ECMKit.QueueHeader.UI.Private.PillButton, as NSStringFromClass prints it.
 static NSString *const kPillButtonClass = @"_TtCOOO17NowPlaying_ECMKit11QueueHeader2UI7Private10PillButton";
 
-static char kPillGlassKey, kChipGlassKey, kReshuffleKey, kReshuffleGlassKey, kPlayKey;
+static char kCloseGlassKey, kCloseKey, kPillGlassKey, kChipGlassKey, kReshuffleKey, kReshuffleGlassKey, kPlayKey;
 
 // Queue_ViewImpl.QueueCell, as NSStringFromClass prints it.
 static NSString *const kQueueCellClass = @"_TtC14Queue_ViewImpl9QueueCell";
@@ -71,6 +71,12 @@ static void glassChip(UIView *root, NSString *buttonIdentifier) {
     if (button && button.superview) SGRGlassFlatBox(button.superview, &kChipGlassKey);
 }
 
+// The edit mode's close cross (id=queue-close-edit-button, top right, 32pt): a glass circle like the other round controls.
+static void glassClose(UIView *root) {
+    UIView *button = SGRFindByIdentifier(root, @"queue-close-edit-button", &kCloseKey);
+    if (button && button.bounds.size.width >= 1) SGRGlassInside(button, &kCloseGlassKey, button.bounds.size.width);
+}
+
 // The Reshuffle capsule (Encore Primary button, id=reshuffle-button) that floats over the list once the
 // queue has been played through: it is the sheet's one primary action, so its glass carries the white film
 // (prominent) and reads a step brighter than Clear and Edit instead of vanishing into the sheet.
@@ -101,6 +107,7 @@ static void chrome(UIViewController *controller) {
     SGRGlassSheetChrome(root);
     glassPills(root);
     glassReshuffle(root);
+    glassClose(root);
     UIView *play = SGRFindByIdentifier(root, @"header-play-button", &kPlayKey);
     if (play) flattenPlay(play);
     glassChip(root, @"queue-edit-toolbar-move-up");
