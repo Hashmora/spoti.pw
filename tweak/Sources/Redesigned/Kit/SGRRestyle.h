@@ -83,3 +83,15 @@ void SGRActivate(UIView *source);
 // else those for touch up inside. NO when the control has neither (an Encore control that reads its
 // touches through a gesture recognizer); what was found is logged once per class.
 BOOL SGRFire(UIControl *control);
+
+// Runs `pass` on the controller again after each delay (seconds), for what Spotify builds or repaints after the
+// first layout. Stops once the controller is gone.
+static inline void SGRRepeatPass(UIViewController *controller, NSArray<NSNumber *> *delays, void (^pass)(UIViewController *)) {
+    __weak UIViewController *weak = controller;
+    for (NSNumber *delay in delays) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            UIViewController *strong = weak;
+            if (strong) pass(strong);
+        });
+    }
+}

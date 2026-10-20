@@ -177,12 +177,7 @@ static void dressGallery(UIViewController *controller) {
 - (void)viewDidAppear:(BOOL)animated {
     %orig;
     // The header's buttons and the list's rows are made after the first layout.
-    __weak UIViewController *weak = (UIViewController *)self;
-    for (NSNumber *delay in @[@0.25, @0.6]) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            if (weak) dress(weak);
-        });
-    }
+    SGRRepeatPass((UIViewController *)self, @[@0.25, @0.6], ^(UIViewController *c) { dress(c); });
 }
 %end
 %end
@@ -201,12 +196,7 @@ static void dressGallery(UIViewController *controller) {
 
 - (void)viewDidAppear:(BOOL)animated {
     %orig;
-    __weak UIViewController *weak = (UIViewController *)self;
-    for (NSNumber *delay in @[@0.25, @0.6]) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            if (weak) dressGallery(weak);
-        });
-    }
+    SGRRepeatPass((UIViewController *)self, @[@0.25, @0.6], ^(UIViewController *c) { dressGallery(c); });
 }
 %end
 %end

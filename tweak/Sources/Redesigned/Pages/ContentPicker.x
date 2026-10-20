@@ -83,12 +83,7 @@ static void dress(UIViewController *page) {
 - (void)viewDidAppear:(BOOL)animated {
     %orig;
     // The bar's cross and the field's text are made after the first layout, and the picture comes back as the field is focused.
-    __weak UIViewController *weak = (UIViewController *)self;
-    for (NSNumber *delay in @[@0.25, @0.6]) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            if (weak) dress(weak);
-        });
-    }
+    SGRRepeatPass((UIViewController *)self, @[@0.25, @0.6], ^(UIViewController *c) { dress(c); });
 }
 
 - (void)viewWillDisappear:(BOOL)animated {

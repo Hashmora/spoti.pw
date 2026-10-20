@@ -25,12 +25,7 @@
 - (void)viewDidAppear:(BOOL)animated {
     %orig;
     // The bar's buttons are made after the first layout.
-    __weak UIViewController *weak = (UIViewController *)self;
-    for (NSNumber *delay in @[@0.25, @0.6]) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            if (weak) SGRDressBarPage(weak);
-        });
-    }
+    SGRRepeatPass((UIViewController *)self, @[@0.25, @0.6], ^(UIViewController *c) { SGRDressBarPage(c); });
 }
 
 - (void)viewWillDisappear:(BOOL)animated {

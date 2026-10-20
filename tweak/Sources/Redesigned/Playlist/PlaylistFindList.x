@@ -98,12 +98,7 @@ static void dress(UIViewController *controller) {
 - (void)viewDidAppear:(BOOL)animated {
     %orig;
     // The list is sized by Spotify's constraints after the first layout.
-    __weak UIViewController *weak = (UIViewController *)self;
-    for (NSNumber *delay in @[@0.0, @0.25]) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            if (weak) dress(weak);
-        });
-    }
+    SGRRepeatPass((UIViewController *)self, @[@0.0, @0.25], ^(UIViewController *c) { dress(c); });
 }
 %end
 %end

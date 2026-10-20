@@ -1,52 +1,33 @@
 // Redesign, iOS < 26: glass for the popups that were still Spotify's opaque grey. Each gets the queue's pane
-// (SGRGlassSheetChrome) and the screen's own top corners:
+// (SGRGlassSheetChrome) and the screen's own top corners.
 //
-//   Invite friends to your Jam         Jam_InvitationFlowImpl.ShareOptionsViewController
-//   Jam settings (Guest controls)      a SwiftUI hosting controller of Jam_ParticipantSettingsPageImpl
-//   Add to queue                       AssistedCuration_PageImpl / AssistedCuration_RecommendationsImpl
-//   Sort by (a playlist)               SPTSortingFilteringPickerViewController
-//   Filter and sort (Your Episodes)    FilterAndSort_PresentingImpl
-//   Filter and sort (See all episodes) ShowPage_SortAndFilterImpl.SortAndFilterBottomSheetViewController
-//   Song credits                       TrackCredits_CreditsPageImpl.CreditsViewController
-//   Save in                            PlaylistCuration_AddToPlaylistImpl.ATPContainerViewController
-//   Download using mobile data         Offline_ContentOffliningUIImpl.ElementViewController<DownloadOverCellularDialogElement>
-//   Smart Reorder popups (Edit playlist) PlaylistMixing_MessagingImpl.MixingMessagingViewController
-//   Mix transition's ⋯ menu            PlaylistMixing_MixingUIImpl.MixingEditMoreMenuViewController (Add to other playlist,
-//                                      Share; trees/continuous/7.txt)
-//   Share                              Share_MenuImpl.ShareMenuViewControllerV2
-//   Listening modes                    SmartShuffle_CoreImpl.PlayModePickerViewController
-//   Connect device menu (Log out)      Connect_ContextMenuPageImpl.ContextMenuViewController, pushed in the picker's sheet
-//   More Navigation sheets found in the class dump of 9.1.78 with no hook (the last markers of contentMarkers): SongDNA's
-//   more-info, Connect's where-to-play and device predictability, the picker's bottom sheet container, Upsell, e-reader
-//   settings, version sunsetting, accessory onboarding, kids avatar picker, listener stats, podcast member options, live
-//   events' multi-event sheet, Music Quiz, subscription allocation, the AI playlist and personalized episode prompts.
-//   Connect volume (another device's   a SwiftUI hosting controller of Connect_VolumeUXImpl's BottomSheetElement, with no
-//   slider, "Andrew's MacBook Air")    BottomSheetViewController in it (trees/continuous/4.txt), so NowPlaying/VolumeSheetGlass.x never met it
-//   About SongDNA (the info button)    SongDNA_AboutSongDNAPageImpl.AboutSongDNASheetViewController
-//   Report a problem (a transcript)    Transcript_ReadAlongImpl.ReportReadAlongViewController
-//   Rename folder (Your Library)       PlaylistEditing_EditPlaylistImpl.FolderRenameViewController
-//   Rate show (a podcast's Rate chip)  Ratings_CommonImpl.RatingsAndReviewsRatePodcastViewController, inside the
-//                                      page loader (Tome_PageLoaderViewImpl.SPTMusicClientPageLoaderView)
+// Most are the same Navigation sheet (NavigationUI_SheetImpl.ContainerViewController, id=sheet-view) holding their
+// own controller. That class is Swift and generic for SwiftUI pages, so a sheet is recognised by part of the inner
+// controller's name (contentMarkers). The pane goes in from the sheet's own passes because its rows are built after
+// the first layout; SGRRepaint.x keeps Spotify's grey clear in between. A page presented outside Navigation's sheet
+// and not listed keeps its own look.
 //
-//   More sheets, picked from the class dump of 9.1.78 and not from a screen of yours (the last entries of
-//   contentMarkers below): Jam messages, SongDNA contributor, account picker, confirmation dialogs, editors picker,
-//   video settings, badges, DSA, Campfire's pickers, podcast comments and reactions, Contribution's menus, surveys,
-//   live events, merch, sticker pickers, transcript picker, partner linking. A page that Spotify presents outside
-//   Navigation's sheet is not met by the list and keeps its own look, as before.
-//
-// The first seven are the same Navigation sheet (NavigationUI_SheetImpl.ContainerViewController, id=sheet-view),
-// each holding its own controller. That class is Swift and generic for SwiftUI pages, so a sheet is recognised by
-// part of the inner controller's name. The pane goes in from the sheet's own passes because its rows are built
-// after the first layout; SGRRepaint.x keeps Spotify's grey clear in between.
-//
-// Sort by under the library's Recents button is not a Navigation sheet either: it is a card of the picker's own
-// presentation (SPTSortingFilteringPresentationController), so it gets its pane by the card.
-//
-// Share and Listening modes are not Navigation sheets: ShareMenuSheetView is presented by UIKit with no
-// sheet-view in it, and PlayModePickerView is placed by a presentation controller of its own, so each gets
-// its pane by name.
+// Not Navigation sheets, so each gets its pane by its own controller: Save in, Share, Listening modes, the library's
+// Sort by (a card of SPTSortingFilteringPresentationController), the podcast speed popup, Report a problem, Rate show
+// and the Connect device menu.
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
+
+static void clearOpaque(UIView *view) {
+    if (view.opaque) view.opaque = NO;
+    if (view.layer.opaque) view.layer.opaque = NO;
+}
+
+// The grey comes back with the rows and the footer, after the first layout, so the pane is put in again.
+static void passes(UIViewController *controller, void (*chrome)(UIViewController *)) {
+    __weak UIViewController *weak = controller;
+    chrome(controller);
+    for (NSNumber *delay in @[@0.0, @0.25, @0.6]) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            if (weak) chrome(weak);
+        });
+    }
+}
 
 // A Swift class by module and name, under the mangled spelling or the dotted one the trees print; nil when the
 // app has neither.
@@ -171,13 +152,9 @@ static char kPendingPaneKey;
 // The sheet Save in is in, while it is up: what the write-time hooks below test a view against.
 static __weak UIView *sg_saveInSheet;
 
-// Save in's wrappers are painted an opaque black (#000 or the page's #121212), which the pane's strip leaves alone
-// (it takes only greys a view can see, SGIsVisibleColor) and the queue has none of: laid over the glass they made
-// the popup near black. The full width bands that are black or Spotify's grey go clear, as in a list's rows.
-// An opaque view with no fill is drawn over black, whatever its parent shows (see SGRGlass.m's clearListPaint, which
-// takes the views below the page). The wrappers above it, between the page and the sheet's pane, are Spotify's and
-// kept their flag, so the glass stayed black behind a tree with no paint left in it (trees/continuous/3.txt). Only
-// below the pane, and only when there is one.
+// Save in's wrappers are painted an opaque black, which the pane's strip leaves alone and which would make the popup
+// near black over the glass. An opaque view with no fill is drawn black too, so the flag goes as well, on the
+// wrappers between the page and the sheet's pane (SGRGlass.m's clearListPaint takes the views below the page).
 static UIView *paneOf(UIView *view) {
     for (UIView *v = view; v; v = v.superview) {
         if ([v.accessibilityIdentifier isEqualToString:@"sheet-view"]) return v;
@@ -190,8 +167,7 @@ static void clearOpaqueAbove(UIView *view) {
     if (!pane) return;
     if (sg_saveInSheet != pane) sg_saveInSheet = pane;
     for (UIView *v = view; v && v != pane; v = v.superview) {
-        if (v.opaque) v.opaque = NO;
-        if (v.layer.opaque) v.layer.opaque = NO;
+        clearOpaque(v);
         if (!SGKeepsColor(v) && v.layer.backgroundColor && CGColorGetAlpha(v.layer.backgroundColor) > 0.05) v.backgroundColor = UIColor.clearColor;
     }
 }
@@ -201,14 +177,11 @@ static BOOL isGlass(UIView *view) {
     return [view isKindOfClass:UIVisualEffectView.class] || [NSStringFromClass(view.class) hasPrefix:@"SG"];
 }
 
-// Every view below `view`, whatever its width: the flag the width-gated clearing leaves on the narrow views inside a
-// row (the title stack, the artwork's holder) draws black over the glass just the same, and so does a black fill
-// narrower than a band (SGIsBaseSurface: the page black, which the list pass only takes at band width, and which
-// PaintAudit does not list). Glass is skipped: its own dim is black on purpose.
+// Every view below `view`, whatever its width: the opaque flag and a page-black fill on narrow views inside a row
+// draw black over the glass too. Glass is skipped, its own dim is black on purpose.
 static void clearOpaqueBelow(UIView *view, int depth) {
     if (depth > 24 || isGlass(view)) return;
-    if (view.opaque) view.opaque = NO;
-    if (view.layer.opaque) view.layer.opaque = NO;
+    clearOpaque(view);
     if (!SGKeepsColor(view) && SGIsBaseSurface(view.layer.backgroundColor)) view.backgroundColor = UIColor.clearColor;
     for (UIView *sub in view.subviews) clearOpaqueBelow(sub, depth + 1);
 }
@@ -219,18 +192,12 @@ static void clearSaveInPaint(UIView *view) {
     if (view) {
         clearOpaqueAbove(view);
         clearOpaqueBelow(view, 0);
-        // clearOpaqueAbove stops below the pane, so the pane's own flag was never cleared: an opaque layer with
-        // no fill is drawn black under the glass that blurs it.
-        UIView *pane = paneOf(view);
-        if (pane.opaque) pane.opaque = NO;
-        if (pane.layer.opaque) pane.layer.opaque = NO;
+        clearOpaque(paneOf(view));   // clearOpaqueAbove stops below the pane
     }
 }
 
-// Save in is marked opaque by Spotify each time a row or wrapper is laid out, so clearing the flag on the passes above
-// leaves it back on until the next one, and an opaque view with no fill is drawn black over the glass. The queue never
-// had this: its grey is a fill, kept clear as it is written (SGRRepaint.x). The flag is kept clear the same way, as it is
-// written, for every view inside this sheet.
+// Spotify marks Save in's views opaque on every layout, so the flag is kept clear as it is written (as SGRRepaint.x
+// does the queue's grey fill), for every view inside this sheet.
 static BOOL inSaveIn(UIView *view) {
     UIView *sheet = sg_saveInSheet;
     return sheet && view.window && SGIsInside(view, sheet);
@@ -248,15 +215,13 @@ static BOOL inSaveIn(UIView *view) {
 %end
 %end
 
-// The page's own views (ATPMainView, and the strip under the list that holds Done), painted by Spotify whenever
-// they are laid out, as the queue's two bars are (Redesigned/NowPlaying/QueueGlass.x): the paint, the opaque flag and the
-// fade Spotify draws behind the button go each time.
+// The page's own views (ATPMainView, and the strip under the list that holds Done) are repainted on every layout: the
+// paint, the opaque flag and the fade behind the button go each time, as in the queue (QueueGlass.x).
 static void clearSaveInView(UIView *view) {
     if (view.bounds.size.width < 1) return;
     CGColorRef paint = view.layer.backgroundColor;
     if (paint && CGColorGetAlpha(paint) > 0.05) view.backgroundColor = UIColor.clearColor;
-    if (view.opaque) view.opaque = NO;
-    if (view.layer.opaque) view.layer.opaque = NO;
+    clearOpaque(view);
     if ([view.layer isKindOfClass:CAGradientLayer.class]) {
         CAGradientLayer *gradient = (CAGradientLayer *)view.layer;
         if (gradient.colors) gradient.colors = nil;
@@ -301,25 +266,13 @@ static void chrome(UIViewController *sheet) {
         if ([NSStringFromClass(content.class) containsString:@"PlaylistCuration_AddToPlaylistImpl"]) clearSaveInPaint(root);
         return;
     }
-    // The content is not in yet, but the sheet is already up and grey: while a loading page is in it, the pane
-    // goes in anyway, so the first frames are glass and not Spotify's grey that glass replaces a moment later.
+    // The content is not in yet: while a loading page is in the sheet the pane goes in anyway, so no grey shows.
     if (loadingIn(sheet, 0)) {
         UIView *pane = SGRFindByIdentifier(sheet.viewIfLoaded, @"sheet-view", &kPendingPaneKey);
         if (pane) {
             SGRGlassSheetChrome(pane);
             clearSaveInPaint(pane);
         }
-    }
-}
-
-static void afterAppear(UIViewController *sheet) {
-    __weak UIViewController *weak = sheet;
-    chrome(sheet);
-    // The rows are built after the first layout and the grey comes back with them.
-    for (NSNumber *delay in @[@0.0, @0.25, @0.6]) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            if (weak) chrome(weak);
-        });
     }
 }
 
@@ -337,15 +290,14 @@ static void afterAppear(UIViewController *sheet) {
 
 - (void)viewDidAppear:(BOOL)animated {
     %orig;
-    afterAppear((UIViewController *)self);
+    passes((UIViewController *)self, chrome);
 }
 %end
 %end
 
 #pragma mark - the share menu
 
-// Share_MenuImpl.ShareMenuSheetView: the card the menu draws on its own, #1F1F1F r=16, a good deal taller than the
-// screen so it can be pulled up.
+// A view of the class whose name ends in `suffix`, near the top of the controller's view.
 static UIView *sheetNamed(UIView *root, NSString *suffix, int depth) {
     if (!root || depth > 4) return nil;
     if ([NSStringFromClass(root.class) hasSuffix:suffix]) return root;
@@ -356,14 +308,17 @@ static UIView *sheetNamed(UIView *root, NSString *suffix, int depth) {
     return nil;
 }
 
-static void shareChrome(UIViewController *controller) {
-    UIView *sheet = sheetNamed(controller.viewIfLoaded, @"ShareMenuSheetView", 0);
+static void glassNamed(UIViewController *controller, NSString *suffix) {
+    UIView *sheet = sheetNamed(controller.viewIfLoaded, suffix, 0);
     if (sheet && sheet.bounds.size.width > 1) SGRGlassSheetView(sheet);
 }
 
+static void shareChrome(UIViewController *controller) {
+    glassNamed(controller, @"ShareMenuSheetView");
+}
+
 static void pickerChrome(UIViewController *controller) {
-    UIView *sheet = sheetNamed(controller.viewIfLoaded, @"PlayModePickerView", 0);
-    if (sheet && sheet.bounds.size.width > 1) SGRGlassSheetView(sheet);
+    glassNamed(controller, @"PlayModePickerView");
 }
 
 %group SGRSharePopup
@@ -380,14 +335,7 @@ static void pickerChrome(UIViewController *controller) {
 
 - (void)viewDidAppear:(BOOL)animated {
     %orig;
-    __weak UIViewController *weak = (UIViewController *)self;
-    shareChrome((UIViewController *)self);
-    // Its rows and the preview cards are laid out after the first pass.
-    for (NSNumber *delay in @[@0.0, @0.25, @0.6]) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            if (weak) shareChrome(weak);
-        });
-    }
+    passes((UIViewController *)self, shareChrome);
 }
 %end
 %end
@@ -408,27 +356,16 @@ static void pickerChrome(UIViewController *controller) {
 
 - (void)viewDidAppear:(BOOL)animated {
     %orig;
-    __weak UIViewController *weak = (UIViewController *)self;
-    pickerChrome((UIViewController *)self);
-    for (NSNumber *delay in @[@0.0, @0.25, @0.6]) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            if (weak) pickerChrome(weak);
-        });
-    }
+    passes((UIViewController *)self, pickerChrome);
 }
 %end
 %end
 
 #pragma mark - the library's Sort by
 
-// The Recents button over Liked Songs opens SPTSortingFilteringPickerViewController as a card under
-// SPTSortingFilteringPresentationController (trees/continuous/2.txt): #282828 r=10 over a 0.6 scrim, the card
-// being the view the presentation puts in its container. The same controller in a playlist's Navigation
-// sheet is the sheet's to dress, above.
-//
-// Liked Songs' Sort by is the same picker inside a Navigation sheet (trees/continuous/3.txt), whose pane the sheet
-// pass above already puts behind it. The picker's own view is not a second card there: giving it a pane too laid a
-// second glass inside the first.
+// The Recents button opens SPTSortingFilteringPickerViewController as a card under its own presentation controller
+// (trees/continuous/2.txt). The same picker inside a Navigation sheet (a playlist's, Liked Songs') already has the
+// sheet's pane, and a second one would lay glass inside glass.
 static void sortChrome(UIViewController *controller) {
     for (UIView *v = controller.viewIfLoaded; v; v = v.superview) {
         if ([v.accessibilityIdentifier isEqualToString:@"sheet-view"]) return;
@@ -453,24 +390,16 @@ static void sortChrome(UIViewController *controller) {
 
 - (void)viewDidAppear:(BOOL)animated {
     %orig;
-    __weak UIViewController *weak = (UIViewController *)self;
-    sortChrome((UIViewController *)self);
-    // Its rows are built after the first layout.
-    for (NSNumber *delay in @[@0.0, @0.25, @0.6]) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            if (weak) sortChrome(weak);
-        });
-    }
+    passes((UIViewController *)self, sortChrome);
 }
 %end
 %end
 
 #pragma mark - the podcast speed popup
 
-// PodcastPlaybackSpeed_UIImpl.PlaybackSpeedView {0, 529} 390x315 #1F1F1F r=16 in a UITransitionView of a
-// BottomSheetPresentationController's own (trees/continuous/22.txt). Beside it, not in it, sits a 28pt strip
-// with the grabber and Spotify's Done button; Done goes (alpha, since a hidden Encore view can crash its
-// stack), the swipe and the dimmed area close the popup. The round speed buttons are glass circles.
+// PodcastPlaybackSpeed_UIImpl.PlaybackSpeedView (trees/continuous/22.txt) has a strip beside it with the grabber
+// and Spotify's Done button; Done goes (alpha, since a hidden Encore view can crash its stack), the swipe and the
+// dimmed area close the popup. The round speed buttons are glass circles.
 static char kDoneKey;
 
 static void hideDone(UIView *sheet) {
@@ -507,13 +436,7 @@ static void speedChrome(UIViewController *controller) {
 
 - (void)viewDidAppear:(BOOL)animated {
     %orig;
-    __weak UIViewController *weak = (UIViewController *)self;
-    speedChrome((UIViewController *)self);
-    for (NSNumber *delay in @[@0.0, @0.25, @0.6]) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            if (weak) speedChrome(weak);
-        });
-    }
+    passes((UIViewController *)self, speedChrome);
 }
 %end
 %end
@@ -547,9 +470,8 @@ static BOOL isFaintFill(CGColorRef color) {
 
 #pragma mark - Report a problem, and Rate show
 
-// Transcript_ReadAlongImpl.ReportReadAlongView (trees/continuous/24.txt:902): the card the transcript's flag opens
-// from the bottom of the screen, #1F1F1F with a layer mask of Spotify's own corners, over a 50% black dim. It is the
-// controller's own view, so it is the pane; the mask would cut the glass to Spotify's corners, so it goes.
+// Transcript_ReadAlongImpl.ReportReadAlongView (trees/continuous/24.txt): the controller's own view is the pane; its
+// layer mask of Spotify's corners would cut the glass, so it goes.
 static void reportChrome(UIViewController *controller) {
     UIView *sheet = controller.viewIfLoaded;
     if (!sheet || sheet.bounds.size.width < 1) return;
@@ -557,10 +479,8 @@ static void reportChrome(UIViewController *controller) {
     SGRGlassSheetView(sheet);
 }
 
-// Ratings_CommonImpl's Rate show page (23.txt:1871-1906), a page sheet of its own navigation controller: the
-// controller's view sits in the page loader's view, a plain #121212 the size of the sheet, which is the pane. Its
-// footer fades to that #121212 (a gradient and a 34pt band under the Submit button), which would lay a dark bar
-// over the glass; the band goes with the strip, the gradient is concealed.
+// Ratings_CommonImpl's Rate show page (23.txt), a page sheet: the page loader's view around the controller's is the
+// pane. The footer's fade to #121212 would lay a dark bar over the glass, so the gradient is concealed.
 static void rateChrome(UIViewController *controller) {
     UIView *pane = controller.viewIfLoaded.superview;
     if (!pane || pane.bounds.size.width < 300) return;
@@ -570,17 +490,6 @@ static void rateChrome(UIViewController *controller) {
         view.layer.hidden = YES;
         if (!view.layer.mask) view.layer.mask = [CALayer layer];
     });
-}
-
-// The grey comes back with the rows and the footer, after the first layout.
-static void passes(UIViewController *controller, void (*chrome)(UIViewController *)) {
-    __weak UIViewController *weak = controller;
-    chrome(controller);
-    for (NSNumber *delay in @[@0.0, @0.25, @0.6]) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            if (weak) chrome(weak);
-        });
-    }
 }
 
 %group SGRReportPopup
@@ -602,13 +511,9 @@ static void passes(UIViewController *controller, void (*chrome)(UIViewController
 %end
 %end
 
-// The Rate show page is not in the sheet from the start: the page sheet opens on Tome_PageLoaderViewImpl's
-// SPTMusicClientPageLoaderView with its spinner (SpinnerLoadingView) and the Rate controller is added once the page has
-// loaded (23.txt:1691-1695, 1801-1805). Until then the loader's view, which is the pane, is Spotify's plain #121212,
-// and rateChrome above only ran with the Rate controller: the sheet came up black for a beat and turned to glass
-// when the page arrived. Save in has the same wait and solves it the same way (chrome() above, loadingIn): the pane
-// goes in while the page is loading. A page sheet whose loader holds anything but the spinner and the Rate page is
-// left as it is.
+// The Rate page is added to the sheet's page loader once it has loaded, so until then the pane is Spotify's #121212.
+// As Save in does (chrome, loadingIn), the pane goes in while the spinner shows. A page sheet whose loader holds
+// anything but the spinner and the Rate page is left alone.
 static BOOL isPageSheet(UIViewController *controller) {
     UIPresentationController *presentation = controller.navigationController.presentationController ?: controller.presentationController;
     Class pageSheet = NSClassFromString(@"_UIPageSheetPresentationController");
@@ -625,9 +530,8 @@ static BOOL loaderIsRate(UIViewController *loader) {
     return YES;
 }
 
-// Whether the page sheet was opened over a profile page: its loader is the one Edit profile opens on (Profile/ProfileEdit.x),
-// which stays black. The loader shows the same spinner as the Rate sheet's until Edit profile arrives, so the page it was
-// opened from is the only tell. Looks through the controllers under the sheet, the pages of every stack among them.
+// Whether the sheet was opened over a profile page: Edit profile (ProfileEdit.x) opens on the same loader and spinner
+// and stays black, so the page it was opened from is the only tell.
 static BOOL underneathIsProfile(UIViewController *controller, int depth) {
     if (!controller || depth > 8) return NO;
     if ([NSStringFromClass(controller.class) containsString:@"Profile_CommonImpl"]) return YES;
@@ -645,12 +549,8 @@ static BOOL openedFromProfile(UIViewController *loader) {
 static void loaderChrome(UIViewController *loader) {
     UIView *pane = loader.viewIfLoaded;
     if (!pane || pane.bounds.size.width < 300 || !isPageSheet(loader) || !loaderIsRate(loader)) return;
-    // Edit profile's sheet is black, not glass: glassing it for the beat the spinner shows made it flash as the queue's.
     if (openedFromProfile(loader)) return;
-    // The whole app is presented too (a UIDropShadowView r=47.3 under the window), and every page loader in it, the
-    // Library's included, shows only its spinner for a moment: it was taken for the Rate sheet then, and its pane
-    // kept the glass over the whole screen once the page had loaded (trees/continuous/2.txt), with the sheet chrome's
-    // repaint hook clearing the avatar's fill. A page sheet is a card with a gap above it, never as tall as the screen.
+    // The whole app is presented as a page sheet too, and a page sheet is never as tall as the screen.
     if (pane.bounds.size.height >= UIScreen.mainScreen.bounds.size.height - 1) return;
     if (pane.layer.mask) pane.layer.mask = nil;
     SGRGlassSheetView(pane);
@@ -696,8 +596,7 @@ static void loaderChrome(UIViewController *loader) {
 
 #pragma mark - Save in, from the page's own controller
 
-// The page's own controller is hooked as well as the sheet's: it is the first thing that knows the content is
-// in, so the pane goes in on its first layout and not on the sheet's next pass.
+// The page's own controller is hooked too: it is the first to know the content is in.
 %group SGRSaveIn
 %hook SGRSaveInContainer
 - (void)viewWillAppear:(BOOL)animated {
@@ -718,10 +617,9 @@ static void loaderChrome(UIViewController *loader) {
 
 #pragma mark - Save in's find bar
 
-// The find field and the Sort button over Save in's playlists (trees/continuous/5.txt) are the grey boxes the
-// playlist page's own find bar has (Playlist/PlaylistHeader.x), and become glass the same way. The bar is in the
-// page twice: the one that scrolls with the list (a child of AddToPlaylistTableView) and the one the page shows while
-// searching, with Cancel in place of Sort, so each is looked for from its own root.
+// The find field and Sort button over Save in's playlists become glass as the playlist page's find bar does
+// (PlaylistHeader.x). The bar is in the page twice (scrolling with the list, and shown while searching), so each is
+// looked for from its own root.
 static void glassFindBar(UIView *root) {
     static char kFieldKey, kButtonKey, kFieldGlassKey, kButtonGlassKey;
     SGRGlassFlatBox(SGRFindByIdentifier(root, @"Components.Header.UI.Toolbar.SearchField", &kFieldKey), &kFieldGlassKey);
@@ -737,9 +635,7 @@ static void glassFindBar(UIView *root) {
     if (![list.accessibilityIdentifier isEqualToString:@"AddToPlaylistTableView"]) return;
     glassFindBar(list);
     glassFindBar(list.superview);
-    // An opaque table is drawn over black however clear its fill is.
-    if (list.opaque) list.opaque = NO;
-    if (list.layer.opaque) list.layer.opaque = NO;
+    clearOpaque(list);
     if (list.layer.backgroundColor && CGColorGetAlpha(list.layer.backgroundColor) > 0.05) list.backgroundColor = UIColor.clearColor;
     clearOpaqueAbove(list);
 }
@@ -748,11 +644,8 @@ static void glassFindBar(UIView *root) {
 
 #pragma mark - the Connect device menu
 
-// A device's menu in the Connect picker (Log out and the like) is Connect_ContextMenuPageImpl's page pushed onto the
-// picker's own navigation stack, inside its Navigation sheet (trees/continuous/14.txt). Its SwiftUI content is
-// painted #1F1F1F (a _UIGraphicsView above the scroll view), which stood over the pane for the push and a beat
-// after, until the sheet's own pass cleared it: the sheet does not lay out when a page is pushed in it. Like Save in,
-// the page's own controller puts the pane in and clears the paint on its first layout.
+// A device's menu in the Connect picker (Log out and the like) is pushed onto the picker's stack inside its sheet,
+// which does not lay out on a push, so as with Save in the page's own controller puts the pane in and clears the paint.
 static void connectMenuChrome(UIViewController *controller) {
     UIView *view = controller.viewIfLoaded;
     if (!view || view.bounds.size.width < 1) return;
