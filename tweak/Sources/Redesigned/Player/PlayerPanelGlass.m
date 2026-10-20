@@ -4,8 +4,10 @@
 // open from the glass as a different material.
 //
 // The popover stays the system's, so its animation does too (a background class of the mod's own took it away): its
-// blur, found among the views above the panel's, is hidden and the menu's pane (SGRMenuGlass) goes in beside it. If
-// no blur is found, nothing is changed.
+// blur is hidden and the menu's pane (SGRMenuGlass) goes in on the view that held it. The blur is looked for in the
+// views beside the panel's own and beside each ancestor's, nested or not, since UIKit puts it at a different depth
+// from one iOS to the next, and the chrome may be built after the panel's first layout, so the pass runs again as it
+// settles. If no blur is found, nothing is changed.
 //
 // Threading: main thread only.
 #import "Core/SGCore.h"
@@ -15,30 +17,73 @@
 // The black over the pane: lighter than the menu's, whose rows are long white labels; the panel is sliders.
 static const CGFloat kPanelDim = 0.18;
 static char kPanelGlassKey;
+static char kPanelSettleKey;
 
-// The ancestor of `content` that holds the popover's own blur, nearest first.
-static UIView *chromeAbove(UIView *content) {
+static BOOL isBlur(UIView *view) {
+    if ([view isKindOfClass:UIVisualEffectView.class]) return YES;
+    // A bare backdrop, one that is not the inside of a blur.
+    return ![view.superview isKindOfClass:UIVisualEffectView.class] && [NSStringFromClass(view.class) containsString:@"Backdrop"];
+}
+
+// The popover's own blurs: those in the subtrees beside the branch that holds `content`, from its parent up. The mod's
+// own pane is not one of them.
+static NSArray<UIView *> *chromeBlurs(UIView *content) {
+    NSMutableArray<UIView *> *blurs = [NSMutableArray array];
+    UIView *branch = content;
     UIView *host = content.superview;
-    for (int depth = 0; host && depth < 4; depth++, host = host.superview) {
+    for (int depth = 0; host && depth < 5; depth++, branch = host, host = host.superview) {
+        if ([host isKindOfClass:UIWindow.class] || [NSStringFromClass(host.class) isEqualToString:@"UITransitionView"]) break;
         for (UIView *sub in host.subviews) {
-            if (![sub isKindOfClass:UIVisualEffectView.class]) continue;
-            if (objc_getAssociatedObject(host, &kPanelGlassKey) == sub) continue;
-            return host;
+            if (sub == branch) continue;
+            SGForEachView(sub, ^(UIView *view) {
+                if (!isBlur(view) || objc_getAssociatedObject(view.superview, &kPanelGlassKey) == view) return;
+                [blurs addObject:view];
+            });
         }
+        if (blurs.count) break;
     }
-    return nil;
+    return blurs;
+}
+
+static void logChain(UIView *content) {
+    static int logged;
+    if (logged++ >= 2) return;
+    NSMutableString *chain = [NSMutableString string];
+    int depth = 0;
+    for (UIView *view = content; view && depth < 6; view = view.superview, depth++) {
+        [chain appendFormat:@" > %@(%d)", NSStringFromClass(view.class), (int)view.subviews.count];
+    }
+    SGLog(@"speed and pitch: no blur beside the panel's branch, its popover keeps the system's:%@", chain);
+}
+
+static void stylePanel(UIView *content) {
+    if (!content.window) return;
+    NSArray<UIView *> *blurs = chromeBlurs(content);
+    if (!blurs.count) {
+        logChain(content);
+        return;
+    }
+    UIView *host = blurs.firstObject.superview;
+    UIView *glass = SGRMenuGlass(host, &kPanelGlassKey, kPanelDim);
+    if (!glass) return;
+    for (UIView *blur in blurs) {
+        if (blur != glass && !blur.hidden) blur.hidden = YES;
+    }
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ SGLog(@"speed and pitch: glass over %@ of %@", NSStringFromClass(host.class), NSStringFromCGRect(host.bounds)); });
 }
 
 void SGPlayerStylePanel(UIView *content) {
     if (!SGRedesignedUI() || !SGBelowiOS26() || !content.window) return;
-    UIView *host = chromeAbove(content);
-    if (!host) {
-        static int logged;
-        if (logged++ < 2) SGLog(@"speed and pitch: no blur above the panel, its popover keeps the system's");
-        return;
-    }
-    UIView *glass = SGRMenuGlass(host, &kPanelGlassKey, kPanelDim);
-    for (UIView *sub in host.subviews) {
-        if (sub != glass && [sub isKindOfClass:UIVisualEffectView.class] && !sub.hidden) sub.hidden = YES;
+    stylePanel(content);
+    // Again as the popover settles: UIKit may build or re-lay its chrome after the panel's own layout.
+    if (objc_getAssociatedObject(content, &kPanelSettleKey)) return;
+    objc_setAssociatedObject(content, &kPanelSettleKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    __weak UIView *weak = content;
+    for (NSNumber *wait in @[@0.05, @0.2, @0.5]) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(wait.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            UIView *shown = weak;
+            if (shown.window) stylePanel(shown);
+        });
     }
 }
