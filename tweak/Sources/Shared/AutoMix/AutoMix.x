@@ -166,7 +166,6 @@ static NSUInteger metadataCount(id track) {
 }
 
 - (void)playerStateDidReport:(SPTPlayerState *)state {
-    if (!SGFlag(SGKeyAutoMix, NO)) return;
     NSString *uri = SGURIString(state.track.URI);
     id next = state.future.firstObject;
     uint64_t silent = SGPlayerMixerSilentFrames();
@@ -249,5 +248,5 @@ NSDictionary *SGAutoMixProbeCommand(NSDictionary *p, NSString **error) {
 %ctor {
     %init;
     SGRequireClasses(@[@"SPTCoreProductState"]);
-    if (SGFlag(SGKeyAutoMix, NO)) startProbe();
+    startProbe();   // the probe only logs, so it runs with the switch off too: Spotify's own crossfade can be measured
 }
