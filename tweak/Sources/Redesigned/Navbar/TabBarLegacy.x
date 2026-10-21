@@ -28,6 +28,16 @@
 
 static char kBarKey, kHostKey, kNavGlassKey, kNavTintKey, kSelPillKey, kRetriesKey, kGlyphOverlayKey, kOutlineLiveKey, kFilledLiveKey, kCreateDiscKey, kGlyphsTakenKey;
 static char kCirclePaneKey, kCircleFilmKey, kLeadKey, kTrailKey;
+// The film over the bar's glass: a grey, so it draws what it shows towards a dark grey from both sides, as the
+// system's bar does in the dark. Bright content under it is darkened a little (white comes out at 0.85), and
+// plain black is lifted to 0.1, so the bar stands out of a black page instead of melting into it. A black film
+// darkened both and was lost on black; the white one every other pane has lit the bar up.
+static UIColor *barFilmColor(void) {
+    static UIColor *color;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ color = [UIColor colorWithWhite:0.4 alpha:0.25]; });
+    return color;
+}
 // The bar is a floating capsule, not a full-width slab.
 static const CGFloat kNavGlassMargin = 16;        // gap at each side
 static const CGFloat kNavGlassBottomMargin = 8;   // gap under it, and over it to the now playing card
@@ -173,6 +183,7 @@ static void followCreateClose(UIView *stockBar);
     _pane.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
     SGGlassInteractive(self, _pane);
     _film = SGRGlassFilm(self, &kCircleFilmKey, _pane, 0);
+    _film.backgroundColor = barFilmColor();
     _glyph = [UIImageView new];
     _glyph.userInteractionEnabled = NO;
     _glyph.contentMode = UIViewContentModeCenter;
@@ -1360,6 +1371,7 @@ static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
     SGShapeGlass(navGlass, glassFrame.size.height / 2, NO);
 
     UIView *navTint = SGRGlassFilm(host, &kNavTintKey, navGlass, glassFrame.size.height / 2);
+    if (navTint.backgroundColor != barFilmColor()) navTint.backgroundColor = barFilmColor();
     // SGRGlassFilm sets the film's frame from the pane's, which under the morph's transform is the stretched box;
     // the film is given the pane's bounds and center instead, and its transform in placeCompact.
     if (!CGSizeEqualToSize(navTint.bounds.size, glassFrame.size)) navTint.bounds = (CGRect){CGPointZero, glassFrame.size};

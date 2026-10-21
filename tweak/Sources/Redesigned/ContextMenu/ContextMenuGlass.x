@@ -99,6 +99,7 @@ static void glassAfterSettling(UIView *list) {
 - (void)layoutSubviews {
     %orig;
     glassMenu((UIView *)self);
+    SGRMenuMorphOpen((UIView *)self);
 }
 %end
 

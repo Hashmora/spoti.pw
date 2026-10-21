@@ -11,9 +11,9 @@ static const CGFloat kLensGrow = 12, kLensOverscroll = 14;
 // On top of what the two edges' lag gives, the bubble is stretched by the speed of its middle (pt/s): tanh, so it
 // answers a slow drag at once, and a flick fills it out towards the cap without the kink a hard limit has.
 static const CGFloat kLensStretchSpeed = 2800, kLensMaxSpeedStretch = 0.40;
-// How much of the stretch is taken from the height: 1 would keep the area exactly, which pinches a glass bubble
-// too thin; the old 0.55 left it fat. Below kLensMinHeight it is not squeezed further.
-static const CGFloat kLensVolume = 0.75, kLensMinHeight = 0.66;
+// A fast bubble is taller too, as the system's: the same speed lifts its height by up to kLensMaxRise, and as it
+// slows down it comes back to its own. The stretch takes nothing from the height; a stop's squash does (below).
+static const CGFloat kLensRiseSpeed = 2200, kLensMaxRise = 0.24, kLensMinHeight = 0.66;
 // The surface tension: once the edges are near their targets, they pull each other back to the bubble's width, with
 // a damper of their own, so a stretched bubble draws in and gives one small bounce rather than ringing. It is off
 // while the bubble is chasing a finger (the stretch is what shows the chase), and fades in over the last
@@ -219,16 +219,14 @@ static const CGFloat kPlayStep = 1.0 / 120;
 - (void)getPose:(SGLensSample)st center:(CGPoint *)center sx:(CGFloat *)sx sy:(CGFloat *)sy {
     CGFloat baseWidth = MAX(1, self.bounds.size.width), baseHeight = MAX(1, self.bounds.size.height);
     CGFloat width = MAX(baseHeight * 0.8, st.R - st.L);
-    CGFloat nominal = _restFrame.size.width + kLensGrow * st.lift;
-    CGFloat lag = MAX(0, width / MAX(1, nominal) - 1);
     CGFloat speed = fabs(st.vL + st.vR) / 2;
     CGFloat extra = kLensMaxSpeedStretch * tanh(speed / kLensStretchSpeed) * st.lift;
-    // Longer is thinner, so the bubble keeps (most of) its volume while it runs.
     CGFloat held = 1 + 2 * _heldOutset / baseHeight * st.lift;
+    CGFloat rise = 1 + kLensMaxRise * tanh(speed / kLensRiseSpeed) * st.lift;
     CGFloat squash = st.sq * st.lift;
-    CGFloat fat = MAX(0.5, 1 + lag + extra + squash);
+    CGFloat fat = MAX(0.5, 1 + squash);
     *sx = width * MAX(0.5, 1 + extra + squash) / baseWidth;
-    *sy = MAX(kLensMinHeight, held * pow(fat, fat < 1 ? -kLensSquashVolume : -kLensVolume));
+    *sy = MAX(kLensMinHeight, held * rise * pow(fat, -kLensSquashVolume));
     *center = CGPointMake((st.L + st.R) / 2, CGRectGetMidY(_restFrame));
 }
 
