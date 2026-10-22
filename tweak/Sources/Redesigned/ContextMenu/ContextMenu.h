@@ -56,14 +56,3 @@ UIControl *SGRSystemMenuFront(UIView *button);
 // of its own. Nil while `host` has no size.
 static const CGFloat SGRMenuDim = 0.42;
 UIView *SGRMenuGlass(UIView *host, const void *key, CGFloat dim);
-
-// Below iOS 26, the player's ⋯ menu opens the way iOS 26's does (MenuMorph.m): the button flies down into the
-// menu's middle while the menu grows out of it. Prepare is told the button before the menu is asked for, Open is
-// run on the first layout with a size of a menu's list (only the first after a Prepare morphs), Shown as the menu
-// is shown (it morphs then if Open did not), Close as it ends.
-void SGRMenuMorphPrepare(UIView *source);
-void SGRMenuMorphOpen(UIView *list);
-// Holds the menu view of `list` unseen from its first moment in a window until the morph starts (MenuMorph.m).
-void SGRMenuMorphHold(UIView *list);
-void SGRMenuMorphShown(void);
-void SGRMenuMorphClose(UIView *source);

@@ -327,7 +327,6 @@ static UIMenu *inlineGroup(NSArray<UIMenuElement *> *children) {
                       animator:(id<UIContextMenuInteractionAnimating>)animator {
     [super contextMenuInteraction:interaction willDisplayMenuForConfiguration:configuration animator:animator];
     [self.session shown];
-    if ([self isKindOfClass:SGRMenuFront.class]) SGRMenuMorphShown();
 }
 
 - (void)contextMenuInteraction:(UIContextMenuInteraction *)interaction willEndForConfiguration:(UIContextMenuConfiguration *)configuration
@@ -342,10 +341,7 @@ static UIMenu *inlineGroup(NSArray<UIMenuElement *> *children) {
     [session menuEnded];
     // The player's ⋯ is pressed for as long as its menu is up (the touch that opened it was canceled at once,
     // as the menu came): its targets for the press (PlayerHeader.x's circle) are told now that it is let go.
-    if ([self isKindOfClass:SGRMenuFront.class]) {
-        [self sendActionsForControlEvents:UIControlEventTouchUpOutside];
-        SGRMenuMorphClose(((SGRMenuFront *)self).spotify);
-    }
+    if ([self isKindOfClass:SGRMenuFront.class]) [self sendActionsForControlEvents:UIControlEventTouchUpOutside];
 }
 
 @end
@@ -363,7 +359,6 @@ static UIMenu *inlineGroup(NSArray<UIMenuElement *> *children) {
     session.kind = self.kind ? self.kind() : nil;
     self.session = session;
     self.menu = [session menu];
-    SGRMenuMorphPrepare(self.spotify);
     return [super contextMenuInteraction:interaction configurationForMenuAtLocation:location];
 }
 
