@@ -343,10 +343,66 @@ static id SGMakeGlassMesh(CGSize size, CGFloat radius) {
     return transform;
 }
 
-#pragma mark - the rim's highlight
+#pragma mark - the rim's light
 
-static const CGFloat kSpecularWidth = 1.0;
-static NSString *const kSpecularName = @"sg.specular";
+// What the system's glass does at its edge besides bending the backdrop, drawn here as plain strokes, with no blur and
+// no mask but the glare's, so a screen of panes stays cheap:
+//   glare       the bright streak along the rim, strongest at the top-left and the bottom-right corners;
+//   Fresnel     the edge glowing a little, fading inwards: three strokes, each further in and fainter;
+//   dispersion  a warm and a cool stroke, a fraction of a point to either side of the rim, which a prism's colour
+//               fringe reads as.
+static const CGFloat kSpecularWidth = 1.2;
+static NSString *const kSpecularName = @"sg.specular", *const kRimLightName = @"sg.rimLight";
+
+typedef struct { CGFloat inset, width, alpha; } SGRimStroke;
+static const SGRimStroke kFresnel[] = {{1.5, 1.5, 0.10}, {3.0, 2.0, 0.06}, {5.5, 3.0, 0.03}};
+static const CGFloat kFringeOffset = 0.6, kFringeAlpha = 0.22;
+
+static CGPathRef rimPath(CGRect bounds, CGFloat inset, CGFloat radius) {
+    CGRect rect = CGRectInset(bounds, inset, inset);
+    CGFloat r = MAX(0, MIN(radius - inset, MIN(rect.size.width, rect.size.height) / 2));
+    return [UIBezierPath bezierPathWithRoundedRect:rect cornerRadius:r].CGPath;
+}
+
+static CAShapeLayer *stroke(CGColorRef color, CGFloat width) {
+    CAShapeLayer *line = [CAShapeLayer layer];
+    line.fillColor = nil;
+    line.strokeColor = color;
+    line.lineWidth = width;
+    return line;
+}
+
+// The Fresnel strokes and the fringe, one layer under the glare holding them in the order kFresnel, warm, cool.
+static void placeRimLight(CALayer *host, CGRect bounds, CGFloat radius) {
+    CALayer *light = nil;
+    for (CALayer *sub in host.sublayers) {
+        if ([sub.name isEqualToString:kRimLightName]) light = sub;
+    }
+    NSUInteger fresnel = sizeof(kFresnel) / sizeof(kFresnel[0]);
+    if (!light) {
+        light = [CALayer layer];
+        light.name = kRimLightName;
+        light.zPosition = 99;
+        for (NSUInteger i = 0; i < fresnel; i++) {
+            [light addSublayer:stroke([UIColor colorWithWhite:1 alpha:kFresnel[i].alpha].CGColor, kFresnel[i].width)];
+        }
+        [light addSublayer:stroke([UIColor colorWithRed:1 green:0.62 blue:0.32 alpha:kFringeAlpha].CGColor, 1)];
+        [light addSublayer:stroke([UIColor colorWithRed:0.38 green:0.78 blue:1 alpha:kFringeAlpha].CGColor, 1)];
+        [host addSublayer:light];
+    }
+    light.frame = bounds;
+    NSArray<CAShapeLayer *> *lines = (NSArray<CAShapeLayer *> *)light.sublayers;
+    CGRect local = light.bounds;
+    for (NSUInteger i = 0; i < fresnel && i < lines.count; i++) {
+        lines[i].frame = local;
+        lines[i].path = rimPath(local, kFresnel[i].inset, radius);
+    }
+    if (lines.count < fresnel + 2) return;
+    // Warm up and to the left, cool down and to the right, each a stroke one point in from the rim.
+    lines[fresnel].frame = CGRectOffset(local, -kFringeOffset, -kFringeOffset);
+    lines[fresnel + 1].frame = CGRectOffset(local, kFringeOffset, kFringeOffset);
+    lines[fresnel].path = lines[fresnel + 1].path = rimPath(local, 1, radius);
+}
 
 void SGLegacyGlassSpecular(CALayer *host, CGRect bounds, CGFloat radius) {
     if (@available(iOS 26.0, *)) return;
@@ -363,26 +419,21 @@ void SGLegacyGlassSpecular(CALayer *host, CGRect bounds, CGFloat radius) {
         // Corner to corner: the two ends are the highlights, the middle stretch is clear.
         rim.startPoint = CGPointMake(0, 0);
         rim.endPoint = CGPointMake(1, 1);
-        rim.locations = @[@0, @0.28, @0.72, @1];
-        rim.colors = @[(id)[UIColor colorWithWhite:1 alpha:0.75].CGColor,
+        rim.locations = @[@0, @0.22, @0.78, @1];
+        rim.colors = @[(id)[UIColor colorWithWhite:1 alpha:0.9].CGColor,
                        (id)[UIColor colorWithWhite:1 alpha:0].CGColor,
                        (id)[UIColor colorWithWhite:1 alpha:0].CGColor,
-                       (id)[UIColor colorWithWhite:1 alpha:0.55].CGColor];
-        // Over everything else in the host: a one point line, and the film or content under it must not hide it.
+                       (id)[UIColor colorWithWhite:1 alpha:0.6].CGColor];
+        // Over everything else in the host: a thin line, and the film or content under it must not hide it.
         rim.zPosition = 100;
-        CAShapeLayer *line = [CAShapeLayer layer];
-        line.fillColor = nil;
-        line.strokeColor = UIColor.whiteColor.CGColor;
-        line.lineWidth = kSpecularWidth;
-        rim.mask = line;
+        rim.mask = stroke(UIColor.whiteColor.CGColor, kSpecularWidth);
         [host addSublayer:rim];
     }
     rim.frame = bounds;
     CAShapeLayer *line = (CAShapeLayer *)rim.mask;
     line.frame = rim.bounds;
-    CGRect inset = CGRectInset(rim.bounds, kSpecularWidth / 2, kSpecularWidth / 2);
-    CGFloat r = MAX(0, MIN(radius - kSpecularWidth / 2, MIN(inset.size.width, inset.size.height) / 2));
-    line.path = [UIBezierPath bezierPathWithRoundedRect:inset cornerRadius:r].CGPath;
+    line.path = rimPath(rim.bounds, kSpecularWidth / 2, radius);
+    placeRimLight(host, bounds, radius);
     [CATransaction commit];
 }
 
