@@ -44,6 +44,11 @@ static const CGFloat kRowHeight = 56, kSliderBlockHeight = 72, kSwitchRowHeight 
 // the redesign's Kit: the sheet's side margin, the gap everything else is a multiple of, and a spring
 // that settles without overshooting.
 static const CGFloat kSideMargin = 16, kGrid = 8;
+// The panel's room over its first slider. Below iOS 26 it stands on the mod's glass, which reaches to the popover's
+// edge with no inset of the system's, and the Speed label all but touched the top.
+static CGFloat panelTop(void) {
+    return SGBelowiOS26() ? 2 * kGrid : kGrid;
+}
 static const NSTimeInterval kOpenDuration = 0.45;
 
 static UIColor *primary(void) {
@@ -291,7 +296,7 @@ static void placeTick(UISlider *slider) {
 
     _row.hidden = self.panelOnly;
     _animatedRow.hidden = self.panelOnly;
-    _panel.frame = CGRectMake(0, self.panelOnly ? kGrid : kRowHeight, width, 3 * kSliderBlockHeight + kSwitchRowHeight + kPanelBottom);
+    _panel.frame = CGRectMake(0, self.panelOnly ? panelTop() : kRowHeight, width, 3 * kSliderBlockHeight + kSwitchRowHeight + kPanelBottom);
     CGFloat y = 0;
     for (NSArray<UIView *> *line in @[@[_speedName, _speedValue, _speed], @[_pitchName, _pitchValue, _pitch],
                                        @[_reverbName, _reverbValue, _reverb]]) {
@@ -557,7 +562,7 @@ void SGPlayerShowSpeedPitchPanel(UIView *from) {
     if (!from.window) return;
     SGSpeedPitchPanel *panel = [SGSpeedPitchPanel new];
     panel.modalPresentationStyle = UIModalPresentationPopover;
-    panel.preferredContentSize = CGSizeMake(320, kGrid + 3 * kSliderBlockHeight + kSwitchRowHeight + kPanelBottom);
+    panel.preferredContentSize = CGSizeMake(320, panelTop() + 3 * kSliderBlockHeight + kSwitchRowHeight + kPanelBottom);
     UIPopoverPresentationController *popover = panel.popoverPresentationController;
     popover.sourceView = from;
     popover.sourceRect = from.bounds;

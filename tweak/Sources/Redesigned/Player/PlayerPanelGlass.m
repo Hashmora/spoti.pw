@@ -16,7 +16,7 @@
 #import "Shared/Player/SpeedPitch.h"
 
 // The black over the pane: lighter than the menu's, whose rows are long white labels; the panel is sliders.
-static const CGFloat kPanelDim = 0.18;
+static const CGFloat kPanelDim = 0.26;
 static char kPanelGlassKey;
 static char kPanelSettleKey;
 

@@ -1,11 +1,15 @@
 // The player's ⋯ menu below iOS 26 opens the way iOS 26's does: the button flies down to where the menu's middle
-// will be and fades into it, while the menu grows out of the button's middle on the way. UIKit's own opening
-// (a fade and a scale from the menu's corner) still runs under it; the morph is added on top of it, additively, so
-// neither has to know of the other. Closing flies the button back out of the menu's middle to its place.
+// will be and fades into it, while the menu grows out of the button's middle on the way. UIKit's own opening (the
+// menu unrolled from its corner) still runs under it; the morph is added on top of it, additively, so neither has to
+// know of the other. Closing flies the button back out of the menu's middle to its place.
 //
-// The source is told before UIKit presents (SGRMenuMorphPrepare, from the touch down that asks for the menu), and the
-// morph starts on the first layout of the menu's list with a size (ContextMenuGlass.x), before its first frame is drawn.
-// A submenu's list comes later and finds nothing waiting.
+// What moves is the menu's own view (_UIContextMenuView), not its list: UIKit unrolls the list through a mask on that
+// view, and a list moved inside it is cut off by the mask and the morph is not seen.
+//
+// The source is told before UIKit presents (SGRMenuMorphPrepare, from the touch down that asks for the menu). The
+// morph starts on the first layout with a size of the menu's list (ContextMenuGlass.x), before its first frame, or,
+// should that layout not come while the source waits, as the menu is shown (SGRMenuMorphShown), a frame late. A
+// submenu's list comes later and finds nothing waiting. What it did or why it did not is logged.
 //
 // Threading: main thread only.
 #import "Core/SGCore.h"
@@ -25,14 +29,25 @@ static CFTimeInterval sPendingAt;
 static __weak UIView *sFlown;
 static CGPoint sFlownBy;
 
+static void note(NSString *what) {
+    static NSMutableSet<NSString *> *said;
+    if (!said) said = [NSMutableSet set];
+    if ([said containsObject:what]) return;
+    [said addObject:what];
+    SGLog(@"menu morph: %@", what);
+}
+
 static BOOL morphs(void) {
     return SGBelowiOS26() && !SGRReduceMotion();
 }
 
 void SGRMenuMorphPrepare(UIView *source) {
-    if (!morphs() || !source.window) return;
+    if (!SGBelowiOS26()) return;
+    if (SGRReduceMotion()) { note(@"off, Reduce Motion is on"); return; }
+    if (!source.window) { note(@"no ⋯ in a window to start from"); return; }
     sPending = source;
     sPendingAt = CACurrentMediaTime();
+    note(@"armed by the ⋯'s touch");
 }
 
 static void addSpring(CALayer *layer, NSString *path, CGFloat from) {
@@ -48,27 +63,31 @@ static void addSpring(CALayer *layer, NSString *path, CGFloat from) {
     [layer addAnimation:a forKey:[@"sgr.morph." stringByAppendingString:path]];
 }
 
-void SGRMenuMorphOpen(UIView *list) {
+static void morph(UIView *list, NSString *how) {
     UIView *source = sPending;
-    if (!source || !list.superview || list.bounds.size.width < 1 || list.bounds.size.height < 1) return;
     sPending = nil;
-    if (!source.window || CACurrentMediaTime() - sPendingAt > kMorphWait || !morphs()) return;
+    if (!source.window || CACurrentMediaTime() - sPendingAt > kMorphWait || !morphs()) { note(@"the ⋯ went away before its menu came"); return; }
+    UIView *menu = list.superview;
+    UIView *space = menu.superview;
+    if (!space || list.bounds.size.width < 1 || list.bounds.size.height < 1) { note(@"the menu has no size to grow to"); return; }
 
-    UIView *host = list.superview;
-    CGPoint from = [source convertPoint:CGPointMake(CGRectGetMidX(source.bounds), CGRectGetMidY(source.bounds)) toCoordinateSpace:host];
-    CGPoint to = list.center;
+    // Where the button's middle is and where the list's will be, in the space the menu view stands in.
+    CGPoint from = [source convertPoint:CGPointMake(CGRectGetMidX(source.bounds), CGRectGetMidY(source.bounds)) toCoordinateSpace:space];
+    CGPoint to = [list convertPoint:CGPointMake(CGRectGetMidX(list.bounds), CGRectGetMidY(list.bounds)) toCoordinateSpace:space];
     CGSize size = list.bounds.size, button = source.bounds.size;
-
-    // The menu out of the button's middle.
-    CALayer *layer = list.layer;
-    addSpring(layer, @"transform.translation.x", from.x - to.x);
-    addSpring(layer, @"transform.translation.y", from.y - to.y);
-    addSpring(layer, @"transform.scale.x", MAX(kMorphMinScale, button.width / size.width) - 1);
-    addSpring(layer, @"transform.scale.y", MAX(kMorphMinScale, button.height / size.height) - 1);
+    CGFloat sx = MAX(kMorphMinScale, button.width / size.width), sy = MAX(kMorphMinScale, button.height / size.height);
+    // The menu view scales about its own middle, which need not be the list's: the move is what puts the list's
+    // middle on the button's at the start.
+    CGPoint middle = menu.center;
+    CALayer *layer = menu.layer;
+    addSpring(layer, @"transform.translation.x", from.x - middle.x - sx * (to.x - middle.x));
+    addSpring(layer, @"transform.translation.y", from.y - middle.y - sy * (to.y - middle.y));
+    addSpring(layer, @"transform.scale.x", sx - 1);
+    addSpring(layer, @"transform.scale.y", sy - 1);
 
     // The button into the menu's middle: it goes on the same spring and is gone before it gets there. Left at its
     // place unseen, by alpha (a hidden view in Spotify's stacks crashes, AGENTS.md).
-    CGPoint target = [host convertPoint:to toCoordinateSpace:source.superview];
+    CGPoint target = [space convertPoint:to toCoordinateSpace:source.superview];
     CGPoint by = CGPointMake(target.x - source.center.x, target.y - source.center.y);
     sFlown = source;
     sFlownBy = by;
@@ -78,6 +97,43 @@ void SGRMenuMorphOpen(UIView *list) {
     }];
     [UIView animateWithDuration:0.18 delay:0 options:UIViewAnimationOptionCurveEaseOut | UIViewAnimationOptionBeginFromCurrentState
                      animations:^{ source.alpha = 0; } completion:nil];
+    note([NSString stringWithFormat:@"grown %@, from %@ to the menu in %@", how, NSStringFromCGPoint(from), NSStringFromClass(menu.class)]);
+}
+
+void SGRMenuMorphOpen(UIView *list) {
+    if (sPending) morph(list, @"from the list's first layout");
+}
+
+// The first list in a window: the top menu's, a submenu's is made later.
+static UIView *visibleList(void) {
+    Class listClass = NSClassFromString(@"_UIContextMenuListView");
+    __block UIView *found = nil;
+    for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
+        if (![scene isKindOfClass:UIWindowScene.class]) continue;
+        for (UIWindow *window in ((UIWindowScene *)scene).windows) {
+            SGForEachView(window, ^(UIView *v) {
+                if (!found && [v isKindOfClass:listClass] && v.bounds.size.width >= 1) found = v;
+            });
+            if (found) return found;
+        }
+    }
+    return nil;
+}
+
+void SGRMenuMorphShown(void) {
+    if (!sPending) {
+        if (!sFlown && morphs()) note(@"the menu was shown with nothing armed (or already grown)");
+        return;
+    }
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (!sPending) return;
+        UIView *list = visibleList();
+        if (list) morph(list, @"as the menu was shown");
+        else {
+            sPending = nil;
+            note(@"no menu list found to grow");
+        }
+    });
 }
 
 void SGRMenuMorphClose(UIView *source) {

@@ -327,6 +327,7 @@ static UIMenu *inlineGroup(NSArray<UIMenuElement *> *children) {
                       animator:(id<UIContextMenuInteractionAnimating>)animator {
     [super contextMenuInteraction:interaction willDisplayMenuForConfiguration:configuration animator:animator];
     [self.session shown];
+    if ([self isKindOfClass:SGRMenuFront.class]) SGRMenuMorphShown();
 }
 
 - (void)contextMenuInteraction:(UIContextMenuInteraction *)interaction willEndForConfiguration:(UIContextMenuConfiguration *)configuration
