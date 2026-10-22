@@ -100,22 +100,20 @@ static id SGMakeMeshTransform(SGMeshVertex *vertices, NSUInteger vertexCount, SG
     return transform;
 }
 
-#pragma mark - displacement field (after Telegram's GenerateMesh.swift, with a lens profile of the mod's own)
+#pragma mark - displacement field (after Telegram's GenerateMesh.swift, with the lens of adaptive_liquid_glass)
 
-// How strongly a point refracts by how near the rim it is, w from 0 (the band's inner edge) to 1 (the rim): the shift
-// of a ray through a convex glass edge whose surface tilts as w^2, by Snell's law at a refractive index of
-// kRefractiveIndex, over the shift at the rim. Nearly flat inside and steep at the edge, the way the system's glass bends
-// most right at its rim (a third of the rim's at a fifth of the way in, a half at a tenth). The tilt stops short of
-// upright at the rim (kMaxTilt): a glass upright there bends its last half point five times as hard as the rest and
-// draws a seam round the edge.
-static const CGFloat kRefractiveIndex = 1.5, kMaxTilt = 0.97;
+// How the system's glass bends what is behind it, as adaptive_liquid_glass measured it against SwiftUI's own
+// `.glassEffect` (github.com/AymanOmara/adaptive_liquid_glass, MIT; shaders/liquid_glass.frag, "Lens v3", and
+// tool/fidelity/standard_constants.json, regularDark): the shift towards the inside falls off exponentially with the
+// depth from the rim, over a length of kLensDecay, and is cut to 0 at kLensBand. At the rim it is kLensStrength times
+// the band, so the outer points sample deep inside and the band shows a compressed, mirrored copy of the interior. A
+// pane whose shorter half is below kLensSizeRef gets the whole lens scaled down by that ratio (SGMakeGlassMesh).
+static const CGFloat kLensBand = 18.83, kLensDecay = 5.90, kLensStrength = 2.63, kLensSizeRef = 38.79;
 
-static CGFloat SGLensShift(CGFloat tilt) {
-    return tan(asin(tilt) - asin(tilt / kRefractiveIndex));
-}
-
-static CGFloat SGLensProfile(CGFloat w) {
-    return SGLensShift(MIN(1, w * w) * kMaxTilt) / SGLensShift(kMaxTilt);
+// The share of the rim's shift at `depth` points in from the rim, 1 at the rim and 0 from `band` in.
+static CGFloat SGLensProfile(CGFloat depth, CGFloat band) {
+    CGFloat decay = kLensDecay * band / kLensBand, cut = exp(-band / decay);
+    return MAX(0, exp(-MAX(0, depth) / decay) - cut) / (1 - cut);
 }
 
 // Signed distance from (x, y) to a width x height rounded rect at the origin (negative inside), and the
@@ -137,19 +135,14 @@ static CGFloat SGRoundedRectSDF(CGFloat x, CGFloat y, CGFloat width, CGFloat hei
     return hypot(MAX(qx, 0), MAX(qy, 0)) + MIN(MAX(qx, qy), 0) - radius;
 }
 
-// What a vertex samples from, relative to where it sits: inwards, by the lens profile of its depth.
+// What a vertex samples from, relative to where it sits: inwards along the rim's normal, by the lens profile of its
+// depth, as a share of the rim's shift.
 static void SGDisplacement(CGFloat x, CGFloat y, CGFloat width, CGFloat height, CGFloat radius, CGFloat edgeDistance,
                            CGFloat *outDx, CGFloat *outDy, CGFloat *outSdf) {
     CGFloat nx, ny;
     CGFloat sdf = SGRoundedRectSDF(x, y, width, height, radius, &nx, &ny);
-    CGFloat weight = MAX(0, MIN(1, 1.0 + sdf / edgeDistance));
-    CGFloat dx = -nx * weight, dy = -ny * weight;
-    CGFloat mag = hypot(dx, dy);
-    if (mag > 0) {
-        CGFloat scale = SGLensProfile(mag) / mag;
-        dx *= scale; dy *= scale;
-    }
-    *outDx = dx; *outDy = dy; *outSdf = sdf;
+    CGFloat v = SGLensProfile(-sdf, edgeDistance);
+    *outDx = -nx * v; *outDy = -ny * v; *outSdf = sdf;
 }
 
 #pragma mark - mesh template
@@ -161,11 +154,14 @@ typedef struct { CGFloat radius, refW, refH, edgeDistance, outerEdgeDistance; } 
 typedef struct { CGFloat baseX, scaleX, baseY, scaleY, dispX, dispY, depth; } SGTemplateVertex;
 
 static const NSInteger kCornerResolution = 12;
-static const CGFloat kOuterEdgeDistance = 3.5;   // width of the strip at the rim that is refracted harder
-static const CGFloat kDisplacementPoints = 26.0; // how far, at most, a vertex samples from its own position
-// How deep from the rim the glass bends what is behind it: most of the corner's radius, as the system's glass does,
-// whose edges refract over a wide band rather than a thin line (Telegram's 12pt read as a flat pane with a bevel).
-static const CGFloat kEdgeBandMax = 22.0, kEdgeBandShare = 0.8;
+static const CGFloat kOuterEdgeDistance = 3.5;   // the strip at the rim where the mesh's rings are closest
+// How deep from the rim the glass bends what is behind it: the measured band, or most of the corner's radius where the
+// corner is smaller (the mesh's rings lie within it).
+static const CGFloat kEdgeBandShare = 0.8;
+
+static CGFloat SGEdgeBand(CGFloat radius) {
+    return MIN(kLensBand, radius * kEdgeBandShare);
+}
 static const CGFloat kInsetPoints = -1.0;        // the mesh reaches this far past the view, so its rim is never bare
 
 @interface SGMeshTemplate : NSObject
@@ -182,13 +178,9 @@ static const CGFloat kInsetPoints = -1.0;        // the mesh reaches this far pa
 static uint32_t SGAddVertex(SGMeshTemplate *t, SGMeshSpec spec, CGFloat baseX, CGFloat scaleX, CGFloat baseY, CGFloat scaleY, CGFloat depth) {
     CGFloat dx, dy, sdf;
     SGDisplacement(baseX + scaleX * spec.refW, baseY + scaleY * spec.refH, spec.refW, spec.refH, spec.radius, spec.edgeDistance, &dx, &dy, &sdf);
-    // A smoothstep boost within the outer strip.
-    CGFloat boost = 1.0;
-    if (spec.outerEdgeDistance > 0) {
-        CGFloat s = MAX(0.0, MIN(1.0, (spec.outerEdgeDistance + sdf) / spec.outerEdgeDistance));
-        boost += s * s * (3 - 2 * s) * 0.5;
-    }
-    SGTemplateVertex v = {baseX, scaleX, baseY, scaleY, dx * boost, dy * boost, depth};
+    // The measured lens is steep enough at the rim on its own: no boost within the outer strip, which is kept for the
+    // vertices it puts where the lens changes fastest.
+    SGTemplateVertex v = {baseX, scaleX, baseY, scaleY, dx, dy, depth};
     [t.vertices appendBytes:&v length:sizeof(v)];
     return (uint32_t)(t.vertices.length / sizeof(v)) - 1;
 }
@@ -253,7 +245,7 @@ static NSValue *SGAxisPoint(CGFloat base, CGFloat scale) {
 }
 
 static SGMeshTemplate *SGBuildTemplate(CGFloat radius) {
-    SGMeshSpec spec = {radius, MAX(4 * radius, 100), MAX(4 * radius, 100), MIN(kEdgeBandMax, radius * kEdgeBandShare), kOuterEdgeDistance};
+    SGMeshSpec spec = {radius, MAX(4 * radius, 100), MAX(4 * radius, 100), SGEdgeBand(radius), kOuterEdgeDistance};
     SGMeshTemplate *t = [SGMeshTemplate new];
     CGFloat R = radius;
 
@@ -318,7 +310,9 @@ static id SGMakeGlassMesh(CGSize size, CGFloat radius) {
     CGFloat W = size.width, H = size.height;
     CGFloat insetU = kInsetPoints / W, insetV = kInsetPoints / H;
     CGFloat usableU = 1 - 2 * insetU, usableV = 1 - 2 * insetV;
-    CGFloat dU = kDisplacementPoints / W, dV = kDisplacementPoints / H;
+    // The rim's shift in points: the measured strength over the band, the whole lens scaled down on a small pane.
+    CGFloat shift = kLensStrength * SGEdgeBand(radius) * MIN(1, MIN(W, H) / 2 / kLensSizeRef);
+    CGFloat dU = shift / W, dV = shift / H;
 
     NSUInteger vertexCount = tmpl.vertices.length / sizeof(SGTemplateVertex);
     const SGTemplateVertex *templates = tmpl.vertices.bytes;
@@ -337,17 +331,16 @@ static id SGMakeGlassMesh(CGSize size, CGFloat radius) {
 
 #pragma mark - the rim's light
 
-// What the system's glass does at its edge besides bending the backdrop, drawn here as plain strokes, with no blur and
-// no mask but the glare's, so a screen of panes stays cheap:
-//   glare       the bright streak along the rim, strongest at the top-left and the bottom-right corners;
-//   dispersion  a warm and a cool stroke, a fraction of a point to either side of the rim, which a prism's colour
-//               fringe reads as.
-// No glow all round the edge: white strokes along the whole rim, and a brighter fringe, drew the sides as a frosted
-// white outline the system's glass does not have (device, 2026-10-23), so the fringe is faint and the glare as before.
-static const CGFloat kSpecularWidth = 1.0;
-static NSString *const kSpecularName = @"sg.specular", *const kRimLightName = @"sg.rimLight";
-
-static const CGFloat kFringeOffset = 0.6, kFringeAlpha = 0.08;
+// The light the system's glass draws along its rim, as adaptive_liquid_glass measured it (shaders/liquid_glass.frag,
+// regularDark): a white line kRimWidth wide whose brightness follows which way the rim faces, kRimIntensity times
+// max(n . L, 0) where the rim faces the light, top left (lightAngle -3 pi / 4), and kRimBack of that where it faces
+// away, so the sides are lit by their slant and the corners across the light are dark. No colour fringe: the measured
+// glass has none (dispersion 0), and ours, with a brighter glare, drew the sides as a frosted white outline.
+//
+// The brightness is a small picture of the rim's normal at every point (the normal changes slowly, so a point per
+// pixel is enough), cached by size, under a mask of the line itself, which stays sharp.
+static const CGFloat kRimWidth = 1.36, kRimIntensity = 0.33, kRimBack = 0.35;
+static NSString *const kSpecularName = @"sg.specular";
 
 static CGPathRef rimPath(CGRect bounds, CGFloat inset, CGFloat radius) {
     CGRect rect = CGRectInset(bounds, inset, inset);
@@ -363,60 +356,67 @@ static CAShapeLayer *stroke(CGColorRef color, CGFloat width) {
     return line;
 }
 
-// The fringe, one layer under the glare holding the warm stroke and the cool one.
-static void placeRimLight(CALayer *host, CGRect bounds, CGFloat radius) {
-    CALayer *light = nil;
-    for (CALayer *sub in host.sublayers) {
-        if ([sub.name isEqualToString:kRimLightName]) light = sub;
+// White at the rim's brightness for its normal at each point, a point per pixel.
+static CGImageRef SGRimLight(CGSize size, CGFloat radius) {
+    static NSCache<NSString *, id> *cache;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ cache = [NSCache new]; cache.countLimit = 32; });
+    size_t w = (size_t)MAX(2, ceil(size.width)), h = (size_t)MAX(2, ceil(size.height));
+    radius = MIN(radius, MIN(size.width, size.height) / 2);
+    NSString *key = [NSString stringWithFormat:@"%zu %zu %.1f", w, h, radius];
+    id cached = [cache objectForKey:key];
+    if (cached) return (__bridge CGImageRef)cached;
+
+    const CGFloat lx = -M_SQRT1_2, ly = -M_SQRT1_2;   // towards the light, top left, in the layer's y-down space
+    uint8_t *pixels = calloc(w * h, 4);
+    for (size_t y = 0; y < h; y++) {
+        for (size_t x = 0; x < w; x++) {
+            CGFloat nx, ny;
+            SGRoundedRectSDF(x + 0.5, y + 0.5, size.width, size.height, radius, &nx, &ny);
+            CGFloat facing = nx * lx + ny * ly;
+            CGFloat a = kRimIntensity * (MAX(facing, 0) + kRimBack * MAX(-facing, 0));
+            uint8_t v = (uint8_t)lround(MIN(1, a) * 255);
+            uint8_t *p = pixels + (y * w + x) * 4;
+            p[0] = p[1] = p[2] = p[3] = v;   // premultiplied white
+        }
     }
-    if (!light) {
-        light = [CALayer layer];
-        light.name = kRimLightName;
-        light.zPosition = 99;
-        [light addSublayer:stroke([UIColor colorWithRed:1 green:0.62 blue:0.32 alpha:kFringeAlpha].CGColor, 1)];
-        [light addSublayer:stroke([UIColor colorWithRed:0.38 green:0.78 blue:1 alpha:kFringeAlpha].CGColor, 1)];
-        [host addSublayer:light];
-    }
-    light.frame = bounds;
-    NSArray<CAShapeLayer *> *lines = (NSArray<CAShapeLayer *> *)light.sublayers;
-    CGRect local = light.bounds;
-    if (lines.count < 2) return;
-    // Warm up and to the left, cool down and to the right, each a stroke one point in from the rim.
-    lines[0].frame = CGRectOffset(local, -kFringeOffset, -kFringeOffset);
-    lines[1].frame = CGRectOffset(local, kFringeOffset, kFringeOffset);
-    lines[0].path = lines[1].path = rimPath(local, 1, radius);
+    CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
+    CGContextRef context = CGBitmapContextCreate(pixels, w, h, 8, w * 4, space, kCGImageAlphaPremultipliedLast);
+    CGImageRef image = context ? CGBitmapContextCreateImage(context) : NULL;
+    if (context) CGContextRelease(context);
+    CGColorSpaceRelease(space);
+    free(pixels);
+    if (!image) return NULL;
+    id object = (__bridge_transfer id)image;
+    [cache setObject:object forKey:key];
+    // The cache holds it for the caller, which sets it as a layer's contents at once.
+    return (__bridge CGImageRef)object;
 }
 
 void SGLegacyGlassSpecular(CALayer *host, CGRect bounds, CGFloat radius) {
     if (@available(iOS 26.0, *)) return;
     if (!host || bounds.size.width < 2 || bounds.size.height < 2) return;
-    CAGradientLayer *rim = nil;
+    CALayer *rim = nil;
     for (CALayer *sub in host.sublayers) {
-        if ([sub.name isEqualToString:kSpecularName]) rim = (CAGradientLayer *)sub;
+        if ([sub.name isEqualToString:kSpecularName]) rim = sub;
     }
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     if (!rim) {
-        rim = [CAGradientLayer layer];
+        rim = [CALayer layer];
         rim.name = kSpecularName;
-        // Corner to corner: the two ends are the highlights, the middle stretch is clear.
-        rim.startPoint = CGPointMake(0, 0);
-        rim.endPoint = CGPointMake(1, 1);
-        rim.locations = @[@0, @0.28, @0.72, @1];
-        rim.colors = @[(id)[UIColor colorWithWhite:1 alpha:0.75].CGColor,
-                       (id)[UIColor colorWithWhite:1 alpha:0].CGColor,
-                       (id)[UIColor colorWithWhite:1 alpha:0].CGColor,
-                       (id)[UIColor colorWithWhite:1 alpha:0.55].CGColor];
+        rim.contentsGravity = kCAGravityResize;
         // Over everything else in the host: a thin line, and the film or content under it must not hide it.
         rim.zPosition = 100;
-        rim.mask = stroke(UIColor.whiteColor.CGColor, kSpecularWidth);
+        rim.mask = stroke(UIColor.whiteColor.CGColor, kRimWidth);
         [host addSublayer:rim];
     }
     rim.frame = bounds;
+    CGImageRef light = SGRimLight(bounds.size, radius);
+    if ((__bridge id)light != rim.contents) rim.contents = (__bridge id)light;
     CAShapeLayer *line = (CAShapeLayer *)rim.mask;
     line.frame = rim.bounds;
-    line.path = rimPath(rim.bounds, kSpecularWidth / 2, radius);
-    placeRimLight(host, bounds, radius);
+    line.path = rimPath(rim.bounds, kRimWidth / 2, radius);
     [CATransaction commit];
 }
 

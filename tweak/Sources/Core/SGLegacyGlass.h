@@ -30,8 +30,9 @@ BOOL SGLegacyGlassAvailable(void);
 
 @end
 
-// The light the system's glass draws along its rim: a white glare bright at the top-left and the bottom-right corners
-// and gone along the rest, and a faint warm and cool colour fringe at the edge.
-// Kept as two sublayers of `host`, made on the first call and set to `bounds` and `radius` on every one; a pane draws its own (SGLegacyGlassView) and a film over a pane calls this too, as it
-// covers the pane's. Does nothing on iOS 26 and later, where the system's glass has its own.
+// The light the system's glass draws along its rim: a thin white line whose brightness follows which way the rim faces,
+// brightest towards the top left, faint across from it (as adaptive_liquid_glass measured it). Kept as one sublayer of
+// `host`, made on the first call and set to `bounds` and `radius` on every one; a pane draws its own (SGLegacyGlassView)
+// and a film over a pane calls this too, as it covers the pane's. Does nothing on iOS 26 and later, where the system's
+// glass has its own.
 void SGLegacyGlassSpecular(CALayer *host, CGRect bounds, CGFloat radius);
