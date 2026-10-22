@@ -381,7 +381,7 @@ static CGImageRef SGRimLight(CGSize size, CGFloat radius) {
         }
     }
     CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
-    CGContextRef context = CGBitmapContextCreate(pixels, w, h, 8, w * 4, space, kCGImageAlphaPremultipliedLast);
+    CGContextRef context = CGBitmapContextCreate(pixels, w, h, 8, w * 4, space, (CGBitmapInfo)kCGImageAlphaPremultipliedLast);
     CGImageRef image = context ? CGBitmapContextCreateImage(context) : NULL;
     if (context) CGContextRelease(context);
     CGColorSpaceRelease(space);
