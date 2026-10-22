@@ -33,6 +33,7 @@
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
 #import "Redesigned/Kit/SGRRepaint.h"
+#import "Redesigned/Pages/Pages.h"
 
 static const CGFloat kEditShift = 10;
 
@@ -41,35 +42,23 @@ static const CGFloat kEditShift = 10;
 // (trees/continuous/2.txt); the same dim the dialogs carry, a little lighter.
 static const CGFloat kEditDim = 0.4;
 
-static char kToolbarGlassKey, kPopupGlassKey, kPillKey, kPillGlassKey, kDressedKey;
+static char kToolbarGlassKey, kPopupGlassKey, kPillKey, kPillGlassKey;
 static char kListKey, kListClipKey;
 
 static __weak UINavigationController *sg_editNavigation;
 
 #pragma mark - the pane, the bar and the list
 
-static UIView *barOf(UINavigationController *navigation) {
-    return navigation.navigationBar;
-}
-
-// Spotify's blur behind the bar: a plain UIView the bar's height holding a UIVisualEffectView, beside the bar in the
-// navigation controller's view. Alpha, not hidden.
+// Spotify's blur behind the bar goes, by alpha, not hidden.
 static void hideBarPlate(UINavigationController *navigation) {
-    UIView *bar = barOf(navigation);
-    for (UIView *sub in navigation.view.subviews) {
-        if (sub == bar || object_getClass(sub) != UIView.class) continue;
-        if (sub.bounds.size.height > bar.bounds.size.height + 1 || !sub.subviews.count) continue;
-        if (![sub.subviews.firstObject isKindOfClass:UIVisualEffectView.class]) continue;
-        if (sub.alpha != 0) sub.alpha = 0;
-    }
+    UIView *blur = SGRBarBlurOf(navigation);
+    if (blur.alpha != 0) blur.alpha = 0;
 }
 
 static void moveBar(UINavigationController *navigation) {
-    for (UIView *sub in barOf(navigation).subviews) {
-        if (![NSStringFromClass(sub.class) isEqualToString:@"_UINavigationBarContentView"]) continue;
-        CGAffineTransform shift = CGAffineTransformMakeTranslation(0, kEditShift);
-        if (!CGAffineTransformEqualToTransform(sub.transform, shift)) sub.transform = shift;
-    }
+    UIView *content = SGRChildNamed(navigation.navigationBar, @"_UINavigationBarContentView");
+    CGAffineTransform shift = CGAffineTransformMakeTranslation(0, kEditShift);
+    if (content && !CGAffineTransformEqualToTransform(content.transform, shift)) content.transform = shift;
 }
 
 // The rows stop at the bottom of the bar. The mask is on the table's superview, which does not scroll, so it holds
@@ -78,7 +67,7 @@ static void clipListBelowBar(UIViewController *controller, UINavigationControlle
     UIView *table = SGRFindByIdentifier(controller.viewIfLoaded, @"EditItemsViewController.TableView", &kListKey);
     UIView *host = table.superview;
     if (!host || host.bounds.size.height < 1) return;
-    CGFloat top = barOf(navigation).bounds.size.height + kEditShift;
+    CGFloat top = navigation.navigationBar.bounds.size.height + kEditShift;
     CALayer *mask = objc_getAssociatedObject(host, &kListClipKey);
     if (!mask) {
         mask = [CALayer layer];
@@ -98,7 +87,8 @@ static void dressPill(UIView *pill) {
     if (pill.bounds.size.width < 1 || pill.bounds.size.height < 1) return;
     if (pill.layer.backgroundColor) pill.layer.backgroundColor = NULL;
     SGRGlassFlatBox(pill, &kPillGlassKey);
-    objc_setAssociatedObject(pill, &kDressedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    // Encore paints its fill again: it stays clear.
+    SGRHoldClear(pill);
 }
 
 static void glassPill(UIView *root) {
@@ -123,7 +113,7 @@ static void chrome(UIViewController *controller) {
         extra.top = kEditShift;
         controller.additionalSafeAreaInsets = extra;
     }
-    glassPill(barOf(navigation));
+    glassPill(navigation.navigationBar);
     clipListBelowBar(controller, navigation);
 }
 
@@ -155,73 +145,13 @@ static void dressButton(UIView *button) {
     if (button.bounds.size.width < 1 || button.bounds.size.height < 1) return;
     if (inToolbar(button)) {
         SGRGlassEncoreButton(button, &kToolbarGlassKey, NO);
-        objc_setAssociatedObject(button, &kDressedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        SGRHoldClear(button);
     } else if ([button.accessibilityIdentifier isEqualToString:@"Messaging.PrimaryButton"]) {
         // Continue and Keep are drawn with a black label: the accent goes under it.
         SGRGlassEncoreButton(button, &kPopupGlassKey, YES);
-        objc_setAssociatedObject(button, &kDressedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        SGRHoldClear(button);
     }
 }
-
-%group SGREditButtons
-%hook SGRPrimaryButton
-- (void)layoutSubviews {
-    %orig;
-    dressButton((UIView *)self);
-}
-
-- (void)didMoveToWindow {
-    %orig;
-    if (((UIView *)self).window) dressButton((UIView *)self);
-}
-
-// Encore paints the button again as it is pressed or let go; a dressed one stays clear.
-- (void)setBackgroundColor:(UIColor *)color {
-    UIView *button = (UIView *)self;
-    if ([objc_getAssociatedObject(button, &kDressedKey) boolValue] && color && CGColorGetAlpha(color.CGColor) > 0.05) color = UIColor.clearColor;
-    %orig(color);
-}
-%end
-%end
-
-// The toolbar's grey comes back with its content, as the queue's bars do.
-%group SGREditToolbar
-%hook SGRToolbarContainer
-- (void)layoutSubviews {
-    %orig;
-    UIView *bar = (UIView *)self;
-    if (SGRIsSheetSurface(bar.layer.backgroundColor)) bar.backgroundColor = UIColor.clearColor;
-}
-
-- (void)didMoveToWindow {
-    %orig;
-    UIView *bar = (UIView *)self;
-    if (SGRIsSheetSurface(bar.layer.backgroundColor)) bar.backgroundColor = UIColor.clearColor;
-}
-%end
-%end
-
-// The pill is made inside the bar's title control after the bar's own passes, so it is dressed by its own: as it lays
-// out, as it comes into the window, and as Encore paints its fill again.
-%group SGREditPill
-%hook SGRPillView
-- (void)layoutSubviews {
-    %orig;
-    dressPill((UIView *)self);
-}
-
-- (void)didMoveToWindow {
-    %orig;
-    if (((UIView *)self).window) dressPill((UIView *)self);
-}
-
-- (void)setBackgroundColor:(UIColor *)color {
-    UIView *pill = (UIView *)self;
-    if ([objc_getAssociatedObject(pill, &kDressedKey) boolValue] && color && CGColorGetAlpha(color.CGColor) > 0.05) color = UIColor.clearColor;
-    %orig(color);
-}
-%end
-%end
 
 // The plate a dragged row is lifted on, cleared at its source (UIPreviewParameters is where UIDragPreviewParameters has
 // its backgroundColor) and on the plate itself. Only Spotify's grey, and only while the Edit playlist sheet is up.
@@ -280,22 +210,18 @@ static void clearLiftPlate(UIView *view) {
     SGRPassSwiftController(@"PlaylistEditing_EditPlaylistImpl", @"EditItemsViewController", ^(UIViewController *c) { chrome(c); });
     if (NSClassFromString(@"_UINavigationBarContentView")) %init(SGREditBar);
     Class primary = NSClassFromString(@"_TtCCE16Encore_ButtonKitO16EncoreFoundation6Encore6Button7Primary");
-    if (primary) {
-        %init(SGREditButtons, SGRPrimaryButton = primary);
-    } else {
-        SGLog(@"class Encore.Button.Primary not found, the Edit playlist buttons and the Smart Reorder popups keep Spotify's fills");
-    }
+    if (!primary) SGLog(@"class Encore.Button.Primary not found, the Edit playlist buttons and the Smart Reorder popups keep Spotify's fills");
+    // Encore paints a button again as it is pressed or let go; a dressed one is held clear (SGRHoldClear).
+    SGRPassView(primary, ^(UIView *v) { dressButton(v); });
     Class toolbar = SGRSwiftClass(@"PlaylistEditing_ElementsKit", @"ToolbarContainerView") ?: SGRPrivateSwiftClass(@"PlaylistEditing_ElementsKit", @"ToolbarContainerView");
-    if (toolbar) {
-        %init(SGREditToolbar, SGRToolbarContainer = toolbar);
-    } else {
-        SGLog(@"class PlaylistEditing_ElementsKit ToolbarContainerView not found, the Edit playlist toolbar may keep Spotify's grey");
-    }
+    if (!toolbar) SGLog(@"class PlaylistEditing_ElementsKit ToolbarContainerView not found, the Edit playlist toolbar may keep Spotify's grey");
+    // The toolbar's grey comes back with its content, as the queue's bars do.
+    SGRPassView(toolbar, ^(UIView *bar) {
+        if (SGRIsSheetSurface(bar.layer.backgroundColor)) bar.backgroundColor = UIColor.clearColor;
+    });
     Class pill = SGRSwiftClass(@"PlaylistEditing_ElementsKit", @"PillStackView") ?: SGRPrivateSwiftClass(@"PlaylistEditing_ElementsKit", @"PillStackView");
-    if (pill) {
-        %init(SGREditPill, SGRPillView = pill);
-    } else {
-        SGLog(@"class PlaylistEditing_ElementsKit PillStackView not found, the undo / redo pill gets its glass from the bar's passes only");
-    }
+    if (!pill) SGLog(@"class PlaylistEditing_ElementsKit PillStackView not found, the undo / redo pill gets its glass from the bar's passes only");
+    // The pill is made inside the bar's title control after the bar's own passes, so it is dressed by its own too.
+    SGRPassView(pill, ^(UIView *v) { dressPill(v); });
     if (NSClassFromString(@"UIPreviewParameters")) %init(SGREditDrag);
 }

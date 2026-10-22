@@ -25,8 +25,7 @@
 #import <objc/message.h>
 
 static char kBubbleKey;
-static BOOL isDressedAlbumOrArtist(UIView *bar);
-static BOOL isDressedProfile(UIView *bar);
+static BOOL isDressedPage(UIView *bar);
 
 // Side padding of the name inside its capsule; the capsule is as tall as the buttons beside it.
 static const CGFloat kBubblePadding = 18, kBubbleHeight = 44;
@@ -43,13 +42,6 @@ static BOOL isLikedSongs(UIViewController *headerVC) {
     return [type isKindOfClass:NSString.class] && [type isEqualToString:@"liked-songs"];
 }
 
-// Invisible whatever Spotify does to it, as PlaylistHeader.x's conceal: the layer hidden, and an empty mask
-// for when Spotify shows it anyway.
-static void hideScrim(UIView *view) {
-    if (!view.layer.hidden) view.layer.hidden = YES;
-    if (!view.layer.mask) view.layer.mask = [CALayer layer];
-}
-
 // A GradientView of a page the redesign dresses -- playlist (Liked Songs apart), album, artist, profile, Live Events gallery -- that is not
 // inside one of the list's cells: the wash behind the header, the header's own fade and the bar's scrim.
 static BOOL isPageScrim(UIView *view) {
@@ -60,7 +52,7 @@ static BOOL isPageScrim(UIView *view) {
     if (headerVC) return !isLikedSongs(headerVC);
     // A dressed profile's wash (the HeaderView's GradientView, still #000 at 57% over the header, trees/continuous/4.txt)
     // and the bar's scrim go the same way, and so do the two of a Live Events gallery page (Pages/LiveEvents.x).
-    return isDressedAlbumOrArtist(view) || isDressedProfile(view) || SGRGalleryPageOf(view) != nil;
+    return isDressedPage(view) || SGRGalleryPageOf(view) != nil;
 }
 
 // The name: the one SPTEncoreLabel directly under the bar that holds text (the Back button's is a glyph
@@ -78,19 +70,11 @@ static UIView *titleIn(UIView *bar, UILabel **text) {
     return nil;
 }
 
-// An album's or an artist's bar, once the redesign has pinned its Back on the page: that button is a direct
-// subview of the page's root, which only the pages dressed in AlbumHeader.x and ArtistHeader.x get.
-static BOOL isDressedAlbumOrArtist(UIView *bar) {
-    UIView *page = SGRAlbumPageOf(bar) ?: SGRArtistPageOf(bar);
+// An album's, an artist's or a profile's bar, once the redesign has pinned its Back on the page: that button is a direct
+// subview of the page's root, which only the pages dressed in AlbumHeader.x, ArtistHeader.x and ProfileHeader.x get.
+static BOOL isDressedPage(UIView *bar) {
+    UIView *page = SGRAlbumPageOf(bar) ?: SGRArtistPageOf(bar) ?: SGRProfilePageOf(bar);
     for (UIView *sub in page.subviews) {
-        if ([sub isKindOfClass:SGRMirrorButton.class]) return YES;
-    }
-    return NO;
-}
-
-// A profile's bar, the same way (Profile/ProfileHeader.x).
-static BOOL isDressedProfile(UIView *bar) {
-    for (UIView *sub in SGRProfilePageOf(bar).subviews) {
         if ([sub isKindOfClass:SGRMirrorButton.class]) return YES;
     }
     return NO;
@@ -99,14 +83,14 @@ static BOOL isDressedProfile(UIView *bar) {
 // Whether this bar is one the redesign dresses: a playlist's (Liked Songs apart), a dressed album's or artist's.
 static BOOL handles(UIView *bar) {
     UIViewController *headerVC = SGRPlaylistHeaderOf(bar);
-    return headerVC ? !isLikedSongs(headerVC) : (isDressedAlbumOrArtist(bar) || isDressedProfile(bar));
+    return headerVC ? !isLikedSongs(headerVC) : isDressedPage(bar);
 }
 
 static void apply(UIView *bar) {
     if (!handles(bar)) return;
 
     for (UIView *sub in bar.subviews) {
-        if ([NSStringFromClass(sub.class) containsString:@"GradientView"]) hideScrim(sub);
+        if ([NSStringFromClass(sub.class) containsString:@"GradientView"]) SGRConceal(sub);
     }
     if (SGIsVisibleColor(bar.layer.backgroundColor)) bar.backgroundColor = UIColor.clearColor;
 
@@ -161,13 +145,13 @@ static void apply(UIView *bar) {
 - (void)didMoveToSuperview {
     %orig;
     UIView *view = (UIView *)self;
-    if (view.superview && isPageScrim(view)) hideScrim(view);
+    if (view.superview && isPageScrim(view)) SGRConceal(view);
 }
 
 - (void)layoutSubviews {
     %orig;
     UIView *view = (UIView *)self;
-    if (isPageScrim(view)) hideScrim(view);
+    if (isPageScrim(view)) SGRConceal(view);
 }
 %end
 %end

@@ -65,6 +65,8 @@ void SGRRegisterBarPages(SGRBarPageTest wants);
 // Puts the blur of `navigation` where its top page wants it: drawn by nothing for a dressed page, Spotify's again for any other.
 // Cheap to call again.
 void SGRSyncBarBlur(UINavigationController *navigation);
+// Spotify's blur behind the bar of `navigation`: the plain view of its own that holds a UIVisualEffectView. Nil when none.
+UIView *SGRBarBlurOf(UINavigationController *navigation);
 
 // `pass` on every layout of an SPNavigationBar and of its content view, where UIKit builds the bar's Back and title again
 // after the bar's own pass (PageAppearance.x hooks the two once for every page that is dressed from its bar).

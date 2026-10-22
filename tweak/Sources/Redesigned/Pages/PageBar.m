@@ -117,7 +117,7 @@ static void restore(UIView *view) {
 }
 
 // Spotify's blur: the plain view of the navigation controller's that holds a visual effect view.
-static UIView *blurOf(UINavigationController *navigation) {
+UIView *SGRBarBlurOf(UINavigationController *navigation) {
     for (UIView *sub in navigation.view.subviews) {
         if (![sub isMemberOfClass:UIView.class]) continue;
         for (UIView *inner in sub.subviews) {
@@ -191,7 +191,7 @@ void SGRSyncBarBlur(UINavigationController *navigation) {
     for (SGRBarPageTest test in sg_wants) {
         if (top && test(top)) { wanted = YES; break; }
     }
-    UIView *blur = blurOf(navigation);
+    UIView *blur = SGRBarBlurOf(navigation);
     if (blur) {
         if (wanted) {
             if (!blur.layer.mask) blur.layer.mask = [CALayer layer];
@@ -341,7 +341,7 @@ void SGRDressBarPage(UIViewController *page) {
         bar.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
     }
 
-    UIView *blur = blurOf(navigation);
+    UIView *blur = SGRBarBlurOf(navigation);
     if (blur) {
         if (!blur.layer.mask) blur.layer.mask = [CALayer layer];
         if (blur.userInteractionEnabled) blur.userInteractionEnabled = NO;
@@ -418,7 +418,7 @@ static void undressBar(UIViewController *page, UINavigationController *navigatio
     objc_setAssociatedObject(bar, &kHeldKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     UIView *title = SGRChildNamed(content, @"_UINavigationBarTitleControl");
     reveal(title);
-    UIView *blur = blurOf(navigation);
+    UIView *blur = SGRBarBlurOf(navigation);
     blur.layer.mask = nil;
     blur.userInteractionEnabled = YES;
     // The capsule is the title control's, which the next page's title may be too: it goes, and the next pass of

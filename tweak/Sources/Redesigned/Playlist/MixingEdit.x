@@ -38,8 +38,9 @@
 // Threading: main thread only.
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
+#import "Redesigned/Pages/Pages.h"
 
-static char kPlayGlassKey, kBorderGlassKey, kBarGlassKey, kDressedKey;
+static char kPlayGlassKey, kBorderGlassKey, kBarGlassKey;
 static char kCardGlassKey, kPromoGlassKey, kCustomizeGlassKey, kPromoFindKey;
 
 // The card of the promo and the cards of the pager: Spotify's radius.
@@ -92,18 +93,11 @@ static void dressBar(UIViewController *controller) {
     if (bar.overrideUserInterfaceStyle != UIUserInterfaceStyleDark) bar.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
     // The bar's own black, and the blur plate beside it in the navigation controller's view: a mask survives Spotify
     // showing either again, which hidden does not.
-    for (UIView *sub in bar.subviews) {
-        if ([NSStringFromClass(sub.class) isEqualToString:@"_UIBarBackground"] && sub.alpha != 0) sub.alpha = 0;
-    }
-    for (UIView *sub in navigation.view.subviews) {
-        if (sub == bar || object_getClass(sub) != UIView.class) continue;
-        for (UIView *inner in sub.subviews) {
-            if (![inner isKindOfClass:UIVisualEffectView.class]) continue;
-            if (!sub.layer.mask) sub.layer.mask = [CALayer layer];
-            if (sub.userInteractionEnabled) sub.userInteractionEnabled = NO;
-            break;
-        }
-    }
+    UIView *backing = SGRChildNamed(bar, @"_UIBarBackground");
+    if (backing.alpha != 0) backing.alpha = 0;
+    UIView *blur = SGRBarBlurOf(navigation);
+    if (blur && !blur.layer.mask) blur.layer.mask = [CALayer layer];
+    if (blur.userInteractionEnabled) blur.userInteractionEnabled = NO;
 
     UIView *content = SGRChildNamed(bar, @"_UINavigationBarContentView");
     UIView *back = backIn(content);
@@ -132,14 +126,16 @@ static void dressPlay(UIView *button) {
     SGRGlassCapsuleInside(button, &kPlayGlassKey, button.bounds.size, YES);
     // The glass grows under a press and would be cut off at the button's edge.
     if (button.clipsToBounds) button.clipsToBounds = NO;
-    objc_setAssociatedObject(button, &kDressedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    // Spotify paints it again as it is pressed or let go: it stays clear.
+    SGRHoldClear(button);
 }
 
 static void dressBordered(UIView *button) {
     if (button.bounds.size.width < 1 || button.bounds.size.height < 1) return;
     clearFill(button);
     SGRGlassFlatBox(button, &kBorderGlassKey);
-    objc_setAssociatedObject(button, &kDressedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    // Spotify paints it again as it is pressed or let go: it stays clear.
+    SGRHoldClear(button);
 }
 
 #pragma mark - the Play button stays on the effect
@@ -207,7 +203,8 @@ static BOOL inMixBar(UIView *view) {
 // accent over the glass for a button drawn with a black label.
 static void glassPrimary(UIView *button, BOOL accent) {
     SGRGlassEncoreButton(button, &kBarGlassKey, accent);
-    objc_setAssociatedObject(button, &kDressedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    // Spotify paints it again as it is pressed or let go: it stays clear.
+    SGRHoldClear(button);
 }
 
 // The card the promo's button is in, found from the button: it is dressed with it.
@@ -241,11 +238,6 @@ static void dressBarButtons(UIView *view, int depth) {
     }
 }
 
-static UIColor *keptClear(UIView *view, UIColor *color) {
-    if ([objc_getAssociatedObject(view, &kDressedKey) boolValue] && color && CGColorGetAlpha(color.CGColor) > 0.05) return UIColor.clearColor;
-    return color;
-}
-
 #pragma mark - the cards, the sheet, Customize and the promo
 
 static const CACornerMask kAllCorners = kCALayerMinXMinYCorner | kCALayerMaxXMinYCorner | kCALayerMinXMaxYCorner | kCALayerMaxXMaxYCorner;
@@ -265,15 +257,10 @@ static void glassBacking(UIView *view, const void *key, CGFloat radius, CACorner
     if (view.layer.cornerRadius != radius) view.layer.cornerRadius = radius;
     if (view.layer.cornerCurve != kCACornerCurveContinuous) view.layer.cornerCurve = kCACornerCurveContinuous;
     if (view.layer.maskedCorners != corners) view.layer.maskedCorners = corners;
-    UIView *glass = SGGlassFor(view, key);
-    glass.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    // Glass takes the appearance it inherits, light on a phone in light mode.
-    if (glass.overrideUserInterfaceStyle != UIUserInterfaceStyleDark) glass.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
-    if (!CGRectEqualToRect(glass.frame, view.bounds)) glass.frame = view.bounds;
-    SGShapeGlass(glass, radius, NO);
-    SGRThickenSheetGlass(glass, radius);
+    UIView *glass = SGRGlassPaneIn(view, key, radius);
     if (!SGRReduceTransparency()) SGRDimSheetGlass(glass, kMixDim);
-    objc_setAssociatedObject(view, &kDressedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    // Spotify paints the grey again as the card is picked up or let go: it stays clear.
+    SGRHoldClear(view);
 }
 
 // The MixingDismissableView of a MixingBottomSheetContainerElement: the card of one effect in the pager (350pt, r=16), or
@@ -305,125 +292,23 @@ static void dressPromoCard(UIView *card) {
     glassBacking(card, &kPromoGlassKey, kCardRadius, kAllCorners);
 }
 
-%group SGRMixPlay
-%hook SGRMixPlayButton
-- (void)layoutSubviews {
-    %orig;
-    dressPlay((UIView *)self);
-}
-
-- (void)didMoveToWindow {
-    %orig;
-    if (((UIView *)self).window) dressPlay((UIView *)self);
-}
-
-- (void)setBackgroundColor:(UIColor *)color {
-    %orig(keptClear((UIView *)self, color));
-}
-%end
-%end
-
-%group SGRMixBordered
-%hook SGRMixBorderedButton
-- (void)layoutSubviews {
-    %orig;
-    dressBordered((UIView *)self);
-}
-
-- (void)didMoveToWindow {
-    %orig;
-    if (((UIView *)self).window) dressBordered((UIView *)self);
-}
-
-- (void)setBackgroundColor:(UIColor *)color {
-    %orig(keptClear((UIView *)self, color));
-}
-%end
-%end
-
-%group SGRMixBarButtons
-%hook SGRMixPrimaryButton
-- (void)layoutSubviews {
-    %orig;
-    dressPrimary((UIView *)self);
-}
-
-- (void)didMoveToWindow {
-    %orig;
-    if (((UIView *)self).window) dressPrimary((UIView *)self);
-}
-
-- (void)setBackgroundColor:(UIColor *)color {
-    %orig(keptClear((UIView *)self, color));
-}
-%end
-%end
-
-%group SGRMixCards
-%hook SGRMixDismissable
-- (void)layoutSubviews {
-    %orig;
-    dressSheetCard((UIView *)self);
-}
-
-- (void)didMoveToWindow {
-    %orig;
-    if (((UIView *)self).window) dressSheetCard((UIView *)self);
-}
-
-// Spotify paints the grey again as the card is picked up or let go; a dressed one stays clear.
-- (void)setBackgroundColor:(UIColor *)color {
-    %orig(keptClear((UIView *)self, color));
-}
-%end
-%end
-
-%group SGRMixCustomize
-%hook SGRMixTertiary
-- (void)layoutSubviews {
-    %orig;
-    dressCustomize((UIView *)self);
-}
-
-- (void)didMoveToWindow {
-    %orig;
-    if (((UIView *)self).window) dressCustomize((UIView *)self);
-}
-%end
-%end
-
 %ctor {
     if (!SGRedesignedUI() || !SGBelowiOS26()) return;
     // The bar's buttons are made after the first layout.
     SGRPassSwiftController(@"PlaylistMixing_MixingUIImpl", @"MixingEditViewController", ^(UIViewController *c) { dressBar(c); });
     Class play = SGRSwiftClass(@"PlaylistMixing_MixingUIImpl", @"MixingPlayButtonView") ?: SGRPrivateSwiftClass(@"PlaylistMixing_MixingUIImpl", @"MixingPlayButtonView");
-    if (play) {
-        %init(SGRMixPlay, SGRMixPlayButton = play);
-    } else {
-        SGLog(@"class PlaylistMixing_MixingUIImpl MixingPlayButtonView not found, the Mix transition's Play button keeps Spotify's plate");
-    }
+    if (!play) SGLog(@"class PlaylistMixing_MixingUIImpl MixingPlayButtonView not found, the Mix transition's Play button keeps Spotify's plate");
+    SGRPassView(play, ^(UIView *v) { dressPlay(v); });
     Class bordered = SGRSwiftClass(@"PlaylistMixing_MixingUIImpl", @"MixingBorderedButton");
-    if (bordered) {
-        %init(SGRMixBordered, SGRMixBorderedButton = bordered);
-    } else {
-        SGLog(@"class PlaylistMixing_MixingUIImpl.MixingBorderedButton not found, the Mix transition's buttons keep Spotify's plates");
-    }
+    if (!bordered) SGLog(@"class PlaylistMixing_MixingUIImpl.MixingBorderedButton not found, the Mix transition's buttons keep Spotify's plates");
+    SGRPassView(bordered, ^(UIView *v) { dressBordered(v); });
     Class primary = NSClassFromString(kPrimaryButtonClass);
-    if (primary) {
-        %init(SGRMixBarButtons, SGRMixPrimaryButton = primary);
-    } else {
-        SGLog(@"class Encore.Button.Primary not found, the Mix transition's More, Save and the promo's Try out keep Spotify's fills");
-    }
+    if (!primary) SGLog(@"class Encore.Button.Primary not found, the Mix transition's More, Save and the promo's Try out keep Spotify's fills");
+    SGRPassView(primary, ^(UIView *v) { dressPrimary(v); });
     Class dismissable = SGRSwiftClass(@"PlaylistMixing_MixingUIImpl", @"MixingDismissableView");
-    if (dismissable) {
-        %init(SGRMixCards, SGRMixDismissable = dismissable);
-    } else {
-        SGLog(@"class PlaylistMixing_MixingUIImpl.MixingDismissableView not found, the Mix transition's effect cards and bar picker keep Spotify's grey");
-    }
+    if (!dismissable) SGLog(@"class PlaylistMixing_MixingUIImpl.MixingDismissableView not found, the Mix transition's effect cards and bar picker keep Spotify's grey");
+    SGRPassView(dismissable, ^(UIView *v) { dressSheetCard(v); });
     Class tertiary = NSClassFromString(@"_TtCCE16Encore_ButtonKitO16EncoreFoundation6Encore6Button8Tertiary");
-    if (tertiary) {
-        %init(SGRMixCustomize, SGRMixTertiary = tertiary);
-    } else {
-        SGLog(@"class Encore.Button.Tertiary not found, Customize stays without its glass");
-    }
+    if (!tertiary) SGLog(@"class Encore.Button.Tertiary not found, Customize stays without its glass");
+    SGRPassView(tertiary, ^(UIView *v) { dressCustomize(v); });
 }
