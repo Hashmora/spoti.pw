@@ -21,6 +21,8 @@
 #import "Redesigned/Kit/SGRRepaint.h"
 #import "Redesigned/Kit/SGRGlass.h"
 #import "Redesigned/Kit/SGRTokens.h"
+#import "Redesigned/Kit/SGRPass.h"
+#import "Shared/Player/PlayerEvents.h"
 #import "Settings/SGMarquee.h"
 #import "NowPlayingBar.h"
 #import "Redesigned/Navbar/Navbar.h"
@@ -671,9 +673,22 @@ static BOOL createMenuUp(UIView *view) {
 }
 %end
 
+// The bar is Spotify's to hide and show while the player opens and closes, and Spotify paints it again then (its
+// album colour, its gradient) with no layout of the container to bring the glass card back: after a close the bar
+// now and then stood in Spotify's own colour above the tab bar until something laid it out. So it is styled again
+// once the player has settled, and a little after, as Spotify finishes.
+static void restyleAfterPlayer(void) {
+    UIViewController *container = sg_container;
+    if (!container.isViewLoaded) return;
+    styleNowPlayingBar(container);
+    SGRRepeatPass(container, SGRSettleDelays, ^(UIViewController *c) { if (c.viewIfLoaded.window) styleNowPlayingBar(c); });
+}
+
 %ctor {
     if (!SGRedesignedUI()) return;
     %init;
+    [NSNotificationCenter.defaultCenter addObserverForName:SGPlayerTransitionEndedNotification object:nil queue:nil
+                                                usingBlock:^(NSNotification *note) { restyleAfterPlayer(); }];
     SGRequireClasses(@[
         @"_TtC18NowPlaying_BarImpl36NowPlayingBarContainerViewController",
         @"_TtC18NowPlaying_BarImpl27NowPlayingBarViewController",

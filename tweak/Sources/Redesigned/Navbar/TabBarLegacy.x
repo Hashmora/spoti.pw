@@ -914,6 +914,12 @@ static void placeCompact(UIView *stockBar, SGRLegacyTabBar *bar, UIView *host, N
     // One tab has nothing to shrink to: the capsule's tabs and the apart one make two at least (a folded one is
     // among the capsule's).
     BOOL compact = sg_minimized && sources.count + (trailSource && !folded ? 1 : 0) >= 2;
+    // Minimized with nothing to shrink to draws the full bar, and the state has to say so: left minimized, every
+    // scroll down after it asked for what it already was and the full bar stayed until a scroll back to the top.
+    if (sg_minimized && !compact) {
+        sg_minimized = NO;
+        SGLog(@"tab bar: minimized with %lu tabs to show, expanded again", (unsigned long)sources.count);
+    }
 
     // As tall as the now playing card beside them, round, and centered on the capsule's row.
     CGRect card = SGRNowPlayingCardFrameIn(host, NULL);

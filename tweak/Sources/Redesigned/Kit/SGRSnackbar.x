@@ -50,6 +50,7 @@
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
 #import "Redesigned/NowPlayingBar/NowPlayingBar.h"
+#import "Shared/Player/PlayerEvents.h"
 
 static const CGFloat kSideInset = 16;
 static const CGFloat kMaxRadius = 28;
@@ -255,6 +256,35 @@ static void dressAfterSettling(UIView *snackbar) {
     SGRRepeatViewPass(snackbar, @[@0.0, @0.25], ^(UIView *v) { dressSnackbar(v); });
 }
 
+// A toast standing over the bar as the player comes up would stand over the player's controls (Added to queue, the
+// player opened right after): its card fades out as the player opens, and back if the player goes again while the
+// toast is still up. A toast raised once the player is open (a song saved from it) is shown. The card's alpha, not the
+// toast's own, which Spotify animates.
+static __weak UIView *sg_leftBehind;
+
+static void playerMoves(void) {
+    UIView *snackbar = sg_snackbar;
+    UIView *card = snackbar.window ? cardOf(snackbar) : nil;
+    if (!card || !SGPlayerIsOpen() || card.alpha < 0.01) return;
+    sg_leftBehind = snackbar;
+    [UIView animateWithDuration:0.15 animations:^{ card.alpha = 0; }];
+}
+
+static void playerSettled(void) {
+    UIView *snackbar = sg_leftBehind;
+    if (!snackbar || SGPlayerIsOpen()) return;
+    sg_leftBehind = nil;
+    UIView *card = cardOf(snackbar);
+    [UIView animateWithDuration:0.2 animations:^{ card.alpha = 1; }];
+}
+
+// A toast Spotify shows again in the view it hid.
+static void shownAgain(UIView *snackbar) {
+    if (sg_leftBehind != snackbar) return;
+    sg_leftBehind = nil;
+    cardOf(snackbar).alpha = 1;
+}
+
 %hook SPTSnackbarView
 - (void)layoutSubviews {
     %orig;
@@ -265,6 +295,7 @@ static void dressAfterSettling(UIView *snackbar) {
     %orig;
     UIView *snackbar = (UIView *)self;
     if (!snackbar.window) return;
+    shownAgain(snackbar);
     dressSnackbar(snackbar);
     dressAfterSettling(snackbar);
 }
@@ -298,6 +329,7 @@ static void dressAfterSettling(UIView *snackbar) {
     %orig;
     UIView *snackbar = (UIView *)self;
     if (!snackbar.window) return;
+    shownAgain(snackbar);
     dressSnackbar(snackbar);
     dressAfterSettling(snackbar);
 }
@@ -363,5 +395,8 @@ static CGRect heldToCard(UIView *content, CGRect frame) {
     if (!SGRedesignedUI()) return;
     if (!SGBelowiOS26()) return;
     %init;
+    NSNotificationCenter *center = NSNotificationCenter.defaultCenter;
+    [center addObserverForName:SGPlayerTransitionNotification object:nil queue:nil usingBlock:^(NSNotification *note) { playerMoves(); }];
+    [center addObserverForName:SGPlayerTransitionEndedNotification object:nil queue:nil usingBlock:^(NSNotification *note) { playerSettled(); }];
     SGRequireClasses(@[@"SPTSnackbarView", @"SPTSnackbarViewFactoryView", @"SPTSnackbarWithActionView", @"SPTSnackbarTextActionButton"]);
 }

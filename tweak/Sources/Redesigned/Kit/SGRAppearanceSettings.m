@@ -16,6 +16,12 @@ static NSArray<NSString *> *presets(void) {
 static SGModRow *legacyGlassRow(void) {
     if (SGLegacyGlassAvailable()) {
         SGModRow *row = SGOptionRow(@"Legacy Liquid Glass", @"An approximation of iOS 26's glass for the navbar and round buttons, on this iOS.", SGKeyLegacyGlass);
+        // Every pane is made one way or the other at launch (SGUseLegacyGlass), so a change waits for the restart, as
+        // Redesigned UI's does.
+        row.changed = ^(BOOL on) {
+            SGOfferRestart(on ? @"The glass takes over when Spotify starts again. Spotify closes now; open it again to see it."
+                              : @"The plain blur comes back when Spotify starts again. Spotify closes now; open it again to see it.");
+        };
         return SGWithSymbol(row, @"cube.transparent");
     }
     NSString *reason = [NSString stringWithFormat:@"This phone (iOS %@) doesn't have the private APIs it leans on, so glass panes stay a plain blur.", UIDevice.currentDevice.systemVersion];

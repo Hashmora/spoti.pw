@@ -53,6 +53,9 @@ void SGOpenURL(NSString *url);
 extern NSString *const SGRepoURL;
 // The controller on top of the key window, through whatever is presented over it.
 UIViewController *SGTopController(void);
+// "Restart Spotify" with `message`, Later and Restart now: for a switch that only takes effect at launch and changes
+// enough of the app that it should not be left half in the old state.
+void SGOfferRestart(NSString *message);
 
 // A controller of the mod that stands in for a UIAlertController (Redesigned/Kit/SGRAlertScreen.h) adopts this,
 // so the places that wait for an alert to go (the tour, What's new, the update notice) and the ones that leave an
