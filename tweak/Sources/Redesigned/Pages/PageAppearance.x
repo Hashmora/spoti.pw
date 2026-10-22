@@ -71,19 +71,12 @@ static void syncAllStacks(void) {
 }
 %end
 
-static UINavigationController *navigationOf(UIView *bar) {
-    for (UIResponder *r = bar; r; r = r.nextResponder) {
-        if ([r isKindOfClass:UINavigationController.class]) return (UINavigationController *)r;
-    }
-    return nil;
-}
-
 // UIKit builds the bar's buttons and title while laying the content view out, after the bar's own pass: Spotify's
 // controls are kept out of sight for a page that wants the redesign's bar from here (SGRSyncBarBlur).
 %hook SPNavigationBar
 - (void)layoutSubviews {
     %orig;
-    UINavigationController *navigation = navigationOf((UIView *)self);
+    UINavigationController *navigation = SGRNavigationOf((UIView *)self);
     if (navigation) SGRSyncBarBlur(navigation);
 }
 %end
@@ -93,7 +86,7 @@ static UINavigationController *navigationOf(UIView *bar) {
     %orig;
     UIView *bar = ((UIView *)self).superview;
     if (![bar isKindOfClass:NSClassFromString(@"SPNavigationBar")]) return;
-    UINavigationController *navigation = navigationOf(bar);
+    UINavigationController *navigation = SGRNavigationOf(bar);
     if (navigation) SGRSyncBarBlur(navigation);
 }
 %end

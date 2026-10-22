@@ -88,28 +88,8 @@ static void dress(UIViewController *controller) {
     }
 }
 
-%group SGRFindList
-%hook SGRFindListController
-- (void)viewDidLayoutSubviews {
-    %orig;
-    dress((UIViewController *)self);
-}
-
-- (void)viewDidAppear:(BOOL)animated {
-    %orig;
-    // The list is sized by Spotify's constraints after the first layout.
-    SGRRepeatPass((UIViewController *)self, @[@0.0, @0.25], ^(UIViewController *c) { dress(c); });
-}
-%end
-%end
-
 %ctor {
-    if (!SGRedesignedUI()) return;
-    if (!SGBelowiOS26()) return;
-    Class page = SGRPageClass(@"ListUXPlatform_FreeTierPlaylistImpl", @"FTPSearchViewController");
-    if (page) {
-        %init(SGRFindList, SGRFindListController = page);
-    } else {
-        SGLog(@"class ListUXPlatform_FreeTierPlaylistImpl.FTPSearchViewController not found, Find on this page keeps Spotify's list frame");
-    }
+    if (!SGRedesignedUI() || !SGBelowiOS26()) return;
+    // The list is sized by Spotify's constraints after the first layout.
+    SGRPassSwiftController(@"ListUXPlatform_FreeTierPlaylistImpl", @"FTPSearchViewController", ^(UIViewController *c) { dress(c); });
 }

@@ -436,12 +436,17 @@ static UIView *chromeSheetView(UIView *v) {
     return glass;
 }
 
-UIView *SGRGlassSheetChrome(UIView *content) {
-    if (@available(iOS 26.0, *)) return nil;
-    for (UIView *v = content; v; v = v.superview) {
-        if ([v.accessibilityIdentifier isEqualToString:@"sheet-view"]) return chromeSheetView(v);
+UIView *SGRSheetPaneOf(UIView *view) {
+    for (UIView *v = view; v; v = v.superview) {
+        if ([v.accessibilityIdentifier isEqualToString:@"sheet-view"]) return v;
     }
     return nil;
+}
+
+UIView *SGRGlassSheetChrome(UIView *content) {
+    if (@available(iOS 26.0, *)) return nil;
+    UIView *pane = SGRSheetPaneOf(content);
+    return pane ? chromeSheetView(pane) : nil;
 }
 
 UIView *SGRGlassSheetView(UIView *sheet) {
@@ -465,5 +470,12 @@ void SGRRemoveSheetGlass(UIView *sheet) {
         // The pane's own paint was taken off for the glass, and with no glass behind it the page under the sheet shows through.
         sheet.backgroundColor = [fill isKindOfClass:UIColor.class] ? fill : UIColor.blackColor;
         objc_setAssociatedObject(sheet, &kSheetOriginalKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+}
+
+void SGRUnclipUpTo(UIView *view, BOOL (^isLast)(UIView *ancestor)) {
+    for (UIView *v = view; v && ![v isKindOfClass:UIWindow.class]; v = v.superview) {
+        if (v.clipsToBounds) v.clipsToBounds = NO;
+        if (isLast(v)) return;
     }
 }

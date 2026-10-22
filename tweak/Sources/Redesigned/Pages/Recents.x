@@ -188,7 +188,7 @@ static void dress(UIViewController *page) {
 %ctor {
     if (!SGRedesignedUI()) return;
     if (!SGBelowiOS26()) return;
-    Class page = SGRPageClass(@"Recents_RecentsPageImpl", @"RecentsViewController");
+    Class page = SGRSwiftClass(@"Recents_RecentsPageImpl", @"RecentsViewController");
     if (page) {
         SGRRegisterBarPages(^BOOL(UIViewController *top) { return [top isKindOfClass:page]; });
         %init(SGRRecents, SGRRecentsController = page);

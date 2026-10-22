@@ -54,7 +54,7 @@ static void dressPopup(UIView *popup) {
 }
 
 static Class popupClass(void) {
-    return SGRPageClass(@"SongDNA_MapKit", @"DNAPopupView");
+    return SGRSwiftClass(@"SongDNA_MapKit", @"DNAPopupView");
 }
 
 %group SGRSongDNAPopup
@@ -68,13 +68,7 @@ static Class popupClass(void) {
     %orig;
     UIView *popup = (UIView *)self;
     if (!popup.window) return;
-    __weak UIView *weak = popup;
-    for (NSNumber *wait in @[@0.0, @0.1, @0.3, @0.7]) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(wait.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            UIView *shown = weak;
-            if (shown.window) dressPopup(shown);
-        });
-    }
+    SGRRepeatViewPass(popup, @[@0.0, @0.1, @0.3, @0.7], ^(UIView *v) { dressPopup(v); });
 }
 %end
 %end

@@ -43,19 +43,7 @@ static NSHashTable<UIViewController *> *sg_backOnly;
 // playlist's name has (Playlist/PlaylistBar.x).
 static const CGFloat kTitlePadding = 18, kTitleHeight = 44, kCorner = 16, kGap = 8;
 
-Class SGRPageClass(NSString *module, NSString *name) {
-    NSString *mangled = [NSString stringWithFormat:@"_TtC%lu%@%lu%@", (unsigned long)module.length, module, (unsigned long)name.length, name];
-    return NSClassFromString(mangled) ?: NSClassFromString([NSString stringWithFormat:@"%@.%@", module, name]);
-}
-
 #pragma mark - the controls of the bar
-
-static UIView *subviewNamed(UIView *host, NSString *name) {
-    for (UIView *sub in host.subviews) {
-        if ([NSStringFromClass(sub.class) isEqualToString:name]) return sub;
-    }
-    return nil;
-}
 
 // The bar's content view, 44pt high under the status bar, and what UIKit puts in it.
 static UIView *contentOf(UINavigationBar *bar) {
@@ -79,7 +67,7 @@ static UIView *stackIn(UIView *content, BOOL leading) {
 
 // The button of such an item at the leading edge.
 static UIView *leadingItemOf(UIView *content) {
-    UIView *button = subviewNamed(stackIn(content, YES), @"_UIButtonBarButton");
+    UIView *button = SGRChildNamed(stackIn(content, YES), @"_UIButtonBarButton");
     return button.bounds.size.width > 1 ? button : nil;
 }
 
@@ -177,7 +165,7 @@ static void holdControls(UINavigationController *navigation, BOOL wanted) {
     UINavigationBar *bar = navigation.navigationBar;
     UIView *content = contentOf(bar);
     if (!content) return;
-    UIView *title = subviewNamed(content, @"_UINavigationBarTitleControl");
+    UIView *title = SGRChildNamed(content, @"_UINavigationBarTitleControl");
     BOOL held = objc_getAssociatedObject(bar, &kHeldKey) != nil;
     if (wanted) {
         if (topIsDressed(navigation)) {
@@ -185,7 +173,7 @@ static void holdControls(UINavigationController *navigation, BOOL wanted) {
             return;
         }
         if (!held) objc_setAssociatedObject(bar, &kHeldKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        conceal(subviewNamed(content, @"_UIButtonBarButton"));
+        conceal(SGRChildNamed(content, @"_UIButtonBarButton"));
         conceal(leadingItemOf(content));
         conceal(moreOf(content));
         conceal(extraOf(content));
@@ -193,7 +181,7 @@ static void holdControls(UINavigationController *navigation, BOOL wanted) {
     } else if (held) {
         reveal(title);
         if (!sg_dressed.count) {
-            reveal(subviewNamed(content, @"_UIButtonBarButton"));
+            reveal(SGRChildNamed(content, @"_UIButtonBarButton"));
             reveal(leadingItemOf(content));
             reveal(moreOf(content));
             reveal(extraOf(content));
@@ -264,13 +252,6 @@ BOOL SGRPageIsOrHolds(UIViewController *top, Class page) {
 
 #pragma mark - the title
 
-static UINavigationController *navigationOfView(UIView *view) {
-    for (UIResponder *r = view; r; r = r.nextResponder) {
-        if ([r isKindOfClass:UINavigationController.class]) return (UINavigationController *)r;
-    }
-    return nil;
-}
-
 // Whether the page on top of `navigation` is one dressed without a title.
 static BOOL topIsTitleless(UINavigationController *navigation) {
     for (UIViewController *page in sg_titleless.allObjects) {
@@ -295,7 +276,7 @@ static void glassTitle(UIView *title) {
     // A page with no title has an empty item in the title control (a SwiftUI bar item that draws nothing), which the
     // branch for a title that is a picture below would wrap in a capsule all the same. The title control is the bar's,
     // shared by the pages of the stack, and is watched for its layout, so this holds for every pass that reaches it.
-    if (sg_titleless.count && topIsTitleless(navigationOfView(title))) {
+    if (sg_titleless.count && topIsTitleless(SGRNavigationOf(title))) {
         dropTitleGlass(title);
         return;
     }
@@ -321,7 +302,7 @@ static void glassTitle(UIView *title) {
     // Two glass circles at the trailing edge (Song DNA's Share and Close) take two places from the corner, and the
     // capsule is centred, so it leaves as much on the leading side: with one place it ran to 2pt from Share
     // (trees/continuous/10.txt, 15.txt).
-    BOOL backOnly = sg_backOnly.count && topIsBackOnly(navigationOfView(title));
+    BOOL backOnly = sg_backOnly.count && topIsBackOnly(SGRNavigationOf(title));
     CGFloat places = !backOnly && extraOf(title.superview) ? 2 : 1;
     CGFloat room = screen - 2 * (kCorner + places * (SGRGlassCircleSize + kGap));
     CGFloat wanted = content + 2 * kTitlePadding;
@@ -406,7 +387,7 @@ void SGRDressBarPage(UIViewController *page) {
     // The bar is above the page and would take the touches meant for the buttons pinned to it.
     if (bar.userInteractionEnabled) bar.userInteractionEnabled = NO;
 
-    UIView *back = subviewNamed(content, @"_UIButtonBarButton");
+    UIView *back = SGRChildNamed(content, @"_UIButtonBarButton");
     UIView *item = back ? nil : leadingItemOf(content);
     conceal(back ?: item);
     if (item) {
@@ -433,7 +414,7 @@ void SGRDressBarPage(UIViewController *page) {
         pinTrailing(view, more, extra);
     }
 
-    UIView *title = subviewNamed(content, @"_UINavigationBarTitleControl");
+    UIView *title = SGRChildNamed(content, @"_UINavigationBarTitleControl");
     if (title) {
         if (objc_getAssociatedObject(bar, &kHeldKey)) reveal(title);
         glassTitle(title);
@@ -467,19 +448,19 @@ static void undressBar(UIViewController *page, UINavigationController *navigatio
         objc_setAssociatedObject(bar, &kBarStyleKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
     UIView *content = contentOf(bar);
-    reveal(subviewNamed(content, @"_UIButtonBarButton"));
+    reveal(SGRChildNamed(content, @"_UIButtonBarButton"));
     reveal(leadingItemOf(content));
     reveal(moreOf(content));
     reveal(extraOf(content));
     bar.userInteractionEnabled = YES;
     objc_setAssociatedObject(bar, &kHeldKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    reveal(subviewNamed(content, @"_UINavigationBarTitleControl"));
+    reveal(SGRChildNamed(content, @"_UINavigationBarTitleControl"));
     UIView *blur = blurOf(navigation);
     blur.layer.mask = nil;
     blur.userInteractionEnabled = YES;
     // The capsule is the title control's, which the next page's title may be too: it goes, and the next pass of
     // the page that wants one makes it again.
-    UIView *title = subviewNamed(content, @"_UINavigationBarTitleControl");
+    UIView *title = SGRChildNamed(content, @"_UINavigationBarTitleControl");
     [(UIView *)objc_getAssociatedObject(title, &kTitleGlassKey) removeFromSuperview];
 }
 

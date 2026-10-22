@@ -44,11 +44,6 @@ static const CGFloat kEditDim = 0.4;
 static char kToolbarGlassKey, kPopupGlassKey, kPopupTintKey, kPillKey, kPillGlassKey, kDressedKey;
 static char kListKey, kListClipKey;
 
-static Class swiftClass(NSString *module, NSString *name) {
-    NSString *mangled = [NSString stringWithFormat:@"_TtC%lu%@%lu%@", (unsigned long)module.length, module, (unsigned long)name.length, name];
-    return NSClassFromString(mangled) ?: NSClassFromString([NSString stringWithFormat:@"%@.%@", module, name]);
-}
-
 static __weak UINavigationController *sg_editNavigation;
 
 #pragma mark - the pane, the bar and the list
@@ -111,21 +106,6 @@ static void glassPill(UIView *root) {
     if (pill) dressPill(pill);
 }
 
-// A class of PlaylistEditing_ElementsKit whose mangled name carries a private discriminator (P33_...), found from the
-// trees' spelling by its ending.
-static Class privateClass(NSString *suffix) {
-    Class found = nil;
-    int count = objc_getClassList(NULL, 0);
-    Class *all = (Class *)malloc(sizeof(Class) * count);
-    count = objc_getClassList(all, count);
-    for (int i = 0; i < count && !found; i++) {
-        NSString *name = NSStringFromClass(all[i]);
-        if ([name hasPrefix:@"_TtC27PlaylistEditing_ElementsKit"] && [name hasSuffix:suffix]) found = all[i];
-    }
-    free(all);
-    return found;
-}
-
 static void chrome(UIViewController *controller) {
     UINavigationController *navigation = controller.navigationController;
     UIView *pane = navigation.view.superview;
@@ -146,35 +126,6 @@ static void chrome(UIViewController *controller) {
     glassPill(barOf(navigation));
     clipListBelowBar(controller, navigation);
 }
-
-static void passes(UIViewController *controller) {
-    __weak UIViewController *weak = controller;
-    chrome(controller);
-    for (NSNumber *delay in @[@0.0, @0.25, @0.6]) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            if (weak) chrome(weak);
-        });
-    }
-}
-
-%group SGREditPlaylist
-%hook SGREditItems
-- (void)viewDidLayoutSubviews {
-    %orig;
-    chrome((UIViewController *)self);
-}
-
-- (void)viewWillAppear:(BOOL)animated {
-    %orig;
-    chrome((UIViewController *)self);
-}
-
-- (void)viewDidAppear:(BOOL)animated {
-    %orig;
-    passes((UIViewController *)self);
-}
-%end
-%end
 
 // The bar lays its buttons out again as the title changes (the undo / redo pill comes in while tracks are dragged).
 %group SGREditBar
@@ -356,14 +307,8 @@ static void clearLiftPlate(UIView *view) {
 %end
 
 %ctor {
-    if (!SGRedesignedUI()) return;
-    if (!SGBelowiOS26()) return;
-    Class edit = swiftClass(@"PlaylistEditing_EditPlaylistImpl", @"EditItemsViewController");
-    if (edit) {
-        %init(SGREditPlaylist, SGREditItems = edit);
-    } else {
-        SGLog(@"class PlaylistEditing_EditPlaylistImpl.EditItemsViewController not found, the Edit playlist sheet keeps Spotify's grey");
-    }
+    if (!SGRedesignedUI() || !SGBelowiOS26()) return;
+    SGRPassSwiftController(@"PlaylistEditing_EditPlaylistImpl", @"EditItemsViewController", ^(UIViewController *c) { chrome(c); });
     if (NSClassFromString(@"_UINavigationBarContentView")) %init(SGREditBar);
     Class primary = NSClassFromString(@"_TtCCE16Encore_ButtonKitO16EncoreFoundation6Encore6Button7Primary");
     if (primary) {
@@ -371,13 +316,13 @@ static void clearLiftPlate(UIView *view) {
     } else {
         SGLog(@"class Encore.Button.Primary not found, the Edit playlist buttons and the Smart Reorder popups keep Spotify's fills");
     }
-    Class toolbar = swiftClass(@"PlaylistEditing_ElementsKit", @"ToolbarContainerView") ?: privateClass(@"ToolbarContainerView");
+    Class toolbar = SGRSwiftClass(@"PlaylistEditing_ElementsKit", @"ToolbarContainerView") ?: SGRPrivateSwiftClass(@"PlaylistEditing_ElementsKit", @"ToolbarContainerView");
     if (toolbar) {
         %init(SGREditToolbar, SGRToolbarContainer = toolbar);
     } else {
         SGLog(@"class PlaylistEditing_ElementsKit ToolbarContainerView not found, the Edit playlist toolbar may keep Spotify's grey");
     }
-    Class pill = swiftClass(@"PlaylistEditing_ElementsKit", @"PillStackView") ?: privateClass(@"PillStackView");
+    Class pill = SGRSwiftClass(@"PlaylistEditing_ElementsKit", @"PillStackView") ?: SGRPrivateSwiftClass(@"PlaylistEditing_ElementsKit", @"PillStackView");
     if (pill) {
         %init(SGREditPill, SGRPillView = pill);
     } else {

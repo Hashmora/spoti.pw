@@ -78,3 +78,18 @@ void SGRClearHostedFill(UIView *root) {
         if (isOpaqueWhite(view.layer.backgroundColor)) view.layer.backgroundColor = NULL;
     });
 }
+
+static BOOL isDarkNeutral(UIColor *color) {
+    CGFloat r = 0, g = 0, b = 0, a = 0;
+    if ([color getRed:&r green:&g blue:&b alpha:&a]) return MAX(r, MAX(g, b)) < 0.3 && MAX(r, MAX(g, b)) - MIN(r, MIN(g, b)) < 0.1;
+    CGFloat white = 0;
+    return [color getWhite:&white alpha:&a] && white < 0.3;
+}
+
+void SGRLightenLabels(UIView *root, UIView *except) {
+    SGForEachView(root, ^(UIView *view) {
+        if (![view isKindOfClass:UILabel.class] || (except && [view isDescendantOfView:except])) return;
+        UILabel *label = (UILabel *)view;
+        if (isDarkNeutral(label.textColor)) label.textColor = UIColor.whiteColor;
+    });
+}

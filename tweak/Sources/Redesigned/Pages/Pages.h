@@ -35,10 +35,6 @@
 // Threading: main thread only.
 #import <UIKit/UIKit.h>
 
-// A Swift class by module and name, under the mangled spelling or the dotted one the trees print; Nil when the
-// app has neither.
-Class SGRPageClass(NSString *module, NSString *name);
-
 // Whether `top` is a view controller of class `page` or holds one among its children (pages are hosted by Spotify's
 // page template, so the top of the stack is the host).
 BOOL SGRPageIsOrHolds(UIViewController *top, Class page);

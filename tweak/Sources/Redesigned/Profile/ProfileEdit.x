@@ -28,13 +28,6 @@ static char kButtonGlassKey, kTitleGlassKey;
 
 static __weak UINavigationController *sg_profileNavigation;
 
-static UIView *subviewNamed(UIView *host, NSString *name) {
-    for (UIView *sub in host.subviews) {
-        if ([NSStringFromClass(sub.class) isEqualToString:name]) return sub;
-    }
-    return nil;
-}
-
 static UILabel *labelIn(UIView *root) {
     __block UILabel *found = nil;
     SGForEachView(root, ^(UIView *v) {
@@ -43,29 +36,23 @@ static UILabel *labelIn(UIView *root) {
     return found;
 }
 
-// The views between `view` and the bar stop clipping: the capsule is a subview that reaches past its control.
-static void unclip(UIView *view, UIView *bar) {
-    for (UIView *v = view; v && v != bar; v = v.superview) {
-        if (v.clipsToBounds) v.clipsToBounds = NO;
-    }
-}
-
 static void glassCapsule(UIView *control, UILabel *label, const void *key, CGFloat padding, CGFloat height, UIView *bar) {
     if (!control || !label) return;
     CGFloat content = ceil([label sizeThatFits:CGSizeMake(CGFLOAT_MAX, height)].width);
     if (content < 1) return;
-    unclip(control, bar);
+    // The capsule is a subview that reaches past its control.
+    SGRUnclipUpTo(control, ^BOOL(UIView *v) { return v.superview == bar; });
     SGRGlassCapsuleInside(control, key, CGSizeMake(content + 2 * padding, height), NO);
 }
 
 static void dressBar(UINavigationController *navigation) {
     UINavigationBar *bar = navigation.navigationBar;
-    UIView *content = subviewNamed(bar, @"_UINavigationBarContentView");
+    UIView *content = SGRChildNamed(bar, @"_UINavigationBarContentView");
     if (!content) return;
     if (bar.overrideUserInterfaceStyle != UIUserInterfaceStyleDark) bar.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
 
     // Spotify's black behind the bar.
-    UIView *backing = subviewNamed(bar, @"_UIBarBackground");
+    UIView *backing = SGRChildNamed(bar, @"_UIBarBackground");
     if (backing && backing.alpha != 0) backing.alpha = 0;
 
     CGAffineTransform shift = CGAffineTransformMakeTranslation(0, kEditShift);
@@ -75,12 +62,12 @@ static void dressBar(UINavigationController *navigation) {
     for (UIView *stack in content.subviews) {
         if (![NSStringFromClass(stack.class) isEqualToString:@"_UIButtonBarStackView"]) continue;
         for (UIView *item in stack.subviews) {
-            UIView *button = subviewNamed(item, @"_UIModernBarButton") ?: item;
+            UIView *button = SGRChildNamed(item, @"_UIModernBarButton") ?: item;
             glassCapsule(button, labelIn(button), &kButtonGlassKey, kButtonPadding, kButtonHeight, bar);
         }
     }
 
-    UIView *title = subviewNamed(content, @"_UINavigationBarTitleControl");
+    UIView *title = SGRChildNamed(content, @"_UINavigationBarTitleControl");
     if (title) glassCapsule(title, labelIn(title), &kTitleGlassKey, kTitlePadding, kTitleHeight, bar);
 }
 
@@ -107,35 +94,6 @@ static void chrome(UIViewController *controller) {
     dressBar(navigation);
 }
 
-static void passes(UIViewController *controller) {
-    __weak UIViewController *weak = controller;
-    chrome(controller);
-    for (NSNumber *delay in @[@0.0, @0.25, @0.6]) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            if (weak) chrome(weak);
-        });
-    }
-}
-
-%group SGREditProfile
-%hook SGREditProfileController
-- (void)viewDidLayoutSubviews {
-    %orig;
-    chrome((UIViewController *)self);
-}
-
-- (void)viewWillAppear:(BOOL)animated {
-    %orig;
-    chrome((UIViewController *)self);
-}
-
-- (void)viewDidAppear:(BOOL)animated {
-    %orig;
-    passes((UIViewController *)self);
-}
-%end
-%end
-
 // The bar lays its buttons and title out again as the item changes (Save is lit once there is something to save).
 %group SGREditProfileBar
 %hook _UINavigationBarContentView
@@ -150,13 +108,12 @@ static void passes(UIViewController *controller) {
 %end
 
 %ctor {
-    if (!SGRedesignedUI()) return;
-    if (!SGBelowiOS26()) return;
-    Class edit = SGRPageClass(@"Profile_CommonImpl", @"EditProfileViewController");
+    if (!SGRedesignedUI() || !SGBelowiOS26()) return;
+    Class edit = SGRSwiftClass(@"Profile_CommonImpl", @"EditProfileViewController");
     if (!edit) {
         SGLog(@"class Profile_CommonImpl.EditProfileViewController not found, the Edit profile sheet keeps Spotify's black");
         return;
     }
-    %init(SGREditProfile, SGREditProfileController = edit);
+    SGRPassController(edit, ^(UIViewController *c) { chrome(c); });
     if (NSClassFromString(@"_UINavigationBarContentView")) %init(SGREditProfileBar);
 }

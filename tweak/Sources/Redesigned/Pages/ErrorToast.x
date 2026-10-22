@@ -21,23 +21,6 @@ static char kGlassKey, kFilmKey, kCloseGlassKey;
 
 static const CGFloat kRadius = 24;
 
-// Only a dark neutral is lightened, so a colour Spotify chose on purpose stays.
-static BOOL isDarkNeutral(UIColor *color) {
-    CGFloat r = 0, g = 0, b = 0, a = 0;
-    if ([color getRed:&r green:&g blue:&b alpha:&a]) return MAX(r, MAX(g, b)) < 0.3 && MAX(r, MAX(g, b)) - MIN(r, MIN(g, b)) < 0.1;
-    CGFloat white = 0;
-    return [color getWhite:&white alpha:&a] && white < 0.3;
-}
-
-// Reload's word stays black: it is on the green.
-static void lightenText(UIView *root, UIView *except) {
-    SGForEachView(root, ^(UIView *view) {
-        if (![view isKindOfClass:UILabel.class] || (except && [view isDescendantOfView:except])) return;
-        UILabel *label = (UILabel *)view;
-        if (isDarkNeutral(label.textColor)) label.textColor = UIColor.whiteColor;
-    });
-}
-
 // The Reload button: Spotify's Primary button, found by its identifier. Only found, to keep its word as it is.
 static UIView *reloadIn(UIView *toast) {
     __block UIView *found = nil;
@@ -76,7 +59,7 @@ static void dressToast(UIView *toast) {
     SGShapeGlass(glass, radius, NO);
     SGRGlassFilm(toast, &kFilmKey, glass, radius);
 
-    lightenText(toast, reloadIn(toast));
+    SGRLightenLabels(toast, reloadIn(toast));
     if (toast.superview) glassClose(toast.superview);
 
     static dispatch_once_t once;
@@ -96,13 +79,7 @@ static void dressToast(UIView *toast) {
     if (!toast.window) return;
     dressToast(toast);
     // Spotify paints the white and the button back as the toast's content is set.
-    __weak UIView *weak = toast;
-    for (NSNumber *wait in @[@0.0, @0.25]) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(wait.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            UIView *shown = weak;
-            if (shown.window) dressToast(shown);
-        });
-    }
+    SGRRepeatViewPass(toast, @[@0.0, @0.25], ^(UIView *v) { dressToast(v); });
 }
 %end
 %end
@@ -110,7 +87,7 @@ static void dressToast(UIView *toast) {
 %ctor {
     if (!SGRedesignedUI()) return;
     if (!SGBelowiOS26()) return;
-    Class toast = SGRPageClass(@"Tome_MusicClientPageLoaderViewKit", @"DefaultErrorToastView");
+    Class toast = SGRSwiftClass(@"Tome_MusicClientPageLoaderViewKit", @"DefaultErrorToastView");
     if (toast) {
         %init(SGRErrorToast, SGRErrorToastView = toast);
     } else {

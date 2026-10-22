@@ -22,6 +22,10 @@ void SGRGlassChipsIn(UIView *root);
 CGColorRef SGRSelectedChipPaint(CGColorRef paint);
 void SGRTintSelectedFill(UIView *fill);
 
+// `chip` on glass, for the three kinds of chip: a capsule of its size inside it under `key`, behind its `fill`. A
+// `selected` fill keeps its colour as a tint over the glass; any other loses its paint, so the glass is what shows.
+void SGRGlassChip(UIView *chip, UIView *fill, BOOL selected, const void *key);
+
 // Whether `view` is the pill of a chip dressed by SGRGlassChipsIn, and the chip's glass is brought in line with a
 // paint that has just landed on it. For SGRRepaint.x.
 BOOL SGRIsDressedChipPill(UIView *view);

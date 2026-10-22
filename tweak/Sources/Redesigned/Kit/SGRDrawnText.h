@@ -10,6 +10,10 @@
 // that has drawn nothing yet is looked at again on the next call, so it is safe to call on every layout pass.
 void SGRLightenDrawnText(UIView *root);
 
+// Turns the dark neutral text of the UILabels under `root` white (black on a toast's white is lost on glass), outside
+// `except` (a button's word on its green). A colour Spotify chose on purpose stays.
+void SGRLightenLabels(UIView *root, UIView *except);
+
 // Clears the white SwiftUI paints under `root` (layer colors of its views, white and opaque only, so a fill
 // Spotify chose on purpose stays) so the glass behind the card shows. Safe to call on every pass.
 void SGRClearHostedFill(UIView *root);

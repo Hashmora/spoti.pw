@@ -152,6 +152,17 @@ static void followCreateClose(UIView *stockBar);
 
 #pragma mark - the compact bar's circles
 
+// Create's menu open: its plus turns 45 degrees, black, onto a white disc that grows in behind it; closed, back again.
+static void turnCreate(UIView *disc, UIView *glyph, BOOL open) {
+    [UIView animateWithDuration:0.32 delay:0 usingSpringWithDamping:0.8 initialSpringVelocity:0
+        options:UIViewAnimationOptionBeginFromCurrentState animations:^{
+        disc.alpha = open ? 1 : 0;
+        disc.transform = open ? CGAffineTransformIdentity : CGAffineTransformMakeScale(0.4, 0.4);
+        glyph.transform = open ? CGAffineTransformMakeRotation(M_PI_4) : CGAffineTransformIdentity;
+        glyph.tintColor = open ? UIColor.blackColor : UIColor.whiteColor;
+    } completion:nil];
+}
+
 // A round control of the compact bar: a glass circle with one tab's glyph on it. The glass is SGGlassFor's, so
 // it is a legacy glass pane with Legacy Liquid Glass on and a plain blur without it, and comes and goes by its
 // effect (SGRShowGlass), never by an alpha on the control, which UIKit draws a blur wrongly under. The control
@@ -241,13 +252,7 @@ static void followCreateClose(UIView *stockBar);
     }
     [self setNeedsLayout];
     [self layoutIfNeeded];
-    [UIView animateWithDuration:0.32 delay:0 usingSpringWithDamping:0.8 initialSpringVelocity:0
-        options:UIViewAnimationOptionBeginFromCurrentState animations:^{
-        self->_disc.alpha = open ? 1 : 0;
-        self->_disc.transform = open ? CGAffineTransformIdentity : CGAffineTransformMakeScale(0.4, 0.4);
-        self->_glyph.transform = open ? CGAffineTransformMakeRotation(M_PI_4) : CGAffineTransformIdentity;
-        self->_glyph.tintColor = open ? UIColor.blackColor : UIColor.whiteColor;
-    } completion:nil];
+    turnCreate(_disc, _glyph, open);
 }
 
 - (void)tapped {
@@ -333,41 +338,7 @@ static void learnGlyphs(UIView *source, UITabBarItem *item) {
     if (active) item.selectedImage = seen; else item.image = seen;
 }
 
-#pragma mark - passing a tap on
-
-// NavigationUI_TabBarImpl's TabBarItemElementUI answers a tap recognizer (-handleTap), so the tap is
-// replayed through the recognizer's own target-action pairs, the same call a real touch ends in.
-static BOOL fireTapRecognizers(UIView *view) {
-    Ivar targetsIvar = class_getInstanceVariable(UIGestureRecognizer.class, "_targets");
-    if (!targetsIvar) return NO;
-    BOOL fired = NO;
-    for (UIGestureRecognizer *recognizer in view.gestureRecognizers) {
-        if (![recognizer isKindOfClass:UITapGestureRecognizer.class] || !recognizer.enabled) continue;
-        for (id pair in object_getIvar(recognizer, targetsIvar)) {
-            Ivar targetIvar = class_getInstanceVariable([pair class], "_target");
-            Ivar actionIvar = class_getInstanceVariable([pair class], "_action");
-            if (!targetIvar || !actionIvar) continue;
-            id target = object_getIvar(pair, targetIvar);
-            SEL action = *(SEL *)((char *)(__bridge void *)pair + ivar_getOffset(actionIvar));
-            if (!target || !action || ![target respondsToSelector:action]) continue;
-            ((void (*)(id, SEL, id))objc_msgSend)(target, action, recognizer);
-            fired = YES;
-        }
-    }
-    return fired;
-}
-
-static void forwardTap(UIView *item) {
-    __block BOOL sent = NO;
-    SGForEachView(item, ^(UIView *v) {
-        if (!sent) sent = fireTapRecognizers(v);
-    });
-    SGForEachView(item, ^(UIView *v) {
-        if (sent || ![v isKindOfClass:UIControl.class]) return;
-        [(UIControl *)v sendActionsForControlEvents:UIControlEventTouchUpInside];
-        sent = YES;
-    });
-}
+#pragma mark - taps
 
 // A tap that ends on the tab already open moves no pill, so the icon pulses instead.
 static void bumpIcon(UITabBar *bar, UITabBarItem *item) {
@@ -457,8 +428,8 @@ static void paintGlyphs(UITabBar *bar) {
     }
 }
 
-// Spotify's own Create item turns its plus 45 degrees and puts a white disc behind it while the menu is
-// open. That runs on the hidden stock view, so the glass bar has to do the same on its own Create button.
+// Spotify's own Create item turns its plus onto a white disc while the menu is open (turnCreate). That runs on the
+// hidden stock view, so the glass bar does the same on its own Create button.
 static void setCreateOpen(SGRLegacyTabBar *bar, BOOL open) {
     // Create on the apart tab's own button: that button does it, and the capsule has no Create.
     if (bar.apartSource && isCreateSource(bar.apartSource) && (!bar.folded || sg_minimized)) {
@@ -497,13 +468,7 @@ static void setCreateOpen(SGRLegacyTabBar *bar, BOOL open) {
     disc.center = overlay.center;
     if ((disc.alpha > 0.5) == open && (open || CGAffineTransformIsIdentity(overlay.transform))) return;
     if (open) disc.transform = CGAffineTransformMakeScale(0.4, 0.4);
-    [UIView animateWithDuration:0.32 delay:0 usingSpringWithDamping:0.8 initialSpringVelocity:0
-        options:UIViewAnimationOptionBeginFromCurrentState animations:^{
-        disc.alpha = open ? 1 : 0;
-        disc.transform = open ? CGAffineTransformIdentity : CGAffineTransformMakeScale(0.4, 0.4);
-        overlay.transform = open ? CGAffineTransformMakeRotation(M_PI_4) : CGAffineTransformIdentity;
-        overlay.tintColor = open ? UIColor.blackColor : UIColor.whiteColor;
-    } completion:nil];
+    turnCreate(disc, overlay, open);
 }
 
 #pragma mark - the system bar
@@ -828,7 +793,6 @@ static BOOL createMenuIsUp(UIView *stockBar) {
 
 // Once the menu is gone the selection follows Spotify if the menu took it to another tab, and otherwise goes back to
 // the tab the user was on (which may be one of the mod's own). Looked at twice, since Spotify repaints its labels late.
-
 static void settleAfterCreate(UIView *stockBar) {
     SGRLegacyTabBar *bar = objc_getAssociatedObject(stockBar, &kBarKey);
     if (!bar) return;

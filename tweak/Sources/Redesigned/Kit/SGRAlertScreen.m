@@ -47,13 +47,6 @@ static UIColor *destructiveRed(void) {
     return [UIColor colorWithRed:1.0 green:0x67 / 255.0 blue:0x67 / 255.0 alpha:1];   // Telegram's night itemDestructiveColor
 }
 
-// Black or white, whichever reads on the accent: the redesign's green is bright and white text on it is lost.
-static UIColor *onAccent(UIColor *accent) {
-    CGFloat r = 0, g = 0, b = 0, a = 1;
-    if (![accent getRed:&r green:&g blue:&b alpha:&a]) return UIColor.whiteColor;
-    return (0.299 * r + 0.587 * g + 0.114 * b) > 0.6 ? UIColor.blackColor : UIColor.whiteColor;
-}
-
 #pragma mark - a button
 
 @interface SGRAlertButton : UIView
@@ -104,7 +97,7 @@ static UIColor *onAccent(UIColor *accent) {
             break;
         case SGRAlertKindDefault:
             _fill.backgroundColor = accent;
-            _label.textColor = onAccent(accent);
+            _label.textColor = SGRInkOnAccent(accent);
             break;
         case SGRAlertKindDestructive:
             _fill.backgroundColor = [UIColor colorWithWhite:1 alpha:0.1];

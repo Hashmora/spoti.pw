@@ -155,31 +155,6 @@ static void dressSnake(UIViewController *page) {
     });
 }
 
-// Runs a pass now and again as Spotify builds the screen: the Try again button only exists once the game is lost, and
-// the bar's buttons are laid out after the controller's own pass.
-static void dressSoon(UIViewController *page, void (*dress)(UIViewController *)) {
-    dress(page);
-    __weak UIViewController *weak = page;
-    for (NSNumber *delay in @[@0.25, @0.7]) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            if (weak && weak.viewIfLoaded.window) dress(weak);
-        });
-    }
-}
-
-%group SGRSnakeGlass
-%hook SGRSnakeController
-- (void)viewDidLayoutSubviews {
-    %orig;
-    dressSnake((UIViewController *)self);
-}
-- (void)viewDidAppear:(BOOL)animated {
-    %orig;
-    dressSoon((UIViewController *)self, dressSnake);
-}
-%end
-%end
-
 #pragma mark - Spotify code
 
 static void dressCode(UIViewController *page) {
@@ -189,19 +164,6 @@ static void dressCode(UIViewController *page) {
         if (nameHasSuffix(v, @"Button7Primary")) glassCapsule(v, whiteFilm(), nil);
     });
 }
-
-%group SGRCodeGlass
-%hook SGRCodeController
-- (void)viewDidLayoutSubviews {
-    %orig;
-    dressCode((UIViewController *)self);
-}
-- (void)viewDidAppear:(BOOL)animated {
-    %orig;
-    dressSoon((UIViewController *)self, dressCode);
-}
-%end
-%end
 
 #pragma mark - Create cover art
 
@@ -234,19 +196,11 @@ static void dressCoverArt(UIView *page) {
 
 %ctor {
     if (!SGRedesignedUI()) return;
-    Class snake = SGRPageClass(@"PlaylistCuration_CoverArtSnakeImpl", @"SnakeViewController");
-    if (snake) {
-        %init(SGRSnakeGlass, SGRSnakeController = snake);
-    } else {
-        SGLog(@"class PlaylistCuration_CoverArtSnakeImpl.SnakeViewController not found, Eat this playlist keeps Spotify's buttons");
-    }
-    Class code = SGRPageClass(@"Scannables_ScannablesImpl", @"ScannablesImageViewController");
-    if (code) {
-        %init(SGRCodeGlass, SGRCodeController = code);
-    } else {
-        SGLog(@"class Scannables_ScannablesImpl.ScannablesImageViewController not found, Spotify code keeps Spotify's button");
-    }
-    Class cover = SGRPageClass(@"PlaylistArtwork_EditPlaylistCoverArtPageImpl", @"EditPlaylistCoverArtView");
+    // Again as Spotify builds the screen: the Try again button only exists once the game is lost, and the bar's
+    // buttons are laid out after the controller's own pass.
+    SGRPassSwiftController(@"PlaylistCuration_CoverArtSnakeImpl", @"SnakeViewController", ^(UIViewController *c) { dressSnake(c); });
+    SGRPassSwiftController(@"Scannables_ScannablesImpl", @"ScannablesImageViewController", ^(UIViewController *c) { dressCode(c); });
+    Class cover = SGRSwiftClass(@"PlaylistArtwork_EditPlaylistCoverArtPageImpl", @"EditPlaylistCoverArtView");
     if (cover) {
         %init(SGRCoverArtGlass, SGRCoverArtView = cover);
     } else {

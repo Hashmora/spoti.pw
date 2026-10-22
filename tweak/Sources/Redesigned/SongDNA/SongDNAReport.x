@@ -38,7 +38,7 @@ static void lighten(UIView *card) {
 %ctor {
     if (!SGRedesignedUI()) return;
     if (!SGBelowiOS26()) return;
-    Class card = SGRPageClass(@"SongDNA_ReportPageImpl", @"DataSourcesCardView");
+    Class card = SGRSwiftClass(@"SongDNA_ReportPageImpl", @"DataSourcesCardView");
     if (!card) {
         SGLog(@"class SongDNA_ReportPageImpl.DataSourcesCardView not found, the Data Sources card keeps Spotify's grey");
         return;

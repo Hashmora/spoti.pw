@@ -36,56 +36,9 @@ static void glassSheet(UIViewController *controller) {
     if (root) SGRGlassSheetChrome(root);
 }
 
-// The rows are built after the first layout and Spotify paints its grey back on later passes, so the pass
-// runs when the view appears and a beat after, as the queue's and the attribution sheet's do.
-static void afterAppear(UIViewController *controller, void (*chrome)(UIViewController *)) {
-    __weak UIViewController *weak = controller;
-    chrome(controller);
-    for (NSNumber *delay in @[@0.0, @0.25]) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            if (weak) chrome(weak);
-        });
-    }
-}
-
-%hook _TtC29CreateMenu_CreateMenuPageImpl24CreateMenuViewController
-- (void)viewDidLayoutSubviews {
-    %orig;
-    glassCard((UIViewController *)self);
-}
-
-- (void)viewWillAppear:(BOOL)animated {
-    %orig;
-    glassCard((UIViewController *)self);
-}
-
-- (void)viewDidAppear:(BOOL)animated {
-    %orig;
-    afterAppear((UIViewController *)self, glassCard);
-}
-%end
-
-%hook _TtC30PlaylistCreation_SheetPageImpl35BICreatePlaylistSheetViewController
-- (void)viewDidLayoutSubviews {
-    %orig;
-    glassSheet((UIViewController *)self);
-}
-
-- (void)viewWillAppear:(BOOL)animated {
-    %orig;
-    glassSheet((UIViewController *)self);
-}
-
-- (void)viewDidAppear:(BOOL)animated {
-    %orig;
-    afterAppear((UIViewController *)self, glassSheet);
-}
-%end
-
 %ctor {
-    if (!SGRedesignedUI()) return;
-    if (!SGBelowiOS26()) return;
-    %init;
-    SGRequireClasses(@[@"_TtC29CreateMenu_CreateMenuPageImpl24CreateMenuViewController",
-                       @"_TtC30PlaylistCreation_SheetPageImpl35BICreatePlaylistSheetViewController"]);
+    if (!SGRedesignedUI() || !SGBelowiOS26()) return;
+    // The rows are built after the first layout and Spotify paints its grey back on later passes.
+    SGRPassControllersNamed(@[@"_TtC29CreateMenu_CreateMenuPageImpl24CreateMenuViewController"], ^(UIViewController *c) { glassCard(c); });
+    SGRPassControllersNamed(@[@"_TtC30PlaylistCreation_SheetPageImpl35BICreatePlaylistSheetViewController"], ^(UIViewController *c) { glassSheet(c); });
 }

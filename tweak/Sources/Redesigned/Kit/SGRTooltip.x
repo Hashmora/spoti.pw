@@ -29,10 +29,6 @@ static const CGFloat kMaxRadius = 28;
 // The tail: how wide it is at the card's edge and how far it stands out from it, and how far it lies under the card.
 static const CGFloat kTailWidth = 18, kTailHeight = 8, kTailOverlap = 1;
 
-// How far below the bar's top (where Spotify keeps it, without the shift) the tooltip's lowest edge may be and still count as
-// standing over the bar.
-static const CGFloat kBarClearance = 24;
-
 // The tooltips on screen, for the tab bar's minimize to move.
 static NSHashTable<UIView *> *sg_tooltips;
 
@@ -103,25 +99,19 @@ static void dressTail(UIView *container, UIView *card, UIView *arrow, CGFloat ra
     }
 }
 
-// How far the tooltip moves with the bar: the bar's shift into the minimized tab bar's row (0 with the bar expanded), but only
-// for a tooltip that stands over the bar. Worked out from where the container stands without its own transform.
-static CGFloat barShiftFor(UIView *container, UIView *card) {
-    CGFloat shift = SGRNowPlayingBarInlineShift();
-    UIWindow *window = container.window;
-    if (shift == 0 || !window || !container.superview) return 0;
-    CGRect bar = SGRNowPlayingCardFrameIn(window, NULL);
-    if (CGRectIsNull(bar)) return shift;
+// The card where it stands without the container's own transform, in the window: what decides if it is over the bar.
+static CGRect untransformedCard(UIView *container, UIView *card) {
+    if (!container.superview) return CGRectNull;
     CGPoint origin = CGPointMake(container.center.x - container.bounds.size.width / 2, container.center.y - container.bounds.size.height / 2);
     CGRect inParent = CGRectOffset(card.frame, origin.x - container.bounds.origin.x, origin.y - container.bounds.origin.y);
-    CGRect shown = [container.superview convertRect:inParent toView:window];
-    return CGRectGetMaxY(shown) <= CGRectGetMinY(bar) - shift + kBarClearance ? shift : 0;
+    return [container.superview convertRect:inParent toView:nil];
 }
 
 static void followNowPlayingBar(UIView *container) {
     UIView *card = nil, *arrow = nil;
     partsOf(container, &card, &arrow);
     if (!card) return;
-    CGAffineTransform move = CGAffineTransformMakeTranslation(0, barShiftFor(container, card));
+    CGAffineTransform move = CGAffineTransformMakeTranslation(0, SGRNowPlayingBarShiftOver(untransformedCard(container, card), container.window));
     if (!CGAffineTransformEqualToTransform(container.transform, move)) container.transform = move;
 }
 
@@ -174,13 +164,7 @@ static void dressTooltip(UIView *container) {
 }
 
 static void dressAfterSettling(UIView *container) {
-    __weak UIView *weak = container;
-    for (NSNumber *wait in @[@0.0, @0.25]) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(wait.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            UIView *shown = weak;
-            if (shown.window) dressTooltip(shown);
-        });
-    }
+    SGRRepeatViewPass(container, @[@0.0, @0.25], ^(UIView *v) { dressTooltip(v); });
 }
 
 %group SGRTooltipGlass
@@ -203,7 +187,7 @@ static void dressAfterSettling(UIView *container) {
 %ctor {
     if (!SGRedesignedUI()) return;
     if (!SGBelowiOS26()) return;
-    Class container = SGRPageClass(@"Messaging_TooltipPresenterImpl", @"TooltipContainerView");
+    Class container = SGRSwiftClass(@"Messaging_TooltipPresenterImpl", @"TooltipContainerView");
     if (container) {
         %init(SGRTooltipGlass, SGRTooltipContainer = container);
     } else {

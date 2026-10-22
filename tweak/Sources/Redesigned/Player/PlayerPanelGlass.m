@@ -12,6 +12,7 @@
 // Threading: main thread only.
 #import "Core/SGCore.h"
 #import "Redesigned/ContextMenu/ContextMenu.h"
+#import "Redesigned/Kit/SGRPass.h"
 #import "Shared/Player/SpeedPitch.h"
 
 // The black over the pane: lighter than the menu's, whose rows are long white labels; the panel is sliders.
@@ -79,11 +80,5 @@ void SGPlayerStylePanel(UIView *content) {
     // Again as the popover settles: UIKit may build or re-lay its chrome after the panel's own layout.
     if (objc_getAssociatedObject(content, &kPanelSettleKey)) return;
     objc_setAssociatedObject(content, &kPanelSettleKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    __weak UIView *weak = content;
-    for (NSNumber *wait in @[@0.05, @0.2, @0.5]) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(wait.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            UIView *shown = weak;
-            if (shown.window) stylePanel(shown);
-        });
-    }
+    SGRRepeatViewPass(content, @[@0.05, @0.2, @0.5], ^(UIView *v) { stylePanel(v); });
 }

@@ -107,30 +107,6 @@ static void dress(UIView *root) {
     }
 }
 
-%hook _TtC18Search_FeatureImpl20HeaderViewController
-- (void)viewDidLayoutSubviews {
-    %orig;
-    dress(((UIViewController *)self).viewIfLoaded);
-}
-
-- (void)viewWillAppear:(BOOL)animated {
-    %orig;
-    dress(((UIViewController *)self).viewIfLoaded);
-}
-
-// Spotify builds the field's content again once the page is up; the passes after it dress what it built.
-- (void)viewDidAppear:(BOOL)animated {
-    %orig;
-    __weak UIViewController *weak = (UIViewController *)self;
-    for (NSNumber *wait in @[@0.0, @0.25, @0.6]) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(wait.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            UIViewController *page = weak;
-            if (page.viewIfLoaded.window) dress(page.viewIfLoaded);
-        });
-    }
-}
-%end
-
 // Whether the container is the search page's own: the same class holds the field wherever Spotify's search results header is used.
 static BOOL inSearchPage(UIView *container) {
     for (UIResponder *r = container.nextResponder; r; r = r.nextResponder) {
@@ -156,10 +132,9 @@ static BOOL inSearchPage(UIView *container) {
 %end
 
 %ctor {
-    if (!SGRedesignedUI()) return;
-    if (!SGBelowiOS26()) return;
-    %init;
-    SGRequireClasses(@[@"_TtC18Search_FeatureImpl20HeaderViewController"]);
+    if (!SGRedesignedUI() || !SGBelowiOS26()) return;
+    // Spotify builds the field's content again once the page is up; the passes after it dress what it built.
+    SGRPassControllersNamed(@[@"_TtC18Search_FeatureImpl20HeaderViewController"], ^(UIViewController *c) { dress(c.viewIfLoaded); });
     Class container = NSClassFromString(@"_TtC13Search_ECMKitP33_4AAD529A9116A2BD7185A1FC1B0C084527MultilineSearchBarContainer");
     if (container) {
         %init(SGRSearchFieldContainer, SGRSearchBarContainer = container);

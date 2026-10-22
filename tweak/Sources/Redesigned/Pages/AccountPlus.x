@@ -56,13 +56,7 @@ static BOOL dressPlus(UIView *row) {
 // A row Spotify has not laid out yet is tried again once its pass has run, and after the menu's own animation.
 static void dressPlusSoon(UIView *row) {
     if (dressPlus(row)) return;
-    __weak UIView *weak = row;
-    for (NSNumber *wait in @[@0.0, @0.25]) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(wait.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            UIView *shown = weak;
-            if (shown.window) dressPlus(shown);
-        });
-    }
+    SGRRepeatViewPass(row, @[@0.0, @0.25], ^(UIView *v) { dressPlus(v); });
 }
 
 static Class sDrawerCell;
@@ -155,14 +149,14 @@ static void dressFacepilePlus(UIView *icon) {
 %ctor {
     if (!SGRedesignedUI()) return;
     if (!SGBelowiOS26()) return;
-    Class drawer = SGRPageClass(@"AccountSwitching_AccountSwitchingUIImpl", @"AddAccountCell");
+    Class drawer = SGRSwiftClass(@"AccountSwitching_AccountSwitchingUIImpl", @"AddAccountCell");
     if (drawer) {
         sDrawerCell = drawer;
         %init(SGRDrawerPlus, SGRDrawerAddAccount = drawer);
     } else {
         SGLog(@"class AccountSwitching_AccountSwitchingUIImpl.AddAccountCell not found, the left menu's Add account keeps its grey plus");
     }
-    Class picker = SGRPageClass(@"AccountSwitching_AccountPickerImpl", @"AccountPickerAddAccountTableViewCell");
+    Class picker = SGRSwiftClass(@"AccountSwitching_AccountPickerImpl", @"AccountPickerAddAccountTableViewCell");
     if (picker) {
         %init(SGRPickerPlus, SGRPickerAddAccount = picker);
     } else {

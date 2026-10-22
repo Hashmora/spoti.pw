@@ -76,23 +76,13 @@ static void glassLists(UIView *root) {
     });
 }
 
-// Again once the list has settled in its window: the first pass can come before the platter has its blur or its size.
-static void glassAfterSettling(UIView *list) {
-    __weak UIView *weak = list;
-    for (NSNumber *wait in @[@0, @0.15, @0.45]) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(wait.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            UIView *shown = weak;
-            if (shown.window) glassMenu(shown);
-        });
-    }
-}
-
 %hook _UIContextMenuListView
 - (void)didMoveToWindow {
     %orig;
     if (((UIView *)self).window) {
         glassMenu((UIView *)self);
-        glassAfterSettling((UIView *)self);
+        // Again once it has settled: the first pass can come before the platter has its blur or its size.
+        SGRRepeatViewPass((UIView *)self, @[@0, @0.15, @0.45], ^(UIView *v) { glassMenu(v); });
     }
 }
 

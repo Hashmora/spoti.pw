@@ -43,16 +43,9 @@ void SGUndressPageBar(UIViewController *page) {
     SGRUndressBarPage(page);
 }
 
-static UINavigationController *navigationOf(UIView *bar) {
-    for (UIResponder *r = bar; r; r = r.nextResponder) {
-        if ([r isKindOfClass:UINavigationController.class]) return (UINavigationController *)r;
-    }
-    return nil;
-}
-
 static void barPass(UIView *bar) {
     if (!redesignBars()) return;
-    UIViewController *top = navigationOf(bar).topViewController;
+    UIViewController *top = SGRNavigationOf(bar).topViewController;
     if ([top isKindOfClass:SGModPage.class] && top.viewIfLoaded.window) SGDressPageBar(top);
 }
 

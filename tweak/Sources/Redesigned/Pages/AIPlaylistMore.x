@@ -21,43 +21,8 @@ static void moreChrome(UIViewController *controller) {
     SGRGlassSheetView(card);
 }
 
-// The rows are built after the first layout, and the grey comes back with them.
-static void passes(UIViewController *controller) {
-    __weak UIViewController *weak = controller;
-    moreChrome(controller);
-    for (NSNumber *delay in @[@0.0, @0.25, @0.6]) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            if (weak) moreChrome(weak);
-        });
-    }
-}
-
-%group SGRAIPlaylistMore
-%hook SGRMoreOptionsController
-- (void)viewDidLayoutSubviews {
-    %orig;
-    moreChrome((UIViewController *)self);
-}
-
-- (void)viewWillAppear:(BOOL)animated {
-    %orig;
-    moreChrome((UIViewController *)self);
-}
-
-- (void)viewDidAppear:(BOOL)animated {
-    %orig;
-    passes((UIViewController *)self);
-}
-%end
-%end
-
 %ctor {
-    if (!SGRedesignedUI()) return;
-    if (!SGBelowiOS26()) return;
-    Class more = SGRPageClass(@"AIPlaylist_PlaylistCreationPageImpl", @"PlaylistCreationMoreOptionsViewController");
-    if (more) {
-        %init(SGRAIPlaylistMore, SGRMoreOptionsController = more);
-    } else {
-        SGLog(@"class AIPlaylist_PlaylistCreationPageImpl.PlaylistCreationMoreOptionsViewController not found, the AI playlist's ⋯ popup keeps Spotify's grey");
-    }
+    if (!SGRedesignedUI() || !SGBelowiOS26()) return;
+    // The rows are built after the first layout, and the grey comes back with them.
+    SGRPassSwiftController(@"AIPlaylist_PlaylistCreationPageImpl", @"PlaylistCreationMoreOptionsViewController", ^(UIViewController *c) { moreChrome(c); });
 }

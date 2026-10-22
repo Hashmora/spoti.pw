@@ -35,16 +35,6 @@ UIView *SGRProfilePageOf(UIView *view) {
     return nil;
 }
 
-// Invisible whatever Spotify does to it: the layer hidden, and an empty mask for when Spotify shows it anyway. The
-// control is still there to be fired.
-static void conceal(UIView *view) {
-    if (!view) return;
-    if (!view.layer.hidden) view.layer.hidden = YES;
-    if (!view.layer.mask) view.layer.mask = [CALayer layer];
-    if (view.userInteractionEnabled) view.userInteractionEnabled = NO;
-    view.accessibilityElementsHidden = YES;
-}
-
 // The row holding Follow / Message / Share: the widest ancestor of the Share button that is still no taller than a
 // button's row, below the header's content stack (13.txt: 44pt rows under a 241pt stack).
 static UIView *actionsRowOf(UIView *header) {
@@ -84,8 +74,8 @@ static void dress(UIView *page) {
     UIView *more = contentMore ?: barMore;
     SGRPinnedMore(page, &kPinnedMoreKey, more);
     SGRPinnedBack(page, header);
-    conceal(barMore);
-    conceal(contentMore);
+    SGRConceal(barMore);
+    SGRConceal(contentMore);
 
     UIScrollView *list = profileList(page);
     if (list) {
@@ -134,7 +124,7 @@ static void dress(UIView *page) {
 %ctor {
     if (!SGRedesignedUI()) return;
     if (!SGBelowiOS26()) return;
-    Class page = SGRPageClass(@"Profile_CommonImpl", @"ProfileView");
+    Class page = SGRSwiftClass(@"Profile_CommonImpl", @"ProfileView");
     if (page) {
         sg_profileView = page;
         %init(SGRProfileHeader, SGRProfileView = page);

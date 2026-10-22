@@ -58,13 +58,6 @@ static BOOL insideButton(UIView *view, UIView *root) {
     return NO;
 }
 
-// Black or white, whichever reads on the accent.
-static UIColor *onAccent(UIColor *accent) {
-    CGFloat r = 0, g = 0, b = 0, a = 1;
-    if (![accent getRed:&r green:&g blue:&b alpha:&a]) return UIColor.whiteColor;
-    return (0.299 * r + 0.587 * g + 0.114 * b) > 0.6 ? UIColor.blackColor : UIColor.whiteColor;
-}
-
 static void dressButton(UIView *button) {
     CGSize size = button.bounds.size;
     if (size.width < 1 || size.height < 1) return;
@@ -82,7 +75,7 @@ static void dressButton(UIView *button) {
     fill.layer.cornerRadius = size.height / 2;
     UIColor *accent = SGRAccent();
     fill.backgroundColor = primary ? accent : [UIColor colorWithWhite:1 alpha:0.1];
-    UIColor *text = primary ? onAccent(accent) : UIColor.whiteColor;
+    UIColor *text = primary ? SGRInkOnAccent(accent) : UIColor.whiteColor;
     SGForEachView(button, ^(UIView *view) {
         if ([view isKindOfClass:UILabel.class] && ((UILabel *)view).textColor != text) ((UILabel *)view).textColor = text;
     });
@@ -392,13 +385,7 @@ static UIView *hostOf(UIView *view) {
 
 // The dialog dressed, now and as Spotify lays it out after it is attached.
 static void dressLater(UIView *host) {
-    __weak UIView *weak = host;
-    for (NSNumber *wait in @[@0.0, @0.1, @0.3]) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(wait.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            UIView *shown = weak;
-            if (shown.window) dressDialog(shown);
-        });
-    }
+    SGRRepeatViewPass(host, @[@0.0, @0.1, @0.3], ^(UIView *v) { dressDialog(v); });
 }
 
 static void dressWindow(UIWindow *window) {

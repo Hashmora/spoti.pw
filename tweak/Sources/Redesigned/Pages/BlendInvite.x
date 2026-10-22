@@ -38,7 +38,7 @@
 %ctor {
     if (!SGRedesignedUI()) return;
     if (!SGBelowiOS26()) return;
-    Class page = SGRPageClass(@"Blend_BlendInvitationImpl", @"BIViewController");
+    Class page = SGRSwiftClass(@"Blend_BlendInvitationImpl", @"BIViewController");
     if (page) {
         SGRRegisterBarPages(^BOOL(UIViewController *top) { return SGRPageIsOrHolds(top, page); });
         %init(SGRBlendInvite, SGRBlendInvitation = page);

@@ -41,13 +41,10 @@ static UIViewController *outerOf(UIViewController *container) {
 - (void)viewDidAppear:(BOOL)animated {
     %orig;
     // The bar's buttons are made after the first layout.
-    __weak UIViewController *weak = (UIViewController *)self;
-    for (NSNumber *delay in @[@0.25, @0.6]) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            UIViewController *outer = weak ? outerOf(weak) : nil;
-            if (outer) SGRDressBarPage(outer);
-        });
-    }
+    SGRRepeatPass((UIViewController *)self, @[@0.25, @0.6], ^(UIViewController *c) {
+        UIViewController *outer = outerOf(c);
+        if (outer) SGRDressBarPage(outer);
+    });
 }
 
 - (void)viewWillDisappear:(BOOL)animated {
@@ -61,8 +58,8 @@ static UIViewController *outerOf(UIViewController *container) {
 %ctor {
     if (!SGRedesignedUI()) return;
     if (!SGBelowiOS26()) return;
-    Class page = SGRPageClass(@"TheStage_VtecImpl", @"VtecContainerController");
-    sg_vtecNavigation = SGRPageClass(@"TheStage_VtecImpl", @"VtecNavigationController");
+    Class page = SGRSwiftClass(@"TheStage_VtecImpl", @"VtecContainerController");
+    sg_vtecNavigation = SGRSwiftClass(@"TheStage_VtecImpl", @"VtecNavigationController");
     if (page && sg_vtecNavigation) {
         // The page is hosted by a controller of Spotify's page template, which is the top of the stack.
         SGRRegisterBarPages(^BOOL(UIViewController *top) { return SGRPageIsOrHolds(top, page); });

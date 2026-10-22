@@ -6,6 +6,7 @@
 // Trees: #121212 sits on the Home, Search, Library and settings scroll views, on list rows, the
 // message bar and the player's bottom gradient view.
 #import "Core/SGCore.h"
+#import "SGRRestyle.h"
 
 // Neutral and darker than #1A1A1A, but not already black.
 static BOOL isBaseGrey(CGColorRef color) {
@@ -98,12 +99,10 @@ static void blackenSplash(UIViewController *launch) {
 %end
 %end
 
-Class SGRPageClass(NSString *module, NSString *name);
-
 %ctor {
     if (!SGRedesignedUI()) return;
     %init;
-    Class launch = SGRPageClass(@"ContainerUI_RootUIInternalImpl", @"LaunchViewController");
+    Class launch = SGRSwiftClass(@"ContainerUI_RootUIInternalImpl", @"LaunchViewController");
     if (launch) {
         %init(SGRSplashBlack, SGRLaunchController = launch);
     } else {

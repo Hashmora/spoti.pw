@@ -32,16 +32,6 @@ static char kListKey, kBellKey, kSavedKey, kBellPinKey, kSavedPinKey, kOwnFrameK
 // Side padding of the name inside its capsule, and its height: the same as every other page's (Pages/PageBar.m).
 static const CGFloat kTitlePadding = 18, kTitleHeight = 44;
 
-// Invisible whatever Spotify does to it: the layer hidden, and an empty mask for when Spotify shows it anyway. The control
-// is still there to be fired.
-static void conceal(UIView *view) {
-    if (!view) return;
-    if (!view.layer.hidden) view.layer.hidden = YES;
-    if (!view.layer.mask) view.layer.mask = [CALayer layer];
-    if (view.userInteractionEnabled) view.userInteractionEnabled = NO;
-    view.accessibilityElementsHidden = YES;
-}
-
 static Class sg_galleryPage;
 
 UIView *SGRGalleryPageOf(UIView *view) {
@@ -145,8 +135,8 @@ static void dress(UIViewController *controller) {
     SGRPinnedBack(view, view);
     UIView *notifications = SGRFindByIdentifier(view, @"Components.UI.EventHeaderHubPage.Notifications", &kBellKey);
     UIView *saved = SGRFindByIdentifier(view, @"Components.UI.EventHeaderHubPage.Saved", &kSavedKey);
-    conceal(notifications);
-    conceal(saved);
+    SGRConceal(notifications);
+    SGRConceal(saved);
     SGRPinnedTrailing(view, &kBellPinKey, notifications, 0, bell);
     SGRPinnedTrailing(view, &kSavedPinKey, saved, 1, heart);
     glassTitle(view);
@@ -162,59 +152,10 @@ static void dressGallery(UIViewController *controller) {
     listUnderBars(controller, @"GalleryPage.ContentScrollView");
 }
 
-%group SGRLiveEvents
-%hook SGRLiveEventsController
-- (void)viewWillAppear:(BOOL)animated {
-    %orig;
-    dress((UIViewController *)self);
-}
-
-- (void)viewDidLayoutSubviews {
-    %orig;
-    dress((UIViewController *)self);
-}
-
-- (void)viewDidAppear:(BOOL)animated {
-    %orig;
-    // The header's buttons and the list's rows are made after the first layout.
-    SGRRepeatPass((UIViewController *)self, @[@0.25, @0.6], ^(UIViewController *c) { dress(c); });
-}
-%end
-%end
-
-%group SGRGalleryEvents
-%hook SGRGalleryController
-- (void)viewWillAppear:(BOOL)animated {
-    %orig;
-    dressGallery((UIViewController *)self);
-}
-
-- (void)viewDidLayoutSubviews {
-    %orig;
-    dressGallery((UIViewController *)self);
-}
-
-- (void)viewDidAppear:(BOOL)animated {
-    %orig;
-    SGRRepeatPass((UIViewController *)self, @[@0.25, @0.6], ^(UIViewController *c) { dressGallery(c); });
-}
-%end
-%end
-
 %ctor {
-    if (!SGRedesignedUI()) return;
-    if (!SGBelowiOS26()) return;
-    Class page = SGRPageClass(@"LiveEvents_LiveEventsPageImpl", @"LiveEventsPageViewController");
-    if (page) {
-        %init(SGRLiveEvents, SGRLiveEventsController = page);
-    } else {
-        SGLog(@"class LiveEvents_LiveEventsPageImpl.LiveEventsPageViewController not found, Live Events keeps Spotify's header and list");
-    }
-    Class gallery = SGRPageClass(@"LiveEvents_GalleryPageImpl", @"GalleryPageViewController");
-    if (gallery) {
-        sg_galleryPage = gallery;
-        %init(SGRGalleryEvents, SGRGalleryController = gallery);
-    } else {
-        SGLog(@"class LiveEvents_GalleryPageImpl.GalleryPageViewController not found, the Live Events pages keep Spotify's header and list");
-    }
+    if (!SGRedesignedUI() || !SGBelowiOS26()) return;
+    // The header's buttons and the list's rows are made after the first layout.
+    SGRPassSwiftController(@"LiveEvents_LiveEventsPageImpl", @"LiveEventsPageViewController", ^(UIViewController *c) { dress(c); });
+    sg_galleryPage = SGRSwiftClass(@"LiveEvents_GalleryPageImpl", @"GalleryPageViewController");
+    SGRPassController(sg_galleryPage, ^(UIViewController *c) { dressGallery(c); });
 }

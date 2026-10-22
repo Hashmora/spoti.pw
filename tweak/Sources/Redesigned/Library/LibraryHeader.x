@@ -259,12 +259,11 @@ static BOOL isClearChip(UIView *view) {
 
 static void unclipChip(UIView *chip) {
     if (!SGUseLegacyGlass() || !inLibraryChips(chip)) return;
-    for (UIView *v = chip.superview; v; v = v.superview) {
-        if (v.clipsToBounds) v.clipsToBounds = NO;
-        if ([NSStringFromClass(v.class) hasSuffix:@"YourLibraryHeaderContentFiltersView"]) break;
-        if ([v.accessibilityIdentifier isEqualToString:SGRSearchFiltersIdentifier]) break;
-        if ([NSStringFromClass(v.class) containsString:@"AssistedCurationFiltersElement"]) break;
-    }
+    SGRUnclipUpTo(chip.superview, ^BOOL(UIView *v) {
+        NSString *name = NSStringFromClass(v.class);
+        return [name hasSuffix:@"YourLibraryHeaderContentFiltersView"] || [name containsString:@"AssistedCurationFiltersElement"]
+            || [v.accessibilityIdentifier isEqualToString:SGRSearchFiltersIdentifier];
+    });
 }
 
 // The glass goes in the chip itself, first among its subviews and under the fill, the way every round
@@ -273,19 +272,9 @@ static void unclipChip(UIView *chip) {
 // (Glass inside the fill was above the fill's own paint, so the grey Spotify painted back showed through
 // it, and a selected chip had the glass laid over its colour.)
 static void glassChip(UIView *chip) {
-    CGSize size = chip.bounds.size;
-    if (size.width < 1 || size.height < 1) return;
     unclipChip(chip);
-    UIView *glass = objc_getAssociatedObject(chip, &kChipGlassKey);
-    UIView *fill = chipFill(chip, glass);
-    if (fill && !isClearChip(chip) && chipIsSelected(fill)) {
-        // The colour is a tint over the glass, which stands behind it.
-        SGRTintSelectedFill(fill);
-        SGRGlassCapsuleInside(chip, &kChipGlassKey, size, NO);
-        return;
-    }
-    if (fill && fill.layer.backgroundColor) fill.layer.backgroundColor = NULL;
-    SGRGlassCapsuleInside(chip, &kChipGlassKey, size, NO);
+    UIView *fill = chipFill(chip, objc_getAssociatedObject(chip, &kChipGlassKey));
+    SGRGlassChip(chip, fill, fill && !isClearChip(chip) && chipIsSelected(fill), &kChipGlassKey);
 }
 
 // Picking a filter makes the chips' collection lay them out again at new widths (the selected one grows, the

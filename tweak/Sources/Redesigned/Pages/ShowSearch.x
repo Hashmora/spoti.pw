@@ -91,7 +91,7 @@ static void dress(UIViewController *page) {
 %ctor {
     if (!SGRedesignedUI()) return;
     if (!SGBelowiOS26()) return;
-    Class page = SGRPageClass(@"ShowPage_ShowSearchPageImpl", @"ShowSearchViewController");
+    Class page = SGRSwiftClass(@"ShowPage_ShowSearchPageImpl", @"ShowSearchViewController");
     if (page) {
         sg_showSearch = page;
         // The page is hosted by a controller of Spotify's page template: it is the top of the stack until the page's own is made.

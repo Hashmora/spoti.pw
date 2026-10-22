@@ -24,6 +24,10 @@ UIView *SGRGlassInside(UIView *control, const void *key, CGFloat side);
 // reads a step brighter than the circles beside it without leaving the same material.
 UIView *SGRGlassCapsuleInside(UIView *control, const void *key, CGSize size, BOOL prominent);
 
+// The views from `view` up stop clipping, through the first one `isLast` answers YES for (to the window when it never
+// does): a capsule wider than its control, or the legacy glass's press, which grows past it, would be cut off.
+void SGRUnclipUpTo(UIView *view, BOOL (^isLast)(UIView *ancestor));
+
 // Shows or hides a shape of the Kit's by its effect, never by an alpha on it or on a view above it
 // (Redesigned/Player/PlayerMotion.x): UIKit draws the material wrongly or not at all under a fading alpha.
 // The solid shape Reduce Transparency puts in its place has no effect and fades by its own alpha. Animates
@@ -57,6 +61,8 @@ UIView *SGRGlassFilm(UIView *host, const void *key, UIView *glass, CGFloat radiu
 // at that list and leaves its rows alone. Also records the sheet in sgr_sheetChromeRoot (SGRRepaint.h), whose
 // hook keeps the fill clear when Spotify paints it back.
 UIView *SGRGlassSheetChrome(UIView *content);
+// The pane of Navigation's sheet `view` stands in (id=sheet-view), `view` itself included; nil outside one.
+UIView *SGRSheetPaneOf(UIView *view);
 // The same for a sheet that carries no "sheet-view" identifier, handed over as the view that is the pane itself
 // (the share menu's ShareMenuSheetView, which UIKit presents over the screen on its own, not in Navigation's
 // sheet): the pane, the screen's top corners and the cleared grey, as above.

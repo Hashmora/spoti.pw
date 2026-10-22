@@ -67,26 +67,6 @@ static __weak UINavigationController *sg_mixNavigation;
 // The Play button (MixingPlayButtonView) of the window while it is up; see "the Play button stays on the effect".
 static __weak UIView *sg_mixPlay;
 
-static Class swiftClass(NSString *module, NSString *name) {
-    NSString *mangled = [NSString stringWithFormat:@"_TtC%lu%@%lu%@", (unsigned long)module.length, module, (unsigned long)name.length, name];
-    return NSClassFromString(mangled) ?: NSClassFromString([NSString stringWithFormat:@"%@.%@", module, name]);
-}
-
-// A class of PlaylistMixing_MixingUIImpl whose mangled name carries a private discriminator (P33_...), found from the
-// trees' spelling by its ending.
-static Class privateClass(NSString *suffix) {
-    Class found = nil;
-    int count = objc_getClassList(NULL, 0);
-    Class *all = (Class *)malloc(sizeof(Class) * count);
-    count = objc_getClassList(all, count);
-    for (int i = 0; i < count && !found; i++) {
-        NSString *name = NSStringFromClass(all[i]);
-        if ([name hasPrefix:@"_TtC27PlaylistMixing_MixingUIImpl"] && [name hasSuffix:suffix]) found = all[i];
-    }
-    free(all);
-    return found;
-}
-
 #pragma mark - the bar
 
 static UIView *contentOf(UINavigationBar *bar) {
@@ -356,26 +336,6 @@ static void dressPromoCard(UIView *card) {
     glassBacking(card, &kPromoGlassKey, kCardRadius, kAllCorners);
 }
 
-%group SGRMixEdit
-%hook SGRMixController
-- (void)viewWillAppear:(BOOL)animated {
-    %orig;
-    dressBar((UIViewController *)self);
-}
-
-- (void)viewDidLayoutSubviews {
-    %orig;
-    dressBar((UIViewController *)self);
-}
-
-- (void)viewDidAppear:(BOOL)animated {
-    %orig;
-    // The bar's buttons are made after the first layout.
-    SGRRepeatPass((UIViewController *)self, @[@0.25, @0.6], ^(UIViewController *c) { dressBar(c); });
-}
-%end
-%end
-
 %group SGRMixPlay
 %hook SGRMixPlayButton
 - (void)layoutSubviews {
@@ -464,21 +424,16 @@ static void dressPromoCard(UIView *card) {
 %end
 
 %ctor {
-    if (!SGRedesignedUI()) return;
-    if (!SGBelowiOS26()) return;
-    Class page = swiftClass(@"PlaylistMixing_MixingUIImpl", @"MixingEditViewController");
-    if (page) {
-        %init(SGRMixEdit, SGRMixController = page);
-    } else {
-        SGLog(@"class PlaylistMixing_MixingUIImpl.MixingEditViewController not found, the Mix transition window keeps Spotify's bar");
-    }
-    Class play = swiftClass(@"PlaylistMixing_MixingUIImpl", @"MixingPlayButtonView") ?: privateClass(@"MixingPlayButtonView");
+    if (!SGRedesignedUI() || !SGBelowiOS26()) return;
+    // The bar's buttons are made after the first layout.
+    SGRPassSwiftController(@"PlaylistMixing_MixingUIImpl", @"MixingEditViewController", ^(UIViewController *c) { dressBar(c); });
+    Class play = SGRSwiftClass(@"PlaylistMixing_MixingUIImpl", @"MixingPlayButtonView") ?: SGRPrivateSwiftClass(@"PlaylistMixing_MixingUIImpl", @"MixingPlayButtonView");
     if (play) {
         %init(SGRMixPlay, SGRMixPlayButton = play);
     } else {
         SGLog(@"class PlaylistMixing_MixingUIImpl MixingPlayButtonView not found, the Mix transition's Play button keeps Spotify's plate");
     }
-    Class bordered = swiftClass(@"PlaylistMixing_MixingUIImpl", @"MixingBorderedButton");
+    Class bordered = SGRSwiftClass(@"PlaylistMixing_MixingUIImpl", @"MixingBorderedButton");
     if (bordered) {
         %init(SGRMixBordered, SGRMixBorderedButton = bordered);
     } else {
@@ -490,7 +445,7 @@ static void dressPromoCard(UIView *card) {
     } else {
         SGLog(@"class Encore.Button.Primary not found, the Mix transition's More, Save and the promo's Try out keep Spotify's fills");
     }
-    Class dismissable = swiftClass(@"PlaylistMixing_MixingUIImpl", @"MixingDismissableView");
+    Class dismissable = SGRSwiftClass(@"PlaylistMixing_MixingUIImpl", @"MixingDismissableView");
     if (dismissable) {
         %init(SGRMixCards, SGRMixDismissable = dismissable);
     } else {

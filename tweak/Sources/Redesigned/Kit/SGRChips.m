@@ -25,6 +25,14 @@ void SGRTintSelectedFill(UIView *fill) {
     fill.layer.backgroundColor = SGRSelectedChipPaint(paint);
 }
 
+void SGRGlassChip(UIView *chip, UIView *fill, BOOL selected, const void *key) {
+    CGSize size = chip.bounds.size;
+    if (size.width < 1 || size.height < 1) return;
+    if (selected) SGRTintSelectedFill(fill);
+    else if (fill.layer.backgroundColor) fill.layer.backgroundColor = NULL;
+    SGRGlassCapsuleInside(chip, key, size, NO);
+}
+
 static BOOL isChip(UIView *view) {
     return [NSStringFromClass(view.class) isEqualToString:kChipClass];
 }
@@ -43,29 +51,12 @@ static BOOL pillIsSelected(UIView *pill) {
     return color && CGColorGetAlpha(color) > 0.3 && !SGRIsSheetSurface(color);
 }
 
-// A chip grows under a finger with the legacy glass (SGGlassInteractive), and every view up to the row clips to
-// its bounds, which cut the grown capsule off at its edges.
-static void unclipChip(UIView *chip) {
-    if (!SGUseLegacyGlass()) return;
-    for (UIView *v = chip.superview; v; v = v.superview) {
-        if (v.clipsToBounds) v.clipsToBounds = NO;
-        if ([NSStringFromClass(v.class) isEqualToString:kRowClass]) break;
-    }
-}
-
 static void glassChip(UIView *chip) {
-    CGSize size = chip.bounds.size;
-    if (size.width < 1 || size.height < 1) return;
-    unclipChip(chip);
+    // A chip grows under a finger with the legacy glass (SGGlassInteractive), and every view up to the row clips to
+    // its bounds, which cut the grown capsule off at its edges.
+    if (SGUseLegacyGlass()) SGRUnclipUpTo(chip.superview, ^BOOL(UIView *v) { return [NSStringFromClass(v.class) isEqualToString:kRowClass]; });
     UIView *pill = pillOf(chip);
-    if (pill && pillIsSelected(pill)) {
-        // The colour is a tint over the glass, which stands behind it.
-        SGRTintSelectedFill(pill);
-        SGRGlassCapsuleInside(chip, &kChipGlassKey, size, NO);
-        return;
-    }
-    if (pill && pill.layer.backgroundColor) pill.layer.backgroundColor = NULL;
-    SGRGlassCapsuleInside(chip, &kChipGlassKey, size, NO);
+    SGRGlassChip(chip, pill, pill && pillIsSelected(pill), &kChipGlassKey);
 }
 
 static void watchChip(UIView *chip) {

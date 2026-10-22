@@ -101,51 +101,6 @@ UIImage *SGRNavbarGlyph(NSDictionary *entry, BOOL active) {
     return nil;
 }
 
-#pragma mark - passing a tap on
-
-// NavigationUI_TabBarImpl's TabBarItemElementUI answers a tap recognizer (-handleTap), so the tap is
-// replayed through the recognizer's own target-action pairs, the same call a real touch ends in.
-static BOOL fireTapRecognizers(UIView *view) {
-    Ivar targetsIvar = class_getInstanceVariable(UIGestureRecognizer.class, "_targets");
-    if (!targetsIvar) return NO;
-    BOOL fired = NO;
-    for (UIGestureRecognizer *recognizer in view.gestureRecognizers) {
-        if (![recognizer isKindOfClass:UITapGestureRecognizer.class] || !recognizer.enabled) continue;
-        for (id pair in object_getIvar(recognizer, targetsIvar)) {
-            Ivar targetIvar = class_getInstanceVariable([pair class], "_target");
-            Ivar actionIvar = class_getInstanceVariable([pair class], "_action");
-            if (!targetIvar || !actionIvar) continue;
-            id target = object_getIvar(pair, targetIvar);
-            SEL action = *(SEL *)((char *)(__bridge void *)pair + ivar_getOffset(actionIvar));
-            if (!target || !action || ![target respondsToSelector:action]) continue;
-            SGLog(@"tab bar: tap -> %@ %@", NSStringFromClass([target class]), NSStringFromSelector(action));
-            ((void (*)(id, SEL, id))objc_msgSend)(target, action, recognizer);
-            fired = YES;
-        }
-    }
-    return fired;
-}
-
-static void forwardTap(UIView *item) {
-    __block BOOL sent = NO;
-    SGForEachView(item, ^(UIView *v) {
-        if (!sent) sent = fireTapRecognizers(v);
-    });
-    SGForEachView(item, ^(UIView *v) {
-        if (sent || ![v isKindOfClass:UIControl.class]) return;
-        SGLog(@"tab bar: tap -> control %@", NSStringFromClass(v.class));
-        [(UIControl *)v sendActionsForControlEvents:UIControlEventTouchUpInside];
-        sent = YES;
-    });
-    if (!sent) {
-        NSMutableString *out = [NSMutableString stringWithFormat:@"tab bar: nothing to tap in %@", NSStringFromClass(item.class)];
-        SGForEachView(item, ^(UIView *v) {
-            for (UIGestureRecognizer *r in v.gestureRecognizers) [out appendFormat:@"\n  %@ on %@", r, NSStringFromClass(v.class)];
-        });
-        SGLogLong(@"navbar", out);
-    }
-}
-
 #pragma mark - the system bar
 
 // A name too long for its tab (one of the user's own, a split tab's circle) shrinks a little before UIKit cuts

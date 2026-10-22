@@ -10,6 +10,8 @@
 
 UIColor *SGRAccentColor(void);   // nil while Spotify's own green is kept
 NSInteger SGRAccentRGB(void);    // the color in effect, 0xRRGGBB, Spotify's green included
+// Black or white, whichever reads on `accent`: the redesign's green is bright, and white text on it is lost.
+UIColor *SGRInkOnAccent(UIColor *accent);
 
 // Plain checkmark (SGRPlainCheck.x): a saved song's circled tick as a plain checkmark in the accent. Off until switched
 // on, read at launch.

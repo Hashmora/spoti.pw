@@ -40,7 +40,7 @@
 %ctor {
     if (!SGRedesignedUI()) return;
     if (!SGBelowiOS26()) return;
-    Class page = SGRPageClass(@"YourUpdates_CommonImpl", @"NotificationCenterViewController");
+    Class page = SGRSwiftClass(@"YourUpdates_CommonImpl", @"NotificationCenterViewController");
     if (page) {
         SGRRegisterBarPages(^BOOL(UIViewController *top) { return [top isKindOfClass:page]; });
         %init(SGRYourUpdates, SGRNotificationCenter = page);

@@ -144,13 +144,6 @@ static void undress(UIViewController *page) {
     SGRUndressBarPage(page);
 }
 
-static UINavigationController *navigationOf(UIView *view) {
-    for (UIResponder *r = view; r; r = r.nextResponder) {
-        if ([r isKindOfClass:UINavigationController.class]) return (UINavigationController *)r;
-    }
-    return nil;
-}
-
 %group SGRPlainBarPages
 %hook SGRHostingController
 - (void)viewDidLoad {
@@ -171,12 +164,9 @@ static UINavigationController *navigationOf(UIView *view) {
 
 - (void)viewDidAppear:(BOOL)animated {
     %orig;
-    __weak UIViewController *weak = (UIViewController *)self;
-    for (NSNumber *delay in @[@0.0, @0.25, @0.6, @1.2, @2.5]) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            if (weak && weak.viewIfLoaded.window) dress(weak);
-        });
-    }
+    SGRRepeatPass((UIViewController *)self, @[@0.0, @0.25, @0.6, @1.2, @2.5], ^(UIViewController *c) {
+        if (c.viewIfLoaded.window) dress(c);
+    });
 }
 
 - (void)viewWillDisappear:(BOOL)animated {
@@ -188,7 +178,7 @@ static UINavigationController *navigationOf(UIView *view) {
 // The bar's own passes: the page on top of its navigation controller, if it is one of these, is dressed.
 static void barPass(UIView *bar) {
     if (!SGBelowiOS26()) return;
-    UINavigationController *navigation = navigationOf(bar);
+    UINavigationController *navigation = SGRNavigationOf(bar);
     SGRSyncBarBlur(navigation);
     UIViewController *top = navigation.topViewController;
     if (top && [top isKindOfClass:sg_hosting] && top.viewIfLoaded.window) dress(top);
@@ -215,7 +205,7 @@ static void barPass(UIView *bar) {
 
 %ctor {
     if (!SGRedesignedUI()) return;
-    Class hosting = SGRPageClass(@"Navigation_PageAPIIntegrationImpl", @"MusicAppPageHostingViewController");
+    Class hosting = SGRSwiftClass(@"Navigation_PageAPIIntegrationImpl", @"MusicAppPageHostingViewController");
     if (!hosting) {
         SGLog(@"class Navigation_PageAPIIntegrationImpl.MusicAppPageHostingViewController not found, Chapters, Listening stats, Your Premium and Manage subscription keep Spotify's bar");
         return;

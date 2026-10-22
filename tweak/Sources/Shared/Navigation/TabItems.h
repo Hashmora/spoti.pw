@@ -1,7 +1,10 @@
 // Reads of Spotify's tab bar that both looks' bars make: the items it shows, the one that is Home or active, the
-// glyphs it draws and the bar or container an item stands in. TabBar.x (iOS 26), TabBarLegacy.x (below) and the
+// glyphs it draws and the bar or container an item stands in, and a tap passed on to one of its items. TabBar.x (iOS 26), TabBarLegacy.x (below) and the
 // Native bar all take them from here.
 #import <UIKit/UIKit.h>
+#import <objc/message.h>
+#import <objc/runtime.h>
+#import "Core/SGLog.h"
 #import "Core/SGViewTree.h"
 
 // The items the bar shows, left to right as Navbar/Navbar.x placed them.
@@ -78,4 +81,46 @@ static inline UIView *tabBarOf(UIView *item) {
     Class barClass = NSClassFromString(@"_TtC23NavigationUI_TabBarImpl10TabBarView");
     for (UIView *v = item.superview; v; v = v.superview) if ([v isKindOfClass:barClass]) return v;
     return nil;
+}
+
+// NavigationUI_TabBarImpl's TabBarItemElementUI answers a tap recognizer (-handleTap), so the tap is replayed through
+// the recognizer's own target-action pairs, the same call a real touch ends in.
+static inline BOOL fireTapRecognizers(UIView *view) {
+    Ivar targetsIvar = class_getInstanceVariable(UIGestureRecognizer.class, "_targets");
+    if (!targetsIvar) return NO;
+    BOOL fired = NO;
+    for (UIGestureRecognizer *recognizer in view.gestureRecognizers) {
+        if (![recognizer isKindOfClass:UITapGestureRecognizer.class] || !recognizer.enabled) continue;
+        for (id pair in object_getIvar(recognizer, targetsIvar)) {
+            Ivar targetIvar = class_getInstanceVariable([pair class], "_target");
+            Ivar actionIvar = class_getInstanceVariable([pair class], "_action");
+            if (!targetIvar || !actionIvar) continue;
+            id target = object_getIvar(pair, targetIvar);
+            SEL action = *(SEL *)((char *)(__bridge void *)pair + ivar_getOffset(actionIvar));
+            if (!target || !action || ![target respondsToSelector:action]) continue;
+            ((void (*)(id, SEL, id))objc_msgSend)(target, action, recognizer);
+            fired = YES;
+        }
+    }
+    return fired;
+}
+
+// A tap on Spotify's `item`: through its tap recognizers, else the first control in it. What it holds is logged when
+// neither is there.
+static inline void forwardTap(UIView *item) {
+    __block BOOL sent = NO;
+    SGForEachView(item, ^(UIView *v) {
+        if (!sent) sent = fireTapRecognizers(v);
+    });
+    SGForEachView(item, ^(UIView *v) {
+        if (sent || ![v isKindOfClass:UIControl.class]) return;
+        [(UIControl *)v sendActionsForControlEvents:UIControlEventTouchUpInside];
+        sent = YES;
+    });
+    if (sent) return;
+    NSMutableString *out = [NSMutableString stringWithFormat:@"tab bar: nothing to tap in %@", NSStringFromClass(item.class)];
+    SGForEachView(item, ^(UIView *v) {
+        for (UIGestureRecognizer *r in v.gestureRecognizers) [out appendFormat:@"\n  %@ on %@", r, NSStringFromClass(v.class)];
+    });
+    SGLogLong(@"navbar", out);
 }

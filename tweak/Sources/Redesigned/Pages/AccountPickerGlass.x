@@ -18,20 +18,12 @@
 
 static char kAddGlassKey;
 
-static BOOL isFaintWhite(CGColorRef color) {
-    if (!color || CGColorGetAlpha(color) > 0.3) return NO;
-    const CGFloat *c = CGColorGetComponents(color);
-    size_t n = CGColorGetNumberOfComponents(color);
-    for (size_t i = 0; i + 1 < n; i++) if (c[i] < 0.9) return NO;
-    return n >= 2;
-}
-
 static void dressAdd(UITableViewCell *cell) {
     for (UIView *view in cell.contentView.subviews) {
         if (![view isMemberOfClass:UIView.class]) continue;
         CGSize size = view.bounds.size;
         if (fabs(size.width - size.height) > 0.5 || size.width < 40 || size.width > 80) continue;
-        if (!isFaintWhite(view.layer.backgroundColor) && !objc_getAssociatedObject(view, &kAddGlassKey)) continue;
+        if (!SGIsFaintWhite(view.layer.backgroundColor) && !objc_getAssociatedObject(view, &kAddGlassKey)) continue;
         if (view.backgroundColor && ![view.backgroundColor isEqual:UIColor.clearColor]) view.backgroundColor = UIColor.clearColor;
         if (view.layer.backgroundColor) view.layer.backgroundColor = NULL;
         SGRGlassInside(view, &kAddGlassKey, size.width);
@@ -49,13 +41,13 @@ static void dressAdd(UITableViewCell *cell) {
 
 %ctor {
     if (!SGRedesignedUI()) return;
-    Class cell = SGRPageClass(@"AccountSwitching_AccountPickerImpl", @"AccountPickerAddAccountTableViewCell");
+    Class cell = SGRSwiftClass(@"AccountSwitching_AccountPickerImpl", @"AccountPickerAddAccountTableViewCell");
     if (cell) {
         %init(SGRAccountPickerGlass, SGRAddAccountCell = cell);
     } else {
         SGLog(@"class AccountSwitching_AccountPickerImpl.AccountPickerAddAccountTableViewCell not found, Who's listening keeps Spotify's Add account circle");
     }
-    Class page = SGRPageClass(@"AccountSwitching_AccountPickerImpl", @"AccountPickerViewController");
+    Class page = SGRSwiftClass(@"AccountSwitching_AccountPickerImpl", @"AccountPickerViewController");
     if (page) {
         SGRRegisterBarPages(^BOOL(UIViewController *top) { return SGRPageIsOrHolds(top, page); });
     } else {

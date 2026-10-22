@@ -21,13 +21,6 @@ static char kPillGlassKey, kPillDressedKey;
 // Set once a pill has been dressed: until then SGRRepaint.x's hook, which hears every layer's paint, does no lookup.
 static BOOL sLive;
 
-static BOOL inSheet(UIView *view) {
-    for (UIView *v = view; v; v = v.superview) {
-        if ([v.accessibilityIdentifier isEqualToString:@"sheet-view"]) return YES;
-    }
-    return NO;
-}
-
 // The flat grey Spotify paints an unselected pill with: opaque, neutral, dark. A selected pill is a colour or a
 // bright one, never this.
 BOOL SGRIsPillGrey(CGColorRef color) {
@@ -46,32 +39,15 @@ static BOOL pillIsSelected(UIView *pill) {
 }
 
 // A pill grows under a finger with the legacy glass (SGGlassInteractive) and the scroll view it stands in clips to
-// its bounds, which cut the grown capsule off at its edges. Every view from the pill up to the pill scroll view
-// stops clipping; the row is as wide as the sheet, so nothing shows that was not on screen already.
-static void unclipPill(UIView *pill) {
-    if (!SGUseLegacyGlass()) return;
-    for (UIView *v = pill.superview; v; v = v.superview) {
-        if (v.clipsToBounds) v.clipsToBounds = NO;
-        if ([NSStringFromClass(v.class) hasSuffix:@"PillScrollView"]) break;
-    }
-}
-
+// its bounds, which cut the grown capsule off at its edges. The row is as wide as the sheet, so unclipping up to it
+// shows nothing that was not on screen already. The pill is its own fill.
 static void glassPill(UIView *pill) {
-    CGSize size = pill.bounds.size;
-    if (size.width < 1 || size.height < 1) return;
-    unclipPill(pill);
-    if (pillIsSelected(pill)) {
-        // The colour is a tint over the glass, which stands behind it.
-        SGRTintSelectedFill(pill);
-        SGRGlassCapsuleInside(pill, &kPillGlassKey, size, NO);
-        return;
-    }
-    if (pill.layer.backgroundColor) pill.layer.backgroundColor = NULL;
-    SGRGlassCapsuleInside(pill, &kPillGlassKey, size, NO);
+    if (SGUseLegacyGlass()) SGRUnclipUpTo(pill.superview, ^BOOL(UIView *v) { return [NSStringFromClass(v.class) hasSuffix:@"PillScrollView"]; });
+    SGRGlassChip(pill, pill, pillIsSelected(pill), &kPillGlassKey);
 }
 
 static void dressPill(UIView *pill) {
-    if (!pill.window || !inSheet(pill)) return;
+    if (!pill.window || !SGRSheetPaneOf(pill)) return;
     if (!objc_getAssociatedObject(pill, &kPillDressedKey)) {
         objc_setAssociatedObject(pill, &kPillDressedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         sLive = YES;

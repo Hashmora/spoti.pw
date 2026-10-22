@@ -36,13 +36,6 @@ static __weak UIViewController *sg_dressedPage;
 
 #pragma mark - the bar
 
-static UINavigationController *navigationOf(UIView *bar) {
-    for (UIResponder *r = bar; r; r = r.nextResponder) {
-        if ([r isKindOfClass:UINavigationController.class]) return (UINavigationController *)r;
-    }
-    return nil;
-}
-
 // Whether `controller` is the page's controller or holds it among its children (the hosting controller of Navigation's page API
 // and the page template's loader are in between).
 static BOOL holdsPage(UIViewController *controller, int depth) {
@@ -56,7 +49,7 @@ static BOOL holdsPage(UIViewController *controller, int depth) {
 
 static void update(UIView *bar) {
     if (!SGBelowiOS26()) return;
-    UINavigationController *navigation = navigationOf(bar);
+    UINavigationController *navigation = SGRNavigationOf(bar);
     UIViewController *top = navigation.topViewController;
     if (top && top.viewIfLoaded.window && holdsPage(top, 0)) {
         if (sg_dressedPage != top) {
@@ -183,7 +176,7 @@ static void dressPlate(UIView *view) {
     SGRRegisterBarPages(^BOOL(UIViewController *top) {
         return holdsPage(top, 0);
     });
-    Class graphics = SGRPageClass(@"SwiftUI", @"_UIGraphicsView");
+    Class graphics = SGRSwiftClass(@"SwiftUI", @"_UIGraphicsView");
     if (graphics) {
         %init(SGRPlaylistsPlate, SGRGraphicsView = graphics);
     } else {

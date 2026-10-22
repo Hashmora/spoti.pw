@@ -47,6 +47,26 @@ BOOL SGRObserveLayout(UIView *view, void (^laidOut)(UIView *view));
 // left `root` or changed its identifier. nil when there is none; a miss is not cached.
 UIView *SGRFindByIdentifier(UIView *root, NSString *identifier, const void *cacheKey);
 
+// The first subview of `host` (not deeper) whose class is named `name` exactly.
+UIView *SGRChildNamed(UIView *host, NSString *name);
+
+// The navigation controller `view` is shown in, by its responders; nil outside one.
+UINavigationController *SGRNavigationOf(UIView *view);
+
+// A Swift class by module and name, under the mangled spelling or the dotted one the trees print; nil when the
+// app has neither.
+Class SGRSwiftClass(NSString *module, NSString *name);
+
+// A class of `module` whose mangled name carries a private discriminator (P33_...), found by the ending the trees
+// print. Walks every class, so it is for a %ctor, once.
+Class SGRPrivateSwiftClass(NSString *module, NSString *suffix);
+
+// Invisible for good, whatever Spotify does to it. `hidden` on the layer costs nothing and, unlike -[UIView
+// setHidden:], tells neither KVO nor the stack views, which is what makes it safe on Encore's layouts; an empty mask
+// holds when Spotify shows the view again with -setHidden:NO. Out of touches and VoiceOver, still there to be read
+// and fired.
+void SGRConceal(UIView *view);
+
 // Whether `view` is the profile avatar that opens the side drawer, in the Home, Search and Library headers. Known by
 // its identifier, which every version gives it: 9.1.88 draws it in an AdaptiveFaceContainer, 9.1.90 in an Encore
 // button around a listening-activity pulse, which a check by class alone took for something else.
@@ -83,15 +103,3 @@ void SGRActivate(UIView *source);
 // else those for touch up inside. NO when the control has neither (an Encore control that reads its
 // touches through a gesture recognizer); what was found is logged once per class.
 BOOL SGRFire(UIControl *control);
-
-// Runs `pass` on the controller again after each delay (seconds), for what Spotify builds or repaints after the
-// first layout. Stops once the controller is gone.
-static inline void SGRRepeatPass(UIViewController *controller, NSArray<NSNumber *> *delays, void (^pass)(UIViewController *)) {
-    __weak UIViewController *weak = controller;
-    for (NSNumber *delay in delays) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            UIViewController *strong = weak;
-            if (strong) pass(strong);
-        });
-    }
-}

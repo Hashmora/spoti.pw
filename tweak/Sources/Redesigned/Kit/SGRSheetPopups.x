@@ -18,24 +18,6 @@ static void clearOpaque(UIView *view) {
     if (view.layer.opaque) view.layer.opaque = NO;
 }
 
-// The grey comes back with the rows and the footer, after the first layout, so the pane is put in again.
-static void passes(UIViewController *controller, void (*chrome)(UIViewController *)) {
-    __weak UIViewController *weak = controller;
-    chrome(controller);
-    for (NSNumber *delay in @[@0.0, @0.25, @0.6]) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            if (weak) chrome(weak);
-        });
-    }
-}
-
-// A Swift class by module and name, under the mangled spelling or the dotted one the trees print; nil when the
-// app has neither.
-static Class swiftClass(NSString *module, NSString *name) {
-    NSString *mangled = [NSString stringWithFormat:@"_TtC%lu%@%lu%@", (unsigned long)module.length, module, (unsigned long)name.length, name];
-    return NSClassFromString(mangled) ?: NSClassFromString([NSString stringWithFormat:@"%@.%@", module, name]);
-}
-
 // A part of the class name of the controller that fills each sheet above: the module, where every class of the
 // module is that page, and the class itself where the module is UIKit's old picker.
 static NSArray<NSString *> *contentMarkers(void) {
@@ -155,15 +137,8 @@ static __weak UIView *sg_saveInSheet;
 // Save in's wrappers are painted an opaque black, which the pane's strip leaves alone and which would make the popup
 // near black over the glass. An opaque view with no fill is drawn black too, so the flag goes as well, on the
 // wrappers between the page and the sheet's pane (SGRGlass.m's clearListPaint takes the views below the page).
-static UIView *paneOf(UIView *view) {
-    for (UIView *v = view; v; v = v.superview) {
-        if ([v.accessibilityIdentifier isEqualToString:@"sheet-view"]) return v;
-    }
-    return nil;
-}
-
 static void clearOpaqueAbove(UIView *view) {
-    UIView *pane = paneOf(view);
+    UIView *pane = SGRSheetPaneOf(view);
     if (!pane) return;
     if (sg_saveInSheet != pane) sg_saveInSheet = pane;
     for (UIView *v = view; v && v != pane; v = v.superview) {
@@ -192,7 +167,7 @@ static void clearSaveInPaint(UIView *view) {
     if (view) {
         clearOpaqueAbove(view);
         clearOpaqueBelow(view, 0);
-        clearOpaque(paneOf(view));   // clearOpaqueAbove stops below the pane
+        clearOpaque(SGRSheetPaneOf(view));   // clearOpaqueAbove stops below the pane
     }
 }
 
@@ -276,26 +251,7 @@ static void chrome(UIViewController *sheet) {
     }
 }
 
-%group SGRSheetPopups
-%hook SGRSheetContainer
-- (void)viewDidLayoutSubviews {
-    %orig;
-    chrome((UIViewController *)self);
-}
-
-- (void)viewWillAppear:(BOOL)animated {
-    %orig;
-    chrome((UIViewController *)self);
-}
-
-- (void)viewDidAppear:(BOOL)animated {
-    %orig;
-    passes((UIViewController *)self, chrome);
-}
-%end
-%end
-
-#pragma mark - the share menu
+#pragma mark - the share menu and the listening modes picker
 
 // A view of the class whose name ends in `suffix`, near the top of the controller's view.
 static UIView *sheetNamed(UIView *root, NSString *suffix, int depth) {
@@ -313,53 +269,9 @@ static void glassNamed(UIViewController *controller, NSString *suffix) {
     if (sheet && sheet.bounds.size.width > 1) SGRGlassSheetView(sheet);
 }
 
-static void shareChrome(UIViewController *controller) {
-    glassNamed(controller, @"ShareMenuSheetView");
-}
-
 static void pickerChrome(UIViewController *controller) {
     glassNamed(controller, @"PlayModePickerView");
 }
-
-%group SGRSharePopup
-%hook SGRShareMenu
-- (void)viewDidLayoutSubviews {
-    %orig;
-    shareChrome((UIViewController *)self);
-}
-
-- (void)viewWillAppear:(BOOL)animated {
-    %orig;
-    shareChrome((UIViewController *)self);
-}
-
-- (void)viewDidAppear:(BOOL)animated {
-    %orig;
-    passes((UIViewController *)self, shareChrome);
-}
-%end
-%end
-
-#pragma mark - the listening modes picker
-
-%group SGRModePicker
-%hook SGRPlayModePicker
-- (void)viewDidLayoutSubviews {
-    %orig;
-    pickerChrome((UIViewController *)self);
-}
-
-- (void)viewWillAppear:(BOOL)animated {
-    %orig;
-    pickerChrome((UIViewController *)self);
-}
-
-- (void)viewDidAppear:(BOOL)animated {
-    %orig;
-    passes((UIViewController *)self, pickerChrome);
-}
-%end
-%end
 
 #pragma mark - the library's Sort by
 
@@ -367,33 +279,12 @@ static void pickerChrome(UIViewController *controller) {
 // (trees/continuous/2.txt). The same picker inside a Navigation sheet (a playlist's, Liked Songs') already has the
 // sheet's pane, and a second one would lay glass inside glass.
 static void sortChrome(UIViewController *controller) {
-    for (UIView *v = controller.viewIfLoaded; v; v = v.superview) {
-        if ([v.accessibilityIdentifier isEqualToString:@"sheet-view"]) return;
-    }
+    if (SGRSheetPaneOf(controller.viewIfLoaded)) return;
     UIPresentationController *presentation = controller.presentationController;
     if (![NSStringFromClass(presentation.class) isEqualToString:@"SPTSortingFilteringPresentationController"]) return;
     UIView *card = presentation.presentedView;
     if (card.bounds.size.width > 1) SGRGlassSheetView(card);
 }
-
-%group SGRSortPicker
-%hook SGRSortPickerController
-- (void)viewDidLayoutSubviews {
-    %orig;
-    sortChrome((UIViewController *)self);
-}
-
-- (void)viewWillAppear:(BOOL)animated {
-    %orig;
-    sortChrome((UIViewController *)self);
-}
-
-- (void)viewDidAppear:(BOOL)animated {
-    %orig;
-    passes((UIViewController *)self, sortChrome);
-}
-%end
-%end
 
 #pragma mark - the podcast speed popup
 
@@ -422,47 +313,20 @@ static void speedChrome(UIViewController *controller) {
     hideDone(sheet);
 }
 
-%group SGRSpeedPopup
-%hook SGRSpeedController
-- (void)viewDidLayoutSubviews {
-    %orig;
-    speedChrome((UIViewController *)self);
-}
-
-- (void)viewWillAppear:(BOOL)animated {
-    %orig;
-    speedChrome((UIViewController *)self);
-}
-
-- (void)viewDidAppear:(BOOL)animated {
-    %orig;
-    passes((UIViewController *)self, speedChrome);
-}
-%end
-%end
-
 // The buttons: a glass circle inside each, and the translucent white Spotify fills them with taken off.
 static char kRoundGlassKey;
-
-static BOOL isFaintFill(CGColorRef color) {
-    if (!color || CGColorGetAlpha(color) > 0.3) return NO;
-    const CGFloat *c = CGColorGetComponents(color);
-    size_t n = CGColorGetNumberOfComponents(color);
-    for (size_t i = 0; i + 1 < n; i++) if (c[i] < 0.9) return NO;
-    return n >= 2;
-}
 
 %group SGRSpeedButtons
 %hook SGRRoundButton
 - (void)setBackgroundColor:(UIColor *)color {
-    %orig(isFaintFill(color.CGColor) ? UIColor.clearColor : color);
+    %orig(SGIsFaintWhite(color.CGColor) ? UIColor.clearColor : color);
 }
 
 - (void)layoutSubviews {
     %orig;
     UIView *button = (UIView *)self;
     if (button.bounds.size.width < 1) return;
-    if (isFaintFill(button.layer.backgroundColor)) button.backgroundColor = UIColor.clearColor;
+    if (SGIsFaintWhite(button.layer.backgroundColor)) button.backgroundColor = UIColor.clearColor;
     SGRGlassInside(button, &kRoundGlassKey, MIN(button.bounds.size.width, button.bounds.size.height));
 }
 %end
@@ -491,25 +355,6 @@ static void rateChrome(UIViewController *controller) {
         if (!view.layer.mask) view.layer.mask = [CALayer layer];
     });
 }
-
-%group SGRReportPopup
-%hook SGRReportReadAlong
-- (void)viewDidLayoutSubviews {
-    %orig;
-    reportChrome((UIViewController *)self);
-}
-
-- (void)viewWillAppear:(BOOL)animated {
-    %orig;
-    reportChrome((UIViewController *)self);
-}
-
-- (void)viewDidAppear:(BOOL)animated {
-    %orig;
-    passes((UIViewController *)self, reportChrome);
-}
-%end
-%end
 
 // The Rate page is added to the sheet's page loader once it has loaded, so until then the pane is Spotify's #121212.
 // As Save in does (chrome, loadingIn), the pane goes in while the spinner shows. A page sheet whose loader holds
@@ -556,65 +401,14 @@ static void loaderChrome(UIViewController *loader) {
     SGRGlassSheetView(pane);
 }
 
-%group SGRRateLoader
-%hook SGRPageLoader
-- (void)viewDidLayoutSubviews {
-    %orig;
-    loaderChrome((UIViewController *)self);
-}
-
-- (void)viewWillAppear:(BOOL)animated {
-    %orig;
-    loaderChrome((UIViewController *)self);
-}
-
-- (void)viewDidAppear:(BOOL)animated {
-    %orig;
-    passes((UIViewController *)self, loaderChrome);
-}
-%end
-%end
-
-%group SGRRatePopup
-%hook SGRRatePodcast
-- (void)viewDidLayoutSubviews {
-    %orig;
-    rateChrome((UIViewController *)self);
-}
-
-- (void)viewWillAppear:(BOOL)animated {
-    %orig;
-    rateChrome((UIViewController *)self);
-}
-
-- (void)viewDidAppear:(BOOL)animated {
-    %orig;
-    passes((UIViewController *)self, rateChrome);
-}
-%end
-%end
-
 #pragma mark - Save in, from the page's own controller
 
-// The page's own controller is hooked too: it is the first to know the content is in.
-%group SGRSaveIn
-%hook SGRSaveInContainer
-- (void)viewWillAppear:(BOOL)animated {
-    %orig;
-    UIView *view = ((UIViewController *)self).viewIfLoaded;
+// The page's own controller is passed over too: it is the first to know the content is in.
+static void saveInChrome(UIViewController *controller) {
+    UIView *view = controller.viewIfLoaded;
     SGRGlassSheetChrome(view);
     clearSaveInPaint(view);
 }
-
-- (void)viewDidLayoutSubviews {
-    %orig;
-    UIView *view = ((UIViewController *)self).viewIfLoaded;
-    SGRGlassSheetChrome(view);
-    clearSaveInPaint(view);
-}
-%end
-%end
-
 #pragma mark - Save in's find bar
 
 // The find field and Sort button over Save in's playlists become glass as the playlist page's find bar does
@@ -653,95 +447,26 @@ static void connectMenuChrome(UIViewController *controller) {
     clearSaveInPaint(view);
 }
 
-%group SGRConnectMenu
-%hook SGRConnectMenuController
-- (void)viewWillAppear:(BOOL)animated {
-    %orig;
-    connectMenuChrome((UIViewController *)self);
-}
-
-- (void)viewDidLayoutSubviews {
-    %orig;
-    connectMenuChrome((UIViewController *)self);
-}
-
-- (void)viewDidAppear:(BOOL)animated {
-    %orig;
-    passes((UIViewController *)self, connectMenuChrome);
-}
-%end
-%end
-
 %ctor {
-    if (!SGRedesignedUI()) return;
-    if (!SGBelowiOS26()) return;
-    Class sheet = swiftClass(@"NavigationUI_SheetImpl", @"ContainerViewController");
-    if (sheet) {
-        %init(SGRSheetPopups, SGRSheetContainer = sheet);
-    } else {
-        SGLog(@"class NavigationUI_SheetImpl.ContainerViewController not found, the Jam, Add to queue, Sort by, credits and Save in popups keep Spotify's grey");
-    }
-    Class saveIn = swiftClass(@"PlaylistCuration_AddToPlaylistImpl", @"ATPContainerViewController");
+    if (!SGRedesignedUI() || !SGBelowiOS26()) return;
+    SGRPassSwiftController(@"NavigationUI_SheetImpl", @"ContainerViewController", ^(UIViewController *c) { chrome(c); });
+    SGRPassSwiftController(@"Connect_ContextMenuPageImpl", @"ContextMenuViewController", ^(UIViewController *c) { connectMenuChrome(c); });
+    SGRPassSwiftController(@"SmartShuffle_CoreImpl", @"PlayModePickerViewController", ^(UIViewController *c) { pickerChrome(c); });
+    SGRPassController(NSClassFromString(@"SPTSortingFilteringPickerViewController"), ^(UIViewController *c) { sortChrome(c); });
+    SGRPassSwiftController(@"PodcastPlaybackSpeed_UIImpl", @"PlaybackSpeedViewController", ^(UIViewController *c) { speedChrome(c); });
+    SGRPassSwiftController(@"Transcript_ReadAlongImpl", @"ReportReadAlongViewController", ^(UIViewController *c) { reportChrome(c); });
+    SGRPassSwiftController(@"Ratings_CommonImpl", @"RatingsAndReviewsRatePodcastViewController", ^(UIViewController *c) { rateChrome(c); });
+    SGRPassSwiftController(@"Tome_PageLoaderViewImpl", @"SPTMusicClientPageLoaderView", ^(UIViewController *c) { loaderChrome(c); });
+    SGRPassSwiftController(@"Share_MenuImpl", @"ShareMenuViewControllerV2", ^(UIViewController *c) { glassNamed(c, @"ShareMenuSheetView"); });
+    Class saveIn = SGRSwiftClass(@"PlaylistCuration_AddToPlaylistImpl", @"ATPContainerViewController");
     if (saveIn) {
-        %init(SGRSaveIn, SGRSaveInContainer = saveIn);
+        SGRPassController(saveIn, ^(UIViewController *c) { saveInChrome(c); });
         %init(SGRSaveInList);
         %init(SGRSaveInOpaque);
     }
-    Class saveInMain = swiftClass(@"PlaylistCuration_AddToPlaylistImpl", @"ATPMainView");
-    Class saveInDone = swiftClass(@"PlaylistCuration_AddToPlaylistImpl", @"ATPDoneButtonView");
-    if (saveInMain && saveInDone) {
-        %init(SGRSaveInViews, SGRSaveInMain = saveInMain, SGRSaveInDone = saveInDone);
-    } else {
-        SGLog(@"classes ATPMainView / ATPDoneButtonView not found, Save in may stay darker than the queue");
-    }
-    Class connectMenu = swiftClass(@"Connect_ContextMenuPageImpl", @"ContextMenuViewController");
-    if (connectMenu) {
-        %init(SGRConnectMenu, SGRConnectMenuController = connectMenu);
-    } else {
-        SGLog(@"class Connect_ContextMenuPageImpl.ContextMenuViewController not found, the Connect device menu keeps Spotify's grey");
-    }
-    Class picker = swiftClass(@"SmartShuffle_CoreImpl", @"PlayModePickerViewController");
-    if (picker) {
-        %init(SGRModePicker, SGRPlayModePicker = picker);
-    } else {
-        SGLog(@"class SmartShuffle_CoreImpl.PlayModePickerViewController not found, the Listening modes popup keeps Spotify's grey");
-    }
-    Class sortPicker = NSClassFromString(@"SPTSortingFilteringPickerViewController");
-    if (sortPicker) {
-        %init(SGRSortPicker, SGRSortPickerController = sortPicker);
-    } else {
-        SGLog(@"class SPTSortingFilteringPickerViewController not found, the library's Sort by keeps Spotify's grey");
-    }
-    Class speed = swiftClass(@"PodcastPlaybackSpeed_UIImpl", @"PlaybackSpeedViewController");
-    if (speed) {
-        %init(SGRSpeedPopup, SGRSpeedController = speed);
-    } else {
-        SGLog(@"class PodcastPlaybackSpeed_UIImpl.PlaybackSpeedViewController not found, the podcast speed popup keeps Spotify's grey");
-    }
+    Class saveInMain = SGRSwiftClass(@"PlaylistCuration_AddToPlaylistImpl", @"ATPMainView");
+    Class saveInDone = SGRSwiftClass(@"PlaylistCuration_AddToPlaylistImpl", @"ATPDoneButtonView");
+    if (saveInMain && saveInDone) %init(SGRSaveInViews, SGRSaveInMain = saveInMain, SGRSaveInDone = saveInDone);
     Class round = NSClassFromString(@"_TtCO27PodcastPlaybackSpeed_ECMKit26PodcastDialogPlaybackSpeed11RoundButton");
     if (round) %init(SGRSpeedButtons, SGRRoundButton = round);
-    Class report = swiftClass(@"Transcript_ReadAlongImpl", @"ReportReadAlongViewController");
-    if (report) {
-        %init(SGRReportPopup, SGRReportReadAlong = report);
-    } else {
-        SGLog(@"class Transcript_ReadAlongImpl.ReportReadAlongViewController not found, the transcript's Report a problem popup keeps Spotify's grey");
-    }
-    Class rate = swiftClass(@"Ratings_CommonImpl", @"RatingsAndReviewsRatePodcastViewController");
-    if (rate) {
-        %init(SGRRatePopup, SGRRatePodcast = rate);
-    } else {
-        SGLog(@"class Ratings_CommonImpl.RatingsAndReviewsRatePodcastViewController not found, the Rate show popup keeps Spotify's grey");
-    }
-    Class loader = swiftClass(@"Tome_PageLoaderViewImpl", @"SPTMusicClientPageLoaderView");
-    if (loader) {
-        %init(SGRRateLoader, SGRPageLoader = loader);
-    } else {
-        SGLog(@"class Tome_PageLoaderViewImpl.SPTMusicClientPageLoaderView not found, the Rate show popup is black until its page has loaded");
-    }
-    Class share = swiftClass(@"Share_MenuImpl", @"ShareMenuViewControllerV2");
-    if (share) {
-        %init(SGRSharePopup, SGRShareMenu = share);
-    } else {
-        SGLog(@"class Share_MenuImpl.ShareMenuViewControllerV2 not found, the share popup keeps Spotify's grey");
-    }
 }

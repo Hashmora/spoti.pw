@@ -116,32 +116,6 @@ static void chrome(UIViewController *controller) {
     clearQueueRows(root);
 }
 
-%hook _TtC14Queue_ViewImpl19QueueViewController
-- (void)viewDidLayoutSubviews {
-    %orig;
-    chrome((UIViewController *)self);
-}
-
-- (void)viewWillAppear:(BOOL)animated {
-    %orig;
-    chrome((UIViewController *)self);
-    // Whether the sheet is already above the queue's view here decides if the first frame is clean.
-    SGLog(@"redesign queue: willAppear, sheet %@, view %@", sgr_sheetChromeRoot ? @"found" : @"NOT found",
-          NSStringFromCGRect(((UIViewController *)self).viewIfLoaded.bounds));
-}
-
-- (void)viewDidAppear:(BOOL)animated {
-    %orig;
-    __weak UIViewController *weak = (UIViewController *)self;
-    chrome((UIViewController *)self);
-    for (NSNumber *delay in @[@0.0, @0.25, @0.6]) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            if (weak) chrome(weak);
-        });
-    }
-}
-%end
-
 // The rows themselves. Spotify paints the cell and its stack again as a row is configured, moved, picked up or let go,
 // from layout passes that a plain change of place does not run.
 %hook _TtC14Queue_ViewImpl9QueueCell
@@ -187,13 +161,7 @@ static void chrome(UIViewController *controller) {
 static void clearTableLater(UITableView *table) {
     UIView *root = sgr_sheetChromeRoot;
     if (!root || !SGIsInside(table, root)) return;
-    __weak UITableView *weak = table;
-    for (NSNumber *delay in @[@0.0, @0.1, @0.3, @0.7]) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            UITableView *shown = weak;
-            if (shown.window) clearQueueRows(shown);
-        });
-    }
+    SGRRepeatViewPass(table, @[@0.0, @0.1, @0.3, @0.7], ^(UIView *v) { clearQueueRows((UITableView *)v); });
 }
 
 %hook UITableView
@@ -263,8 +231,8 @@ static void clearBar(UIView *bar) {
 %end
 
 %ctor {
-    if (!SGRedesignedUI()) return;
-    if (!SGBelowiOS26()) return;
+    if (!SGRedesignedUI() || !SGBelowiOS26()) return;
     %init;
-    SGRequireClasses(@[@"_TtC14Queue_ViewImpl19QueueViewController", @"_TtC28EncoreConsumerMobile_BaseKit14PlayButtonView", kQueueCellClass]);
+    SGRPassControllersNamed(@[@"_TtC14Queue_ViewImpl19QueueViewController"], ^(UIViewController *c) { chrome(c); });
+    SGRequireClasses(@[@"_TtC28EncoreConsumerMobile_BaseKit14PlayButtonView", kQueueCellClass]);
 }

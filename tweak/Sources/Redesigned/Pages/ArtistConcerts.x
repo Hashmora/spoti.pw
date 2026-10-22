@@ -38,7 +38,7 @@
 %ctor {
     if (!SGRedesignedUI()) return;
     if (!SGBelowiOS26()) return;
-    Class page = SGRPageClass(@"LiveEvents_ArtistLiveEventsPageImpl", @"ArtistLiveEventsPageViewController");
+    Class page = SGRSwiftClass(@"LiveEvents_ArtistLiveEventsPageImpl", @"ArtistLiveEventsPageViewController");
     if (page) {
         // The page is hosted by a controller of Spotify's page template, which is the top of the stack.
         SGRRegisterBarPages(^BOOL(UIViewController *top) { return SGRPageIsOrHolds(top, page); });

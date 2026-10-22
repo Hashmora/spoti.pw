@@ -133,7 +133,7 @@ static void dressCross(UIView *page) {
 
 %ctor {
     if (!SGRedesignedUI()) return;
-    Class page = SGRPageClass(@"AIPlaylist_PlaylistCreationPageImpl", @"PlaylistCreationView");
+    Class page = SGRSwiftClass(@"AIPlaylist_PlaylistCreationPageImpl", @"PlaylistCreationView");
     if (page) {
         %init(SGRAIPlaylistGlass, SGRPlaylistCreationView = page);
     } else {

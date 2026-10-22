@@ -291,6 +291,46 @@ UIView *SGRFindByIdentifier(UIView *root, NSString *identifier, const void *cach
     return found;
 }
 
+UIView *SGRChildNamed(UIView *host, NSString *name) {
+    for (UIView *sub in host.subviews) {
+        if ([NSStringFromClass(sub.class) isEqualToString:name]) return sub;
+    }
+    return nil;
+}
+
+UINavigationController *SGRNavigationOf(UIView *view) {
+    for (UIResponder *r = view; r; r = r.nextResponder) {
+        if ([r isKindOfClass:UINavigationController.class]) return (UINavigationController *)r;
+    }
+    return nil;
+}
+
+Class SGRSwiftClass(NSString *module, NSString *name) {
+    NSString *mangled = [NSString stringWithFormat:@"_TtC%lu%@%lu%@", (unsigned long)module.length, module, (unsigned long)name.length, name];
+    return NSClassFromString(mangled) ?: NSClassFromString([NSString stringWithFormat:@"%@.%@", module, name]);
+}
+
+Class SGRPrivateSwiftClass(NSString *module, NSString *suffix) {
+    NSString *prefix = [NSString stringWithFormat:@"_TtC%lu%@", (unsigned long)module.length, module];
+    Class found = nil;
+    unsigned int count = 0;
+    Class *all = objc_copyClassList(&count);
+    for (unsigned int i = 0; i < count && !found; i++) {
+        NSString *name = NSStringFromClass(all[i]);
+        if ([name hasPrefix:prefix] && [name hasSuffix:suffix]) found = all[i];
+    }
+    free(all);
+    return found;
+}
+
+void SGRConceal(UIView *view) {
+    if (!view) return;
+    if (!view.layer.hidden) view.layer.hidden = YES;
+    if (!view.layer.mask) view.layer.mask = [CALayer layer];
+    if (view.userInteractionEnabled) view.userInteractionEnabled = NO;
+    view.accessibilityElementsHidden = YES;
+}
+
 @implementation SGRShadowPlate {
     CGRect _pathBounds;
 }

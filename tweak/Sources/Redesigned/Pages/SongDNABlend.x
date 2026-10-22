@@ -143,7 +143,7 @@ static void dress(UIViewController *page) {
 %ctor {
     if (!SGRedesignedUI()) return;
     if (!SGBelowiOS26()) return;
-    Class page = SGRPageClass(@"SongDNA_ArtistsDNAPageImpl", @"BlendViewController");
+    Class page = SGRSwiftClass(@"SongDNA_ArtistsDNAPageImpl", @"BlendViewController");
     if (page) {
         // The page is hosted by a controller of Spotify's page template, which is the top of the stack.
         SGRRegisterBarPages(^BOOL(UIViewController *top) { return SGRPageIsOrHolds(top, page); });
@@ -151,7 +151,7 @@ static void dress(UIViewController *page) {
     } else {
         SGLog(@"class SongDNA_ArtistsDNAPageImpl.BlendViewController not found, Song DNA keeps Spotify's bar");
     }
-    Class artists = SGRPageClass(@"SongDNA_ArtistsDNAPageImpl", @"ArtistsDNAViewController");
+    Class artists = SGRSwiftClass(@"SongDNA_ArtistsDNAPageImpl", @"ArtistsDNAViewController");
     if (artists) {
         SGRRegisterBarPages(^BOOL(UIViewController *top) { return SGRPageIsOrHolds(top, artists); });
         %init(SGRSongDNAArtists, SGRArtistsController = artists);

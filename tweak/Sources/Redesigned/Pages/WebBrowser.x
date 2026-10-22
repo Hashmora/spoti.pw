@@ -20,24 +20,15 @@ static char kBarGlassKey, kWebGlassKey, kBackKey, kForwardKey, kWatchedKey;
 // Behind Back and Forward, which stand 24pt apart from the title's text at the edges of the title control.
 static const CGFloat kWebGlass = 32;
 
-static UIView *subviewNamed(UIView *host, NSString *name) {
-    for (UIView *sub in host.subviews) {
-        if ([NSStringFromClass(sub.class) isEqualToString:name]) return sub;
-    }
-    return nil;
-}
-
 // The glass reaches past a 24pt button, so nothing between it and the bar may clip it.
 static void unclip(UIView *view) {
-    for (UIView *v = view; v && ![v isKindOfClass:UINavigationBar.class]; v = v.superview) {
-        if (v.clipsToBounds) v.clipsToBounds = NO;
-    }
+    SGRUnclipUpTo(view, ^BOOL(UIView *v) { return [v.superview isKindOfClass:UINavigationBar.class]; });
 }
 
 // An item of the bar (a _UIButtonBarButton): the circle goes into the button its glyph is drawn by, so it is
 // concentric with the glyph whatever the item's own width.
 static void glassItem(UIView *item) {
-    UIView *button = subviewNamed(item, @"_UIModernBarButton");
+    UIView *button = SGRChildNamed(item, @"_UIModernBarButton");
     if (!button || button.bounds.size.width < 1) return;
     unclip(button);
     SGRGlassInside(button, &kBarGlassKey, SGRGlassCircleSize);
@@ -72,7 +63,7 @@ static void dress(UIViewController *page) {
             }
         }
     }
-    UIView *title = subviewNamed(content, @"_UINavigationBarTitleControl");
+    UIView *title = SGRChildNamed(content, @"_UINavigationBarTitleControl");
     if (!title) return;
     dressTitleButtons(title);
     // The title is laid out again as the page's name and host arrive: the one pass that reaches Back and Forward after the page's own.
@@ -81,28 +72,8 @@ static void dress(UIViewController *page) {
     }
 }
 
-%group SGRWebBrowser
-%hook SGRBrowserController
-- (void)viewDidLayoutSubviews {
-    %orig;
-    dress((UIViewController *)self);
-}
-
-- (void)viewDidAppear:(BOOL)animated {
-    %orig;
-    // The bar's buttons are made after the first layout.
-    SGRRepeatPass((UIViewController *)self, @[@0.0, @0.25, @0.6], ^(UIViewController *c) { dress(c); });
-}
-%end
-%end
-
 %ctor {
-    if (!SGRedesignedUI()) return;
-    if (!SGBelowiOS26()) return;
-    Class page = NSClassFromString(@"SPTWebViewControllerImplementation");
-    if (page) {
-        %init(SGRWebBrowser, SGRBrowserController = page);
-    } else {
-        SGLog(@"class SPTWebViewControllerImplementation not found, the in-app browser keeps its flat buttons");
-    }
+    if (!SGRedesignedUI() || !SGBelowiOS26()) return;
+    // The bar's buttons are made after the first layout.
+    SGRPassControllersNamed(@[@"SPTWebViewControllerImplementation"], ^(UIViewController *c) { dress(c); });
 }

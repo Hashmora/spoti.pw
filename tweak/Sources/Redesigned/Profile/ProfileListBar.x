@@ -24,13 +24,6 @@
 // The profile list dressed now; the bar is given back when it is no longer on top.
 static __weak UIViewController *sg_dressedList;
 
-static UINavigationController *navigationOf(UIView *bar) {
-    for (UIResponder *r = bar; r; r = r.nextResponder) {
-        if ([r isKindOfClass:UINavigationController.class]) return (UINavigationController *)r;
-    }
-    return nil;
-}
-
 // Whether `view` is, or holds within a few levels, the profile list's view.
 static BOOL holdsProfileList(UIView *view, int depth) {
     if ([NSStringFromClass(view.class) hasSuffix:@"Profile_CommonImpl.ProfileListView"]
@@ -44,7 +37,7 @@ static BOOL holdsProfileList(UIView *view, int depth) {
 
 static void update(UIView *bar) {
     if (!SGBelowiOS26()) return;
-    UINavigationController *navigation = navigationOf(bar);
+    UINavigationController *navigation = SGRNavigationOf(bar);
     UIViewController *top = navigation.topViewController;
     UIView *view = top.viewIfLoaded;
     if (top && view.window && holdsProfileList(view, 4)) {

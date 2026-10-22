@@ -66,9 +66,6 @@ static const CGFloat kPadLeft = 20, kPadRight = 20;
 static const CGFloat kActionInset = 9;
 // The space between the label and the glass round the action.
 static const CGFloat kLabelGap = 16;
-// How far below the bar's top (where Spotify keeps it, without the shift) the toast's bottom edge may be and still
-// count as standing over the bar: Spotify puts a toast 8pt above it.
-static const CGFloat kBarClearance = 24;
 
 static char kGlassKey, kFilmKey, kActionGlassKey, kDressedKey;
 // The toast on screen, for the tab bar's minimize to move.
@@ -89,23 +86,6 @@ static BOOL isHostingView(UIView *view) {
 
 static BOOL isActionButton(UIView *view) {
     return [NSStringFromClass(view.class) containsString:@"SPTSnackbarTextActionButton"];
-}
-
-// The toast's text is black on its white; on glass it is white. Only a dark one is changed, so a colour Spotify
-// chose on purpose (the action's green) stays.
-static BOOL isDarkNeutral(UIColor *color) {
-    CGFloat r = 0, g = 0, b = 0, a = 0;
-    if ([color getRed:&r green:&g blue:&b alpha:&a]) return MAX(r, MAX(g, b)) < 0.3 && MAX(r, MAX(g, b)) - MIN(r, MIN(g, b)) < 0.1;
-    CGFloat white = 0;
-    return [color getWhite:&white alpha:&a] && white < 0.3;
-}
-
-static void lightenText(UIView *root) {
-    SGForEachView(root, ^(UIView *view) {
-        if (![view isKindOfClass:UILabel.class]) return;
-        UILabel *label = (UILabel *)view;
-        if (isDarkNeutral(label.textColor)) label.textColor = UIColor.whiteColor;
-    });
 }
 
 // The label and the action of the toast's content (SPTSnackbarWithActionView), found among its direct subviews.
@@ -194,26 +174,12 @@ static void dressAction(UIView *button) {
     SGRGlassCapsuleInside(button, &kActionGlassKey, CGSizeMake(size.width + kActionPadX * 2, kActionHeight), NO);
 }
 
-// How far the card moves with the bar: the bar's shift into the minimized tab bar's row (0 with the bar expanded), but
-// only for a toast that stands over the bar. Spotify puts one above the bar, so its bottom edge is above where the bar
-// stands unshifted (the bar's top now, less the shift). A toast laid out lower than that (the one a popup raises, at
-// the bottom of the screen with no bar under it) is not over the bar, and the shift would take it off the screen.
-static CGFloat barShiftFor(UIView *snackbar) {
-    CGFloat shift = SGRNowPlayingBarInlineShift();
-    UIWindow *window = snackbar.window;
-    if (shift == 0 || !window) return 0;
-    CGRect bar = SGRNowPlayingCardFrameIn(window, NULL);
-    if (CGRectIsNull(bar)) return shift;
-    CGRect toast = [snackbar convertRect:snackbar.bounds toView:window];
-    return CGRectGetMaxY(toast) <= CGRectGetMinY(bar) - shift + kBarClearance ? shift : 0;
-}
-
 // Where the now playing bar stands is where the toast stands over it. Called inside the tab bar's animation as well, so
 // the two move together.
 static void followNowPlayingBar(UIView *snackbar) {
     UIView *card = cardOf(snackbar);
     if (!card) return;
-    CGAffineTransform shift = CGAffineTransformMakeTranslation(0, barShiftFor(snackbar));
+    CGAffineTransform shift = CGAffineTransformMakeTranslation(0, SGRNowPlayingBarShiftOver([snackbar convertRect:snackbar.bounds toView:nil], snackbar.window));
     if (!CGAffineTransformEqualToTransform(card.transform, shift)) card.transform = shift;
 }
 
@@ -289,7 +255,7 @@ static void dressSnackbar(UIView *snackbar) {
     } else if (content) {
         layoutContent(content);
     }
-    lightenText(card);
+    SGRLightenLabels(card, nil);
     SGForEachView(card, ^(UIView *view) {
         if (isActionButton(view)) dressAction(view);
     });
@@ -299,13 +265,7 @@ static void dressSnackbar(UIView *snackbar) {
 }
 
 static void dressAfterSettling(UIView *snackbar) {
-    __weak UIView *weak = snackbar;
-    for (NSNumber *wait in @[@0.0, @0.25]) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(wait.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            UIView *shown = weak;
-            if (shown.window) dressSnackbar(shown);
-        });
-    }
+    SGRRepeatViewPass(snackbar, @[@0.0, @0.25], ^(UIView *v) { dressSnackbar(v); });
 }
 
 %hook SPTSnackbarView

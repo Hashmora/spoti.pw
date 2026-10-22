@@ -106,14 +106,14 @@ static void dress(UIViewController *page) {
 %ctor {
     if (!SGRedesignedUI()) return;
     if (!SGBelowiOS26()) return;
-    Class page = SGRPageClass(@"AllBoarding_AllBoardingPlatformImpl", @"ContentPickerViewController");
+    Class page = SGRSwiftClass(@"AllBoarding_AllBoardingPlatformImpl", @"ContentPickerViewController");
     if (page) {
         SGRRegisterBarPages(^BOOL(UIViewController *top) { return SGRPageIsOrHolds(top, page); });
         %init(SGRContentPicker, SGRPickerController = page);
     } else {
         SGLog(@"class AllBoarding_AllBoardingPlatformImpl.ContentPickerViewController not found, the pickers keep Spotify's bar");
     }
-    Class search = SGRPageClass(@"AllBoarding_AllBoardingPlatformImpl", @"AllBoardingSearchBar");
+    Class search = SGRSwiftClass(@"AllBoarding_AllBoardingPlatformImpl", @"AllBoardingSearchBar");
     if (search) {
         %init(SGRPickerSearch, SGRPickerSearchBar = search);
     } else {

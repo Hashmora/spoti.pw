@@ -492,6 +492,14 @@ CGFloat SGRNowPlayingBarInlineShift(void) {
     return view ? view.transform.ty : 0;
 }
 
+CGFloat SGRNowPlayingBarShiftOver(CGRect frame, UIWindow *window) {
+    CGFloat shift = SGRNowPlayingBarInlineShift();
+    if (shift == 0 || !window) return 0;
+    CGRect bar = SGRNowPlayingCardFrameIn(window, NULL);
+    if (CGRectIsNull(bar)) return shift;
+    return CGRectGetMaxY(frame) <= CGRectGetMinY(bar) - shift + 24 ? shift : 0;
+}
+
 // The same bar class also stands at the top of Spotify's sheets (the DJ request one: Up next, device, play).
 // It is not the tab bar's card there: the sheet has its own blue ground and corners, and a dark 24pt pane of
 // the bar's full width on it reads as a frame round the track. It is left as Spotify draws it, and it must not

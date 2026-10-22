@@ -30,6 +30,10 @@ void SGRNowPlayingBarFollowTabBar(void);
 // How far the bar stands below where Spotify puts it, in the minimized tab bar's row; 0 with the tab bar expanded. The
 // toast over the bar (Kit/SGRSnackbar.x) is moved by the same, which follows the bar from the call above.
 CGFloat SGRNowPlayingBarInlineShift(void);
+// That shift for a toast or tooltip at `frame` (in `window`), if it stands over the bar: its lowest edge is no more than
+// 24pt below where the bar's top would be unshifted (Spotify puts a toast 8pt above the bar). 0 for one laid out lower
+// (the toast a popup raises, at the bottom of the screen with no bar under it), which the shift would take off the screen.
+CGFloat SGRNowPlayingBarShiftOver(CGRect frame, UIWindow *window);
 void SGRSnackbarFollowNowPlayingBar(void);
 // The same for the tooltips over the bar (Kit/SGRTooltip.x).
 void SGRTooltipFollowNowPlayingBar(void);

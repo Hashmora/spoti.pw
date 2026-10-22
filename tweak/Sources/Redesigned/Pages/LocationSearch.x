@@ -134,26 +134,6 @@ static void dress(UIViewController *page) {
     }
 }
 
-%group SGRLocationSearch
-%hook SGRLocationController
-- (void)viewWillAppear:(BOOL)animated {
-    %orig;
-    dress((UIViewController *)self);
-}
-
-- (void)viewDidLayoutSubviews {
-    %orig;
-    dress((UIViewController *)self);
-}
-
-- (void)viewDidAppear:(BOOL)animated {
-    %orig;
-    // The header's elements are made after the first layout, and the field's grey comes back as it is focused.
-    SGRRepeatPass((UIViewController *)self, @[@0.0, @0.25, @0.6], ^(UIViewController *c) { dress(c); });
-}
-%end
-%end
-
 // The table's own passes (it lays its rows out as they scroll in or are reused) dress the crosses that are on screen.
 %group SGRLocationRows
 %hook UITableView
@@ -193,14 +173,14 @@ static void titleTextChanged(UILabel *label) {
 %end
 
 %ctor {
-    if (!SGRedesignedUI()) return;
-    if (!SGBelowiOS26()) return;
-    Class page = SGRPageClass(@"LiveEvents_LiveEventsImpl", @"LocationSearchViewController");
-    if (page) {
-        %init(SGRLocationSearch, SGRLocationController = page);
-        %init(SGRLocationRows);
-        %init(SGRLocationTitle);
-    } else {
+    if (!SGRedesignedUI() || !SGBelowiOS26()) return;
+    Class page = SGRSwiftClass(@"LiveEvents_LiveEventsImpl", @"LocationSearchViewController");
+    if (!page) {
         SGLog(@"class LiveEvents_LiveEventsImpl.LocationSearchViewController not found, Preferred location keeps Spotify's header");
+        return;
     }
+    // The header's elements are made after the first layout, and the field's grey comes back as it is focused.
+    SGRPassController(page, ^(UIViewController *c) { dress(c); });
+    %init(SGRLocationRows);
+    %init(SGRLocationTitle);
 }

@@ -29,13 +29,6 @@ static char kBarKey, kBarGlassKey;
 // The Find page's container (SGRFind, below), once it is hooked: the page the bar is dressed for.
 static Class sg_findClass;
 
-// A Swift class by module and name, under the mangled spelling or the dotted one the trees print; nil when the
-// app has neither.
-static Class swiftClass(NSString *module, NSString *name) {
-    NSString *mangled = [NSString stringWithFormat:@"_TtC%lu%@%lu%@", (unsigned long)module.length, module, (unsigned long)name.length, name];
-    return NSClassFromString(mangled) ?: NSClassFromString([NSString stringWithFormat:@"%@.%@", module, name]);
-}
-
 #pragma mark - the search bar
 
 // The grey wash Spotify lays over the list behind the pinned bar (AssistedCuration_RecommendationsImpl.GradientView on
@@ -71,53 +64,7 @@ static void glassSearchBar(UIViewController *controller) {
     }
 }
 
-// The bar is made after the page's first layout, and its grey comes back with the rows.
-static void searchBarPasses(UIViewController *controller) {
-    __weak UIViewController *weak = controller;
-    glassSearchBar(controller);
-    for (NSNumber *delay in @[@0.0, @0.25, @0.6]) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            if (weak) glassSearchBar(weak);
-        });
-    }
-}
-
-%group SGRAddSongsRecommendations
-%hook SGRRecommendations
-- (void)viewDidLayoutSubviews {
-    %orig;
-    glassSearchBar((UIViewController *)self);
-}
-
-- (void)viewDidAppear:(BOOL)animated {
-    %orig;
-    searchBarPasses((UIViewController *)self);
-}
-%end
-%end
-
-%group SGRAddSongsFind
-%hook SGRFind
-- (void)viewDidLayoutSubviews {
-    %orig;
-    glassSearchBar((UIViewController *)self);
-}
-
-- (void)viewDidAppear:(BOOL)animated {
-    %orig;
-    searchBarPasses((UIViewController *)self);
-}
-%end
-%end
-
 #pragma mark - the Find page's Back
-
-static UINavigationController *navigationOf(UIView *bar) {
-    for (UIResponder *r = bar; r; r = r.nextResponder) {
-        if ([r isKindOfClass:UINavigationController.class]) return (UINavigationController *)r;
-    }
-    return nil;
-}
 
 // The Find page inside the sheet's navigation stack: the controller of SGRFind's class on top of the stack, however
 // many hosting controllers it is wrapped in.
@@ -136,7 +83,7 @@ static __weak UIViewController *sg_dressedFind;
 
 static void dressBar(UIView *bar) {
     if (bar.bounds.size.width < 1) return;
-    UINavigationController *navigation = navigationOf(bar);
+    UINavigationController *navigation = SGRNavigationOf(bar);
     if (![NSStringFromClass(navigation.class) containsString:@"AssistedCurationNavigationController"]) return;
     UIViewController *find = findPageIn(navigation.topViewController, 4);
     if (find && find.viewIfLoaded.window) {
@@ -173,21 +120,11 @@ static void dressBar(UIView *bar) {
 %end
 
 %ctor {
-    if (!SGRedesignedUI()) return;
-    if (!SGBelowiOS26()) return;
-    Class recommendations = swiftClass(@"AssistedCuration_RecommendationsImpl", @"RecommendationsViewController");
-    if (recommendations) {
-        %init(SGRAddSongsRecommendations, SGRRecommendations = recommendations);
-    } else {
-        SGLog(@"class AssistedCuration_RecommendationsImpl.RecommendationsViewController not found, the add songs search keeps Spotify's grey");
-    }
-    Class find = swiftClass(@"AssistedCuration_SearchImpl", @"AssistedCurationSearchContainerViewController");
-    if (find) {
-        sg_findClass = find;
-        %init(SGRAddSongsFind, SGRFind = find);
-    } else {
-        SGLog(@"class AssistedCuration_SearchImpl.AssistedCurationSearchContainerViewController not found, the Find page's search keeps Spotify's grey");
-    }
+    if (!SGRedesignedUI() || !SGBelowiOS26()) return;
+    // The bar is made after the page's first layout, and its grey comes back with the rows.
+    SGRPassSwiftController(@"AssistedCuration_RecommendationsImpl", @"RecommendationsViewController", ^(UIViewController *c) { glassSearchBar(c); });
+    sg_findClass = SGRSwiftClass(@"AssistedCuration_SearchImpl", @"AssistedCurationSearchContainerViewController");
+    SGRPassController(sg_findClass, ^(UIViewController *c) { glassSearchBar(c); });
     if (NSClassFromString(@"SPNavigationBar") && NSClassFromString(@"_UINavigationBarContentView")) {
         %init(SGRAddSongsBar);
     }
