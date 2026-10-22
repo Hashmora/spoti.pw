@@ -21,7 +21,7 @@
 #import "Redesigned/Pages/Pages.h"
 #import "Profile.h"
 
-static char kHeaderKey, kMoreKey, kBarMoreKey, kPinnedMoreKey, kShareKey, kFollowKey;
+static char kHeaderKey, kMoreKey, kBarMoreKey, kPinnedMoreKey, kShareKey;
 
 // Points of scroll over which the action row goes from fully shown to gone.
 static const CGFloat kActionsFade = 60;
@@ -79,15 +79,13 @@ static void dress(UIView *page) {
 
     UIScrollView *list = profileList(page);
     if (list) {
-        if (!objc_getAssociatedObject(list, &kFollowKey)) {
-            __weak UIView *weakPage = page;
-            void (^follow)(UIScrollView *) = ^(UIScrollView *scroll) {
-                UIView *strong = weakPage;
-                if (strong) fadeActions(strong, scroll);
-            };
-            objc_setAssociatedObject(list, &kFollowKey, follow, OBJC_ASSOCIATION_COPY_NONATOMIC);
-        }
         fadeActions(page, list);
+        // The list lays itself out on every step of a scroll: the row fades with it.
+        __weak UIView *weakPage = page;
+        SGRWatchLayout(list, ^(UIView *laidOut) {
+            UIView *strong = weakPage;
+            if (strong) fadeActions(strong, (UIScrollView *)laidOut);
+        });
     }
 
     static BOOL logged;
@@ -97,38 +95,13 @@ static void dress(UIView *page) {
     }
 }
 
-%group SGRProfileScroll
-%hook UIScrollView
-- (void)setContentOffset:(CGPoint)offset {
-    %orig;
-    void (^follow)(UIScrollView *) = objc_getAssociatedObject(self, &kFollowKey);
-    if (follow) follow(self);
-}
-%end
-%end
-
-%group SGRProfileHeader
-%hook SGRProfileView
-- (void)layoutSubviews {
-    %orig;
-    dress((UIView *)self);
-}
-
-- (void)didMoveToWindow {
-    %orig;
-    if (((UIView *)self).window) dress((UIView *)self);
-}
-%end
-%end
-
 %ctor {
     if (!SGRedesignedUI()) return;
     if (!SGBelowiOS26()) return;
     Class page = SGRSwiftClass(@"Profile_CommonImpl", @"ProfileView");
     if (page) {
         sg_profileView = page;
-        %init(SGRProfileHeader, SGRProfileView = page);
-        %init(SGRProfileScroll);
+        SGRPassView(page, ^(UIView *v) { if (v.window) dress(v); });
     } else {
         SGLog(@"class Profile_CommonImpl.ProfileView not found, the profile page keeps Spotify's header");
     }

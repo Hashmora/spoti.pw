@@ -23,7 +23,6 @@
 // the grown glass of a press (SGGlassInteractive) would be cut off at the button's edge if the button did, so the
 // button and the plain views above it, up to the page, are let go of their clip.
 #import "Core/SGCore.h"
-#import "Core/SGGlassTouch.h"
 #import "Redesigned/Kit/SGRKit.h"
 #import "Redesigned/Pages/Pages.h"
 

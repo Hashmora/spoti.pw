@@ -50,7 +50,7 @@ static char kBubbleGlassKey, kPlateKey, kPlateSizeKey, kCardGlassKey, kFieldGlas
 static const CGFloat kBubbleInset = 16;
 
 // Whether the classes of the views with a pass of their own were found; when not, the page's pass looks for them.
-static BOOL sBubbleHooked, sCardHooked, sFieldHooked;
+static BOOL sBubbleHooked, sCardHooked;
 
 #pragma mark - the black and the fades
 
@@ -238,20 +238,6 @@ static void dressField(UITextView *text) {
     });
 }
 
-%group SGRAIChatField
-%hook SGRChatTextView
-- (void)layoutSubviews {
-    %orig;
-    dressField((UITextView *)self);
-}
-
-- (void)didMoveToWindow {
-    %orig;
-    dressField((UITextView *)self);
-}
-%end
-%end
-
 #pragma mark - the Try asking cards
 
 static void dressCard(UIView *button) {
@@ -270,13 +256,9 @@ static void dressCard(UIView *button) {
 
     // The scroll view the cards stand in and the cell around it clip to their bounds, which the card fills: the press's grown glass would be
     // cut off at the card's own edge. Let go of them, up to the collection view, whose clip keeps the list under the header.
-    UIView *list = button.superview;
-    while (list && ![list isKindOfClass:UICollectionView.class] && ![list isKindOfClass:UITableView.class]) list = list.superview;
-    if (list) {
-        for (UIView *view = button.superview; view && view != list; view = view.superview) {
-            if (view.clipsToBounds) view.clipsToBounds = NO;
-        }
-    }
+    SGRUnclipUpTo(button.superview, ^BOOL(UIView *v) {
+        return [v.superview isKindOfClass:UICollectionView.class] || [v.superview isKindOfClass:UITableView.class];
+    });
 
     UIView *glass = SGGlassFor(button, &kCardGlassKey);
     if (glass.overrideUserInterfaceStyle != UIUserInterfaceStyleDark) glass.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
@@ -300,11 +282,10 @@ void SGRAIPlaylistDressChat(UIView *page) {
     }
     clearFadePlates(page);
     // Views whose class has no pass of its own here are found by walking the page.
-    if (sBubbleHooked && sCardHooked && sFieldHooked) return;
+    if (sBubbleHooked && sCardHooked) return;
     SGForEachView(page, ^(UIView *view) {
         if (!sBubbleHooked && [view.superview.accessibilityIdentifier isEqualToString:kOverlayRow] && [NSStringFromClass(view.class) hasSuffix:@"ChatBubble"]) dressBubble(view);
         else if (!sCardHooked && [view.accessibilityIdentifier isEqualToString:kCardButton]) dressCard(view);
-        else if (!sFieldHooked && [view isKindOfClass:UITextView.class]) dressField((UITextView *)view);
     });
 }
 
@@ -326,7 +307,6 @@ void SGRAIPlaylistDressChat(UIView *page) {
     } else {
         SGLog(@"class LegacyUI_ECMCoreKit EncoreButton not found, the AI playlist's Try asking cards are dressed from the page's passes");
     }
-    // The Refine field's text view is UIKit's own.
-    sFieldHooked = YES;
-    %init(SGRAIChatField, SGRChatTextView = UITextView.class);
+    // The Refine field's text view is UIKit's own: told by its identifier.
+    SGRPassView(UITextView.class, ^(UIView *v) { dressField((UITextView *)v); });
 }

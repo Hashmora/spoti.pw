@@ -79,7 +79,7 @@ static void chrome(UIViewController *controller) {
     if (pane.bounds.size.height >= UIScreen.mainScreen.bounds.size.height - 1) return;
     if (sg_profileNavigation != navigation) {
         sg_profileNavigation = navigation;
-        SGLog(@"redesign profile: Edit profile sheet on glass");
+        SGLog(@"redesign profile: Edit profile sheet dressed");
     }
     // The sheet stays Spotify's black: no glass, no corners of the mod's. The page loader the sheet opens on has been given
     // the queue's glass while it showed its spinner (Kit/SGRSheetPopups.x, loaderChrome) when this was not yet known to be
