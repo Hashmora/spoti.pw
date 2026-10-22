@@ -100,30 +100,22 @@ static id SGMakeMeshTransform(SGMeshVertex *vertices, NSUInteger vertexCount, SG
     return transform;
 }
 
-#pragma mark - displacement field (ported from Telegram's GenerateMesh.swift)
+#pragma mark - displacement field (after Telegram's GenerateMesh.swift, with a lens profile of the mod's own)
 
-// Telegram's fixed easing curve for the displacement towards the edge.
-static const CGFloat kBezierX1 = 0.816137566137566, kBezierY1 = 0.20502645502645533;
-static const CGFloat kBezierX2 = 0.5806878306878306, kBezierY2 = 0.873015873015873;
+// How strongly a point refracts by how near the rim it is, w from 0 (the band's inner edge) to 1 (the rim): the shift
+// of a ray through a convex glass edge whose surface tilts as w^2, by Snell's law at a refractive index of
+// kRefractiveIndex, over the shift at the rim. Nearly flat inside and steep at the edge, the way the system's glass bends
+// most right at its rim (a third of the rim's at a fifth of the way in, a half at a tenth). The tilt stops short of
+// upright at the rim (kMaxTilt): a glass upright there bends its last half point five times as hard as the rest and
+// draws a seam round the edge.
+static const CGFloat kRefractiveIndex = 1.5, kMaxTilt = 0.97;
 
-static CGFloat SGBezier(CGFloat t, CGFloat a1, CGFloat a2) {
-    return (((1.0 - 3.0 * a2 + 3.0 * a1) * t + (3.0 * a2 - 6.0 * a1)) * t + 3.0 * a1) * t;
+static CGFloat SGLensShift(CGFloat tilt) {
+    return tan(asin(tilt) - asin(tilt / kRefractiveIndex));
 }
 
-static CGFloat SGBezierSlope(CGFloat t, CGFloat a1, CGFloat a2) {
-    return 3.0 * (1.0 - 3.0 * a2 + 3.0 * a1) * t * t + 2.0 * (3.0 * a2 - 6.0 * a1) * t + 3.0 * a1;
-}
-
-// The curve's y at x: Newton's method for the t that gives x, then y at that t.
-static CGFloat SGEase(CGFloat x) {
-    CGFloat t = x;
-    for (int i = 0; i < 4; i++) {
-        CGFloat slope = SGBezierSlope(t, kBezierX1, kBezierX2);
-        if (slope == 0.0) break;
-        t -= (SGBezier(t, kBezierX1, kBezierX2) - x) / slope;
-    }
-    CGFloat y = SGBezier(t, kBezierY1, kBezierY2);
-    return y >= 0.997 ? 1.0 : y;
+static CGFloat SGLensProfile(CGFloat w) {
+    return SGLensShift(MIN(1, w * w) * kMaxTilt) / SGLensShift(kMaxTilt);
 }
 
 // Signed distance from (x, y) to a width x height rounded rect at the origin (negative inside), and the
@@ -145,7 +137,7 @@ static CGFloat SGRoundedRectSDF(CGFloat x, CGFloat y, CGFloat width, CGFloat hei
     return hypot(MAX(qx, 0), MAX(qy, 0)) + MIN(MAX(qx, qy), 0) - radius;
 }
 
-// What a vertex samples from, relative to where it sits: inwards, strongest at the edge, eased.
+// What a vertex samples from, relative to where it sits: inwards, by the lens profile of its depth.
 static void SGDisplacement(CGFloat x, CGFloat y, CGFloat width, CGFloat height, CGFloat radius, CGFloat edgeDistance,
                            CGFloat *outDx, CGFloat *outDy, CGFloat *outSdf) {
     CGFloat nx, ny;
@@ -154,7 +146,7 @@ static void SGDisplacement(CGFloat x, CGFloat y, CGFloat width, CGFloat height, 
     CGFloat dx = -nx * weight, dy = -ny * weight;
     CGFloat mag = hypot(dx, dy);
     if (mag > 0) {
-        CGFloat scale = SGEase(mag) / mag;
+        CGFloat scale = SGLensProfile(mag) / mag;
         dx *= scale; dy *= scale;
     }
     *outDx = dx; *outDy = dy; *outSdf = sdf;
@@ -343,10 +335,57 @@ static id SGMakeGlassMesh(CGSize size, CGFloat radius) {
     return transform;
 }
 
-#pragma mark - the rim's highlight
+#pragma mark - the rim's light
 
+// What the system's glass does at its edge besides bending the backdrop, drawn here as plain strokes, with no blur and
+// no mask but the glare's, so a screen of panes stays cheap:
+//   glare       the bright streak along the rim, strongest at the top-left and the bottom-right corners;
+//   dispersion  a warm and a cool stroke, a fraction of a point to either side of the rim, which a prism's colour
+//               fringe reads as.
+// No glow all round the edge: white strokes along the whole rim, and a brighter fringe, drew the sides as a frosted
+// white outline the system's glass does not have (device, 2026-10-23), so the fringe is faint and the glare as before.
 static const CGFloat kSpecularWidth = 1.0;
-static NSString *const kSpecularName = @"sg.specular";
+static NSString *const kSpecularName = @"sg.specular", *const kRimLightName = @"sg.rimLight";
+
+static const CGFloat kFringeOffset = 0.6, kFringeAlpha = 0.08;
+
+static CGPathRef rimPath(CGRect bounds, CGFloat inset, CGFloat radius) {
+    CGRect rect = CGRectInset(bounds, inset, inset);
+    CGFloat r = MAX(0, MIN(radius - inset, MIN(rect.size.width, rect.size.height) / 2));
+    return [UIBezierPath bezierPathWithRoundedRect:rect cornerRadius:r].CGPath;
+}
+
+static CAShapeLayer *stroke(CGColorRef color, CGFloat width) {
+    CAShapeLayer *line = [CAShapeLayer layer];
+    line.fillColor = nil;
+    line.strokeColor = color;
+    line.lineWidth = width;
+    return line;
+}
+
+// The fringe, one layer under the glare holding the warm stroke and the cool one.
+static void placeRimLight(CALayer *host, CGRect bounds, CGFloat radius) {
+    CALayer *light = nil;
+    for (CALayer *sub in host.sublayers) {
+        if ([sub.name isEqualToString:kRimLightName]) light = sub;
+    }
+    if (!light) {
+        light = [CALayer layer];
+        light.name = kRimLightName;
+        light.zPosition = 99;
+        [light addSublayer:stroke([UIColor colorWithRed:1 green:0.62 blue:0.32 alpha:kFringeAlpha].CGColor, 1)];
+        [light addSublayer:stroke([UIColor colorWithRed:0.38 green:0.78 blue:1 alpha:kFringeAlpha].CGColor, 1)];
+        [host addSublayer:light];
+    }
+    light.frame = bounds;
+    NSArray<CAShapeLayer *> *lines = (NSArray<CAShapeLayer *> *)light.sublayers;
+    CGRect local = light.bounds;
+    if (lines.count < 2) return;
+    // Warm up and to the left, cool down and to the right, each a stroke one point in from the rim.
+    lines[0].frame = CGRectOffset(local, -kFringeOffset, -kFringeOffset);
+    lines[1].frame = CGRectOffset(local, kFringeOffset, kFringeOffset);
+    lines[0].path = lines[1].path = rimPath(local, 1, radius);
+}
 
 void SGLegacyGlassSpecular(CALayer *host, CGRect bounds, CGFloat radius) {
     if (@available(iOS 26.0, *)) return;
@@ -368,21 +407,16 @@ void SGLegacyGlassSpecular(CALayer *host, CGRect bounds, CGFloat radius) {
                        (id)[UIColor colorWithWhite:1 alpha:0].CGColor,
                        (id)[UIColor colorWithWhite:1 alpha:0].CGColor,
                        (id)[UIColor colorWithWhite:1 alpha:0.55].CGColor];
-        // Over everything else in the host: a one point line, and the film or content under it must not hide it.
+        // Over everything else in the host: a thin line, and the film or content under it must not hide it.
         rim.zPosition = 100;
-        CAShapeLayer *line = [CAShapeLayer layer];
-        line.fillColor = nil;
-        line.strokeColor = UIColor.whiteColor.CGColor;
-        line.lineWidth = kSpecularWidth;
-        rim.mask = line;
+        rim.mask = stroke(UIColor.whiteColor.CGColor, kSpecularWidth);
         [host addSublayer:rim];
     }
     rim.frame = bounds;
     CAShapeLayer *line = (CAShapeLayer *)rim.mask;
     line.frame = rim.bounds;
-    CGRect inset = CGRectInset(rim.bounds, kSpecularWidth / 2, kSpecularWidth / 2);
-    CGFloat r = MAX(0, MIN(radius - kSpecularWidth / 2, MIN(inset.size.width, inset.size.height) / 2));
-    line.path = [UIBezierPath bezierPathWithRoundedRect:inset cornerRadius:r].CGPath;
+    line.path = rimPath(rim.bounds, kSpecularWidth / 2, radius);
+    placeRimLight(host, bounds, radius);
     [CATransaction commit];
 }
 
