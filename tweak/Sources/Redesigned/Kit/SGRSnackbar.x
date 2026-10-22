@@ -227,20 +227,7 @@ static void dressSnackbar(UIView *snackbar) {
     if (!CGRectEqualToRect(card.bounds, bounds)) card.bounds = bounds;
     if (!CGPointEqualToPoint(card.center, center)) card.center = center;
     followNowPlayingBar(snackbar);
-    CGFloat radius = MIN(card.bounds.size.height / 2, kMaxRadius);
-    if (card.layer.backgroundColor) card.layer.backgroundColor = NULL;
-    if (card.layer.cornerRadius != radius) card.layer.cornerRadius = radius;
-    card.layer.cornerCurve = kCACornerCurveContinuous;
-    // The legacy glass's press grows past its pane, and the pane has the corners: nothing to clip.
-    BOOL clip = !SGUseLegacyGlass();
-    if (card.layer.masksToBounds != clip) card.layer.masksToBounds = clip;
-
-    UIView *glass = SGGlassFor(card, &kGlassKey);
-    if (glass.overrideUserInterfaceStyle != UIUserInterfaceStyleDark) glass.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
-    glass.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    if (!CGRectEqualToRect(glass.frame, card.bounds)) glass.frame = card.bounds;
-    SGShapeGlass(glass, radius, NO);
-    SGRGlassFilm(card, &kFilmKey, glass, radius);
+    UIView *glass = SGRGlassFloatingCard(card, &kGlassKey, &kFilmKey, kMaxRadius);
 
     // What the card holds follows it, and the label and the button are placed for its width.
     for (UIView *sub in card.subviews) {

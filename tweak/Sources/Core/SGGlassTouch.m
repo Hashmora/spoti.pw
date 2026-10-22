@@ -11,9 +11,8 @@ static const CGFloat kGrow = 15, kMaxGrowScale = 1.08, kMaxShift = 12, kLightSiz
 static const CFTimeInterval kLightIn = 0.12, kLightOut = 0.22;
 static NSString *const kTransformKey = @"sg.glasstouch";
 
-typedef struct { CGFloat mass, stiffness, damping; } SGSpring;
-static const SGSpring kLiftOn = {1.36, 568.0, 39.7};
-static const SGSpring kLiftOff = {2.0, 460.0, 21.8};
+const SGSpring SGGlassLiftOn = {1.36, 568.0, 39.7};
+const SGSpring SGGlassLiftOff = {2.0, 460.0, 21.8};
 
 // Ease in and out over 0...1.
 static CGFloat SGSmooth(CGFloat t) { return t * t * (3 - 2 * t); }
@@ -127,7 +126,7 @@ static CGFloat SGSmooth(CGFloat t) { return t * t * (3 - 2 * t); }
         layer.sublayerTransform = target;
         return;
     }
-    SGSpring spring = tracking ? kLiftOn : kLiftOff;
+    SGSpring spring = tracking ? SGGlassLiftOn : SGGlassLiftOff;
     CASpringAnimation *animation = [CASpringAnimation animationWithKeyPath:@"sublayerTransform"];
     animation.fromValue = [NSValue valueWithCATransform3D:(layer.presentationLayer ?: layer).sublayerTransform];
     animation.toValue = [NSValue valueWithCATransform3D:target];

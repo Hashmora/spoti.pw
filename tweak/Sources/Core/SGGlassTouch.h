@@ -9,6 +9,11 @@
 // Only for a pane on something that is pressed: a button, a round control. A sheet or a bar is not.
 #import <UIKit/UIKit.h>
 
+// The press's springs (Telegram's): quick and firm as the glass lifts, loose as it comes down. The tab bar's lens
+// lifts on the same.
+typedef struct { CGFloat mass, stiffness, damping; } SGSpring;
+extern const SGSpring SGGlassLiftOn, SGGlassLiftOff;
+
 // `host` is the control that owns `pane` (SGGlassFor / SGGlassAt). Idempotent, so a layout pass may call it
 // every time.
 void SGGlassInteractive(UIView *host, UIView *pane);

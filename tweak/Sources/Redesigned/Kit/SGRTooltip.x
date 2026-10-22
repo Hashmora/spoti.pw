@@ -127,20 +127,8 @@ static void dressTooltip(UIView *container) {
     partsOf(container, &card, &arrow);
     if (!card) return;
 
-    CGFloat radius = MIN(card.bounds.size.height / 2, kMaxRadius);
-    if (card.layer.backgroundColor) card.layer.backgroundColor = NULL;
-    if (card.layer.cornerRadius != radius) card.layer.cornerRadius = radius;
-    card.layer.cornerCurve = kCACornerCurveContinuous;
-    // The legacy glass has corners of its own and a press that grows past its pane: nothing to clip.
-    BOOL clip = !SGUseLegacyGlass();
-    if (card.layer.masksToBounds != clip) card.layer.masksToBounds = clip;
-
-    UIView *glass = SGGlassFor(card, &kGlassKey);
-    if (glass.overrideUserInterfaceStyle != UIUserInterfaceStyleDark) glass.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
-    glass.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    if (!CGRectEqualToRect(glass.frame, card.bounds)) glass.frame = card.bounds;
-    SGShapeGlass(glass, radius, NO);
-    UIView *film = SGRGlassFilm(card, &kFilmKey, glass, radius);
+    UIView *glass = SGRGlassFloatingCard(card, &kGlassKey, &kFilmKey, kMaxRadius);
+    UIView *film = objc_getAssociatedObject(card, &kFilmKey);
 
     // What SwiftUI put in the card: its white goes, its text turns white. The glass and the film are the mod's.
     for (UIView *sub in card.subviews) {
@@ -152,7 +140,7 @@ static void dressTooltip(UIView *container) {
     if (arrow) {
         // The white diamond is only a fill; clearing it leaves it in place for whatever Spotify does with its frame.
         if (arrow.layer.backgroundColor) arrow.layer.backgroundColor = NULL;
-        dressTail(container, card, arrow, radius);
+        dressTail(container, card, arrow, card.layer.cornerRadius);
     }
 
     if (!sg_tooltips) sg_tooltips = [NSHashTable weakObjectsHashTable];

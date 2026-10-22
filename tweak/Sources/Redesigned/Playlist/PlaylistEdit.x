@@ -41,7 +41,7 @@ static const CGFloat kEditShift = 10;
 // (trees/continuous/2.txt); the same dim the dialogs carry, a little lighter.
 static const CGFloat kEditDim = 0.4;
 
-static char kToolbarGlassKey, kPopupGlassKey, kPopupTintKey, kPillKey, kPillGlassKey, kDressedKey;
+static char kToolbarGlassKey, kPopupGlassKey, kPillKey, kPillGlassKey, kDressedKey;
 static char kListKey, kListClipKey;
 
 static __weak UINavigationController *sg_editNavigation;
@@ -151,45 +151,14 @@ static BOOL inToolbar(UIView *view) {
     return NO;
 }
 
-// The accent over the glass, under the label: Continue and Keep are drawn with a black label.
-static void tint(UIView *button) {
-    UIView *glass = objc_getAssociatedObject(button, &kPopupGlassKey);
-    UIView *film = objc_getAssociatedObject(button, &kPopupTintKey);
-    if (!film) {
-        film = [UIView new];
-        film.userInteractionEnabled = NO;
-        film.layer.cornerCurve = kCACornerCurveContinuous;
-        objc_setAssociatedObject(button, &kPopupTintKey, film, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    }
-    NSInteger rgb = SGRAccentRGB();
-    UIColor *color = [UIColor colorWithRed:((rgb >> 16) & 0xFF) / 255.0 green:((rgb >> 8) & 0xFF) / 255.0 blue:(rgb & 0xFF) / 255.0 alpha:0.8];
-    if (![film.backgroundColor isEqual:color]) film.backgroundColor = color;
-    if (film.superview != button) [button insertSubview:film atIndex:glass ? 1 : 0];
-    if (!CGRectEqualToRect(film.frame, button.bounds)) film.frame = button.bounds;
-    CGFloat radius = button.bounds.size.height / 2;
-    if (film.layer.cornerRadius != radius) film.layer.cornerRadius = radius;
-}
-
-// Spotify's own fill of the button, if it draws one: the button's or the first view inside it.
-static void clearFill(UIView *button) {
-    if (button.layer.backgroundColor) button.layer.backgroundColor = NULL;
-    UIView *inner = button.subviews.lastObject;
-    if (inner && inner != objc_getAssociatedObject(button, &kPopupTintKey) && CGSizeEqualToSize(inner.bounds.size, button.bounds.size)
-        && inner.layer.backgroundColor && CGColorGetAlpha(inner.layer.backgroundColor) > 0.05) {
-        inner.layer.backgroundColor = NULL;
-    }
-}
-
 static void dressButton(UIView *button) {
     if (button.bounds.size.width < 1 || button.bounds.size.height < 1) return;
     if (inToolbar(button)) {
-        clearFill(button);
-        SGRGlassFlatBox(button, &kToolbarGlassKey);
+        SGRGlassEncoreButton(button, &kToolbarGlassKey, NO);
         objc_setAssociatedObject(button, &kDressedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     } else if ([button.accessibilityIdentifier isEqualToString:@"Messaging.PrimaryButton"]) {
-        clearFill(button);
-        SGRGlassFlatBox(button, &kPopupGlassKey);
-        tint(button);
+        // Continue and Keep are drawn with a black label: the accent goes under it.
+        SGRGlassEncoreButton(button, &kPopupGlassKey, YES);
         objc_setAssociatedObject(button, &kDressedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
 }

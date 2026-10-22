@@ -351,3 +351,10 @@ NSArray<SGKaraokeLine *> *SGKaraokeLinesFromTranscript(NSData *body) {
     }
     return SGKaraokeEstimatedLines(starts, texts);
 }
+
+BOOL SGKaraokeHasTranslations(NSArray<SGKaraokeLine *> *lines) {
+    for (SGKaraokeLine *line in lines) {
+        if (line.translation.length) return YES;
+    }
+    return NO;
+}

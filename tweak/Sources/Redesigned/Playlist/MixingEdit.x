@@ -39,7 +39,7 @@
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
 
-static char kPlayGlassKey, kBorderGlassKey, kBarGlassKey, kBarTintKey, kDressedKey;
+static char kPlayGlassKey, kBorderGlassKey, kBarGlassKey, kDressedKey;
 static char kCardGlassKey, kPromoGlassKey, kCustomizeGlassKey, kPromoFindKey;
 
 // The card of the promo and the cards of the pager: Spotify's radius.
@@ -68,13 +68,6 @@ static __weak UINavigationController *sg_mixNavigation;
 static __weak UIView *sg_mixPlay;
 
 #pragma mark - the bar
-
-static UIView *contentOf(UINavigationBar *bar) {
-    for (UIView *sub in bar.subviews) {
-        if ([NSStringFromClass(sub.class) isEqualToString:@"_UINavigationBarContentView"]) return sub;
-    }
-    return nil;
-}
 
 // The Back arrow: the first control of the stack at the leading half of the bar's content view.
 static UIView *backIn(UIView *content) {
@@ -112,11 +105,12 @@ static void dressBar(UIViewController *controller) {
         }
     }
 
-    UIView *back = backIn(contentOf(bar));
+    UIView *content = SGRChildNamed(bar, @"_UINavigationBarContentView");
+    UIView *back = backIn(content);
     if (back) SGRPinnedBackOf(navigation.view, back);
 
     // More and Save were laid out before this file knew the navigation controller (see the header): dressed here as well.
-    dressBarButtons(contentOf(bar), 0);
+    dressBarButtons(content, 0);
     UIView *promo = SGRFindByIdentifier(root, kPromoCardIdentifier, &kPromoFindKey);
     if (promo) dressPromoCard(promo);
     pinPlay();
@@ -209,35 +203,10 @@ static BOOL inMixBar(UIView *view) {
     return NO;
 }
 
-// The accent over the glass, under the label: Save is drawn with a black label.
-static void tintSave(UIView *button, UIView *glass) {
-    UIView *film = objc_getAssociatedObject(button, &kBarTintKey);
-    if (!film) {
-        film = [UIView new];
-        film.userInteractionEnabled = NO;
-        film.layer.cornerCurve = kCACornerCurveContinuous;
-        objc_setAssociatedObject(button, &kBarTintKey, film, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    }
-    NSInteger rgb = SGRAccentRGB();
-    UIColor *color = [UIColor colorWithRed:((rgb >> 16) & 0xFF) / 255.0 green:((rgb >> 8) & 0xFF) / 255.0 blue:(rgb & 0xFF) / 255.0 alpha:0.8];
-    if (![film.backgroundColor isEqual:color]) film.backgroundColor = color;
-    if (film.superview != button) [button insertSubview:film atIndex:glass ? 1 : 0];
-    if (!CGRectEqualToRect(film.frame, button.bounds)) film.frame = button.bounds;
-    CGFloat radius = button.bounds.size.height / 2;
-    if (film.layer.cornerRadius != radius) film.layer.cornerRadius = radius;
-}
-
 // A Primary button on glass, the capsule the filter chips have: its fill cleared, the glass behind its label, and the
 // accent over the glass for a button drawn with a black label.
 static void glassPrimary(UIView *button, BOOL accent) {
-    clearFill(button);
-    UIView *inner = button.subviews.lastObject;
-    if (inner && inner != objc_getAssociatedObject(button, &kBarTintKey) && CGSizeEqualToSize(inner.bounds.size, button.bounds.size)
-        && inner.layer.backgroundColor && CGColorGetAlpha(inner.layer.backgroundColor) > 0.05) {
-        inner.layer.backgroundColor = NULL;
-    }
-    UIView *glass = SGRGlassFlatBox(button, &kBarGlassKey);
-    if (accent) tintSave(button, glass);
+    SGRGlassEncoreButton(button, &kBarGlassKey, accent);
     objc_setAssociatedObject(button, &kDressedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 }
 

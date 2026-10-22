@@ -11,9 +11,15 @@ UIVisualEffect *SGGlassEffect(void) {
     return [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemChromeMaterialDark];
 }
 
+// Read once: the switch, like every switch, takes effect at the next launch.
 BOOL SGUseLegacyGlass(void) {
-    if (@available(iOS 26.0, *)) return NO;
-    return SGFlag(SGKeyLegacyGlass, NO) && SGLegacyGlassAvailable();
+    static BOOL on;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        if (@available(iOS 26.0, *)) return;
+        on = SGFlag(SGKeyLegacyGlass, NO) && SGLegacyGlassAvailable();
+    });
+    return on;
 }
 
 static UIView *newPane(void) {

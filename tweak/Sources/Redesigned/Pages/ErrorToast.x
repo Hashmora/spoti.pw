@@ -44,20 +44,7 @@ static void dressToast(UIView *toast) {
     CGSize size = toast.bounds.size;
     if (!toast.window || size.width < 1 || size.height < 1) return;
 
-    CGFloat radius = MIN(size.height / 2, kRadius);
-    if (toast.layer.backgroundColor) toast.layer.backgroundColor = NULL;
-    if (toast.layer.cornerRadius != radius) toast.layer.cornerRadius = radius;
-    toast.layer.cornerCurve = kCACornerCurveContinuous;
-    // The legacy glass's press grows past its pane, and the pane has the corners: nothing to clip.
-    BOOL clip = !SGUseLegacyGlass();
-    if (toast.layer.masksToBounds != clip) toast.layer.masksToBounds = clip;
-
-    UIView *glass = SGGlassFor(toast, &kGlassKey);
-    if (glass.overrideUserInterfaceStyle != UIUserInterfaceStyleDark) glass.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
-    glass.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    if (!CGRectEqualToRect(glass.frame, toast.bounds)) glass.frame = toast.bounds;
-    SGShapeGlass(glass, radius, NO);
-    SGRGlassFilm(toast, &kFilmKey, glass, radius);
+    SGRGlassFloatingCard(toast, &kGlassKey, &kFilmKey, kRadius);
 
     SGRLightenLabels(toast, reloadIn(toast));
     if (toast.superview) glassClose(toast.superview);

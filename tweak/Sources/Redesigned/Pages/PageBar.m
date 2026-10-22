@@ -45,14 +45,6 @@ static const CGFloat kTitlePadding = 18, kTitleHeight = 44, kCorner = 16, kGap =
 
 #pragma mark - the controls of the bar
 
-// The bar's content view, 44pt high under the status bar, and what UIKit puts in it.
-static UIView *contentOf(UINavigationBar *bar) {
-    for (UIView *sub in bar.subviews) {
-        if ([NSStringFromClass(sub.class) isEqualToString:@"_UINavigationBarContentView"]) return sub;
-    }
-    return nil;
-}
-
 // The bar's stacks of controls, told apart by the half of the bar they stand in: one at the trailing edge (the page's
 // ⋯, a Share) and, when the page put an item of its own at the leading edge, one there (Add artists' cross,
 // trees/continuous/20.txt, 22.txt). The system's back button is no such item: it is a direct subview of the content view.
@@ -102,13 +94,11 @@ static BOOL isShare(UIView *control) {
     return share;
 }
 
+// SGRConceal, marked so that only what this file concealed is given back (restore).
 static void conceal(UIView *view) {
     if (!view) return;
     objc_setAssociatedObject(view, &kConcealedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    if (!view.layer.hidden) view.layer.hidden = YES;
-    if (!view.layer.mask) view.layer.mask = [CALayer layer];
-    if (view.userInteractionEnabled) view.userInteractionEnabled = NO;
-    view.accessibilityElementsHidden = YES;
+    SGRConceal(view);
 }
 
 static void reveal(UIView *view) {
@@ -146,11 +136,16 @@ void SGRRegisterBarPages(SGRBarPageTest wants) {
     [sg_wants addObject:[wants copy]];
 }
 
-static BOOL isOnScreen(UIViewController *page, UINavigationController *navigation);
+static BOOL isOnScreen(UIViewController *page, UINavigationController *navigation) {
+    for (UIViewController *vc = page; vc; vc = vc.parentViewController) {
+        if (vc == navigation.topViewController) return YES;
+    }
+    return NO;
+}
 
-// Whether a page the redesign has dressed is the one on top of `navigation`.
-static BOOL topIsDressed(UINavigationController *navigation) {
-    for (UIViewController *page in sg_dressed.allObjects) {
+// Whether one of `pages` (sg_dressed, sg_titleless, sg_backOnly) is the one on top of `navigation`.
+static BOOL topIsIn(NSHashTable<UIViewController *> *pages, UINavigationController *navigation) {
+    for (UIViewController *page in pages.allObjects) {
         if (isOnScreen(page, navigation)) return YES;
     }
     return NO;
@@ -163,12 +158,12 @@ static BOOL topIsDressed(UINavigationController *navigation) {
 // is shown again here for its capsule; a page that turns out to be another gets all three back.
 static void holdControls(UINavigationController *navigation, BOOL wanted) {
     UINavigationBar *bar = navigation.navigationBar;
-    UIView *content = contentOf(bar);
+    UIView *content = SGRChildNamed(bar, @"_UINavigationBarContentView");
     if (!content) return;
     UIView *title = SGRChildNamed(content, @"_UINavigationBarTitleControl");
     BOOL held = objc_getAssociatedObject(bar, &kHeldKey) != nil;
     if (wanted) {
-        if (topIsDressed(navigation)) {
+        if (topIsIn(sg_dressed, navigation)) {
             if (held) reveal(title);
             return;
         }
@@ -252,22 +247,6 @@ BOOL SGRPageIsOrHolds(UIViewController *top, Class page) {
 
 #pragma mark - the title
 
-// Whether the page on top of `navigation` is one dressed without a title.
-static BOOL topIsTitleless(UINavigationController *navigation) {
-    for (UIViewController *page in sg_titleless.allObjects) {
-        if (isOnScreen(page, navigation)) return YES;
-    }
-    return NO;
-}
-
-// Whether the page on top of `navigation` is one dressed with Back only.
-static BOOL topIsBackOnly(UINavigationController *navigation) {
-    for (UIViewController *page in sg_backOnly.allObjects) {
-        if (isOnScreen(page, navigation)) return YES;
-    }
-    return NO;
-}
-
 static void dropTitleGlass(UIView *title) {
     [(UIView *)objc_getAssociatedObject(title, &kTitleGlassKey) removeFromSuperview];
 }
@@ -276,7 +255,7 @@ static void glassTitle(UIView *title) {
     // A page with no title has an empty item in the title control (a SwiftUI bar item that draws nothing), which the
     // branch for a title that is a picture below would wrap in a capsule all the same. The title control is the bar's,
     // shared by the pages of the stack, and is watched for its layout, so this holds for every pass that reaches it.
-    if (sg_titleless.count && topIsTitleless(SGRNavigationOf(title))) {
+    if (topIsIn(sg_titleless, SGRNavigationOf(title))) {
         dropTitleGlass(title);
         return;
     }
@@ -302,7 +281,7 @@ static void glassTitle(UIView *title) {
     // Two glass circles at the trailing edge (Song DNA's Share and Close) take two places from the corner, and the
     // capsule is centred, so it leaves as much on the leading side: with one place it ran to 2pt from Share
     // (trees/continuous/10.txt, 15.txt).
-    BOOL backOnly = sg_backOnly.count && topIsBackOnly(SGRNavigationOf(title));
+    BOOL backOnly = topIsIn(sg_backOnly, SGRNavigationOf(title));
     CGFloat places = !backOnly && extraOf(title.superview) ? 2 : 1;
     CGFloat room = screen - 2 * (kCorner + places * (SGRGlassCircleSize + kGap));
     CGFloat wanted = content + 2 * kTitlePadding;
@@ -323,40 +302,28 @@ static void watchTitle(UIView *title) {
 
 #pragma mark - the page
 
-static BOOL isOnScreen(UIViewController *page, UINavigationController *navigation) {
-    for (UIViewController *vc = page; vc; vc = vc.parentViewController) {
-        if (vc == navigation.topViewController) return YES;
-    }
-    return NO;
-}
-
 // The page's trailing controls, pinned: the ⋯ (or the Share, drawn as a share glyph) in the corner and, with a second
 // control, the Share one place in from it and Close in the corner.
 static void pinTrailing(UIView *view, UIView *more, UIView *extra) {
+    static UIImage *shareGlyph, *moreGlyph, *closeGlyph;
+    if (!shareGlyph) {
+        shareGlyph = [UIImage systemImageNamed:@"square.and.arrow.up"];
+        moreGlyph = [UIImage systemImageNamed:@"ellipsis"];
+        closeGlyph = [UIImage systemImageNamed:@"xmark"];
+    }
+    BOOL share = more && isShare(more);
     conceal(more);
-    // With a second control (SongDNA's Close) the first, Share, steps one place in from the corner and Close takes it.
-    SGRMirrorButton *pinned = nil;
     if (extra) {
-        static UIImage *shareGlyph, *moreGlyph;
-        if (!shareGlyph) shareGlyph = [UIImage systemImageNamed:@"square.and.arrow.up"];
-        if (!moreGlyph) moreGlyph = [UIImage systemImageNamed:@"ellipsis"];
-        pinned = SGRPinnedTrailing(view, &kMoreKey, more, 1, more && isShare(more) ? shareGlyph : moreGlyph);
-    } else {
-        pinned = SGRPinnedMore(view, &kMoreKey, more);
-    }
-    if (!extra && more && isShare(more)) {
-        static UIImage *shareGlyph;
-        if (!shareGlyph) shareGlyph = [UIImage systemImageNamed:@"square.and.arrow.up"];
-        if (pinned.fallbackGlyph != shareGlyph) {
-            pinned.fallbackGlyph = shareGlyph;
-            [pinned feedFrom:more];
-        }
-    }
-    if (extra) {
+        // With a second control (SongDNA's Close) the first, Share, steps one place in from the corner and Close takes it.
+        SGRPinnedTrailing(view, &kMoreKey, more, 1, share ? shareGlyph : moreGlyph);
         conceal(extra);
-        static UIImage *closeGlyph;
-        if (!closeGlyph) closeGlyph = [UIImage systemImageNamed:@"xmark"];
         SGRPinnedTrailing(view, &kExtraKey, extra, 0, closeGlyph);
+        return;
+    }
+    SGRMirrorButton *pinned = SGRPinnedMore(view, &kMoreKey, more);
+    if (share && pinned.fallbackGlyph != shareGlyph) {
+        pinned.fallbackGlyph = shareGlyph;
+        [pinned feedFrom:more];
     }
 }
 
@@ -365,7 +332,7 @@ void SGRDressBarPage(UIViewController *page) {
     UINavigationController *navigation = page.navigationController;
     if (!view.window || !navigation || !isOnScreen(page, navigation)) return;
     UINavigationBar *bar = navigation.navigationBar;
-    UIView *content = contentOf(bar);
+    UIView *content = SGRChildNamed(bar, @"_UINavigationBarContentView");
     if (!content) return;
 
     if (!sg_dressed) sg_dressed = [NSHashTable weakObjectsHashTable];
@@ -445,21 +412,21 @@ static void undressBar(UIViewController *page, UINavigationController *navigatio
         bar.overrideUserInterfaceStyle = (UIUserInterfaceStyle)style.integerValue;
         objc_setAssociatedObject(bar, &kBarStyleKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
-    UIView *content = contentOf(bar);
+    UIView *content = SGRChildNamed(bar, @"_UINavigationBarContentView");
     reveal(SGRChildNamed(content, @"_UIButtonBarButton"));
     reveal(leadingItemOf(content));
     reveal(moreOf(content));
     reveal(extraOf(content));
     bar.userInteractionEnabled = YES;
     objc_setAssociatedObject(bar, &kHeldKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    reveal(SGRChildNamed(content, @"_UINavigationBarTitleControl"));
+    UIView *title = SGRChildNamed(content, @"_UINavigationBarTitleControl");
+    reveal(title);
     UIView *blur = blurOf(navigation);
     blur.layer.mask = nil;
     blur.userInteractionEnabled = YES;
     // The capsule is the title control's, which the next page's title may be too: it goes, and the next pass of
     // the page that wants one makes it again.
-    UIView *title = SGRChildNamed(content, @"_UINavigationBarTitleControl");
-    [(UIView *)objc_getAssociatedObject(title, &kTitleGlassKey) removeFromSuperview];
+    dropTitleGlass(title);
 }
 
 // A swipe back says the page is going the moment the finger moves, and the page is still under it, following the

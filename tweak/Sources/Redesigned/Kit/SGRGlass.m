@@ -46,7 +46,6 @@ static UIView *newShape(SGRGlassMode mode) {
 
 static char kInsideModeKey, kFilmKey;
 
-// The film that makes a shape prominent, inside the effect's own content view so the corners clip it.
 // Where a caller's own subviews go: the content view of a visual effect view or a legacy pane, the view itself otherwise.
 static UIView *glassContent(UIView *glass) {
     if ([glass isKindOfClass:UIVisualEffectView.class]) return ((UIVisualEffectView *)glass).contentView;
@@ -54,6 +53,7 @@ static UIView *glassContent(UIView *glass) {
     return glass;
 }
 
+// The film that makes a shape prominent, inside the effect's own content view so the corners clip it.
 static void keepFilm(UIView *shape, BOOL prominent, SGRGlassMode mode) {
     if (mode == SGRGlassModeSolid) {
         shape.backgroundColor = prominent ? [SGRSolidGlassFill() colorWithAlphaComponent:0.26] : SGRSolidGlassFill();
@@ -141,13 +141,18 @@ void SGRShowGlass(UIView *shape, BOOL shown) {
 
 #pragma mark - flat boxes and floating films
 
+// A box of Spotify's made a clear capsule for the glass that goes in it.
+static void clearCapsule(UIView *box, CGSize size) {
+    if (box.backgroundColor != UIColor.clearColor) box.backgroundColor = UIColor.clearColor;
+    if (box.layer.cornerRadius != size.height / 2) box.layer.cornerRadius = size.height / 2;
+    if (box.layer.cornerCurve != kCACornerCurveContinuous) box.layer.cornerCurve = kCACornerCurveContinuous;
+}
+
 static UIView *flatBox(UIView *box, const void *key, BOOL prominent) {
     if (@available(iOS 26.0, *)) return nil;
     CGSize size = box.bounds.size;
     if (!box || size.width < 1 || size.height < 1) return nil;
-    if (box.backgroundColor != UIColor.clearColor) box.backgroundColor = UIColor.clearColor;
-    if (box.layer.cornerRadius != size.height / 2) box.layer.cornerRadius = size.height / 2;
-    if (box.layer.cornerCurve != kCACornerCurveContinuous) box.layer.cornerCurve = kCACornerCurveContinuous;
+    clearCapsule(box, size);
     // Not clipped below iOS 26 with the legacy glass: its press grows past the box, and the pane has its own corners.
     BOOL grows = SGUseLegacyGlass();
     if (box.layer.masksToBounds != !grows) box.layer.masksToBounds = !grows;
@@ -162,6 +167,51 @@ UIView *SGRGlassFlatBoxFilm(UIView *box, const void *key) {
     return flatBox(box, key, YES);
 }
 
+static char kAccentFilmKey;
+
+UIView *SGRGlassEncoreButton(UIView *button, const void *key, BOOL accent) {
+    if (@available(iOS 26.0, *)) return nil;
+    if (button.backgroundColor && ![button.backgroundColor isEqual:UIColor.clearColor]) button.backgroundColor = UIColor.clearColor;
+    if (button.layer.backgroundColor) button.layer.backgroundColor = NULL;
+    UIView *film = objc_getAssociatedObject(button, &kAccentFilmKey);
+    UIView *inner = button.subviews.lastObject;
+    if (inner && inner != film && CGSizeEqualToSize(inner.bounds.size, button.bounds.size)
+        && inner.layer.backgroundColor && CGColorGetAlpha(inner.layer.backgroundColor) > 0.05) {
+        inner.layer.backgroundColor = NULL;
+    }
+    UIView *glass = SGRGlassFlatBox(button, key);
+    if (!accent) return glass;
+    if (!film) {
+        film = [UIView new];
+        film.userInteractionEnabled = NO;
+        film.layer.cornerCurve = kCACornerCurveContinuous;
+        objc_setAssociatedObject(button, &kAccentFilmKey, film, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    UIColor *color = [SGRAccent() colorWithAlphaComponent:0.8];
+    if (![film.backgroundColor isEqual:color]) film.backgroundColor = color;
+    if (film.superview != button) [button insertSubview:film atIndex:glass ? 1 : 0];
+    if (!CGRectEqualToRect(film.frame, button.bounds)) film.frame = button.bounds;
+    CGFloat radius = button.bounds.size.height / 2;
+    if (film.layer.cornerRadius != radius) film.layer.cornerRadius = radius;
+    return glass;
+}
+
+UIView *SGRGlassFloatingCard(UIView *card, const void *glassKey, const void *filmKey, CGFloat maxRadius) {
+    CGFloat radius = MIN(card.bounds.size.height / 2, maxRadius);
+    if (card.layer.backgroundColor) card.layer.backgroundColor = NULL;
+    if (card.layer.cornerRadius != radius) card.layer.cornerRadius = radius;
+    card.layer.cornerCurve = kCACornerCurveContinuous;
+    BOOL clip = !SGUseLegacyGlass();
+    if (card.layer.masksToBounds != clip) card.layer.masksToBounds = clip;
+    UIView *glass = SGGlassFor(card, glassKey);
+    if (glass.overrideUserInterfaceStyle != UIUserInterfaceStyleDark) glass.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
+    glass.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    if (!CGRectEqualToRect(glass.frame, card.bounds)) glass.frame = card.bounds;
+    SGShapeGlass(glass, radius, NO);
+    SGRGlassFilm(card, filmKey, glass, radius);
+    return glass;
+}
+
 static char kFillSizeKey;
 
 UIView *SGRGlassFillBox(UIView *box, const void *key, BOOL prominent) {
@@ -169,9 +219,7 @@ UIView *SGRGlassFillBox(UIView *box, const void *key, BOOL prominent) {
     CGSize size = box.bounds.size;
     if (!box || !key || size.width < 1 || size.height < 1) return nil;
     SGRGlassMode mode = glassMode();
-    if (box.backgroundColor != UIColor.clearColor) box.backgroundColor = UIColor.clearColor;
-    if (box.layer.cornerRadius != size.height / 2) box.layer.cornerRadius = size.height / 2;
-    if (box.layer.cornerCurve != kCACornerCurveContinuous) box.layer.cornerCurve = kCACornerCurveContinuous;
+    clearCapsule(box, size);
     if (box.layer.masksToBounds) box.layer.masksToBounds = NO;
 
     UIView *shape = objc_getAssociatedObject(box, key);
@@ -340,49 +388,43 @@ static void stripSheetChrome(UIView *view, UIView *skip, CGFloat wide, int depth
 // and a hairline edge, which is what tells it from a plain blur -- the rim catching light, over a body dense
 // enough to hold the content. Under Reduce Transparency the body is the solid fill alone.
 static const CGFloat kSheetBlur = 10;
-static char kSheetBodyKey, kSheetRimKey;
+static char kSheetBodyKey, kSheetRimKey, kSheetDimKey;
+
+// A layer of the pane's body (the tint, the rim, the dim): a plain view over the whole of `host`, made once under `key`.
+static UIView *bodyLayer(UIView *host, const void *key) {
+    UIView *view = SGLazyChild(host, key, ^UIView *{
+        UIView *made = [UIView new];
+        made.userInteractionEnabled = NO;
+        made.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+        return made;
+    });
+    if (!CGRectEqualToRect(view.frame, host.bounds)) view.frame = host.bounds;
+    return view;
+}
 
 void SGRThickenSheetGlass(UIView *glass, CGFloat cornerRadius) {
     if ([glass isKindOfClass:SGLegacyGlassView.class]) ((SGLegacyGlassView *)glass).blurRadius = kSheetBlur;
     UIView *host = glassContent(glass);
-    UIView *body = SGLazyChild(host, &kSheetBodyKey, ^UIView *{
-        UIView *view = [UIView new];
-        view.userInteractionEnabled = NO;
-        view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-        return view;
-    });
+    UIView *body = bodyLayer(host, &kSheetBodyKey);
     UIColor *tint = SGRReduceTransparency() ? SGRSolidGlassFill() : [UIColor colorWithWhite:1 alpha:0.24];
     if (![body.backgroundColor isEqual:tint]) body.backgroundColor = tint;
-    if (!CGRectEqualToRect(body.frame, host.bounds)) body.frame = host.bounds;
-    // The rim: one point of light along the top edge, fading down the sides, drawn over the body.
-    UIView *rim = SGLazyChild(host, &kSheetRimKey, ^UIView *{
-        UIView *view = [UIView new];
-        view.userInteractionEnabled = NO;
-        view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-        view.layer.borderWidth = 1.0 / UIScreen.mainScreen.scale;
-        view.layer.borderColor = [UIColor colorWithWhite:1 alpha:0.28].CGColor;
-        view.layer.cornerCurve = kCACornerCurveContinuous;
-        return view;
-    });
-    if (!CGRectEqualToRect(rim.frame, host.bounds)) rim.frame = host.bounds;
+    // The rim: a hairline of light round the pane, drawn over the body.
+    UIView *rim = bodyLayer(host, &kSheetRimKey);
+    if (rim.layer.borderWidth == 0) {
+        rim.layer.borderWidth = 1.0 / UIScreen.mainScreen.scale;
+        rim.layer.borderColor = [UIColor colorWithWhite:1 alpha:0.28].CGColor;
+        rim.layer.cornerCurve = kCACornerCurveContinuous;
+    }
     if (rim.layer.cornerRadius != cornerRadius) rim.layer.cornerRadius = cornerRadius;
     if (body.superview == host && host.subviews.firstObject != body) [host sendSubviewToBack:body];
     if (rim.superview == host && host.subviews.lastObject != rim) [host bringSubviewToFront:rim];
 }
 
-static char kSheetDimKey;
-
 void SGRDimSheetGlass(UIView *glass, CGFloat alpha) {
     UIView *host = glassContent(glass);
-    UIView *dim = SGLazyChild(host, &kSheetDimKey, ^UIView *{
-        UIView *view = [UIView new];
-        view.userInteractionEnabled = NO;
-        view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-        return view;
-    });
+    UIView *dim = bodyLayer(host, &kSheetDimKey);
     UIColor *tint = SGRReduceTransparency() ? UIColor.blackColor : [UIColor colorWithWhite:0 alpha:alpha];
     if (![dim.backgroundColor isEqual:tint]) dim.backgroundColor = tint;
-    if (!CGRectEqualToRect(dim.frame, host.bounds)) dim.frame = host.bounds;
     // Over the body, under the rim.
     UIView *body = objc_getAssociatedObject(host, &kSheetBodyKey);
     if (dim.superview != host) [host addSubview:dim];

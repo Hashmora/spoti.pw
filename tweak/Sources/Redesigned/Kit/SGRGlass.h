@@ -40,6 +40,16 @@ UIView *SGRGlassFlatBox(UIView *box, const void *key);
 // scrolls above (a search field over the list under it), where plain glass over black or over text reads as no plate at all.
 UIView *SGRGlassFlatBoxFilm(UIView *box, const void *key);
 
+// An Encore button of Spotify's on a glass capsule (SGRGlassFlatBox under `key`): its own fill goes, the button's and
+// that of the plain view of its size inside it, and with `accent` the accent is laid over the glass under the label,
+// for a button Spotify draws with a black one. Returns the glass. Below iOS 26.
+UIView *SGRGlassEncoreButton(UIView *button, const void *key, BOOL accent);
+
+// A floating card of Spotify's (a toast, a tooltip) on glass: its paint off, its corners half its height up to
+// `maxRadius`, and a pane (under `glassKey`) and a film (under `filmKey`) of its size. Not clipped with the legacy
+// glass, whose pane has the corners and whose press grows past it. Returns the pane.
+UIView *SGRGlassFloatingCard(UIView *card, const void *glassKey, const void *filmKey, CGFloat maxRadius);
+
 // A glass capsule that is the whole of `box` and follows it: the box is cleared and made a capsule, and the glass is its first subview with
 // the box's size kept by autoresizing, so a box that is resized (the AI playlist's Refine field, which Create narrows) takes its glass along
 // frame by frame. It answers no press: for a field that is typed into, the grown, stretched glass of a press lags behind the finger and

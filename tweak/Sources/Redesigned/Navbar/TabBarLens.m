@@ -29,7 +29,6 @@ static const CGFloat kLensSquashOmega = 18, kLensSquashRatio = 0.4, kLensSquashK
 static const CGFloat kLensMaxSquash = 0.28, kLensSquashVolume = 0.5;
 
 typedef struct { CGFloat k, c; } SGRSpring;   // unit mass
-typedef struct { CGFloat mass, k, c; } SGRMassSpring;
 
 static SGRSpring spring(CGFloat stiffness, CGFloat ratio) {
     return (SGRSpring){stiffness, 2 * ratio * sqrt(stiffness)};
@@ -41,9 +40,6 @@ static void stepEdge(CGFloat *x, CGFloat *v, CGFloat target, SGRSpring s, CGFloa
     *x += *v * dt;
 }
 
-// The lift is the press' own spring in SGGlassTouch.m: quick and firm going up, loose going down.
-static const SGRMassSpring kLiftOn = {1.36, 568.0, 39.7};
-static const SGRMassSpring kLiftOff = {2.0, 460.0, 21.8};
 
 static CGFloat rubber(CGFloat x, CGFloat lo, CGFloat hi) {
     if (hi < lo) return x;
@@ -288,7 +284,7 @@ static const CGFloat kPlayStep = 1.0 / 120;
     SGRSpring front = spring(2400, 0.80), back = spring(650, 0.62), even = spring(1100, 0.74);
     SGRSpring forL = !moving ? even : (dir < 0 ? front : back);
     SGRSpring forR = !moving ? even : (dir > 0 ? front : back);
-    SGRMassSpring lift = _liftTarget > 0.5 ? kLiftOn : kLiftOff;
+    SGSpring lift = _liftTarget > 0.5 ? SGGlassLiftOn : SGGlassLiftOff;   // the press's own
     // The edges' pull on each other, as a spring and a damper on the width (each edge takes half of the force, so
     // the damper is set for a pair of unit masses).
     CGFloat reach = MIN(1, MAX(0, 1 - fabs(dir) / kLensTensionReach));
@@ -311,7 +307,7 @@ static const CGFloat kPlayStep = 1.0 / 120;
     CGFloat sqa = -kLensSquashOmega * kLensSquashOmega * _sq - 2 * kLensSquashRatio * kLensSquashOmega * _vSq;
     _vSq += sqa * h;
     _sq = MAX(-kLensMaxSquash, _sq + _vSq * h);
-    CGFloat a = (-lift.k * (_lift - _liftTarget) - lift.c * _vLift) / lift.mass;
+    CGFloat a = (-lift.stiffness * (_lift - _liftTarget) - lift.damping * _vLift) / lift.mass;
     _vLift += a * h;
     _lift += _vLift * h;
 }

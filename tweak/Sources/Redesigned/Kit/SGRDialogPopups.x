@@ -256,6 +256,13 @@ static UIViewController *appPresenter(UIWindow *except) {
     return top;
 }
 
+// The window shown again and let go.
+static void showWindow(UIWindow *window) {
+    window.alpha = 1;
+    window.accessibilityElementsHidden = NO;
+    objc_setAssociatedObject(window, &kTakeKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+}
+
 // Makes the window visible again after a delay, unless another dialog has taken it since.
 static void restoreLater(SGRDialogTake *take) {
     if (take.done) return;
@@ -263,10 +270,7 @@ static void restoreLater(SGRDialogTake *take) {
     __weak UIWindow *weak = take.window;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kRestoreDelay * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         UIWindow *window = weak;
-        if (!window || objc_getAssociatedObject(window, &kTakeKey) != take) return;
-        window.alpha = 1;
-        window.accessibilityElementsHidden = NO;
-        objc_setAssociatedObject(window, &kTakeKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        if (window && objc_getAssociatedObject(window, &kTakeKey) == take) showWindow(window);
     });
 }
 
@@ -314,9 +318,7 @@ static void giveUp(SGRDialogTake *take) {
     UIWindow *window = take.window;
     take.done = YES;
     if (!window) return;
-    window.alpha = 1;
-    window.accessibilityElementsHidden = NO;
-    objc_setAssociatedObject(window, &kTakeKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    showWindow(window);
     SGLog(@"redesign dialogs: a pop-up could not be shown as a notification, left as Spotify's");
     dressWindow(window);
 }
