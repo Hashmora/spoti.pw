@@ -181,19 +181,6 @@ static void dressCoverArt(UIView *page) {
     });
 }
 
-%group SGRCoverArtGlass
-%hook SGRCoverArtView
-- (void)layoutSubviews {
-    %orig;
-    dressCoverArt((UIView *)self);
-}
-- (void)didMoveToWindow {
-    %orig;
-    dressCoverArt((UIView *)self);
-}
-%end
-%end
-
 %ctor {
     if (!SGRedesignedUI()) return;
     // Again as Spotify builds the screen: the Try again button only exists once the game is lost, and the bar's
@@ -202,7 +189,7 @@ static void dressCoverArt(UIView *page) {
     SGRPassSwiftController(@"Scannables_ScannablesImpl", @"ScannablesImageViewController", ^(UIViewController *c) { dressCode(c); });
     Class cover = SGRSwiftClass(@"PlaylistArtwork_EditPlaylistCoverArtPageImpl", @"EditPlaylistCoverArtView");
     if (cover) {
-        %init(SGRCoverArtGlass, SGRCoverArtView = cover);
+        SGRPassView(cover, ^(UIView *v) { dressCoverArt(v); });
     } else {
         SGLog(@"class PlaylistArtwork_EditPlaylistCoverArtPageImpl.EditPlaylistCoverArtView not found, Create cover art keeps Spotify's buttons");
     }

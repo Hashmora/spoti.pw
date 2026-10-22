@@ -107,20 +107,6 @@ static void dressFacepilePlus(UIView *icon) {
 %end
 %end
 
-%group SGRFacepilePlus
-%hook SGRFacepileIcon
-- (void)layoutSubviews {
-    %orig;
-    dressFacepilePlus((UIView *)self);
-}
-
-- (void)didMoveToWindow {
-    %orig;
-    dressFacepilePlus((UIView *)self);
-}
-%end
-%end
-
 %group SGRPickerPlus
 %hook SGRPickerAddAccount
 - (void)layoutSubviews {
@@ -164,7 +150,7 @@ static void dressFacepilePlus(UIView *icon) {
     }
     Class facepile = NSClassFromString(@"_TtCE14Encore_FaceKitO16EncoreFoundation6Encore16FacepileIconView");
     if (facepile) {
-        %init(SGRFacepilePlus, SGRFacepileIcon = facepile);
+        SGRPassView(facepile, ^(UIView *v) { dressFacepilePlus(v); });
     } else {
         SGLog(@"class Encore_FaceKit FacepileIconView not found, the left menu's facepile keeps its plain plus");
     }

@@ -192,30 +192,6 @@ static void clearBar(UIView *bar) {
     if (SGRIsSheetSurface(bar.layer.backgroundColor)) bar.backgroundColor = UIColor.clearColor;
 }
 
-%hook _TtC14Queue_ViewImpl20SessionModifiersView
-- (void)layoutSubviews {
-    %orig;
-    clearBar((UIView *)self);
-}
-
-- (void)didMoveToWindow {
-    %orig;
-    clearBar((UIView *)self);
-}
-%end
-
-%hook _TtC14Queue_ViewImpl19EditModeToolbarView
-- (void)layoutSubviews {
-    %orig;
-    clearBar((UIView *)self);
-}
-
-- (void)didMoveToWindow {
-    %orig;
-    clearBar((UIView *)self);
-}
-%end
-
 // Spotify sets the shadow as the button's state changes, play to pause included, which no pass of the sheet follows.
 %hook _TtC28EncoreConsumerMobile_BaseKit14PlayButtonView
 - (void)layoutSubviews {
@@ -233,6 +209,8 @@ static void clearBar(UIView *bar) {
 %ctor {
     if (!SGRedesignedUI() || !SGBelowiOS26()) return;
     %init;
+    SGRPassView(NSClassFromString(@"_TtC14Queue_ViewImpl19EditModeToolbarView"), ^(UIView *v) { clearBar(v); });
+    SGRPassView(NSClassFromString(@"_TtC14Queue_ViewImpl20SessionModifiersView"), ^(UIView *v) { clearBar(v); });
     SGRPassControllersNamed(@[@"_TtC14Queue_ViewImpl19QueueViewController"], ^(UIViewController *c) { chrome(c); });
     SGRequireClasses(@[@"_TtC28EncoreConsumerMobile_BaseKit14PlayButtonView", kQueueCellClass]);
 }

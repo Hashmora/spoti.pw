@@ -16,6 +16,7 @@
 #import "Core/SGCore.h"
 #import "SGRChips.h"
 #import "SGRGlass.h"
+#import "SGRPass.h"
 
 static char kPillGlassKey, kPillDressedKey;
 // Set once a pill has been dressed: until then SGRRepaint.x's hook, which hears every layer's paint, does no lookup.
@@ -68,27 +69,13 @@ void SGRSheetPillPainted(UIView *pill) {
     if (pill.window && SGRIsSheetPill(pill)) glassPill(pill);
 }
 
-%group SGRSheetPills
-%hook SGRPillView
-- (void)layoutSubviews {
-    %orig;
-    dressPill((UIView *)self);
-}
-
-- (void)didMoveToWindow {
-    %orig;
-    dressPill((UIView *)self);
-}
-%end
-%end
-
 %ctor {
     if (!SGRedesignedUI()) return;
     if (!SGBelowiOS26()) return;
     // The class as the app has it: mangled, or dotted as the trees print it.
     Class pill = NSClassFromString(@"_TtC14Home_PillUIKit8PillView") ?: NSClassFromString(@"Home_PillUIKit.PillView");
     if (pill) {
-        %init(SGRSheetPills, SGRPillView = pill);
+        SGRPassView(pill, ^(UIView *v) { dressPill(v); });
     } else {
         SGLog(@"class Home_PillUIKit.PillView not found, the chips of the Add to playlist sheet keep Spotify's grey");
     }

@@ -95,9 +95,7 @@ static void glassTitle(UIView *root, UIView *title) {
     CGFloat wanted = ceil([label sizeThatFits:CGSizeMake(CGFLOAT_MAX, kTitleHeight)].width) + 2 * kTitlePadding;
     CGFloat width = MIN(MAX(wanted, kTitleHeight), room);
     // The label is as wide as the row gives it and the capsule is a subview that may reach past it.
-    for (UIView *v = title; v && v != root; v = v.superview) {
-        if (v.clipsToBounds) v.clipsToBounds = NO;
-    }
+    SGRUnclipUpTo(title, ^BOOL(UIView *v) { return v.superview == root; });
     UIView *shape = SGRGlassCapsuleInside(title, &kTitleGlassKey, CGSizeMake(width, kTitleHeight), NO);
     // The row is 48pt high and the pinned Back is 44: the capsule is level with it, at the row's top.
     CGRect frame = CGRectMake(round((title.bounds.size.width - width) / 2), 0, width, kTitleHeight);

@@ -50,9 +50,7 @@ static void dress(UIViewController *page) {
         SGRGlassFlatBox(field, &kFieldGlassKey);
     }
     if (cancel && cancel.bounds.size.width > 1) {
-        for (UIView *v = cancel; v && v != root && v != field.superview; v = v.superview) {
-            if (v.clipsToBounds) v.clipsToBounds = NO;
-        }
+        SGRUnclipUpTo(cancel, ^BOOL(UIView *v) { return v.superview == root || v.superview == field.superview; });
         SGRGlassCapsuleInside(cancel, &kCancelGlassKey, CGSizeMake(cancel.bounds.size.width + 2 * kCancelPadding, kCancelHeight), NO);
     }
 

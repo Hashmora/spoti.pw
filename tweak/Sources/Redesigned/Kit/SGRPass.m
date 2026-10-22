@@ -57,6 +57,21 @@ void SGRPassController(Class cls, SGRControllerPass pass) {
     }));
 }
 
+void SGRPassView(Class cls, void (^pass)(UIView *view)) {
+    if (!cls || !pass) return;
+    pass = [pass copy];
+    SEL layout = @selector(layoutSubviews), moved = @selector(didMoveToWindow);
+    __block IMP laidOut = NULL, inWindow = NULL;
+    laidOut = replace(cls, layout, imp_implementationWithBlock(^(UIView *view) {
+        ((void (*)(id, SEL))original(cls, layout, laidOut))(view, layout);
+        pass(view);
+    }));
+    inWindow = replace(cls, moved, imp_implementationWithBlock(^(UIView *view) {
+        ((void (*)(id, SEL))original(cls, moved, inWindow))(view, moved);
+        pass(view);
+    }));
+}
+
 void SGRPassControllersNamed(NSArray<NSString *> *names, SGRControllerPass pass) {
     for (NSString *name in names) SGRPassController(NSClassFromString(name), pass);
     SGRequireClasses(names);

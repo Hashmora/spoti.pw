@@ -20,6 +20,10 @@ void SGRRepeatViewPass(UIView *view, NSArray<NSNumber *> *delays, void (^pass)(U
 // subclass calls super. Nothing when `cls` is nil.
 void SGRPassController(Class cls, SGRControllerPass pass);
 
+// Runs `pass` on every view of `cls` (and its subclasses) after each of its layouts and as it moves to or out of a
+// window. Hooks the class's own methods, as SGRPassController does. Nothing when `cls` is nil.
+void SGRPassView(Class cls, void (^pass)(UIView *view));
+
 // The same for each class named, by its runtime name; a name the app does not have is logged.
 void SGRPassControllersNamed(NSArray<NSString *> *names, SGRControllerPass pass);
 

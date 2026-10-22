@@ -207,32 +207,6 @@ static void clearSaveInView(UIView *view) {
     clearOpaqueAbove(view);
 }
 
-%group SGRSaveInViews
-%hook SGRSaveInMain
-- (void)layoutSubviews {
-    %orig;
-    clearSaveInView((UIView *)self);
-}
-
-- (void)didMoveToWindow {
-    %orig;
-    clearSaveInView((UIView *)self);
-}
-%end
-
-%hook SGRSaveInDone
-- (void)layoutSubviews {
-    %orig;
-    clearSaveInView((UIView *)self);
-}
-
-- (void)didMoveToWindow {
-    %orig;
-    clearSaveInView((UIView *)self);
-}
-%end
-%end
-
 static void chrome(UIViewController *sheet) {
     UIViewController *content = contentIn(sheet, 0);
     UIView *root = content.viewIfLoaded;
@@ -464,9 +438,8 @@ static void connectMenuChrome(UIViewController *controller) {
         %init(SGRSaveInList);
         %init(SGRSaveInOpaque);
     }
-    Class saveInMain = SGRSwiftClass(@"PlaylistCuration_AddToPlaylistImpl", @"ATPMainView");
-    Class saveInDone = SGRSwiftClass(@"PlaylistCuration_AddToPlaylistImpl", @"ATPDoneButtonView");
-    if (saveInMain && saveInDone) %init(SGRSaveInViews, SGRSaveInMain = saveInMain, SGRSaveInDone = saveInDone);
+    SGRPassView(SGRSwiftClass(@"PlaylistCuration_AddToPlaylistImpl", @"ATPMainView"), ^(UIView *v) { clearSaveInView(v); });
+    SGRPassView(SGRSwiftClass(@"PlaylistCuration_AddToPlaylistImpl", @"ATPDoneButtonView"), ^(UIView *v) { clearSaveInView(v); });
     Class round = NSClassFromString(@"_TtCO27PodcastPlaybackSpeed_ECMKit26PodcastDialogPlaybackSpeed11RoundButton");
     if (round) %init(SGRSpeedButtons, SGRRoundButton = round);
 }

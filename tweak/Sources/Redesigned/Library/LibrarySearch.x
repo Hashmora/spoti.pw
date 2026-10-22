@@ -64,9 +64,7 @@ static void glassSearch(UIView *page, UIView *field, UIView *cancel) {
     UIView *button = cancel ? SGRFindByIdentifier(cancel, @"Components.Header.UI.Toolbar.Button", &kCancelButtonKey) : nil;
     if (!button || button.bounds.size.width < 1 || button.bounds.size.height < 1) return;
     // Cancel's boxes clip to their own bounds, and the capsule is wider than the button.
-    for (UIView *v = button; v && v != page && v != field.superview; v = v.superview) {
-        if (v.clipsToBounds) v.clipsToBounds = NO;
-    }
+    SGRUnclipUpTo(button, ^BOOL(UIView *v) { return v.superview == page || v.superview == field.superview; });
     // The capsule's width: the label's with its padding, but no wider than the room between the field and the
     // screen's edge. Its centre then goes where it ends kEdgeInset from the edge; the button (and the capsule
     // inside it) is moved by the difference, so the label stays in the middle of its capsule.

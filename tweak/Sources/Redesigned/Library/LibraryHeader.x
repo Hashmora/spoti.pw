@@ -325,16 +325,6 @@ static BOOL inLibraryChips(UIView *view) {
 // and had no pill at all until the page happened to lay out.
 void SGRLibraryChipPainted(UIView *chip) {
     if (!chip.window || !(isChipView(chip) || isClearChip(chip)) || !inLibraryChips(chip)) return;
-    // What the glass was when the paint came, before it is put right: the line that says whether it was stale.
-    static NSInteger logged;
-    if (logged < 40) {
-        logged++;
-        UIView *glass = objc_getAssociatedObject(chip, &kChipGlassKey);
-        UIView *fill = chipFill(chip, glass);
-        SGLog(@"redesign library: chip %@ painted, fill selected %d, glass %@ hidden %d width %.0f, chip width %.0f",
-              chip.accessibilityIdentifier, fill ? chipIsSelected(fill) : -1, glass ? @"present" : @"missing",
-              glass.hidden, glass.bounds.size.width, chip.bounds.size.width);
-    }
     glassChip(chip);
     watchChip(chip);
 }

@@ -56,9 +56,7 @@ static void clearBackdrop(UIView *bar) {
     clearBackdrop(bar);
     UIView *cancel = cancelIn(bar, box);
     if (cancel && box) {
-        for (UIView *v = cancel; v && v != bar.superview; v = v.superview) {
-            if (v.clipsToBounds) v.clipsToBounds = NO;
-        }
+        SGRUnclipUpTo(cancel, ^BOOL(UIView *v) { return v.superview == bar.superview; });
         UIView *shape = SGRGlassCapsuleInside(cancel, &kCancelGlassKey, CGSizeMake(cancel.bounds.size.width + 2 * kCancelPadding, box.bounds.size.height), NO);
         if (shape) SGGlassInteractive(cancel, shape);
     }

@@ -98,9 +98,7 @@ static void glassTitle(UIView *page) {
         if (!text || sub.bounds.size.width < 1) continue;
         CGFloat wanted = ceil([text sizeThatFits:CGSizeMake(CGFLOAT_MAX, kTitleHeight)].width) + 2 * kTitlePadding;
         CGFloat width = MIN(MAX(wanted, kTitleHeight), sub.bounds.size.width);
-        for (UIView *v = sub; v && v != page; v = v.superview) {
-            if (v.clipsToBounds) v.clipsToBounds = NO;
-        }
+        SGRUnclipUpTo(sub, ^BOOL(UIView *v) { return v.superview == page; });
         SGRGlassCapsuleInside(sub, &kTitleGlassKey, CGSizeMake(width, kTitleHeight), NO);
         return;
     }

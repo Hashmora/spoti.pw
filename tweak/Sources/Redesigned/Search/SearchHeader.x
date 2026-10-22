@@ -70,9 +70,7 @@ static void glassCancel(UIView *container, UIView *fill) {
     CGRect frame = [cancel.superview convertRect:cancel.frame toView:container];
     CGFloat gap = MIN(fabs(CGRectGetMinX(frame) - CGRectGetMaxX(fieldFrame)), fabs(CGRectGetMinX(fieldFrame) - CGRectGetMaxX(frame)));
     CGFloat pad = MIN(kCancelPadding, MAX(0, floor(gap / 2) - 1));
-    for (UIView *v = cancel; v && v != container.superview; v = v.superview) {
-        if (v.clipsToBounds) v.clipsToBounds = NO;
-    }
+    SGRUnclipUpTo(cancel, ^BOOL(UIView *v) { return v.superview == container.superview; });
     UIView *shape = SGRGlassCapsuleInside(cancel, &kCancelGlassKey, CGSizeMake(cancel.bounds.size.width + 2 * pad, fill.bounds.size.height), YES);
     if (shape) SGGlassInteractive(cancel, shape);
     SGForEachView(cancel, ^(UIView *v) {

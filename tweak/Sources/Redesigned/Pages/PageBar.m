@@ -308,9 +308,7 @@ static void glassTitle(UIView *title) {
     CGFloat wanted = content + 2 * kTitlePadding;
     CGFloat width = MIN(MAX(wanted, kTitleHeight), room);
     // The control is as small as its label, and the capsule is a subview that reaches past it.
-    for (UIView *v = title; v && ![v isKindOfClass:UINavigationBar.class]; v = v.superview) {
-        if (v.clipsToBounds) v.clipsToBounds = NO;
-    }
+    SGRUnclipUpTo(title, ^BOOL(UIView *v) { return [v.superview isKindOfClass:UINavigationBar.class]; });
     SGRGlassCapsuleInside(title, &kTitleGlassKey, CGSizeMake(width, kTitleHeight), NO);
 }
 

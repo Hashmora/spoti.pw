@@ -44,8 +44,8 @@ static const CGFloat kNavGlassBottomMargin = 8;   // gap under it, and over it t
 // The capsule itself, never the safe-area room under it: glassHeight() can be 83pt on a Face ID phone
 // (harness/tabbar/README.md) because it includes the home-indicator strip. 64pt is Telegram's pill (a 56pt
 // item row with 4pt inside, TabBarComponent.swift). Without labels it is shorter, and UIKit still lays the
-// icon out as if one sat below it, so the icon is nudged down by kNavIconOnlyImageShift (not yet checked
-// on a device: tune the two together).
+// icon out as if one sat below it, so the icon is nudged down by kNavIconOnlyImageShift (the two are tuned
+// together).
 static const CGFloat kNavPlatterHeight = 64;
 static const CGFloat kNavPlatterHeightIconOnly = 52;
 static const CGFloat kNavIconOnlyImageShift = 6;

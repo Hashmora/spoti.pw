@@ -1,6 +1,5 @@
-// Redesign: glass for the two Create menus, the same pane the queue, the ⋯ menu and the Connect picker have
-//. Both draw the same three or four
-// CreateMenuItemRows, but they are laid out differently, so each gets what fits it:
+// Redesign: glass for the two Create menus, the same pane the queue, the ⋯ menu and the Connect picker have. Both
+// draw the same three or four CreateMenuItemRows, but they are laid out differently, so each gets what fits it:
 //
 // - The tab bar's Create menu (CreateMenu_CreateMenuPageImpl) is a floating card, not a full sheet: the
 //   sheet-view is 307 pt tall with no fill and reaches down over the tab bar, where the transparent

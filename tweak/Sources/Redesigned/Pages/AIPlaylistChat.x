@@ -173,20 +173,6 @@ static void dressBubble(UIView *bubble) {
     if (bubble.subviews.firstObject != glass) [bubble insertSubview:glass atIndex:0];
 }
 
-%group SGRAIChatBubble
-%hook SGRChatBubble
-- (void)layoutSubviews {
-    %orig;
-    dressBubble((UIView *)self);
-}
-
-- (void)didMoveToWindow {
-    %orig;
-    dressBubble((UIView *)self);
-}
-%end
-%end
-
 #pragma mark - the Refine field
 
 static BOOL isWhitePaint(CGColorRef color) {
@@ -301,20 +287,6 @@ static void dressCard(UIView *button) {
     SGGlassInteractive(button, glass);
 }
 
-%group SGRAIChatCard
-%hook SGRChatCardButton
-- (void)layoutSubviews {
-    %orig;
-    dressCard((UIView *)self);
-}
-
-- (void)didMoveToWindow {
-    %orig;
-    dressCard((UIView *)self);
-}
-%end
-%end
-
 #pragma mark - the page's pass
 
 void SGRAIPlaylistDressChat(UIView *page) {
@@ -343,14 +315,14 @@ void SGRAIPlaylistDressChat(UIView *page) {
     Class bubble = NSClassFromString(@"_TtCOOE17AIPlaylist_ECMKitO19LegacyUI_ECMCoreKit10Components14ChatItemBubble2UI10ChatBubble");
     if (bubble) {
         sBubbleHooked = YES;
-        %init(SGRAIChatBubble, SGRChatBubble = bubble);
+        SGRPassView(bubble, ^(UIView *v) { dressBubble(v); });
     } else {
         SGLog(@"class AIPlaylist ChatItemBubble.ChatBubble not found, the AI playlist's last response is dressed from the page's passes");
     }
     Class card = NSClassFromString(@"_TtC19LegacyUI_ECMCoreKitP33_7AC6ABDB5A3E514EA5239D6986C3C90912EncoreButton");
     if (card) {
         sCardHooked = YES;
-        %init(SGRAIChatCard, SGRChatCardButton = card);
+        SGRPassView(card, ^(UIView *v) { dressCard(v); });
     } else {
         SGLog(@"class LegacyUI_ECMCoreKit EncoreButton not found, the AI playlist's Try asking cards are dressed from the page's passes");
     }

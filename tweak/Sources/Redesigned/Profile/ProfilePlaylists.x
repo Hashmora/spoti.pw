@@ -153,20 +153,6 @@ static void dressPlate(UIView *view) {
     hideFadeAbove(view);
 }
 
-%group SGRPlaylistsPlate
-%hook SGRGraphicsView
-- (void)didMoveToWindow {
-    %orig;
-    dressPlate((UIView *)self);
-}
-
-- (void)layoutSubviews {
-    %orig;
-    dressPlate((UIView *)self);
-}
-%end
-%end
-
 %ctor {
     if (!SGRedesignedUI()) return;
     if (!SGBelowiOS26()) return;
@@ -178,7 +164,7 @@ static void dressPlate(UIView *view) {
     });
     Class graphics = SGRSwiftClass(@"SwiftUI", @"_UIGraphicsView");
     if (graphics) {
-        %init(SGRPlaylistsPlate, SGRGraphicsView = graphics);
+        SGRPassView(graphics, ^(UIView *v) { dressPlate(v); });
     } else {
         SGLog(@"class SwiftUI._UIGraphicsView not found, the playlists page's Remove from profile keeps its black plate");
     }

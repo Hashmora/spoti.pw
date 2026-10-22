@@ -9,17 +9,13 @@
 // visual effect view or one of ours (class name starting with SG) are glass, and anything smaller than 40x24 or
 // off the screen is not looked at. A fill that belongs to a hidden view or to one at alpha 0 never shows.
 //
-// Compiled in by default. Set SG_AUDIT to 0 (or delete this file) for a build that goes to other people.
+// Only in a build with the phone driver (SG_DRIVER, the FLEX builds), never in one that goes to other people.
 // Threading: main thread only.
 #import "Core/SGCore.h"
 #import <objc/runtime.h>
 #import <QuartzCore/QuartzCore.h>
 
-#ifndef SG_AUDIT
-#define SG_AUDIT 1
-#endif
-
-#if SG_AUDIT
+#if SG_DRIVER
 
 static char kArmedKey;
 

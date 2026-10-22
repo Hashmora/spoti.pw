@@ -123,14 +123,6 @@ static void apply(UIView *bar) {
     CGFloat middle = [title.superview convertPoint:title.center toView:nil].y;
     CGFloat shift = (bar.window.safeAreaInsets.top + SGRGlassCircleSize / 2) - middle;
     if (title.transform.ty == 0 && shift != 0 && fabs(shift) < 20) title.transform = CGAffineTransformMakeTranslation(0, shift);
-    static NSInteger logged;
-    static CGFloat lastShift = CGFLOAT_MAX;
-    if (logged < 12 && fabs(shift - lastShift) > 0.01) {
-        logged++;
-        lastShift = shift;
-        SGLog(@"redesign bar: name centre %.2f, buttons' middle %.2f, shift %.2f, transform %.2f, frame y %.2f", middle,
-              bar.window.safeAreaInsets.top + SGRGlassCircleSize / 2, shift, title.transform.ty, title.frame.origin.y);
-    }
     CGFloat wanted = ceil([text sizeThatFits:CGSizeMake(CGFLOAT_MAX, kBubbleHeight)].width) + 2 * kBubblePadding;
     CGFloat width = MIN(MAX(wanted, kBubbleHeight), title.bounds.size.width);
     SGRGlassCapsuleInside(title, &kBubbleKey, CGSizeMake(width, kBubbleHeight), NO);

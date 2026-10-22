@@ -52,25 +52,11 @@ static Class encoreButtonClass(void) {
     return found;
 }
 
-%group SGRRecentCross
-%hook SGREncoreButton
-- (void)layoutSubviews {
-    %orig;
-    dressCross((UIView *)self);
-}
-
-- (void)didMoveToWindow {
-    %orig;
-    dressCross((UIView *)self);
-}
-%end
-%end
-
 %ctor {
     if (!SGRedesignedUI()) return;
     Class button = encoreButtonClass();
     if (button) {
-        %init(SGRRecentCross, SGREncoreButton = button);
+        SGRPassView(button, ^(UIView *v) { dressCross(v); });
     } else {
         SGLog(@"class LegacyUI_ECMCoreKit.EncoreButton not found, the crosses of the recent searches keep their plain look");
     }

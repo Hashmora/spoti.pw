@@ -117,25 +117,11 @@ static void dressCross(UIView *page) {
 %end
 %end
 
-%group SGRAIPlaylistGlass
-%hook SGRPlaylistCreationView
-- (void)layoutSubviews {
-    %orig;
-    dressCross((UIView *)self);
-}
-
-- (void)didMoveToWindow {
-    %orig;
-    dressCross((UIView *)self);
-}
-%end
-%end
-
 %ctor {
     if (!SGRedesignedUI()) return;
     Class page = SGRSwiftClass(@"AIPlaylist_PlaylistCreationPageImpl", @"PlaylistCreationView");
     if (page) {
-        %init(SGRAIPlaylistGlass, SGRPlaylistCreationView = page);
+        SGRPassView(page, ^(UIView *v) { dressCross(v); });
     } else {
         SGLog(@"class AIPlaylist_PlaylistCreationPageImpl.PlaylistCreationView not found, the AI playlist's cross keeps Spotify's button");
     }
