@@ -1347,7 +1347,8 @@ static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
     if (!CGSizeEqualToSize(navTint.bounds.size, glassFrame.size)) navTint.bounds = (CGRect){CGPointZero, glassFrame.size};
     if (!CGPointEqualToPoint(navTint.center, glassCenter)) navTint.center = glassCenter;
 
-    // The selection bubble, above the tint and below the transparent bar so the icon draws on top.
+    // The selection bubble, above the tint and below the transparent bar so the icon draws on top; while a finger holds
+    // it, it stands over the bar so its glass bends and magnifies the icons (TabBarLens.m).
     SGRLegacyLens *selPill = (SGRLegacyLens *)SGLazyChild(host, &kSelPillKey, ^UIView *{ return [SGRLegacyLens new]; });
     if (selPill.superview != host) [host insertSubview:selPill aboveSubview:navTint];
     selPill.heldOutset = kSelPillInset + kLensOverhang;

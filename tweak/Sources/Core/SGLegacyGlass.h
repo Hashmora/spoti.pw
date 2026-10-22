@@ -28,6 +28,10 @@ BOOL SGLegacyGlassAvailable(void);
 // control over text shows the text. A big pane (a sheet) sets more, or the page under it takes the eye.
 @property (nonatomic) CGFloat blurRadius;
 
+// How much bigger what is behind the glass shows through it, about the middle, 1 by default. The tab bar's held bubble
+// sets more, as the system's magnifies the tabs under it.
+@property (nonatomic) CGFloat magnification;
+
 @end
 
 // The light the system's glass draws along its rim: a thin white line whose brightness follows which way the rim faces,

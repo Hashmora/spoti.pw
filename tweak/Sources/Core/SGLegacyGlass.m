@@ -293,7 +293,7 @@ static SGMeshTemplate *SGBuildTemplate(CGFloat radius) {
 }
 
 // The mesh for `size`, from the cached template of its corner radius.
-static id SGMakeGlassMesh(CGSize size, CGFloat radius) {
+static id SGMakeGlassMesh(CGSize size, CGFloat radius, CGFloat magnification) {
     radius = MIN(radius, MIN(size.width, size.height) / 2);
     if (radius <= 0 || size.width < 1 || size.height < 1) return nil;
 
@@ -321,7 +321,9 @@ static id SGMakeGlassMesh(CGSize size, CGFloat radius) {
         SGTemplateVertex v = templates[i];
         CGFloat u = insetU + (v.baseX + v.scaleX * W) / W * usableU;
         CGFloat w = insetV + (v.baseY + v.scaleY * H) / H * usableV;
-        CGPoint from = CGPointMake(MAX(0.0, MIN(1.0, u + v.dispX * dU)), MAX(0.0, MIN(1.0, w + v.dispY * dV)));
+        // Magnified about the middle: the point samples nearer the middle, by the magnification, then bends as usual.
+        CGFloat su = 0.5 + (u - 0.5) / magnification, sw = 0.5 + (w - 0.5) / magnification;
+        CGPoint from = CGPointMake(MAX(0.0, MIN(1.0, su + v.dispX * dU)), MAX(0.0, MIN(1.0, sw + v.dispY * dV)));
         vertices[i] = (SGMeshVertex){from, {u, w, v.depth}};
     }
     id transform = SGMakeMeshTransform(vertices, vertexCount, (SGMeshFace *)tmpl.faces.bytes, tmpl.faces.length / sizeof(SGMeshFace));
@@ -435,6 +437,7 @@ void SGLegacyGlassSpecular(CALayer *host, CGRect bounds, CGFloat radius) {
     self.clipsToBounds = YES;
 
     _blurRadius = 2.0;
+    _magnification = 1;
     _backdropDelegate = [SGNoActionsDelegate new];
     _backdropLayer = SGMakeBackdropLayer(_backdropDelegate);
     if (_backdropLayer) [self.layer addSublayer:_backdropLayer];
@@ -459,6 +462,14 @@ void SGLegacyGlassSpecular(CALayer *host, CGRect bounds, CGFloat radius) {
     if (filters.count) _backdropLayer.filters = filters;
 }
 
+- (void)setMagnification:(CGFloat)magnification {
+    magnification = MAX(1, magnification);
+    if (_magnification == magnification) return;
+    _magnification = magnification;
+    _meshSize = CGSizeZero;   // the mesh is made again on the next pass
+    [self setNeedsLayout];
+}
+
 - (void)setCapsule:(BOOL)capsule {
     if (_capsule == capsule) return;
     _capsule = capsule;
@@ -478,7 +489,7 @@ void SGLegacyGlassSpecular(CALayer *host, CGRect bounds, CGFloat radius) {
     [CATransaction setDisableActions:YES];
     self.layer.cornerRadius = radius;
     _backdropLayer.frame = self.bounds;
-    id mesh = SGMakeGlassMesh(size, radius);
+    id mesh = SGMakeGlassMesh(size, radius, _magnification);
     if (mesh) [_backdropLayer setValue:mesh forKey:@"meshTransform"];
     [CATransaction commit];
 }
