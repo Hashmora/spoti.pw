@@ -63,5 +63,7 @@ UIView *SGRMenuGlass(UIView *host, const void *key, CGFloat dim);
 // is shown (it morphs then if Open did not), Close as it ends.
 void SGRMenuMorphPrepare(UIView *source);
 void SGRMenuMorphOpen(UIView *list);
+// Holds the menu view of `list` unseen from its first moment in a window until the morph starts (MenuMorph.m).
+void SGRMenuMorphHold(UIView *list);
 void SGRMenuMorphShown(void);
 void SGRMenuMorphClose(UIView *source);

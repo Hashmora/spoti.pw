@@ -75,6 +75,7 @@ static void glassLists(UIView *root) {
 - (void)didMoveToWindow {
     %orig;
     if (((UIView *)self).window) {
+        SGRMenuMorphHold((UIView *)self);
         glassMenu((UIView *)self);
         // Again once it has settled: the first pass can come before the platter has its blur or its size.
         SGRRepeatViewPass((UIView *)self, @[@0, @0.15, @0.45], ^(UIView *v) { glassMenu(v); });
