@@ -14,7 +14,9 @@
 // draws its own; a plain blur has nothing to swell into). Idempotent: call it from the owner's layout passes.
 void SGGlassThumbAttach(UISlider *slider, CGSize size);
 
-// The same for a switch's knob: UIKit's white knob while the switch is left alone, and, while a finger holds it, the
-// capsule swelling into clear glass and sliding to the side the finger is on, then back into the white knob where the
-// switch settles. Nothing when the legacy glass is not in use. Idempotent.
+// iOS 26's switch below iOS 26, drawn inside `toggle` in place of UIKit's: a wider capsule track, and a flat white thumb
+// that grows into a clear glass lens while a finger holds it, follows a drag and settles where the switch does. The switch
+// stays UIKit's control. Nothing when the legacy glass is not in use. Idempotent.
 void SGGlassSwitchAttach(UISwitch *toggle);
+// Brings the drawing of an attached switch up to date with it (its value set from code, a layout, enabled changed).
+void SGGlassSwitchSync(UISwitch *toggle, BOOL animated);

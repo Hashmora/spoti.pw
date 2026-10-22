@@ -2,7 +2,7 @@
 #import "SGGlass.h"
 #import <objc/runtime.h>
 
-static char kThumbKey, kImageKey, kSizeKey, kWatchKey, kPaneKey, kSwitchWatchKey;
+static char kThumbKey, kImageKey, kSizeKey, kWatchKey, kPaneKey;
 
 // How much the held glass is bigger than the capsule at rest, the way iOS 26's thumb swells under a finger.
 static const CGFloat kLiftWidth = 1.5, kLiftHeight = 1.35;
@@ -13,8 +13,12 @@ static const CGFloat kPullShare = 0.3, kMaxPull = 14, kPullStretch = 0.25;
 #pragma mark - the capsule
 
 @interface SGGlassThumbView : UIView
+// How much bigger the held glass is, across and down (the slider's 1.5 and 1.35 unless set).
+@property (nonatomic) CGFloat liftX, liftY;
 - (void)setLifted:(BOOL)lifted;
 - (void)setPull:(CGFloat)pull;
+// No shadow under the capsule at rest: iOS 26's switch thumb is flat.
+- (void)setFlat;
 @end
 
 @implementation SGGlassThumbView {
@@ -28,6 +32,8 @@ static const CGFloat kPullShare = 0.3, kMaxPull = 14, kPullStretch = 0.25;
     if (!(self = [super initWithFrame:frame])) return nil;
     self.userInteractionEnabled = NO;
     self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
+    _liftX = kLiftWidth;
+    _liftY = kLiftHeight;
     _pane = SGGlassFor(self, &kPaneKey);
     _pane.alpha = 0;
     _pill = [UIView new];
@@ -40,6 +46,10 @@ static const CGFloat kPullShare = 0.3, kMaxPull = 14, kPullStretch = 0.25;
     _pill.layer.shadowOffset = CGSizeMake(0, 1);
     [self addSubview:_pill];
     return self;
+}
+
+- (void)setFlat {
+    _pill.layer.shadowOpacity = 0;
 }
 
 - (void)layoutSubviews {
@@ -57,7 +67,7 @@ static const CGFloat kPullShare = 0.3, kMaxPull = 14, kPullStretch = 0.25;
 - (CGAffineTransform)pose {
     CGFloat lift = _lifted ? 1 : 0;
     CGFloat stretch = fabs(_pull) / kMaxPull * kPullStretch;
-    CGFloat sx = (1 + (kLiftWidth - 1) * lift) * (1 + stretch), sy = (1 + (kLiftHeight - 1) * lift) * (1 - stretch * 0.5);
+    CGFloat sx = (1 + (_liftX - 1) * lift) * (1 + stretch), sy = (1 + (_liftY - 1) * lift) * (1 - stretch * 0.5);
     return CGAffineTransformScale(CGAffineTransformMakeTranslation(_pull, 0), sx, sy);
 }
 
@@ -231,27 +241,100 @@ void SGGlassThumbAttach(UISlider *slider, CGSize size) {
     watch.thumb = thumb;
 }
 
-#pragma mark - a switch's knob
+#pragma mark - a switch
 
-// UIKit's knob: the height of the switch less 2pt round it, at the side the switch is on.
-static CGPoint knobCenter(UISwitch *toggle, BOOL on) {
-    CGSize size = toggle.bounds.size;
-    CGFloat side = size.height - 4;
-    return CGPointMake(on ? size.width - 2 - side / 2 : 2 + side / 2, size.height / 2);
+// iOS 26's switch, as adaptive_liquid_glass measured it from SwiftUI on iOS 26.4 (github.com/AymanOmara/
+// adaptive_liquid_glass, MIT: lib/src/controls/control_metrics.dart, glass_colors.dart): a 63 x 28 track, a flat white
+// 37 x 24 capsule 2 pt in from its ends, which grows into a clear glass lens 1.35 times across and 1.55 times down while
+// a finger holds it, on a spring of response 0.381 and damping 0.752, and moves to a new value on one of 0.3 and 0.78.
+// The track is #464649 while off in the dark and the switch's on tint while on, blended as the thumb crosses.
+//
+// UIKit's switch stays the control: its value, its touches and its accessibility are its own, and only what it draws is
+// replaced, by this view inside it, its own drawing kept at alpha 0. The track is wider than UIKit's 51 pt, so it lines
+// up with the switch's trailing edge and reaches past its leading one.
+static const CGSize kSwitchTrack = {63, 28}, kSwitchThumb = {37, 24};
+static const CGFloat kSwitchInset = 2, kSwitchLiftX = 1.35, kSwitchLiftY = 1.55;
+
+@interface SGGlassSwitchView : UIView
+@property (nonatomic, weak) UISwitch *toggle;
+@property (nonatomic, readonly) SGGlassThumbView *thumb;
+@property (nonatomic) CGFloat position;   // 0 off, 1 on
+- (void)showPosition:(CGFloat)position animated:(BOOL)animated;
+@end
+
+@implementation SGGlassSwitchView {
+    UIView *_track;
 }
 
-// Watches the switch's touches without taking any, as the slider's watch does. UIKit's knob is hidden while the glass
-// stands in for it, by its tint, and given back once the white capsule is where UIKit's knob settles.
+- (instancetype)initWithFrame:(CGRect)frame {
+    if (!(self = [super initWithFrame:frame])) return nil;
+    self.userInteractionEnabled = NO;
+    self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
+    _track = [UIView new];
+    _track.userInteractionEnabled = NO;
+    _track.layer.cornerCurve = kCACornerCurveContinuous;
+    [self addSubview:_track];
+    _thumb = [SGGlassThumbView new];
+    _thumb.liftX = kSwitchLiftX;
+    _thumb.liftY = kSwitchLiftY;
+    [_thumb setFlat];
+    [self addSubview:_thumb];
+    return self;
+}
+
+static UIColor *trackColor(UISwitch *toggle, CGFloat position) {
+    UIColor *off = [UIColor colorWithRed:0x46 / 255.0 green:0x46 / 255.0 blue:0x49 / 255.0 alpha:1];
+    UIColor *on = toggle.onTintColor ?: UIColor.systemGreenColor;
+    CGFloat r0, g0, b0, a0, r1, g1, b1, a1;
+    if (![off getRed:&r0 green:&g0 blue:&b0 alpha:&a0] || ![on getRed:&r1 green:&g1 blue:&b1 alpha:&a1]) return position > 0.5 ? on : off;
+    CGFloat t = MAX(0, MIN(1, position));
+    return [UIColor colorWithRed:r0 + (r1 - r0) * t green:g0 + (g1 - g0) * t blue:b0 + (b1 - b0) * t alpha:a0 + (a1 - a0) * t];
+}
+
+// The thumb's centre for `position`, in this view.
+- (CGPoint)thumbCenterAt:(CGFloat)position {
+    CGFloat travel = kSwitchTrack.width - kSwitchThumb.width - 2 * kSwitchInset;
+    CGFloat p = MAX(0, MIN(1, position));
+    return CGPointMake(kSwitchInset + kSwitchThumb.width / 2 + travel * p, kSwitchTrack.height / 2);
+}
+
+- (void)layoutSubviews {
+    [super layoutSubviews];
+    _track.frame = (CGRect){CGPointZero, kSwitchTrack};
+    _track.layer.cornerRadius = kSwitchTrack.height / 2;
+    // By bounds and centre: the lift is a transform.
+    if (!CGSizeEqualToSize(_thumb.bounds.size, kSwitchThumb)) _thumb.bounds = (CGRect){CGPointZero, kSwitchThumb};
+}
+
+- (void)showPosition:(CGFloat)position animated:(BOOL)animated {
+    _position = position;
+    [self layoutIfNeeded];
+    void (^apply)(void) = ^{
+        self.thumb.center = [self thumbCenterAt:position];
+        self->_track.backgroundColor = trackColor(self.toggle, position);
+    };
+    if (!animated || UIAccessibilityIsReduceMotionEnabled()) {
+        [UIView performWithoutAnimation:apply];
+        return;
+    }
+    [UIView animateWithDuration:0.45 delay:0 usingSpringWithDamping:0.78 initialSpringVelocity:0
+                        options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionAllowUserInteraction
+                     animations:apply completion:nil];
+}
+
+@end
+
+// Watches the switch's touches without taking any, as the slider's watch does: the thumb lifts at the touch, follows a
+// drag along the track, and once UIKit has turned the switch at the touch's end, goes to where it settled.
 @interface SGGlassSwitchWatch : UIGestureRecognizer <UIGestureRecognizerDelegate>
-@property (nonatomic, strong) SGGlassThumbView *thumb;
+@property (nonatomic, weak) SGGlassSwitchView *face;
 @end
 
 @implementation SGGlassSwitchWatch {
     UITouch *_touch;
-    BOOL _side, _moved;
-    UIColor *_tint;
+    CGFloat _startX, _startPosition;
+    BOOL _dragging;
     NSUInteger _press;
-    UIImpactFeedbackGenerator *_tap;
 }
 
 - (instancetype)init {
@@ -267,49 +350,24 @@ static CGPoint knobCenter(UISwitch *toggle, BOOL on) {
 - (BOOL)canBePrevented:(UIGestureRecognizer *)other { return NO; }
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)a shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)b { return YES; }
 
-- (void)slideTo:(BOOL)side {
-    UISwitch *toggle = (UISwitch *)self.view;
-    BOOL still = UIAccessibilityIsReduceMotionEnabled();
-    [UIView animateWithDuration:still ? 0.2 : 0.4 delay:0 usingSpringWithDamping:still ? 1 : 0.75 initialSpringVelocity:0
-                        options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionAllowUserInteraction
-                     animations:^{ self.thumb.center = knobCenter(toggle, side); } completion:nil];
-}
-
 - (void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
     UISwitch *toggle = (UISwitch *)self.view;
     if (_touch || !toggle.enabled) return;
     _touch = touches.anyObject;
-    _side = toggle.isOn;
-    _moved = NO;
+    _startX = [_touch locationInView:toggle].x;
+    _startPosition = self.face.position;
+    _dragging = NO;
     _press++;
-    if (!_tap) _tap = [[UIImpactFeedbackGenerator alloc] initWithStyle:UIImpactFeedbackStyleLight];
-    [_tap prepare];
-    CGFloat side = toggle.bounds.size.height - 4;
-    SGGlassThumbView *thumb = self.thumb;
-    if (thumb.superview != toggle) [toggle addSubview:thumb];
-    [toggle bringSubviewToFront:thumb];
-    thumb.transform = CGAffineTransformIdentity;
-    thumb.bounds = CGRectMake(0, 0, side, side);
-    thumb.center = knobCenter(toggle, _side);
-    [thumb layoutIfNeeded];
-    thumb.alpha = 1;
-    if (toggle.thumbTintColor != UIColor.clearColor) {
-        _tint = toggle.thumbTintColor;
-        toggle.thumbTintColor = UIColor.clearColor;
-    }
-    [thumb setLifted:YES];
+    [self.face.thumb setLifted:YES];
 }
 
 - (void)touchesMoved:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
-    UISwitch *toggle = (UISwitch *)self.view;
     if (!_touch || ![touches containsObject:_touch]) return;
-    _moved = YES;
-    BOOL side = [_touch locationInView:toggle].x > toggle.bounds.size.width / 2;
-    if (side == _side) return;
-    _side = side;
-    [_tap impactOccurred];
-    [_tap prepare];
-    [self slideTo:side];
+    CGFloat dx = [_touch locationInView:self.view].x - _startX;
+    if (!_dragging && fabs(dx) < 3) return;
+    _dragging = YES;
+    CGFloat travel = kSwitchTrack.width - kSwitchThumb.width - 2 * kSwitchInset;
+    [self.face showPosition:MAX(0, MIN(1, _startPosition + dx / travel)) animated:NO];
 }
 
 - (void)finish {
@@ -320,14 +378,8 @@ static CGPoint knobCenter(UISwitch *toggle, BOOL on) {
     dispatch_async(dispatch_get_main_queue(), ^{
         UISwitch *toggle = (UISwitch *)self.view;
         if (press != self->_press || !toggle) return;
-        [self slideTo:toggle.isOn];
-        [self.thumb setLifted:NO];
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.45 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            if (press != self->_press || self->_touch) return;
-            toggle.thumbTintColor = self->_tint;
-            self->_tint = nil;
-            self.thumb.alpha = 0;
-        });
+        [self.face showPosition:toggle.isOn ? 1 : 0 animated:YES];
+        [self.face.thumb setLifted:NO];
     });
 }
 
@@ -343,11 +395,45 @@ static CGPoint knobCenter(UISwitch *toggle, BOOL on) {
 
 @end
 
+static char kSwitchFaceKey;
+
+// UIKit's own drawing of the switch, kept unseen: everything in it but the face.
+static void hideOwnDrawing(UISwitch *toggle, UIView *face) {
+    for (UIView *sub in toggle.subviews) {
+        if (sub != face && sub.alpha > 0) sub.alpha = 0;
+    }
+}
+
+static void placeFace(UISwitch *toggle, SGGlassSwitchView *face) {
+    CGSize size = toggle.bounds.size;
+    CGRect frame = CGRectMake(size.width - kSwitchTrack.width, round((size.height - kSwitchTrack.height) / 2),
+                              kSwitchTrack.width, kSwitchTrack.height);
+    if (!CGRectEqualToRect(face.frame, frame)) face.frame = frame;
+    CGFloat alpha = toggle.enabled ? 1 : 0.5;
+    if (face.alpha != alpha) face.alpha = alpha;
+}
+
 void SGGlassSwitchAttach(UISwitch *toggle) {
-    if (!toggle || !SGUseLegacyGlass() || objc_getAssociatedObject(toggle, &kSwitchWatchKey)) return;
+    if (!toggle || !SGUseLegacyGlass() || objc_getAssociatedObject(toggle, &kSwitchFaceKey)) return;
+    SGGlassSwitchView *face = [SGGlassSwitchView new];
+    face.toggle = toggle;
+    objc_setAssociatedObject(toggle, &kSwitchFaceKey, face, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    toggle.clipsToBounds = NO;
+    [toggle addSubview:face];
+    placeFace(toggle, face);
+    hideOwnDrawing(toggle, face);
+    [face showPosition:toggle.isOn ? 1 : 0 animated:NO];
     SGGlassSwitchWatch *watch = [SGGlassSwitchWatch new];
-    watch.thumb = [SGGlassThumbView new];
-    watch.thumb.alpha = 0;
-    objc_setAssociatedObject(toggle, &kSwitchWatchKey, watch, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    watch.face = face;
     [toggle addGestureRecognizer:watch];
+}
+
+void SGGlassSwitchSync(UISwitch *toggle, BOOL animated) {
+    SGGlassSwitchView *face = toggle ? objc_getAssociatedObject(toggle, &kSwitchFaceKey) : nil;
+    if (!face) return;
+    [toggle bringSubviewToFront:face];
+    placeFace(toggle, face);
+    hideOwnDrawing(toggle, face);
+    CGFloat position = toggle.isOn ? 1 : 0;
+    if (face.position != position) [face showPosition:position animated:animated && face.window];
 }
