@@ -100,30 +100,22 @@ static id SGMakeMeshTransform(SGMeshVertex *vertices, NSUInteger vertexCount, SG
     return transform;
 }
 
-#pragma mark - displacement field (ported from Telegram's GenerateMesh.swift)
+#pragma mark - displacement field (after Telegram's GenerateMesh.swift, with a lens profile of the mod's own)
 
-// Telegram's fixed easing curve for the displacement towards the edge.
-static const CGFloat kBezierX1 = 0.816137566137566, kBezierY1 = 0.20502645502645533;
-static const CGFloat kBezierX2 = 0.5806878306878306, kBezierY2 = 0.873015873015873;
+// How strongly a point refracts by how near the rim it is, w from 0 (the band's inner edge) to 1 (the rim): the shift
+// of a ray through a convex glass edge whose surface tilts as w^2, by Snell's law at a refractive index of
+// kRefractiveIndex, over the shift at the rim. Nearly flat inside and steep at the edge, the way the system's glass bends
+// most right at its rim (a third of the rim's at a fifth of the way in, a half at a tenth). The tilt stops short of
+// upright at the rim (kMaxTilt): a glass upright there bends its last half point five times as hard as the rest and
+// draws a seam round the edge.
+static const CGFloat kRefractiveIndex = 1.5, kMaxTilt = 0.97;
 
-static CGFloat SGBezier(CGFloat t, CGFloat a1, CGFloat a2) {
-    return (((1.0 - 3.0 * a2 + 3.0 * a1) * t + (3.0 * a2 - 6.0 * a1)) * t + 3.0 * a1) * t;
+static CGFloat SGLensShift(CGFloat tilt) {
+    return tan(asin(tilt) - asin(tilt / kRefractiveIndex));
 }
 
-static CGFloat SGBezierSlope(CGFloat t, CGFloat a1, CGFloat a2) {
-    return 3.0 * (1.0 - 3.0 * a2 + 3.0 * a1) * t * t + 2.0 * (3.0 * a2 - 6.0 * a1) * t + 3.0 * a1;
-}
-
-// The curve's y at x: Newton's method for the t that gives x, then y at that t.
-static CGFloat SGEase(CGFloat x) {
-    CGFloat t = x;
-    for (int i = 0; i < 4; i++) {
-        CGFloat slope = SGBezierSlope(t, kBezierX1, kBezierX2);
-        if (slope == 0.0) break;
-        t -= (SGBezier(t, kBezierX1, kBezierX2) - x) / slope;
-    }
-    CGFloat y = SGBezier(t, kBezierY1, kBezierY2);
-    return y >= 0.997 ? 1.0 : y;
+static CGFloat SGLensProfile(CGFloat w) {
+    return SGLensShift(MIN(1, w * w) * kMaxTilt) / SGLensShift(kMaxTilt);
 }
 
 // Signed distance from (x, y) to a width x height rounded rect at the origin (negative inside), and the
@@ -145,7 +137,7 @@ static CGFloat SGRoundedRectSDF(CGFloat x, CGFloat y, CGFloat width, CGFloat hei
     return hypot(MAX(qx, 0), MAX(qy, 0)) + MIN(MAX(qx, qy), 0) - radius;
 }
 
-// What a vertex samples from, relative to where it sits: inwards, strongest at the edge, eased.
+// What a vertex samples from, relative to where it sits: inwards, by the lens profile of its depth.
 static void SGDisplacement(CGFloat x, CGFloat y, CGFloat width, CGFloat height, CGFloat radius, CGFloat edgeDistance,
                            CGFloat *outDx, CGFloat *outDy, CGFloat *outSdf) {
     CGFloat nx, ny;
@@ -154,7 +146,7 @@ static void SGDisplacement(CGFloat x, CGFloat y, CGFloat width, CGFloat height, 
     CGFloat dx = -nx * weight, dy = -ny * weight;
     CGFloat mag = hypot(dx, dy);
     if (mag > 0) {
-        CGFloat scale = SGEase(mag) / mag;
+        CGFloat scale = SGLensProfile(mag) / mag;
         dx *= scale; dy *= scale;
     }
     *outDx = dx; *outDy = dy; *outSdf = sdf;
