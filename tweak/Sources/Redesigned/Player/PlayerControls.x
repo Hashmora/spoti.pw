@@ -371,6 +371,8 @@ static void seekTo(UISlider *slider, CGFloat share) {
 static void watchSlider(UIView *host) {
     UISlider *slider = (UISlider *)SGRFindByIdentifier(host, @"SPTNowPlayingSliderV2", &kSliderKey);
     if (![slider isKindOfClass:UISlider.class]) return;
+    // Below iOS 26 with the legacy glass, the thumb is iOS 26's: a white capsule that swells into glass under a finger.
+    SGGlassThumbAttach(slider, CGSizeMake(22, 14));
     SGRSeekTap *tap = objc_getAssociatedObject(host, &kSeekTapKey);
     if (!tap) {
         tap = [[SGRSeekTap alloc] initWithTarget:nil action:nil];

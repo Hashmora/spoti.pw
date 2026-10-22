@@ -84,6 +84,10 @@ static UIImageView *glyph(NSString *symbol) {
     // centered, so the track lines up with the glyphs (it sat 9pt above them).
     CGFloat sliderHeight = MIN(side, [_volume sizeThatFits:CGSizeMake(MAX(0, right - left), side)].height ?: side);
     _volume.frame = CGRectMake(left, round(middle - sliderHeight / 2), MAX(0, right - left), sliderHeight);
+    // The system volume's slider, the one UISlider in the view: its thumb swells into glass as the progress bar's does.
+    for (UIView *sub in _volume.subviews) {
+        if ([sub isKindOfClass:UISlider.class]) SGGlassThumbAttach((UISlider *)sub, CGSizeMake(22, 14));
+    }
 }
 
 @end
