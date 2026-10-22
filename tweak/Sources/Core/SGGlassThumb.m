@@ -2,7 +2,7 @@
 #import "SGGlass.h"
 #import <objc/runtime.h>
 
-static char kThumbKey, kImageKey, kSizeKey, kWatchKey, kPaneKey;
+static char kThumbKey, kImageKey, kSizeKey, kWatchKey, kPaneKey, kSwitchWatchKey;
 
 // How much the held glass is bigger than the capsule at rest, the way iOS 26's thumb swells under a finger.
 static const CGFloat kLiftWidth = 1.5, kLiftHeight = 1.35;
@@ -229,4 +229,125 @@ void SGGlassThumbAttach(UISlider *slider, CGSize size) {
         [slider addGestureRecognizer:watch];
     }
     watch.thumb = thumb;
+}
+
+#pragma mark - a switch's knob
+
+// UIKit's knob: the height of the switch less 2pt round it, at the side the switch is on.
+static CGPoint knobCenter(UISwitch *toggle, BOOL on) {
+    CGSize size = toggle.bounds.size;
+    CGFloat side = size.height - 4;
+    return CGPointMake(on ? size.width - 2 - side / 2 : 2 + side / 2, size.height / 2);
+}
+
+// Watches the switch's touches without taking any, as the slider's watch does. UIKit's knob is hidden while the glass
+// stands in for it, by its tint, and given back once the white capsule is where UIKit's knob settles.
+@interface SGGlassSwitchWatch : UIGestureRecognizer <UIGestureRecognizerDelegate>
+@property (nonatomic, strong) SGGlassThumbView *thumb;
+@end
+
+@implementation SGGlassSwitchWatch {
+    UITouch *_touch;
+    BOOL _side, _moved;
+    UIColor *_tint;
+    NSUInteger _press;
+    UIImpactFeedbackGenerator *_tap;
+}
+
+- (instancetype)init {
+    if (!(self = [super initWithTarget:nil action:NULL])) return nil;
+    self.delegate = self;
+    self.cancelsTouchesInView = NO;
+    self.delaysTouchesBegan = NO;
+    self.delaysTouchesEnded = NO;
+    return self;
+}
+
+- (BOOL)canPrevent:(UIGestureRecognizer *)other { return NO; }
+- (BOOL)canBePrevented:(UIGestureRecognizer *)other { return NO; }
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)a shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)b { return YES; }
+
+- (void)slideTo:(BOOL)side {
+    UISwitch *toggle = (UISwitch *)self.view;
+    BOOL still = UIAccessibilityIsReduceMotionEnabled();
+    [UIView animateWithDuration:still ? 0.2 : 0.4 delay:0 usingSpringWithDamping:still ? 1 : 0.75 initialSpringVelocity:0
+                        options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionAllowUserInteraction
+                     animations:^{ self.thumb.center = knobCenter(toggle, side); } completion:nil];
+}
+
+- (void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+    UISwitch *toggle = (UISwitch *)self.view;
+    if (_touch || !toggle.enabled) return;
+    _touch = touches.anyObject;
+    _side = toggle.isOn;
+    _moved = NO;
+    _press++;
+    if (!_tap) _tap = [[UIImpactFeedbackGenerator alloc] initWithStyle:UIImpactFeedbackStyleLight];
+    [_tap prepare];
+    CGFloat side = toggle.bounds.size.height - 4;
+    SGGlassThumbView *thumb = self.thumb;
+    if (thumb.superview != toggle) [toggle addSubview:thumb];
+    [toggle bringSubviewToFront:thumb];
+    thumb.transform = CGAffineTransformIdentity;
+    thumb.bounds = CGRectMake(0, 0, side, side);
+    thumb.center = knobCenter(toggle, _side);
+    [thumb layoutIfNeeded];
+    thumb.alpha = 1;
+    if (toggle.thumbTintColor != UIColor.clearColor) {
+        _tint = toggle.thumbTintColor;
+        toggle.thumbTintColor = UIColor.clearColor;
+    }
+    [thumb setLifted:YES];
+}
+
+- (void)touchesMoved:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+    UISwitch *toggle = (UISwitch *)self.view;
+    if (!_touch || ![touches containsObject:_touch]) return;
+    _moved = YES;
+    BOOL side = [_touch locationInView:toggle].x > toggle.bounds.size.width / 2;
+    if (side == _side) return;
+    _side = side;
+    [_tap impactOccurred];
+    [_tap prepare];
+    [self slideTo:side];
+}
+
+- (void)finish {
+    if (!_touch) return;
+    _touch = nil;
+    NSUInteger press = _press;
+    // UIKit turns the switch as the touch ends, after this: its state is read a turn later.
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UISwitch *toggle = (UISwitch *)self.view;
+        if (press != self->_press || !toggle) return;
+        [self slideTo:toggle.isOn];
+        [self.thumb setLifted:NO];
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.45 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            if (press != self->_press || self->_touch) return;
+            toggle.thumbTintColor = self->_tint;
+            self->_tint = nil;
+            self.thumb.alpha = 0;
+        });
+    });
+}
+
+- (void)touchesEnded:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+    if (_touch && [touches containsObject:_touch]) [self finish];
+}
+
+- (void)touchesCancelled:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+    if (_touch && [touches containsObject:_touch]) [self finish];
+}
+
+- (void)reset { [self finish]; }
+
+@end
+
+void SGGlassSwitchAttach(UISwitch *toggle) {
+    if (!toggle || !SGUseLegacyGlass() || objc_getAssociatedObject(toggle, &kSwitchWatchKey)) return;
+    SGGlassSwitchWatch *watch = [SGGlassSwitchWatch new];
+    watch.thumb = [SGGlassThumbView new];
+    watch.thumb.alpha = 0;
+    objc_setAssociatedObject(toggle, &kSwitchWatchKey, watch, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    [toggle addGestureRecognizer:watch];
 }
