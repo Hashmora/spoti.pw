@@ -23,6 +23,7 @@
 static NSString *const kPillButtonClass = @"_TtCOOO17NowPlaying_ECMKit11QueueHeader2UI7Private10PillButton";
 
 static char kCloseGlassKey, kCloseKey, kPillGlassKey, kChipGlassKey, kReshuffleKey, kReshuffleGlassKey, kPlayKey;
+static char kMoveUpKey, kRemoveKey, kClearSelectionKey;
 
 // Queue_ViewImpl.QueueCell, as NSStringFromClass prints it.
 static NSString *const kQueueCellClass = @"_TtC14Queue_ViewImpl9QueueCell";
@@ -65,9 +66,8 @@ static void glassPills(UIView *root) {
 
 // The edit-mode toolbar's three chips: each button's own wrapping capsule, found by the button's
 // identifier and glassed one superview up.
-static void glassChip(UIView *root, NSString *buttonIdentifier) {
-    static char kBtnKey;
-    UIView *button = SGRFindByIdentifier(root, buttonIdentifier, &kBtnKey);
+static void glassChip(UIView *root, NSString *buttonIdentifier, const void *cacheKey) {
+    UIView *button = SGRFindByIdentifier(root, buttonIdentifier, cacheKey);
     if (button && button.superview) SGRGlassFlatBox(button.superview, &kChipGlassKey);
 }
 
@@ -81,17 +81,7 @@ static void glassClose(UIView *root) {
 // queue has been played through: it is the sheet's one primary action, so its glass carries the white film
 // (prominent) and reads a step brighter than Clear and Edit instead of vanishing into the sheet.
 static void glassReshuffle(UIView *root) {
-    UIView *button = SGRFindByIdentifier(root, @"reshuffle-button", &kReshuffleKey);
-    if (!button) return;
-    if (@available(iOS 26.0, *)) return;
-    CGSize size = button.bounds.size;
-    if (size.width < 1 || size.height < 1) return;
-    if (button.backgroundColor != UIColor.clearColor) button.backgroundColor = UIColor.clearColor;
-    if (button.layer.cornerRadius != size.height / 2) button.layer.cornerRadius = size.height / 2;
-    if (button.layer.cornerCurve != kCACornerCurveContinuous) button.layer.cornerCurve = kCACornerCurveContinuous;
-    BOOL grows = SGUseLegacyGlass();
-    if (button.layer.masksToBounds != !grows) button.layer.masksToBounds = !grows;
-    SGRGlassCapsuleInside(button, &kReshuffleGlassKey, size, YES);
+    SGRGlassFlatBoxFilm(SGRFindByIdentifier(root, @"reshuffle-button", &kReshuffleKey), &kReshuffleGlassKey);
 }
 
 // The Now playing row's play / pause button (id=header-play-button, 15.txt): Spotify draws a dark grey shadow
@@ -110,9 +100,9 @@ static void chrome(UIViewController *controller) {
     glassClose(root);
     UIView *play = SGRFindByIdentifier(root, @"header-play-button", &kPlayKey);
     if (play) flattenPlay(play);
-    glassChip(root, @"queue-edit-toolbar-move-up");
-    glassChip(root, @"queue-edit-toolbar-remove");
-    glassChip(root, @"queue-edit-toolbar-clear-selection");
+    glassChip(root, @"queue-edit-toolbar-move-up", &kMoveUpKey);
+    glassChip(root, @"queue-edit-toolbar-remove", &kRemoveKey);
+    glassChip(root, @"queue-edit-toolbar-clear-selection", &kClearSelectionKey);
     clearQueueRows(root);
 }
 

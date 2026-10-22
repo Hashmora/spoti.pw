@@ -89,44 +89,20 @@ static UIColor *greenFilm(void) { return [UIColor colorWithRed:0.215 green:0.949
 
 #pragma mark - Eat this playlist
 
-// The first control of the bar's stack at the leading or the trailing half of its content view.
-static UIView *snakeBarButton(UIView *content, BOOL leading) {
-    for (UIView *stack in content.subviews) {
-        if (![NSStringFromClass(stack.class) isEqualToString:@"_UIButtonBarStackView"]) continue;
-        if ((CGRectGetMidX(stack.frame) < content.bounds.size.width / 2) != leading) continue;
-        for (UIView *button in stack.subviews) {
-            if (button.bounds.size.width > 1 && button.bounds.size.height > 1) return button;
-        }
-    }
-    return nil;
-}
-
-// Out of sight and out of reach, the way the pinned back button conceals Spotify's: a mask survives Spotify showing
-// the view again, which hidden does not. The mirror fires it.
-static void concealButton(UIView *button) {
-    if (!button.layer.hidden) button.layer.hidden = YES;
-    if (!button.layer.mask) button.layer.mask = [CALayer layer];
-    if (button.userInteractionEnabled) button.userInteractionEnabled = NO;
-    button.accessibilityElementsHidden = YES;
-}
-
 static void dressSnakeBar(UIViewController *page) {
     if (!SGBelowiOS26()) return;
     UINavigationBar *bar = page.navigationController.navigationBar;
     UIView *view = page.viewIfLoaded;
     if (!bar || !view.window) return;
-    UIView *content = nil;
-    for (UIView *sub in bar.subviews) {
-        if ([NSStringFromClass(sub.class) isEqualToString:@"_UINavigationBarContentView"]) content = sub;
-    }
+    UIView *content = SGRChildNamed(bar, @"_UINavigationBarContentView");
     if (!content) return;
     // The bar is above the page and would take the touches meant for the buttons pinned to it.
     if (bar.userInteractionEnabled) bar.userInteractionEnabled = NO;
     // Add to the left (a plus, or a check once saved: the mirror draws the state Spotify reports), the cross at the
     // corner on the right.
-    UIView *add = snakeBarButton(content, YES);
+    UIView *add = SGRBarStackButton(content, YES);
     if (add) SGRPinnedBackOf(view, add);
-    UIView *close = snakeBarButton(content, NO);
+    UIView *close = SGRBarStackButton(content, NO);
     if (close) {
         // Spotify's own cross has uneven padding in its canvas and sat off the middle of the circle once copied (9.txt),
         // so the mirror draws the system cross at its own size, centred.
@@ -135,7 +111,8 @@ static void dressSnakeBar(UIViewController *page) {
             closeGlyph = [UIImage systemImageNamed:@"xmark"
                                  withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:17 weight:UIImageSymbolWeightSemibold]];
         }
-        concealButton(close);
+        // Out of sight and out of reach: the mirror fires it.
+        SGRConceal(close);
         SGRMirrorButton *pinned = SGRPinnedTrailing(view, &kSnakeCloseKey, close, 0, closeGlyph);
         if (pinned && !pinned.ownGlyph) {
             pinned.ownGlyph = YES;

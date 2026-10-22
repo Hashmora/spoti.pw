@@ -70,18 +70,6 @@ static __weak UIView *sg_mixPlay;
 
 #pragma mark - the bar
 
-// The Back arrow: the first control of the stack at the leading half of the bar's content view.
-static UIView *backIn(UIView *content) {
-    for (UIView *stack in content.subviews) {
-        if (![NSStringFromClass(stack.class) isEqualToString:@"_UIButtonBarStackView"]) continue;
-        if (CGRectGetMidX(stack.frame) >= content.bounds.size.width / 2) continue;
-        for (UIView *button in stack.subviews) {
-            if (button.bounds.size.width > 1 && button.bounds.size.height > 1) return button;
-        }
-    }
-    return nil;
-}
-
 static void dressBar(UIViewController *controller) {
     UINavigationController *navigation = controller.navigationController;
     UIView *root = controller.viewIfLoaded;
@@ -100,7 +88,7 @@ static void dressBar(UIViewController *controller) {
     if (blur.userInteractionEnabled) blur.userInteractionEnabled = NO;
 
     UIView *content = SGRChildNamed(bar, @"_UINavigationBarContentView");
-    UIView *back = backIn(content);
+    UIView *back = SGRBarStackButton(content, YES);   // the Back arrow
     if (back) SGRPinnedBackOf(navigation.view, back);
 
     // More and Save were laid out before this file knew the navigation controller (see the header): dressed here as well.

@@ -57,6 +57,13 @@ static UIView *stackIn(UIView *content, BOOL leading) {
     return nil;
 }
 
+UIView *SGRBarStackButton(UIView *content, BOOL leading) {
+    for (UIView *button in stackIn(content, leading).subviews) {
+        if (button.bounds.size.width > 1 && button.bounds.size.height > 1) return button;
+    }
+    return nil;
+}
+
 // The button of such an item at the leading edge.
 static UIView *leadingItemOf(UIView *content) {
     UIView *button = SGRChildNamed(stackIn(content, YES), @"_UIButtonBarButton");

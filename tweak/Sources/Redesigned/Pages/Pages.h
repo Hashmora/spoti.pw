@@ -67,6 +67,9 @@ void SGRRegisterBarPages(SGRBarPageTest wants);
 void SGRSyncBarBlur(UINavigationController *navigation);
 // Spotify's blur behind the bar of `navigation`: the plain view of its own that holds a UIVisualEffectView. Nil when none.
 UIView *SGRBarBlurOf(UINavigationController *navigation);
+// The first control with a size in the bar's stack of items on the leading or the trailing half of its content view
+// (`content`, the bar's _UINavigationBarContentView). Nil when that half has none.
+UIView *SGRBarStackButton(UIView *content, BOOL leading);
 
 // `pass` on every layout of an SPNavigationBar and of its content view, where UIKit builds the bar's Back and title again
 // after the bar's own pass (PageAppearance.x hooks the two once for every page that is dressed from its bar).
