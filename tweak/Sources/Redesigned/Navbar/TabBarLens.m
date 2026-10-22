@@ -8,26 +8,25 @@ static char kLensPaneKey, kLensFilmKey;
 // The held bubble is this much wider than the pill (and taller by 2 * heldOutset, so it stands out of the capsule's
 // rim, as the system's does), and may be dragged this far past the first and the last tab.
 static const CGFloat kLensGrow = 12, kLensOverscroll = 14;
-// On top of what the two edges' lag gives, the bubble is stretched by the speed of its middle (pt/s): tanh, so it
-// answers a slow drag at once, and a flick fills it out towards the cap without the kink a hard limit has.
-static const CGFloat kLensStretchSpeed = 2200, kLensMaxSpeedStretch = 0.60;
-// A fast bubble is taller too, as the system's: the same speed lifts its height by up to kLensMaxRise, and as it
-// slows down it comes back to its own. The stretch takes nothing from the height; a stop's squash does (below).
-static const CGFloat kLensRiseSpeed = 1600, kLensMaxRise = 0.40, kLensMinHeight = 0.55;
+// The bubble's shape is one deformation, d: wider and shorter for d > 0, narrower and taller for d < 0, the height
+// giving way by kLensVolume of what the width gains so the bubble keeps its volume, and d held to kLensMaxDeform either
+// way, so a flick never swells it. Its size does not grow with speed. d is the squash spring below (the bubble's body
+// catching up as its speed changes) and a slight stretch along a fast move (up to kLensMaxSpeedStretch, by tanh of the
+// speed of its middle in pt/s). The edges' own lag widens it a little more, held to kLensMaxLag of its width.
+static const CGFloat kLensStretchSpeed = 2400, kLensMaxSpeedStretch = 0.12;
+static const CGFloat kLensMaxDeform = 0.30, kLensVolume = 0.8, kLensMaxLag = 0.25;
 // The surface tension: once the edges are near their targets, they pull each other back to the bubble's width, with
-// a damper of their own, so a stretched bubble draws in and gives one small bounce rather than ringing. It is off
+// a damper of their own, so a stretched bubble draws in and gives a small bounce rather than ringing. It is off
 // while the bubble is chasing a finger (the stretch is what shows the chase), and fades in over the last
 // kLensTensionReach points of the middle's distance.
-static const CGFloat kLensTension = 300, kLensTensionRatio = 0.35, kLensTensionReach = 24;
-// The squash: what the bubble's mass does when it is stopped, the jelly of it. The edges are stopped within a tenth of a
-// second, but the body keeps going, so each loss of speed kicks a spring of its own (a width change, in fractions of
-// the bubble's, negative = narrower and taller) by kLensSquashKick per pt/s lost. It rings slowly and a few times
-// (about 2 Hz, a damping ratio of 0.22): a stop from a flick goes narrow and tall, back past round to wide and short,
-// and settles. The height answers the width nearly in full (kLensSquashVolume), so the bubble keeps its volume as it
-// wobbles, and the squash is held to kLensMaxSquash. A finger landing pokes it (kLensPoke) and a finger let go
-// pokes it the other way, so the bubble gives even with no move.
-static const CGFloat kLensSquashOmega = 13, kLensSquashRatio = 0.22, kLensSquashKick = 0.007;
-static const CGFloat kLensMaxSquash = 0.45, kLensSquashVolume = 0.85, kLensPoke = 3.2;
+static const CGFloat kLensTension = 300, kLensTensionRatio = 0.45, kLensTensionReach = 24;
+// The squash: what the bubble's mass does as its speed changes, the jelly of it. The edges are stopped within a tenth of
+// a second, but the body keeps going, so each loss of speed kicks a spring of its own by kLensSquashKick per pt/s lost
+// (a gain kicks it the other way, less). It rings at about 2.4 Hz with a damping ratio of 0.3: a stop from a flick goes
+// narrow and tall, back past round a little, and settles in two bounces. A finger landing pokes it (kLensPoke) and one
+// let go pokes it back, so the bubble gives even with no move.
+static const CGFloat kLensSquashOmega = 15, kLensSquashRatio = 0.3, kLensSquashKick = 0.004;
+static const CGFloat kLensPoke = 1.5;
 
 typedef struct { CGFloat k, c; } SGRSpring;   // unit mass
 
@@ -217,15 +216,14 @@ static const CGFloat kPlayStep = 1.0 / 120;
 // pill's); the look is a transform, so no frame of glass is laid out again while it moves.
 - (void)getPose:(SGLensSample)st center:(CGPoint *)center sx:(CGFloat *)sx sy:(CGFloat *)sy {
     CGFloat baseWidth = MAX(1, self.bounds.size.width), baseHeight = MAX(1, self.bounds.size.height);
-    CGFloat width = MAX(baseHeight * 0.8, st.R - st.L);
+    CGFloat nominal = MAX(1, _restFrame.size.width + kLensGrow * st.lift);
+    CGFloat width = MIN(MAX(baseHeight * 0.8, st.R - st.L), nominal * (1 + kLensMaxLag));
     CGFloat speed = fabs(st.vL + st.vR) / 2;
-    CGFloat extra = kLensMaxSpeedStretch * tanh(speed / kLensStretchSpeed) * st.lift;
+    CGFloat stretch = kLensMaxSpeedStretch * tanh(speed / kLensStretchSpeed);
+    CGFloat d = MAX(-kLensMaxDeform, MIN(kLensMaxDeform, (st.sq + stretch) * st.lift));
     CGFloat held = 1 + 2 * _heldOutset / baseHeight * st.lift;
-    CGFloat rise = 1 + kLensMaxRise * tanh(speed / kLensRiseSpeed) * st.lift;
-    CGFloat squash = st.sq * st.lift;
-    CGFloat fat = MAX(0.5, 1 + squash);
-    *sx = width * MAX(0.5, 1 + extra + squash) / baseWidth;
-    *sy = MAX(kLensMinHeight, held * rise * pow(fat, -kLensSquashVolume));
+    *sx = width * (1 + d) / baseWidth;
+    *sy = held * (1 - kLensVolume * d);
     *center = CGPointMake((st.L + st.R) / 2, CGRectGetMidY(_restFrame));
 }
 
@@ -284,7 +282,7 @@ static const CGFloat kPlayStep = 1.0 / 120;
 - (void)advance:(CGFloat)h {
     CGFloat dir = (_tL + _tR) / 2 - (_L + _R) / 2;
     BOOL moving = fabs(dir) > 0.75;
-    SGRSpring front = spring(2400, 0.80), back = spring(420, 0.55), even = spring(1100, 0.74);
+    SGRSpring front = spring(2400, 0.80), back = spring(650, 0.62), even = spring(1100, 0.74);
     SGRSpring forL = !moving ? even : (dir < 0 ? front : back);
     SGRSpring forR = !moving ? even : (dir > 0 ? front : back);
     SGSpring lift = _liftTarget > 0.5 ? SGGlassLiftOn : SGGlassLiftOff;   // the press's own
@@ -302,14 +300,14 @@ static const CGFloat kPlayStep = 1.0 / 120;
     // The squash: kicked by the speed the edges lose (a sum over the stop, so the step does not matter), then a
     // spring of its own.
     CGFloat speed = fabs(_vL + _vR) / 2;
-    // A gain in speed stretches too, a little over half as much, so the jitter of a finger's speed nets out instead of
+    // A gain in speed stretches a little (a third as much), so the jitter of a finger's speed nets out instead of
     // adding up to a squash while it drags.
     CGFloat gained = speed - _prevSpeed;
-    _vSq += kLensSquashKick * (gained < 0 ? gained : gained * 0.6);
+    _vSq += kLensSquashKick * (gained < 0 ? gained : gained * 0.35);
     _prevSpeed = speed;
     CGFloat sqa = -kLensSquashOmega * kLensSquashOmega * _sq - 2 * kLensSquashRatio * kLensSquashOmega * _vSq;
     _vSq += sqa * h;
-    _sq = MAX(-kLensMaxSquash, _sq + _vSq * h);
+    _sq = MAX(-kLensMaxDeform, MIN(kLensMaxDeform, _sq + _vSq * h));
     CGFloat a = (-lift.stiffness * (_lift - _liftTarget) - lift.damping * _vLift) / lift.mass;
     _vLift += a * h;
     _lift += _vLift * h;
