@@ -112,30 +112,11 @@ static BOOL inSearchPage(UIView *container) {
     return NO;
 }
 
-%group SGRSearchFieldContainer
-%hook SGRSearchBarContainer
-- (void)layoutSubviews {
-    %orig;
-    UIView *container = (UIView *)self;
-    if (container.window && inSearchPage(container)) dressField(container);
-}
-
-- (void)didMoveToWindow {
-    %orig;
-    UIView *container = (UIView *)self;
-    if (container.window && inSearchPage(container)) dressField(container);
-}
-%end
-%end
-
 %ctor {
     if (!SGRedesignedUI() || !SGBelowiOS26()) return;
     // Spotify builds the field's content again once the page is up; the passes after it dress what it built.
     SGRPassControllersNamed(@[@"_TtC18Search_FeatureImpl20HeaderViewController"], ^(UIViewController *c) { dress(c.viewIfLoaded); });
     Class container = NSClassFromString(@"_TtC13Search_ECMKitP33_4AAD529A9116A2BD7185A1FC1B0C084527MultilineSearchBarContainer");
-    if (container) {
-        %init(SGRSearchFieldContainer, SGRSearchBarContainer = container);
-    } else {
-        SGLog(@"class Search_ECMKit MultilineSearchBarContainer not found, the results header's field is dressed from the header's passes only");
-    }
+    if (!container) SGLog(@"class Search_ECMKit MultilineSearchBarContainer not found, the results header's field is dressed from the header's passes only");
+    SGRPassView(container, ^(UIView *v) { if (v.window && inSearchPage(v)) dressField(v); });
 }
