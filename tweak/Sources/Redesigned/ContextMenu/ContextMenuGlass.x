@@ -40,12 +40,7 @@ static UIView *platterIn(UIView *view, int depth) {
 // Nil while `host` has no size yet. Below iOS 26 only: the system draws its own on 26.
 UIView *SGRMenuGlass(UIView *host, const void *key, CGFloat dim) {
     if (host.bounds.size.width < 1 || host.bounds.size.height < 1) return nil;
-    UIView *glass = SGGlassFor(host, key);
-    if (glass.overrideUserInterfaceStyle != UIUserInterfaceStyleDark) glass.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
-    glass.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    if (!CGRectEqualToRect(glass.frame, host.bounds)) glass.frame = host.bounds;
-    SGShapeGlass(glass, kMenuRadius, NO);
-    SGRThickenSheetGlass(glass, kMenuRadius);
+    UIView *glass = SGRGlassPaneIn(host, key, kMenuRadius);
     SGRDimSheetGlass(glass, dim);
     return glass;
 }

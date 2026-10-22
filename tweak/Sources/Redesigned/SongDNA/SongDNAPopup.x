@@ -34,12 +34,7 @@ static void dressPopup(UIView *popup) {
     if (popup.bounds.size.width < 1 || popup.bounds.size.height < 1) return;
     UIView *card = cardOf(popup);
     if (!card) return;
-    UIView *glass = SGGlassFor(card, &kPaneKey);
-    if (glass.overrideUserInterfaceStyle != UIUserInterfaceStyleDark) glass.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
-    glass.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    if (!CGRectEqualToRect(glass.frame, card.bounds)) glass.frame = card.bounds;
-    SGShapeGlass(glass, kPopupRadius, NO);
-    SGRThickenSheetGlass(glass, kPopupRadius);
+    SGRGlassPaneIn(card, &kPaneKey, kPopupRadius);
     card.backgroundColor = UIColor.clearColor;
 
     SGForEachView(popup, ^(UIView *view) {
@@ -51,10 +46,6 @@ static void dressPopup(UIView *popup) {
             SGRGlassFlatBox(view, &kButtonKey);
         }
     });
-}
-
-static Class popupClass(void) {
-    return SGRSwiftClass(@"SongDNA_MapKit", @"DNAPopupView");
 }
 
 %group SGRSongDNAPopup
@@ -75,7 +66,7 @@ static Class popupClass(void) {
 
 %ctor {
     if (!SGRedesignedUI()) return;
-    Class popup = popupClass();
+    Class popup = SGRSwiftClass(@"SongDNA_MapKit", @"DNAPopupView");
     if (!popup) {
         SGLog(@"class SongDNA_MapKit.DNAPopupView not found, the contributor pop-up keeps Spotify's grey");
         return;

@@ -470,11 +470,7 @@ static UILabel *textLabel(NSString *text, UIFont *font) {
 
     // The glass: the redesign's pane, the heavy body and the rim, then a dark film so white text reads on any page
     // behind. Under Reduce Transparency the pane is already solid.
-    UIView *glass = SGGlassFor(_panel, &kPanelGlassKey);
-    glass.frame = _panel.bounds;
-    glass.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    SGShapeGlass(glass, kAlertRadius, NO);
-    SGRThickenSheetGlass(glass, kAlertRadius);
+    UIView *glass = SGRGlassPaneIn(_panel, &kPanelGlassKey, kAlertRadius);
     if (!SGRReduceTransparency()) SGRDimSheetGlass(glass, 0.45);
 }
 

@@ -80,18 +80,6 @@ static void dressFacepilePlus(UIView *icon) {
 }
 
 %group SGRDrawerPlus
-%hook SGRDrawerAddAccount
-- (void)layoutSubviews {
-    %orig;
-    dressPlusSoon((UIView *)self);
-}
-
-- (void)didMoveToWindow {
-    %orig;
-    dressPlusSoon((UIView *)self);
-}
-%end
-
 // The Box the disc is in: its pass is the one that sizes the disc.
 %hook _TtCE16Encore_LayoutKitO16EncoreFoundation6Encore3Box
 - (void)layoutSubviews {
@@ -138,7 +126,8 @@ static void dressFacepilePlus(UIView *icon) {
     Class drawer = SGRSwiftClass(@"AccountSwitching_AccountSwitchingUIImpl", @"AddAccountCell");
     if (drawer) {
         sDrawerCell = drawer;
-        %init(SGRDrawerPlus, SGRDrawerAddAccount = drawer);
+        SGRPassView(drawer, ^(UIView *v) { dressPlusSoon(v); });
+        %init(SGRDrawerPlus);
     } else {
         SGLog(@"class AccountSwitching_AccountSwitchingUIImpl.AddAccountCell not found, the left menu's Add account keeps its grey plus");
     }

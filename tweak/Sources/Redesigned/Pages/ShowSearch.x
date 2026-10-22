@@ -17,18 +17,9 @@
 #import "Pages.h"
 
 static char kFieldKey, kCancelKey, kFieldGlassKey, kCancelGlassKey;
-static Class sg_showSearch;
 
 // Room a Cancel capsule takes beside its label on each side.
 static const CGFloat kCancelPadding = 12, kCancelHeight = 30;
-
-static BOOL holds(UIViewController *controller, int depth) {
-    if (depth > 6) return NO;
-    for (UIViewController *child in controller.childViewControllers) {
-        if ([child isKindOfClass:sg_showSearch] || holds(child, depth + 1)) return YES;
-    }
-    return NO;
-}
 
 static void dress(UIViewController *page) {
     SGRDressBarPage(page);
@@ -61,41 +52,11 @@ static void dress(UIViewController *page) {
     }
 }
 
-%group SGRShowSearch
-%hook SGRShowSearchController
-- (void)viewWillAppear:(BOOL)animated {
-    %orig;
-    dress((UIViewController *)self);
-}
-
-- (void)viewDidLayoutSubviews {
-    %orig;
-    dress((UIViewController *)self);
-}
-
-- (void)viewDidAppear:(BOOL)animated {
-    %orig;
-    // The field and Cancel are made after the first layout, and the grey comes back as the field is focused.
-    SGRRepeatPass((UIViewController *)self, @[@0.0, @0.25, @0.6], ^(UIViewController *c) { dress(c); });
-}
-
-- (void)viewWillDisappear:(BOOL)animated {
-    %orig;
-    SGRUndressBarPage((UIViewController *)self);
-}
-%end
-%end
-
 %ctor {
-    if (!SGRedesignedUI()) return;
-    if (!SGBelowiOS26()) return;
+    if (!SGRedesignedUI() || !SGBelowiOS26()) return;
     Class page = SGRSwiftClass(@"ShowPage_ShowSearchPageImpl", @"ShowSearchViewController");
-    if (page) {
-        sg_showSearch = page;
-        // The page is hosted by a controller of Spotify's page template: it is the top of the stack until the page's own is made.
-        SGRRegisterBarPages(^BOOL(UIViewController *top) { return [top isKindOfClass:page] || holds(top, 0); });
-        %init(SGRShowSearch, SGRShowSearchController = page);
-    } else {
-        SGLog(@"class ShowPage_ShowSearchPageImpl.ShowSearchViewController not found, the podcast search keeps Spotify's bar and field");
-    }
+    if (!page) SGLog(@"class ShowPage_ShowSearchPageImpl.ShowSearchViewController not found, the podcast search keeps Spotify's bar and field");
+    // Hosted by a controller of Spotify's page template. The field and Cancel are made after the first layout, and the
+    // grey comes back as the field is focused.
+    SGRDressBarPagesWith(page, YES, ^(UIViewController *c) { dress(c); });
 }

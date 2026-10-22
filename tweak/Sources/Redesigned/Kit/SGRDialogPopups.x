@@ -129,12 +129,7 @@ static void spaceCancel(UIView *host) {
 
 static void dressDialog(UIView *host) {
     if (host.bounds.size.width < 1 || host.bounds.size.height < 1) return;
-    UIView *glass = SGGlassFor(host, &kGlassKey);
-    if (glass.overrideUserInterfaceStyle != UIUserInterfaceStyleDark) glass.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
-    glass.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    if (!CGRectEqualToRect(glass.frame, host.bounds)) glass.frame = host.bounds;
-    SGShapeGlass(glass, kDialogRadius, NO);
-    SGRThickenSheetGlass(glass, kDialogRadius);
+    UIView *glass = SGRGlassPaneIn(host, &kGlassKey, kDialogRadius);
     if (!SGRReduceTransparency()) SGRDimSheetGlass(glass, 0.45);
 
     clearPaint(host, glass, 0);

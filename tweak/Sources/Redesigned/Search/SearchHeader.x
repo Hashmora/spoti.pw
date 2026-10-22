@@ -71,8 +71,7 @@ static void glassCancel(UIView *container, UIView *fill) {
     CGFloat gap = MIN(fabs(CGRectGetMinX(frame) - CGRectGetMaxX(fieldFrame)), fabs(CGRectGetMinX(fieldFrame) - CGRectGetMaxX(frame)));
     CGFloat pad = MIN(kCancelPadding, MAX(0, floor(gap / 2) - 1));
     SGRUnclipUpTo(cancel, ^BOOL(UIView *v) { return v.superview == container.superview; });
-    UIView *shape = SGRGlassCapsuleInside(cancel, &kCancelGlassKey, CGSizeMake(cancel.bounds.size.width + 2 * pad, fill.bounds.size.height), YES);
-    if (shape) SGGlassInteractive(cancel, shape);
+    SGRGlassCapsuleInside(cancel, &kCancelGlassKey, CGSizeMake(cancel.bounds.size.width + 2 * pad, fill.bounds.size.height), YES);
     SGForEachView(cancel, ^(UIView *v) {
         if ([v isKindOfClass:UILabel.class] && ((UILabel *)v).textColor != UIColor.whiteColor) ((UILabel *)v).textColor = UIColor.whiteColor;
     });

@@ -89,6 +89,9 @@ void SGRThickenSheetGlass(UIView *glass, CGFloat cornerRadius);
 // A black layer over the body SGRThickenSheetGlass gives a pane, for menus whose white text the light body
 // leaves too little contrast to read. Call it after SGRThickenSheetGlass.
 void SGRDimSheetGlass(UIView *glass, CGFloat alpha);
+// A pane over the whole of `host` with that body (SGRThickenSheetGlass), dark, its corners `radius`, made once under
+// `key` and kept to the host's size: a card of Spotify's on glass (a dialog, a popup, a menu). The caller dims it.
+UIView *SGRGlassPaneIn(UIView *host, const void *key, CGFloat radius);
 
 // Whether `view` is chrome of the sheet rooted at `root` (sgr_sheetChromeRoot) rather than a row or card
 // inside the sheet's own list.

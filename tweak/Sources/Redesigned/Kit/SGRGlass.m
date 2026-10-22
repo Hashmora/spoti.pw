@@ -433,6 +433,16 @@ void SGRDimSheetGlass(UIView *glass, CGFloat alpha) {
     if (rim.superview == host) [host bringSubviewToFront:rim];
 }
 
+UIView *SGRGlassPaneIn(UIView *host, const void *key, CGFloat radius) {
+    UIView *glass = SGGlassFor(host, key);
+    if (glass.overrideUserInterfaceStyle != UIUserInterfaceStyleDark) glass.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
+    glass.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    if (!CGRectEqualToRect(glass.frame, host.bounds)) glass.frame = host.bounds;
+    SGShapeGlass(glass, radius, NO);
+    SGRThickenSheetGlass(glass, radius);
+    return glass;
+}
+
 // The radius of the Genius meanings sheet: the screen's own corner radius, which the system sheet takes for its
 // top corners. Every sheet the mod glasses takes the same one, so none of them has Spotify's smaller 12 or 16.
 static const CGFloat kSheetRadiusFallback = 47;

@@ -118,7 +118,11 @@ static void dress(UIViewController *page) {
     if (title) glassTitle(root, title);
 
     UIView *table = SGRFindByIdentifier(root, @"LocationSearchView.tableView", &kTableKey);
-    if (table) dressClearButtons(table);
+    if (table) {
+        dressClearButtons(table);
+        // The table's own passes (it lays its rows out as they scroll in or are reused) dress the crosses on screen.
+        SGRWatchLayout(table, ^(UIView *laidOut) { if (laidOut.window) dressClearButtons(laidOut); });
+    }
 
     UIView *field = SGRFindByIdentifier(root, @"Components.Header.UI.Toolbar.SearchField", &kFieldKey);
     if (field) {
@@ -131,19 +135,6 @@ static void dress(UIViewController *page) {
         SGLog(@"redesign location search: back %@, title %@, field %@", back ? @"pinned" : @"not found", title ? @"capsule" : @"not found", NSStringFromCGRect(field.frame));
     }
 }
-
-// The table's own passes (it lays its rows out as they scroll in or are reused) dress the crosses that are on screen.
-%group SGRLocationRows
-%hook UITableView
-- (void)layoutSubviews {
-    %orig;
-    UITableView *table = (UITableView *)self;
-    if (![table.accessibilityIdentifier isEqualToString:@"LocationSearchView.tableView"]) return;
-    if (!table.window) return;
-    dressClearButtons(table);
-}
-%end
-%end
 
 // Search mode changes the title's text (Location, Browse location) without a layout pass: size the capsule again.
 static void titleTextChanged(UILabel *label) {
@@ -179,6 +170,5 @@ static void titleTextChanged(UILabel *label) {
     }
     // The header's elements are made after the first layout, and the field's grey comes back as it is focused.
     SGRPassController(page, ^(UIViewController *c) { dress(c); });
-    %init(SGRLocationRows);
     %init(SGRLocationTitle);
 }

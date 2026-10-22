@@ -38,18 +38,8 @@ static void dressCross(UIView *button) {
 
 // The EncoreButton of LegacyUI_ECMCoreKit: the one class of that module whose name ends in EncoreButton.
 static Class encoreButtonClass(void) {
-    Class exact = NSClassFromString(@"_TtC19LegacyUI_ECMCoreKitP33_7AC6ABDB5A3E514EA5239D6986C3C90912EncoreButton");
-    if (exact) return exact;
-    Class found = nil;
-    int count = objc_getClassList(NULL, 0);
-    Class *all = (Class *)malloc(sizeof(Class) * count);
-    count = objc_getClassList(all, count);
-    for (int i = 0; i < count && !found; i++) {
-        NSString *name = NSStringFromClass(all[i]);
-        if ([name hasPrefix:@"_TtC19LegacyUI_ECMCoreKit"] && [name hasSuffix:@"12EncoreButton"]) found = all[i];
-    }
-    free(all);
-    return found;
+    return NSClassFromString(@"_TtC19LegacyUI_ECMCoreKitP33_7AC6ABDB5A3E514EA5239D6986C3C90912EncoreButton")
+        ?: SGRPrivateSwiftClass(@"LegacyUI_ECMCoreKit", @"12EncoreButton");
 }
 
 %ctor {

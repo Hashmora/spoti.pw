@@ -48,10 +48,7 @@ static void dressTitleButtons(UIView *title) {
 static void dress(UIViewController *page) {
     UINavigationController *navigation = page.navigationController;
     if (!page.viewIfLoaded.window || !navigation) return;
-    UIView *content = nil;
-    for (UIView *sub in navigation.navigationBar.subviews) {
-        if ([NSStringFromClass(sub.class) isEqualToString:@"_UINavigationBarContentView"]) content = sub;
-    }
+    UIView *content = SGRChildNamed(navigation.navigationBar, @"_UINavigationBarContentView");
     if (!content) return;
     for (UIView *sub in content.subviews) {
         NSString *name = NSStringFromClass(sub.class);

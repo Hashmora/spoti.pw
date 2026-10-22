@@ -407,7 +407,7 @@ static void layoutRoot(UIView *page) {
     if (SGBelowiOS26()) {
         for (UIView *control in trailing) {
             if (isFace(control)) continue;
-            SGGlassInteractive(control, SGRGlassInside(control, &kRoundGlassKey, 44));
+            SGRGlassInside(control, &kRoundGlassKey, 44);
         }
     }
 
@@ -447,7 +447,7 @@ static void layoutFolder(UIView *page) {
         UIView *plus = SGRFindByIdentifier(header, @"YourLibraryFolderHeader.plus", &kFolderPlusKey);
         for (UIView *control in @[back ?: (id)NSNull.null, more ?: (id)NSNull.null, plus ?: (id)NSNull.null]) {
             if (![control isKindOfClass:UIView.class] || control.bounds.size.width < 1) continue;
-            SGGlassInteractive(control, SGRGlassInside(control, &kRoundGlassKey, 44));
+            SGRGlassInside(control, &kRoundGlassKey, 44);
         }
     }
 

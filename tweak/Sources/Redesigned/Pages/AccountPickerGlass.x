@@ -9,6 +9,9 @@
 // either (the table's own clip is the screen's). The accounts' avatars are not touched: they are photographs and
 // initials on colour, not controls drawn as a fill.
 //
+// Below iOS 26 the circle is AccountPlus.x's (glass with the white film, held clear as the row is selected); this one is
+// iOS 26's, so the two never both put glass in it.
+//
 // The page has no title in its bar, yet Spotify's blur stands over the top 91pt of it (trees/continuous/5.txt:109-112, the
 // plain view of the navigation controller's that holds a UIVisualEffectView, #1C1C1C at 73%), a grey band over the heading.
 // The page is registered with the bar pages (Pages.h), which keep that blur off while it is on top.
@@ -42,10 +45,9 @@ static void dressAdd(UITableViewCell *cell) {
 %ctor {
     if (!SGRedesignedUI()) return;
     Class cell = SGRSwiftClass(@"AccountSwitching_AccountPickerImpl", @"AccountPickerAddAccountTableViewCell");
-    if (cell) {
-        %init(SGRAccountPickerGlass, SGRAddAccountCell = cell);
-    } else {
-        SGLog(@"class AccountSwitching_AccountPickerImpl.AccountPickerAddAccountTableViewCell not found, Who's listening keeps Spotify's Add account circle");
+    if (!SGBelowiOS26()) {
+        if (cell) %init(SGRAccountPickerGlass, SGRAddAccountCell = cell);
+        else SGLog(@"class AccountSwitching_AccountPickerImpl.AccountPickerAddAccountTableViewCell not found, Who's listening keeps Spotify's Add account circle");
     }
     Class page = SGRSwiftClass(@"AccountSwitching_AccountPickerImpl", @"AccountPickerViewController");
     if (page) {

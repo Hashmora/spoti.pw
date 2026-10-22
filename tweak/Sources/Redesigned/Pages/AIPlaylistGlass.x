@@ -73,7 +73,6 @@ static void dressCrossButton(UIView *button) {
     UIView *glass = cancel
         ? SGRGlassCapsuleInside(button, &kCancelGlassKey, CGSizeMake(button.bounds.size.width, kCancelGlassHeight), NO)
         : SGRGlassInside(button, &kCrossGlassKey, SGRGlassCircleSize);
-    SGGlassInteractive(button, glass);
     if (button.clipsToBounds) button.clipsToBounds = NO;
     if (more) {
         if (glass) SGRShowGlass(glass, button.alpha >= 0.99);

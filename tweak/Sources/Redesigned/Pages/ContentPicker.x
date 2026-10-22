@@ -68,55 +68,14 @@ static void dress(UIViewController *page) {
     if (bar) dressField((UISearchBar *)bar);
 }
 
-%group SGRContentPicker
-%hook SGRPickerController
-- (void)viewWillAppear:(BOOL)animated {
-    %orig;
-    dress((UIViewController *)self);
-}
-
-- (void)viewDidLayoutSubviews {
-    %orig;
-    dress((UIViewController *)self);
-}
-
-- (void)viewDidAppear:(BOOL)animated {
-    %orig;
-    // The bar's cross and the field's text are made after the first layout, and the picture comes back as the field is focused.
-    SGRRepeatPass((UIViewController *)self, @[@0.25, @0.6], ^(UIViewController *c) { dress(c); });
-}
-
-- (void)viewWillDisappear:(BOOL)animated {
-    %orig;
-    SGRUndressBarPage((UIViewController *)self);
-}
-%end
-%end
-
-// UIKit puts the field right again as it is focused or cleared: the bar's own pass sets it back at once.
-%group SGRPickerSearch
-%hook SGRPickerSearchBar
-- (void)layoutSubviews {
-    %orig;
-    dressField((UISearchBar *)self);
-}
-%end
-%end
-
 %ctor {
-    if (!SGRedesignedUI()) return;
-    if (!SGBelowiOS26()) return;
+    if (!SGRedesignedUI() || !SGBelowiOS26()) return;
     Class page = SGRSwiftClass(@"AllBoarding_AllBoardingPlatformImpl", @"ContentPickerViewController");
-    if (page) {
-        SGRRegisterBarPages(^BOOL(UIViewController *top) { return SGRPageIsOrHolds(top, page); });
-        %init(SGRContentPicker, SGRPickerController = page);
-    } else {
-        SGLog(@"class AllBoarding_AllBoardingPlatformImpl.ContentPickerViewController not found, the pickers keep Spotify's bar");
-    }
+    if (!page) SGLog(@"class AllBoarding_AllBoardingPlatformImpl.ContentPickerViewController not found, the pickers keep Spotify's bar");
+    // The bar's cross and the field's text are made after the first layout, and the picture comes back as the field is focused.
+    SGRDressBarPagesWith(page, YES, ^(UIViewController *c) { dress(c); });
+    // UIKit puts the field right again as it is focused or cleared: the bar's own pass sets it back at once.
     Class search = SGRSwiftClass(@"AllBoarding_AllBoardingPlatformImpl", @"AllBoardingSearchBar");
-    if (search) {
-        %init(SGRPickerSearch, SGRPickerSearchBar = search);
-    } else {
-        SGLog(@"class AllBoarding_AllBoardingPlatformImpl.AllBoardingSearchBar not found, the pickers keep Spotify's search field");
-    }
+    if (!search) SGLog(@"class AllBoarding_AllBoardingPlatformImpl.AllBoardingSearchBar not found, the pickers keep Spotify's search field");
+    SGRPassView(search, ^(UIView *v) { dressField((UISearchBar *)v); });
 }
