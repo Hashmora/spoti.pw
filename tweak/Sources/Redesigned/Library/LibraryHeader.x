@@ -61,7 +61,7 @@ static char kTitleKey, kRowWatchedKey;
 static char kRecentsKey, kSearchKey, kPlusKey, kHeaderTitleKey;
 static char kRoundGlassKey;
 static char kBackKey, kMenuKey, kFolderPlusKey, kPlayKey, kPauseKey, kFolderTitleKey;
-static char kChipsKey, kChipGlassKey, kChipWatchedKey;
+static char kChipsKey, kChipGlassKey;
 static char kContentKey, kListKey, kInsetKey;
 
 static void vanish(UIView *view) {
@@ -283,10 +283,7 @@ static void glassChip(UIView *chip) {
 // next tap laid the page out again. The chip is watched for its own layout and its glass is sized again on every
 // pass of it (the legacy glass builds its mesh for a size, so autoresizing alone would not follow).
 static void watchChip(UIView *chip) {
-    if (objc_getAssociatedObject(chip, &kChipWatchedKey)) return;
-    if (SGRObserveLayout(chip, ^(UIView *view) { glassChip(view); })) {
-        objc_setAssociatedObject(chip, &kChipWatchedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    }
+    SGRWatchLayout(chip, ^(UIView *view) { glassChip(view); });
 }
 
 // Playlists / Podcasts / Albums / Artists: each chip is Components.UI.FilterChips' own FilterChipView, a flat

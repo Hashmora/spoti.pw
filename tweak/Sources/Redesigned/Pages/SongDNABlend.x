@@ -24,8 +24,6 @@
 #import "Redesigned/Kit/SGRKit.h"
 #import "Pages.h"
 
-static char kOwnFrameKey, kTopKey, kTakenKey, kWatchedKey;
-
 // The page's list: the collection view as wide as the page.
 static UICollectionView *listIn(UIView *view) {
     __block UICollectionView *list = nil;
@@ -38,36 +36,9 @@ static UICollectionView *listIn(UIView *view) {
 static void extendList(UIView *page, UICollectionView *list) {
     UIView *host = list.superview;
     if (!host || host.bounds.size.height < 1) return;
-    CGFloat pageHeight = host.bounds.size.height;
-
-    // What the bars take of the page is read off the list as Spotify's constraints leave it: whenever it is not in the
-    // frame this pass put it in. Left alone while it is, so what was read stays.
-    NSValue *own = objc_getAssociatedObject(list, &kOwnFrameKey);
-    CGRect frame = list.frame;
-    if (!own || !CGRectEqualToRect(own.CGRectValue, frame)) {
-        objc_setAssociatedObject(list, &kTopKey, @(MAX(frame.origin.y, 0)), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        objc_setAssociatedObject(list, &kTakenKey, @(MAX(pageHeight - CGRectGetMaxY(frame), 0)), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    }
-    CGFloat top = [objc_getAssociatedObject(list, &kTopKey) doubleValue];
-    CGFloat taken = [objc_getAssociatedObject(list, &kTakenKey) doubleValue];
-
-    CGRect wanted = CGRectMake(frame.origin.x, 0, frame.size.width, pageHeight);
-    if (!CGRectEqualToRect(list.frame, wanted)) list.frame = wanted;
-    objc_setAssociatedObject(list, &kOwnFrameKey, [NSValue valueWithCGRect:list.frame], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-
-    if (list.contentInsetAdjustmentBehavior != UIScrollViewContentInsetAdjustmentNever) list.contentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentNever;
-    UIEdgeInsets inset = UIEdgeInsetsMake(top, 0, MAX(taken, page.safeAreaInsets.bottom), 0);
-    UIEdgeInsets old = list.contentInset;
-    BOOL moving = list.isDragging || list.isDecelerating;
-    if (fabs(old.bottom - inset.bottom) < 0.5 && fabs(old.top - inset.top) < 0.5) {
-        // A reload of the rows can send the list back to offset 0, which is the first row under the bar.
-        if (!moving && inset.top > 0 && fabs(list.contentOffset.y) < 0.5) list.contentOffset = CGPointMake(0, -inset.top);
-        return;
-    }
-    BOOL atTop = list.contentOffset.y <= -old.top + 1;
-    list.contentInset = inset;
-    list.verticalScrollIndicatorInsets = inset;
-    if (atTop && !moving) list.contentOffset = CGPointMake(0, -inset.top);
+    SGRListRoom room = SGRListRoomOf(list);
+    SGRSetOwnFrame(list, CGRectMake(list.frame.origin.x, 0, list.frame.size.width, host.bounds.size.height));
+    SGRSetListInsets(list, UIEdgeInsetsMake(room.top, 0, MAX(room.below, page.safeAreaInsets.bottom), 0));
 }
 
 static void dress(UIViewController *page) {
@@ -77,85 +48,21 @@ static void dress(UIViewController *page) {
     UICollectionView *list = listIn(view);
     if (!list) return;
     extendList(view, list);
-    UIView *host = list.superview;
-    if (host && !objc_getAssociatedObject(host, &kWatchedKey)) {
-        __weak UIViewController *weakPage = page;
-        if (SGRObserveLayout(host, ^(UIView *laidOut) {
-                UIViewController *strong = weakPage;
-                UICollectionView *found = strong ? listIn(strong.viewIfLoaded) : nil;
-                if (found) extendList(strong.viewIfLoaded, found);
-            })) {
-            objc_setAssociatedObject(host, &kWatchedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        }
-    }
+    __weak UIViewController *weakPage = page;
+    SGRWatchLayout(list.superview, ^(UIView *laidOut) {
+        UIView *root = weakPage.viewIfLoaded;
+        UICollectionView *found = root ? listIn(root) : nil;
+        if (found) extendList(root, found);
+    });
 }
-
-%group SGRSongDNABlend
-%hook SGRBlendController
-- (void)viewWillAppear:(BOOL)animated {
-    %orig;
-    dress((UIViewController *)self);
-}
-
-- (void)viewDidLayoutSubviews {
-    %orig;
-    dress((UIViewController *)self);
-}
-
-- (void)viewDidAppear:(BOOL)animated {
-    %orig;
-    // The bar's buttons and title are made after the first layout.
-    SGRRepeatPass((UIViewController *)self, @[@0.25, @0.6], ^(UIViewController *c) { dress(c); });
-}
-
-- (void)viewWillDisappear:(BOOL)animated {
-    %orig;
-    SGRUndressBarPage((UIViewController *)self);
-}
-%end
-%end
-
-%group SGRSongDNAArtists
-%hook SGRArtistsController
-- (void)viewWillAppear:(BOOL)animated {
-    %orig;
-    SGRDressBarPage((UIViewController *)self);
-}
-
-- (void)viewDidLayoutSubviews {
-    %orig;
-    SGRDressBarPage((UIViewController *)self);
-}
-
-- (void)viewDidAppear:(BOOL)animated {
-    %orig;
-    // The bar's buttons and title are made after the first layout.
-    SGRRepeatPass((UIViewController *)self, @[@0.25, @0.6], ^(UIViewController *c) { SGRDressBarPage(c); });
-}
-
-- (void)viewWillDisappear:(BOOL)animated {
-    %orig;
-    SGRUndressBarPage((UIViewController *)self);
-}
-%end
-%end
 
 %ctor {
-    if (!SGRedesignedUI()) return;
-    if (!SGBelowiOS26()) return;
+    if (!SGRedesignedUI() || !SGBelowiOS26()) return;
+    // Both are hosted by a controller of Spotify's page template, which is the top of the stack.
     Class page = SGRSwiftClass(@"SongDNA_ArtistsDNAPageImpl", @"BlendViewController");
-    if (page) {
-        // The page is hosted by a controller of Spotify's page template, which is the top of the stack.
-        SGRRegisterBarPages(^BOOL(UIViewController *top) { return SGRPageIsOrHolds(top, page); });
-        %init(SGRSongDNABlend, SGRBlendController = page);
-    } else {
-        SGLog(@"class SongDNA_ArtistsDNAPageImpl.BlendViewController not found, Song DNA keeps Spotify's bar");
-    }
+    if (!page) SGLog(@"class SongDNA_ArtistsDNAPageImpl.BlendViewController not found, Song DNA keeps Spotify's bar");
+    SGRDressBarPagesWith(page, YES, ^(UIViewController *c) { dress(c); });
     Class artists = SGRSwiftClass(@"SongDNA_ArtistsDNAPageImpl", @"ArtistsDNAViewController");
-    if (artists) {
-        SGRRegisterBarPages(^BOOL(UIViewController *top) { return SGRPageIsOrHolds(top, artists); });
-        %init(SGRSongDNAArtists, SGRArtistsController = artists);
-    } else {
-        SGLog(@"class SongDNA_ArtistsDNAPageImpl.ArtistsDNAViewController not found, the contributors' page keeps Spotify's bar");
-    }
+    if (!artists) SGLog(@"class SongDNA_ArtistsDNAPageImpl.ArtistsDNAViewController not found, the contributors' page keeps Spotify's bar");
+    SGRDressBarPagesOf(artists, YES);
 }

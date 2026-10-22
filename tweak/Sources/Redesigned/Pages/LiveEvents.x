@@ -27,7 +27,7 @@
 #import "Redesigned/Kit/SGRKit.h"
 #import "Pages.h"
 
-static char kListKey, kBellKey, kSavedKey, kBellPinKey, kSavedPinKey, kOwnFrameKey, kTakenKey, kWatchedKey, kTitleGlassKey;
+static char kListKey, kBellKey, kSavedKey, kBellPinKey, kSavedPinKey, kTitleGlassKey;
 
 // Side padding of the name inside its capsule, and its height: the same as every other page's (Pages/PageBar.m).
 static const CGFloat kTitlePadding = 18, kTitleHeight = 44;
@@ -48,24 +48,12 @@ static UIScrollView *listIn(UIView *page, NSString *identifier) {
 }
 
 static void extendList(UIScrollView *list) {
-    UIView *host = list.superview;
-    CGFloat pageHeight = host.bounds.size.height;
+    CGFloat pageHeight = list.superview.bounds.size.height;
     CGRect frame = list.frame;
     if (pageHeight < 1 || frame.size.width < 1 || frame.size.height < pageHeight * 0.5) return;
-
-    // What the bars below take of the page is read off the list as Spotify's constraints leave it: whenever it is not in
-    // the frame this pass put it in. Left alone while it is, so what was read stays.
-    NSValue *own = objc_getAssociatedObject(list, &kOwnFrameKey);
-    if (!own || !CGRectEqualToRect(own.CGRectValue, frame)) {
-        CGFloat taken = MAX(pageHeight - CGRectGetMaxY(frame), 0);
-        objc_setAssociatedObject(list, &kTakenKey, @(MIN(taken, pageHeight * 0.4)), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    }
-    CGFloat taken = [objc_getAssociatedObject(list, &kTakenKey) doubleValue];
-
-    CGRect wanted = CGRectMake(frame.origin.x, frame.origin.y, frame.size.width, pageHeight - frame.origin.y);
-    if (!CGRectEqualToRect(list.frame, wanted)) list.frame = wanted;
-    objc_setAssociatedObject(list, &kOwnFrameKey, [NSValue valueWithCGRect:list.frame], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-
+    // At most 40% of the page goes to the bars below: more is a list Spotify has not sized yet.
+    CGFloat taken = MIN(SGRListRoomOf(list).below, pageHeight * 0.4);
+    SGRSetOwnFrame(list, CGRectMake(frame.origin.x, frame.origin.y, frame.size.width, pageHeight - frame.origin.y));
     // The list's own safe area at the bottom is counted again once it reaches the bottom edge, so it is taken off.
     CGFloat safe = list.contentInsetAdjustmentBehavior == UIScrollViewContentInsetAdjustmentNever ? 0 : list.safeAreaInsets.bottom;
     CGFloat bottom = MAX(taken - safe, 0);
@@ -76,7 +64,6 @@ static void extendList(UIScrollView *list) {
     UIEdgeInsets bar = list.verticalScrollIndicatorInsets;
     bar.bottom = bottom;
     list.verticalScrollIndicatorInsets = bar;
-    SGLog(@"redesign live events: list under the bars, inset bottom %.0f, frame %@", bottom, NSStringFromCGRect(list.frame));
 }
 
 // The name in the header's bar: the SPTEncoreLabel directly under the HeaderNavigationBar that holds text (the Back
@@ -109,17 +96,11 @@ static void listUnderBars(UIViewController *controller, NSString *identifier) {
     UIScrollView *list = listIn(controller.viewIfLoaded, identifier);
     if (!list) return;
     extendList(list);
-    UIView *host = list.superview;
-    if (host && !objc_getAssociatedObject(host, &kWatchedKey)) {
-        __weak UIViewController *weakPage = controller;
-        if (SGRObserveLayout(host, ^(UIView *laidOut) {
-                UIViewController *strong = weakPage;
-                UIScrollView *found = strong ? listIn(strong.viewIfLoaded, identifier) : nil;
-                if (found) extendList(found);
-            })) {
-            objc_setAssociatedObject(host, &kWatchedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        }
-    }
+    __weak UIViewController *weakPage = controller;
+    SGRWatchLayout(list.superview, ^(UIView *laidOut) {
+        UIScrollView *found = listIn(weakPage.viewIfLoaded, identifier);
+        if (found) extendList(found);
+    });
 }
 
 static void dress(UIViewController *controller) {

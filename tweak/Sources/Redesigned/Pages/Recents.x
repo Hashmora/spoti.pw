@@ -27,7 +27,7 @@
 #import "Redesigned/Kit/SGRKit.h"
 #import "Pages.h"
 
-static char kInsetKey, kWatchedKey, kListKey, kOwnFrameKey, kTakenKey, kHeaderKey, kChipsWatchedKey;
+static char kListKey, kHeaderKey;
 
 // The page's list, found once: the one collection view as wide as the page.
 static UICollectionView *listIn(UIView *view) {
@@ -55,50 +55,21 @@ static void extendRecentsList(UIView *page, UICollectionView *list) {
     UIView *chips = chipsBesides(list);
     if (!host || !chips) return;
     CGFloat pageHeight = host.bounds.size.height;
-
-    // What the bars below take of the page is read off the stack as Spotify's constraints leave it: whenever it is
-    // not in the frame this pass put it in. Left alone while it is, so what was read stays.
-    NSValue *own = objc_getAssociatedObject(stack, &kOwnFrameKey);
-    CGRect frame = stack.frame;
-    if (!own || !CGRectEqualToRect(own.CGRectValue, frame)) {
-        objc_setAssociatedObject(stack, &kTakenKey, @(MAX(pageHeight - CGRectGetMaxY(frame), 0)), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    }
-    CGFloat taken = [objc_getAssociatedObject(stack, &kTakenKey) doubleValue];
-
-    CGRect wanted = CGRectMake(frame.origin.x, frame.origin.y, frame.size.width, pageHeight - frame.origin.y);
-    if (!CGRectEqualToRect(stack.frame, wanted)) stack.frame = wanted;
-    objc_setAssociatedObject(stack, &kOwnFrameKey, [NSValue valueWithCGRect:stack.frame], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    // The stack from where it starts to the foot of the page; the bars below become the list's bottom inset.
+    SGRListRoom room = SGRListRoomOf(stack);
+    SGRSetOwnFrame(stack, CGRectMake(stack.frame.origin.x, room.top, stack.frame.size.width, pageHeight - room.top));
 
     // The list from the top edge of the page to its bottom, over the chips; they are drawn above it.
-    CGFloat barBottom = frame.origin.y;
     CGFloat under = CGRectGetMaxY(chips.frame);
-    CGRect listFrame = CGRectMake(0, -barBottom, stack.bounds.size.width, pageHeight);
+    CGRect listFrame = CGRectMake(0, -room.top, stack.bounds.size.width, pageHeight);
     if (listFrame.size.height > 0 && !CGRectEqualToRect(list.frame, listFrame)) list.frame = listFrame;
     if (stack.clipsToBounds) stack.clipsToBounds = NO;
     if (chips.layer.zPosition != 1) chips.layer.zPosition = 1;
     // Where the list gives its touches up to the chips, in the stack's coordinates.
     NSNumber *zone = objc_getAssociatedObject(list, &kHeaderKey);
-    if (!zone || fabs(zone.doubleValue - under) > 0.5) {
-        objc_setAssociatedObject(list, &kHeaderKey, @(under), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    }
-
-    // The bar and the chips are the list's top inset, the bars below its bottom inset, with no safe area of its
-    // own on top of either.
-    if (list.contentInsetAdjustmentBehavior != UIScrollViewContentInsetAdjustmentNever) list.contentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentNever;
-    UIEdgeInsets inset = UIEdgeInsetsMake(barBottom + under, 0, MAX(taken, page.safeAreaInsets.bottom), 0);
-    UIEdgeInsets old = list.contentInset;
-    BOOL moving = list.isDragging || list.isDecelerating;
-    if (fabs(old.bottom - inset.bottom) < 0.5 && fabs(old.top - inset.top) < 0.5) {
-        // A reload of the rows can send the list back to offset 0, which is the first row under the chips.
-        if (!moving && inset.top > 0 && fabs(list.contentOffset.y) < 0.5) list.contentOffset = CGPointMake(0, -inset.top);
-        return;
-    }
-    BOOL atTop = list.contentOffset.y <= -old.top + 1;
-    list.contentInset = inset;
-    list.verticalScrollIndicatorInsets = inset;
-    if (atTop && !moving) list.contentOffset = CGPointMake(0, -inset.top);
-    objc_setAssociatedObject(list, &kInsetKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    SGLog(@"redesign recents: list under the bars, inset top %.0f bottom %.0f, stack %@", inset.top, inset.bottom, NSStringFromCGRect(stack.frame));
+    if (!zone || fabs(zone.doubleValue - under) > 0.5) objc_setAssociatedObject(list, &kHeaderKey, @(under), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    // The bar and the chips are the list's top inset, the bars below its bottom inset.
+    SGRSetListInsets(list, UIEdgeInsetsMake(room.top + under, 0, MAX(room.below, page.safeAreaInsets.bottom), 0));
 }
 
 // The row of chips scrolls inside the chips view: the chips of a filter just picked are put there after the page's
@@ -112,11 +83,7 @@ static UIScrollView *chipsScrollIn(UIView *chips) {
 }
 
 static void watchChips(UIView *chips) {
-    UIScrollView *scroll = chipsScrollIn(chips);
-    if (!scroll || objc_getAssociatedObject(scroll, &kChipsWatchedKey)) return;
-    if (SGRObserveLayout(scroll, ^(UIView *laidOut) { SGRGlassChipsIn(laidOut); })) {
-        objc_setAssociatedObject(scroll, &kChipsWatchedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    }
+    SGRWatchLayout(chipsScrollIn(chips), ^(UIView *laidOut) { SGRGlassChipsIn(laidOut); });
 }
 
 static void dress(UIViewController *page) {
@@ -131,16 +98,13 @@ static void dress(UIViewController *page) {
     extendRecentsList(view, list);
     // Spotify's constraints set the stack back after each pass of the view it is in, and the stack sets the list
     // back after each pass of its own.
+    __weak UIViewController *weakPage = page;
     for (UIView *watched in @[list.superview.superview ?: view, list.superview]) {
-        if (objc_getAssociatedObject(watched, &kWatchedKey)) continue;
-        __weak UIViewController *weakPage = page;
-        if (SGRObserveLayout(watched, ^(UIView *laidOut) {
-                UIViewController *strong = weakPage;
-                UICollectionView *found = strong ? listIn(strong.viewIfLoaded) : nil;
-                if (found) extendRecentsList(strong.viewIfLoaded, found);
-            })) {
-            objc_setAssociatedObject(watched, &kWatchedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        }
+        SGRWatchLayout(watched, ^(UIView *laidOut) {
+            UIView *root = weakPage.viewIfLoaded;
+            UICollectionView *found = root ? listIn(root) : nil;
+            if (found) extendRecentsList(root, found);
+        });
     }
 }
 
@@ -158,41 +122,16 @@ static void dress(UIViewController *page) {
 }
 %end
 
-%hook SGRRecentsController
-- (void)viewWillAppear:(BOOL)animated {
-    %orig;
-    dress((UIViewController *)self);
-}
-
-- (void)viewDidLayoutSubviews {
-    %orig;
-    dress((UIViewController *)self);
-}
-
-- (void)viewDidAppear:(BOOL)animated {
-    %orig;
-    // The bar's buttons, the chips and the rows are made after the first layout.
-    __weak UIViewController *weak = (UIViewController *)self;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.25 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        if (weak) dress(weak);
-    });
-}
-
-- (void)viewWillDisappear:(BOOL)animated {
-    %orig;
-    SGRUndressBarPage((UIViewController *)self);
-}
-%end
 %end
 
 %ctor {
-    if (!SGRedesignedUI()) return;
-    if (!SGBelowiOS26()) return;
+    if (!SGRedesignedUI() || !SGBelowiOS26()) return;
     Class page = SGRSwiftClass(@"Recents_RecentsPageImpl", @"RecentsViewController");
-    if (page) {
-        SGRRegisterBarPages(^BOOL(UIViewController *top) { return [top isKindOfClass:page]; });
-        %init(SGRRecents, SGRRecentsController = page);
-    } else {
+    if (!page) {
         SGLog(@"class Recents_RecentsPageImpl.RecentsViewController not found, Recents keeps Spotify's bar");
+        return;
     }
+    %init(SGRRecents);
+    // The bar's buttons, the chips and the rows are made after the first layout.
+    SGRDressBarPagesWith(page, NO, ^(UIViewController *c) { dress(c); });
 }

@@ -16,7 +16,7 @@
 #import "Redesigned/Kit/SGRKit.h"
 #import "Redesigned/Pages/Pages.h"
 
-static char kListKey, kWatchedKey, kOwnFrameKey, kTakenKey, kTopKey;
+static char kListKey, kTopKey;
 
 static UICollectionView *findListIn(UIView *view) {
     UICollectionView *cached = objc_getAssociatedObject(view, &kListKey);
@@ -35,12 +35,8 @@ static void extendFindList(UIView *page, UICollectionView *list) {
     CGFloat pageHeight = page.bounds.size.height;
     if (pageHeight < 1 || list.bounds.size.width < 1) return;
 
-    // What Spotify took off the list's foot: read while the list is in the frame Spotify gave it, not ours.
-    NSValue *own = objc_getAssociatedObject(list, &kOwnFrameKey);
-    if (!own || !CGRectEqualToRect(own.CGRectValue, list.frame)) {
-        objc_setAssociatedObject(list, &kTakenKey, @(MAX(pageHeight - CGRectGetMaxY(list.frame), 0)), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    }
-    CGFloat taken = [objc_getAssociatedObject(list, &kTakenKey) doubleValue];
+    // What Spotify took off the list's foot.
+    CGFloat taken = SGRListRoomOf(list).below;
 
     // The top as Spotify had it, before the automatic adjustment goes.
     NSNumber *top = objc_getAssociatedObject(list, &kTopKey);
@@ -52,22 +48,8 @@ static void extendFindList(UIView *page, UICollectionView *list) {
         objc_setAssociatedObject(list, &kTopKey, top, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
 
-    CGRect wanted = CGRectMake(list.frame.origin.x, list.frame.origin.y, list.frame.size.width, pageHeight - list.frame.origin.y);
-    if (!CGRectEqualToRect(list.frame, wanted)) list.frame = wanted;
-    objc_setAssociatedObject(list, &kOwnFrameKey, [NSValue valueWithCGRect:list.frame], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-
-    if (list.contentInsetAdjustmentBehavior != UIScrollViewContentInsetAdjustmentNever) {
-        list.contentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentNever;
-    }
-    UIEdgeInsets inset = UIEdgeInsetsMake(top.doubleValue, 0, MAX(taken, page.safeAreaInsets.bottom), 0);
-    UIEdgeInsets old = list.contentInset;
-    if (fabs(old.top - inset.top) < 0.5 && fabs(old.bottom - inset.bottom) < 0.5) return;
-    BOOL atTop = list.contentOffset.y <= -old.top + 1;
-    list.contentInset = inset;
-    list.verticalScrollIndicatorInsets = inset;
-    if (atTop && !(list.isDragging || list.isDecelerating)) list.contentOffset = CGPointMake(0, -inset.top);
-    SGLog(@"redesign find on page: list under the bars, inset top %.0f bottom %.0f, frame %@", inset.top, inset.bottom,
-          NSStringFromCGRect(list.frame));
+    SGRSetOwnFrame(list, CGRectMake(list.frame.origin.x, list.frame.origin.y, list.frame.size.width, pageHeight - list.frame.origin.y));
+    SGRSetListInsets(list, UIEdgeInsetsMake(top.doubleValue, 0, MAX(taken, page.safeAreaInsets.bottom), 0));
 }
 
 static void dress(UIViewController *controller) {
@@ -76,16 +58,10 @@ static void dress(UIViewController *controller) {
     UICollectionView *list = findListIn(page);
     if (!list) return;
     extendFindList(page, list);
-    if (!objc_getAssociatedObject(page, &kWatchedKey)) {
-        __weak UIViewController *weak = controller;
-        if (SGRObserveLayout(page, ^(UIView *laidOut) {
-                UIViewController *strong = weak;
-                UICollectionView *found = strong ? findListIn(laidOut) : nil;
-                if (found) extendFindList(laidOut, found);
-            })) {
-            objc_setAssociatedObject(page, &kWatchedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        }
-    }
+    SGRWatchLayout(page, ^(UIView *laidOut) {
+        UICollectionView *found = findListIn(laidOut);
+        if (found) extendFindList(laidOut, found);
+    });
 }
 
 %ctor {

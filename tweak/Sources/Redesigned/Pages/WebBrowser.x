@@ -15,7 +15,7 @@
 #import "Redesigned/Kit/SGRKit.h"
 #import "Pages.h"
 
-static char kBarGlassKey, kWebGlassKey, kBackKey, kForwardKey, kWatchedKey;
+static char kBarGlassKey, kWebGlassKey, kBackKey, kForwardKey;
 
 // Behind Back and Forward, which stand 24pt apart from the title's text at the edges of the title control.
 static const CGFloat kWebGlass = 32;
@@ -67,9 +67,7 @@ static void dress(UIViewController *page) {
     if (!title) return;
     dressTitleButtons(title);
     // The title is laid out again as the page's name and host arrive: the one pass that reaches Back and Forward after the page's own.
-    if (!objc_getAssociatedObject(title, &kWatchedKey) && SGRObserveLayout(title, ^(UIView *view) { dressTitleButtons(view); })) {
-        objc_setAssociatedObject(title, &kWatchedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    }
+    SGRWatchLayout(title, ^(UIView *view) { dressTitleButtons(view); });
 }
 
 %ctor {

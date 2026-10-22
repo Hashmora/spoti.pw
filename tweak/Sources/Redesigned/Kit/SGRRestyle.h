@@ -41,6 +41,20 @@ BOOL SGRObserveImage(UIImageView *view, void (^changed)(UIImageView *view));
 // For a screen that arranges Spotify's controls its own way: a parent lays its children out after the
 // hook that placed them has returned, so frames set from an ancestor's pass are the ones overwritten.
 BOOL SGRObserveLayout(UIView *view, void (^laidOut)(UIView *view));
+// SGRObserveLayout once per view: a view already watched keeps the block it has. For a pass that runs on every layout
+// of the page and watches the same view each time.
+BOOL SGRWatchLayout(UIView *view, void (^laidOut)(UIView *view));
+
+// A list run on under the page's bars, as tall as the page instead of stopping short of them. What Spotify's
+// constraints leave the view is read off its frame whenever it is not the frame last given by SGRSetOwnFrame, and kept
+// while it is: that frame is the redesign's, and reading it would undo what was read. `top` is where the view starts,
+// `below` how much of its superview is under it (the tab bar and the now playing bar).
+typedef struct { CGFloat top, below; } SGRListRoom;
+SGRListRoom SGRListRoomOf(UIView *view);
+void SGRSetOwnFrame(UIView *view, CGRect frame);
+// The list's insets set to `inset`, with no safe area of its own on top, its rows kept where they were: a list at its
+// top stays there, and one a reload sent back to offset 0 (the first row under the bar) is put back under it.
+void SGRSetListInsets(UIScrollView *list, UIEdgeInsets inset);
 
 // The first view under `root` (itself included) with the accessibility identifier, depth first. The
 // answer is kept weakly on `root` under `cacheKey` and searched for again only when it is gone, has

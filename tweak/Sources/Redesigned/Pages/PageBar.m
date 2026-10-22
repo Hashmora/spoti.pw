@@ -30,7 +30,7 @@
 #import "Redesigned/Kit/SGRKit.h"
 #import "Pages.h"
 
-static char kMoreKey, kExtraKey, kProxyKey, kTitleGlassKey, kTitleWatchedKey, kBarStyleKey, kHeldKey, kConcealedKey;
+static char kMoreKey, kExtraKey, kProxyKey, kTitleGlassKey, kBarStyleKey, kHeldKey, kConcealedKey;
 
 // The pages dressed now, weakly: the bar is given back only when none is left.
 static NSHashTable<UIViewController *> *sg_dressed;
@@ -294,10 +294,7 @@ static void glassTitle(UIView *title) {
 // The title is laid out again as its text arrives, which reaches neither the page nor the bar's content view the
 // page's pass works from: it is watched for its own layout.
 static void watchTitle(UIView *title) {
-    if (objc_getAssociatedObject(title, &kTitleWatchedKey)) return;
-    if (SGRObserveLayout(title, ^(UIView *view) { glassTitle(view); })) {
-        objc_setAssociatedObject(title, &kTitleWatchedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    }
+    SGRWatchLayout(title, ^(UIView *view) { glassTitle(view); });
 }
 
 #pragma mark - the page
@@ -453,12 +450,16 @@ static void dressStyled(UIViewController *page, SGRBarStyle style) {
     else SGRDressBarPage(page);
 }
 
-void SGRDressBarPagesOf(Class page, BOOL hosted) {
+void SGRDressBarPagesWith(Class page, BOOL hosted, SGRControllerPass dress) {
     if (!page) return;
     SGRRegisterBarPages(^BOOL(UIViewController *top) { return hosted ? SGRPageIsOrHolds(top, page) : [top isKindOfClass:page]; });
     // The bar's buttons and title are made after the first layout.
-    SGRPassController(page, ^(UIViewController *c) { SGRDressBarPage(c); });
+    SGRPassController(page, dress);
     SGRPassControllerGoing(page, ^(UIViewController *c) { SGRUndressBarPage(c); });
+}
+
+void SGRDressBarPagesOf(Class page, BOOL hosted) {
+    SGRDressBarPagesWith(page, hosted, ^(UIViewController *c) { SGRDressBarPage(c); });
 }
 
 // One kind of page dressed from the bar, and the one of them dressed now.

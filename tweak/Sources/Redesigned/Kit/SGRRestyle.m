@@ -503,3 +503,46 @@ BOOL SGRFire(UIControl *control) {
     [control sendActionsForControlEvents:fire];
     return YES;
 }
+
+static char kWatchedLayoutKey, kOwnFrameKey, kRoomKey;
+
+BOOL SGRWatchLayout(UIView *view, void (^laidOut)(UIView *view)) {
+    if (!view || objc_getAssociatedObject(view, &kWatchedLayoutKey)) return view != nil;
+    if (!SGRObserveLayout(view, laidOut)) return NO;
+    objc_setAssociatedObject(view, &kWatchedLayoutKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    return YES;
+}
+
+SGRListRoom SGRListRoomOf(UIView *view) {
+    CGRect frame = view.frame;
+    NSValue *own = objc_getAssociatedObject(view, &kOwnFrameKey);
+    NSValue *room = objc_getAssociatedObject(view, &kRoomKey);
+    if (!room || !own || !CGRectEqualToRect(own.CGRectValue, frame)) {
+        CGFloat height = view.superview.bounds.size.height;
+        SGRListRoom read = {MAX(frame.origin.y, 0), MAX(height - CGRectGetMaxY(frame), 0)};
+        room = [NSValue valueWithBytes:&read objCType:@encode(SGRListRoom)];
+        objc_setAssociatedObject(view, &kRoomKey, room, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    SGRListRoom result;
+    [room getValue:&result];
+    return result;
+}
+
+void SGRSetOwnFrame(UIView *view, CGRect frame) {
+    if (!CGRectEqualToRect(view.frame, frame)) view.frame = frame;
+    objc_setAssociatedObject(view, &kOwnFrameKey, [NSValue valueWithCGRect:view.frame], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+}
+
+void SGRSetListInsets(UIScrollView *list, UIEdgeInsets inset) {
+    if (list.contentInsetAdjustmentBehavior != UIScrollViewContentInsetAdjustmentNever) list.contentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentNever;
+    UIEdgeInsets old = list.contentInset;
+    BOOL moving = list.isDragging || list.isDecelerating;
+    if (fabs(old.bottom - inset.bottom) < 0.5 && fabs(old.top - inset.top) < 0.5) {
+        if (!moving && inset.top > 0 && fabs(list.contentOffset.y) < 0.5) list.contentOffset = CGPointMake(0, -inset.top);
+        return;
+    }
+    BOOL atTop = list.contentOffset.y <= -old.top + 1;
+    list.contentInset = inset;
+    list.verticalScrollIndicatorInsets = inset;
+    if (atTop && !moving) list.contentOffset = CGPointMake(0, -inset.top);
+}

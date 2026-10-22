@@ -34,6 +34,7 @@
 // Every hook installs only while Redesigned UI is on and below iOS 26, where the bars are the system's.
 // Threading: main thread only.
 #import <UIKit/UIKit.h>
+#import "Redesigned/Kit/SGRPass.h"
 
 // Whether `top` is a view controller of class `page` or holds one among its children (pages are hosted by Spotify's
 // page template, so the top of the stack is the host).
@@ -76,6 +77,9 @@ typedef NS_ENUM(NSInteger, SGRBarStyle) { SGRBarStyleFull, SGRBarStyleTitleless,
 // push (SGRRegisterBarPages). `hosted`: the page is a child of Spotify's page template, which is the top of the stack.
 // Nothing when `page` is nil.
 void SGRDressBarPagesOf(Class page, BOOL hosted);
+// The same with a pass of the page's own, which dresses the bar itself (SGRDressBarPage) along with whatever else the
+// page needs; the bar is given back as the page goes.
+void SGRDressBarPagesWith(Class page, BOOL hosted, SGRControllerPass dress);
 
 // The pages told by what they hold rather than by a class: `find` picks the page to dress from a navigation controller
 // (nil when none of these is on top), and the bar is dressed from its own passes while that page is on screen and given
