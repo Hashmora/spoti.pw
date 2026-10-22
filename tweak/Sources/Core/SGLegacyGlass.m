@@ -169,8 +169,11 @@ typedef struct { CGFloat radius, refW, refH, edgeDistance, outerEdgeDistance; } 
 typedef struct { CGFloat baseX, scaleX, baseY, scaleY, dispX, dispY, depth; } SGTemplateVertex;
 
 static const NSInteger kCornerResolution = 12;
-static const CGFloat kOuterEdgeDistance = 2.0;   // width of the strip at the rim that is refracted harder
-static const CGFloat kDisplacementPoints = 20.0; // how far, at most, a vertex samples from its own position
+static const CGFloat kOuterEdgeDistance = 3.5;   // width of the strip at the rim that is refracted harder
+static const CGFloat kDisplacementPoints = 26.0; // how far, at most, a vertex samples from its own position
+// How deep from the rim the glass bends what is behind it: most of the corner's radius, as the system's glass does,
+// whose edges refract over a wide band rather than a thin line (Telegram's 12pt read as a flat pane with a bevel).
+static const CGFloat kEdgeBandMax = 22.0, kEdgeBandShare = 0.8;
 static const CGFloat kInsetPoints = -1.0;        // the mesh reaches this far past the view, so its rim is never bare
 
 @interface SGMeshTemplate : NSObject
@@ -258,7 +261,7 @@ static NSValue *SGAxisPoint(CGFloat base, CGFloat scale) {
 }
 
 static SGMeshTemplate *SGBuildTemplate(CGFloat radius) {
-    SGMeshSpec spec = {radius, MAX(4 * radius, 100), MAX(4 * radius, 100), MIN(12.0, radius), kOuterEdgeDistance};
+    SGMeshSpec spec = {radius, MAX(4 * radius, 100), MAX(4 * radius, 100), MIN(kEdgeBandMax, radius * kEdgeBandShare), kOuterEdgeDistance};
     SGMeshTemplate *t = [SGMeshTemplate new];
     CGFloat R = radius;
 
