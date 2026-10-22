@@ -444,3 +444,49 @@ void SGRUndressBarPage(UIViewController *page) {
     }
     undressBar(page, navigation);
 }
+
+#pragma mark - pages dressed by class, and pages dressed from the bar
+
+static void dressStyled(UIViewController *page, SGRBarStyle style) {
+    if (style == SGRBarStyleTitleless) SGRDressBarPageTitleless(page);
+    else if (style == SGRBarStyleBackOnly) SGRDressBarPageBackOnly(page);
+    else SGRDressBarPage(page);
+}
+
+void SGRDressBarPagesOf(Class page, BOOL hosted) {
+    if (!page) return;
+    SGRRegisterBarPages(^BOOL(UIViewController *top) { return hosted ? SGRPageIsOrHolds(top, page) : [top isKindOfClass:page]; });
+    // The bar's buttons and title are made after the first layout.
+    SGRPassController(page, ^(UIViewController *c) { SGRDressBarPage(c); });
+    SGRPassControllerGoing(page, ^(UIViewController *c) { SGRUndressBarPage(c); });
+}
+
+// One kind of page dressed from the bar, and the one of them dressed now.
+@interface SGRBarPageWatch : NSObject
+@property (nonatomic, copy) SGRBarPageFind find;
+@property (nonatomic) SGRBarStyle style;
+@property (nonatomic, weak) UIViewController *dressed;
+@end
+
+@implementation SGRBarPageWatch
+@end
+
+void SGRDressBarPagesFound(SGRBarPageFind find, SGRBarStyle style) {
+    if (!find) return;
+    SGRBarPageWatch *watch = [SGRBarPageWatch new];
+    watch.find = find;
+    watch.style = style;
+    SGRRegisterBarPages(^BOOL(UIViewController *top) { return top.navigationController && find(top.navigationController) != nil; });
+    SGRObserveBarPasses(^(UIView *bar) {
+        UIViewController *page = watch.find(SGRNavigationOf(bar));
+        if (page.viewIfLoaded.window) {
+            watch.dressed = page;
+            dressStyled(page, watch.style);
+            return;
+        }
+        UIViewController *dressed = watch.dressed;
+        if (!dressed) return;
+        watch.dressed = nil;
+        SGRUndressBarPage(dressed);
+    });
+}

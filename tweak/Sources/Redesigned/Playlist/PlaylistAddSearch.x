@@ -78,54 +78,14 @@ static UIViewController *findPageIn(UIViewController *controller, int depth) {
     return nil;
 }
 
-// The Find page dressed now; the bar is given back when it is no longer on top.
-static __weak UIViewController *sg_dressedFind;
-
-static void dressBar(UIView *bar) {
-    if (bar.bounds.size.width < 1) return;
-    UINavigationController *navigation = SGRNavigationOf(bar);
-    if (![NSStringFromClass(navigation.class) containsString:@"AssistedCurationNavigationController"]) return;
-    UIViewController *find = findPageIn(navigation.topViewController, 4);
-    if (find && find.viewIfLoaded.window) {
-        if (sg_dressedFind != find) {
-            sg_dressedFind = find;
-            SGLog(@"redesign playlist: find page bar dressed");
-        }
-        SGRDressBarPage(find);
-        return;
-    }
-    UIViewController *dressed = sg_dressedFind;
-    if (dressed) {
-        sg_dressedFind = nil;
-        SGRUndressBarPage(dressed);
-    }
-}
-
-%group SGRAddSongsBar
-%hook SPNavigationBar
-- (void)layoutSubviews {
-    %orig;
-    dressBar((UIView *)self);
-}
-%end
-
-// UIKit rebuilds the bar's buttons while laying this view out, which is after the bar's own pass.
-%hook _UINavigationBarContentView
-- (void)layoutSubviews {
-    %orig;
-    UIView *bar = ((UIView *)self).superview;
-    if ([bar isKindOfClass:NSClassFromString(@"SPNavigationBar")]) dressBar(bar);
-}
-%end
-%end
-
 %ctor {
     if (!SGRedesignedUI() || !SGBelowiOS26()) return;
     // The bar is made after the page's first layout, and its grey comes back with the rows.
     SGRPassSwiftController(@"AssistedCuration_RecommendationsImpl", @"RecommendationsViewController", ^(UIViewController *c) { glassSearchBar(c); });
     sg_findClass = SGRSwiftClass(@"AssistedCuration_SearchImpl", @"AssistedCurationSearchContainerViewController");
     SGRPassController(sg_findClass, ^(UIViewController *c) { glassSearchBar(c); });
-    if (NSClassFromString(@"SPNavigationBar") && NSClassFromString(@"_UINavigationBarContentView")) {
-        %init(SGRAddSongsBar);
-    }
+    SGRDressBarPagesFound(^UIViewController *(UINavigationController *navigation) {
+        if (![NSStringFromClass(navigation.class) containsString:@"AssistedCurationNavigationController"]) return nil;
+        return findPageIn(navigation.topViewController, 4);
+    }, SGRBarStyleFull);
 }

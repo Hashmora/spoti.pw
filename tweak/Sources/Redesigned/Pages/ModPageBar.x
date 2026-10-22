@@ -43,35 +43,12 @@ void SGUndressPageBar(UIViewController *page) {
     SGRUndressBarPage(page);
 }
 
-static void barPass(UIView *bar) {
-    if (!redesignBars()) return;
-    UIViewController *top = SGRNavigationOf(bar).topViewController;
-    if ([top isKindOfClass:SGModPage.class] && top.viewIfLoaded.window) SGDressPageBar(top);
-}
-
-%hook SPNavigationBar
-- (void)layoutSubviews {
-    %orig;
-    barPass((UIView *)self);
-}
-%end
-
-// UIKit builds the bar's Back and title again while laying this view out, which is after the bar's own pass.
-%hook _UINavigationBarContentView
-- (void)layoutSubviews {
-    %orig;
-    UIView *bar = ((UIView *)self).superview;
-    if ([bar isKindOfClass:NSClassFromString(@"SPNavigationBar")]) barPass(bar);
-}
-%end
-
 %ctor {
     if (!SGRedesignedUI()) return;
     if (!SGBelowiOS26()) return;
-    %init;
-    SGRequireClasses(@[@"SPNavigationBar", @"_UINavigationBarContentView"]);
-    // Spotify's blur behind the bar is kept off from the push, not from the page's first pass.
-    SGRRegisterBarPages(^BOOL(UIViewController *top) {
-        return [top isKindOfClass:SGModPage.class] && onSpotifyStack(top);
-    });
+    // From the bar's passes as well: UIKit makes its Back and title again after the page's pass.
+    SGRDressBarPagesFound(^UIViewController *(UINavigationController *navigation) {
+        UIViewController *top = navigation.topViewController;
+        return [top isKindOfClass:SGModPage.class] && onSpotifyStack(top) ? top : nil;
+    }, SGRBarStyleBackOnly);
 }

@@ -10,40 +10,9 @@
 #import "Redesigned/Kit/SGRKit.h"
 #import "Pages.h"
 
-%group SGRArtistConcerts
-%hook SGRConcertsController
-- (void)viewWillAppear:(BOOL)animated {
-    %orig;
-    SGRDressBarPage((UIViewController *)self);
-}
-
-- (void)viewDidLayoutSubviews {
-    %orig;
-    SGRDressBarPage((UIViewController *)self);
-}
-
-- (void)viewDidAppear:(BOOL)animated {
-    %orig;
-    // The bar's buttons and title are made after the first layout.
-    SGRRepeatPass((UIViewController *)self, @[@0.25, @0.6], ^(UIViewController *c) { SGRDressBarPage(c); });
-}
-
-- (void)viewWillDisappear:(BOOL)animated {
-    %orig;
-    SGRUndressBarPage((UIViewController *)self);
-}
-%end
-%end
-
 %ctor {
-    if (!SGRedesignedUI()) return;
-    if (!SGBelowiOS26()) return;
+    if (!SGRedesignedUI() || !SGBelowiOS26()) return;
     Class page = SGRSwiftClass(@"LiveEvents_ArtistLiveEventsPageImpl", @"ArtistLiveEventsPageViewController");
-    if (page) {
-        // The page is hosted by a controller of Spotify's page template, which is the top of the stack.
-        SGRRegisterBarPages(^BOOL(UIViewController *top) { return SGRPageIsOrHolds(top, page); });
-        %init(SGRArtistConcerts, SGRConcertsController = page);
-    } else {
-        SGLog(@"class LiveEvents_ArtistLiveEventsPageImpl.ArtistLiveEventsPageViewController not found, the artist's concerts page keeps Spotify's bar");
-    }
+    if (!page) SGLog(@"class LiveEvents_ArtistLiveEventsPageImpl.ArtistLiveEventsPageViewController not found, the artist's concerts page keeps Spotify's bar");
+    SGRDressBarPagesOf(page, YES);
 }

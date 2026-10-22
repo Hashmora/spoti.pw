@@ -144,64 +144,11 @@ static void undress(UIViewController *page) {
     SGRUndressBarPage(page);
 }
 
-%group SGRPlainBarPages
-%hook SGRHostingController
-- (void)viewDidLoad {
-    %orig;
-    UIView *root = ((UIViewController *)self).viewIfLoaded;
-    if (root.overrideUserInterfaceStyle != UIUserInterfaceStyleDark) root.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
-}
-
-- (void)viewDidLayoutSubviews {
-    %orig;
-    dress((UIViewController *)self);
-}
-
-- (void)viewWillAppear:(BOOL)animated {
-    %orig;
-    dress((UIViewController *)self);
-}
-
-- (void)viewDidAppear:(BOOL)animated {
-    %orig;
-    SGRRepeatPass((UIViewController *)self, @[@0.0, @0.25, @0.6, @1.2, @2.5], ^(UIViewController *c) {
-        if (c.viewIfLoaded.window) dress(c);
-    });
-}
-
-- (void)viewWillDisappear:(BOOL)animated {
-    %orig;
-    undress((UIViewController *)self);
-}
-%end
-
 // The bar's own passes: the page on top of its navigation controller, if it is one of these, is dressed.
 static void barPass(UIView *bar) {
-    if (!SGBelowiOS26()) return;
-    UINavigationController *navigation = SGRNavigationOf(bar);
-    SGRSyncBarBlur(navigation);
-    UIViewController *top = navigation.topViewController;
+    UIViewController *top = SGRNavigationOf(bar).topViewController;
     if (top && [top isKindOfClass:sg_hosting] && top.viewIfLoaded.window) dress(top);
 }
-
-%hook SPNavigationBar
-- (void)layoutSubviews {
-    %orig;
-    barPass((UIView *)self);
-}
-%end
-
-// UIKit builds the bar's Back and title again as Spotify sets the page's item, which for these pages is when its data
-// has loaded and while this view is laid out, after the bar's own pass: Spotify's bar showed until the next pass of
-// the bar, a scroll, and the redesign's came only then (trees/continuous/14.txt).
-%hook _UINavigationBarContentView
-- (void)layoutSubviews {
-    %orig;
-    UIView *bar = ((UIView *)self).superview;
-    if ([bar isKindOfClass:NSClassFromString(@"SPNavigationBar")]) barPass(bar);
-}
-%end
-%end
 
 %ctor {
     if (!SGRedesignedUI()) return;
@@ -218,5 +165,7 @@ static void barPass(UIView *bar) {
             return [top isKindOfClass:hosting] && (!top.childViewControllers.count || isPage(top, 0));
         });
     }
-    %init(SGRPlainBarPages, SGRHostingController = hosting);
+    SGRPassController(hosting, ^(UIViewController *c) { dress(c); });
+    SGRPassControllerGoing(hosting, ^(UIViewController *c) { undress(c); });
+    SGRObserveBarPasses(^(UIView *bar) { barPass(bar); });
 }

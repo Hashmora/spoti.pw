@@ -24,47 +24,26 @@ static UIViewController *outerOf(UIViewController *container) {
     return nil;
 }
 
-%group SGRImportMusic
-%hook SGRVtecContainer
-- (void)viewWillAppear:(BOOL)animated {
-    %orig;
-    UIViewController *outer = outerOf((UIViewController *)self);
+static void dressOuter(UIViewController *container) {
+    UIViewController *outer = outerOf(container);
     if (outer) SGRDressBarPage(outer);
 }
 
-- (void)viewDidLayoutSubviews {
-    %orig;
-    UIViewController *outer = outerOf((UIViewController *)self);
-    if (outer) SGRDressBarPage(outer);
-}
-
-- (void)viewDidAppear:(BOOL)animated {
-    %orig;
-    // The bar's buttons are made after the first layout.
-    SGRRepeatPass((UIViewController *)self, @[@0.25, @0.6], ^(UIViewController *c) {
-        UIViewController *outer = outerOf(c);
-        if (outer) SGRDressBarPage(outer);
-    });
-}
-
-- (void)viewWillDisappear:(BOOL)animated {
-    %orig;
-    UIViewController *outer = outerOf((UIViewController *)self);
+static void undressOuter(UIViewController *container) {
+    UIViewController *outer = outerOf(container);
     if (outer) SGRUndressBarPage(outer);
 }
-%end
-%end
 
 %ctor {
-    if (!SGRedesignedUI()) return;
-    if (!SGBelowiOS26()) return;
+    if (!SGRedesignedUI() || !SGBelowiOS26()) return;
     Class page = SGRSwiftClass(@"TheStage_VtecImpl", @"VtecContainerController");
     sg_vtecNavigation = SGRSwiftClass(@"TheStage_VtecImpl", @"VtecNavigationController");
-    if (page && sg_vtecNavigation) {
-        // The page is hosted by a controller of Spotify's page template, which is the top of the stack.
-        SGRRegisterBarPages(^BOOL(UIViewController *top) { return SGRPageIsOrHolds(top, page); });
-        %init(SGRImportMusic, SGRVtecContainer = page);
-    } else {
+    if (!page || !sg_vtecNavigation) {
         SGLog(@"class TheStage_VtecImpl.VtecContainerController or VtecNavigationController not found, Import your music keeps Spotify's bar");
+        return;
     }
+    // The page is hosted by a controller of Spotify's page template, which is the top of the stack.
+    SGRRegisterBarPages(^BOOL(UIViewController *top) { return SGRPageIsOrHolds(top, page); });
+    SGRPassController(page, ^(UIViewController *c) { dressOuter(c); });
+    SGRPassControllerGoing(page, ^(UIViewController *c) { undressOuter(c); });
 }

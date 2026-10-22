@@ -11,39 +11,9 @@
 #import "Redesigned/Kit/SGRKit.h"
 #import "Pages.h"
 
-%group SGRNewEpisodes
-%hook SGRNewEpisodesController
-- (void)viewWillAppear:(BOOL)animated {
-    %orig;
-    SGRDressBarPage((UIViewController *)self);
-}
-
-- (void)viewDidLayoutSubviews {
-    %orig;
-    SGRDressBarPage((UIViewController *)self);
-}
-
-- (void)viewDidAppear:(BOOL)animated {
-    %orig;
-    // The bar's button and title are made after the first layout.
-    SGRRepeatPass((UIViewController *)self, @[@0.25, @0.6], ^(UIViewController *c) { SGRDressBarPage(c); });
-}
-
-- (void)viewWillDisappear:(BOOL)animated {
-    %orig;
-    SGRUndressBarPage((UIViewController *)self);
-}
-%end
-%end
-
 %ctor {
-    if (!SGRedesignedUI()) return;
-    if (!SGBelowiOS26()) return;
+    if (!SGRedesignedUI() || !SGBelowiOS26()) return;
     Class page = NSClassFromString(@"SPTYourLibraryPodcastNewEpisodesViewController");
-    if (page) {
-        SGRRegisterBarPages(^BOOL(UIViewController *top) { return [top isKindOfClass:page]; });
-        %init(SGRNewEpisodes, SGRNewEpisodesController = page);
-    } else {
-        SGLog(@"class SPTYourLibraryPodcastNewEpisodesViewController not found, New Episodes keeps Spotify's bar");
-    }
+    if (!page) SGLog(@"class SPTYourLibraryPodcastNewEpisodesViewController not found, New Episodes keeps Spotify's bar");
+    SGRDressBarPagesOf(page, NO);
 }

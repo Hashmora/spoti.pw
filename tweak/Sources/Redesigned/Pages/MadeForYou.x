@@ -48,55 +48,16 @@ static void roundCover(UIView *card) {
     }
 }
 
-%group SGRMadeForYouBar
-%hook SGRMadeForYouPage
-- (void)viewWillAppear:(BOOL)animated {
-    %orig;
-    SGRDressBarPage((UIViewController *)self);
-}
-
-- (void)viewDidLayoutSubviews {
-    %orig;
-    SGRDressBarPage((UIViewController *)self);
-}
-
-- (void)viewDidAppear:(BOOL)animated {
-    %orig;
-    // The bar's buttons and title are made after the first layout.
-    SGRRepeatPass((UIViewController *)self, @[@0.25, @0.6], ^(UIViewController *c) { SGRDressBarPage(c); });
-}
-
-- (void)viewWillDisappear:(BOOL)animated {
-    %orig;
-    SGRUndressBarPage((UIViewController *)self);
-}
-%end
-%end
-
-%group SGRMadeForYouCards
-%hook SGRGlueCard
-- (void)layoutSubviews {
-    %orig;
-    roundCover((UIView *)self);
-}
-%end
-%end
-
 %ctor {
-    if (!SGRedesignedUI()) return;
-    if (!SGBelowiOS26()) return;
+    if (!SGRedesignedUI() || !SGBelowiOS26()) return;
     Class page = NSClassFromString(@"SPTMadeForYouHubViewController");
     if (!page) {
         SGLog(@"class SPTMadeForYouHubViewController not found, Made For You keeps Spotify's bar and covers");
         return;
     }
     sg_madeForYou = page;
-    SGRRegisterBarPages(^BOOL(UIViewController *top) { return SGRPageIsOrHolds(top, page); });
-    %init(SGRMadeForYouBar, SGRMadeForYouPage = page);
+    SGRDressBarPagesOf(page, YES);
     Class card = NSClassFromString(@"GLUEEntityCardView");
-    if (card) {
-        %init(SGRMadeForYouCards, SGRGlueCard = card);
-    } else {
-        SGLog(@"class GLUEEntityCardView not found, the covers on Made For You stay square");
-    }
+    if (!card) SGLog(@"class GLUEEntityCardView not found, the covers on Made For You stay square");
+    SGRPassView(card, ^(UIView *v) { roundCover(v); });
 }

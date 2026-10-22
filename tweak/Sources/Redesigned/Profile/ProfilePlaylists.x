@@ -31,9 +31,6 @@ static NSString *const kPageMarker = @"PlaylistsProfileVisibilityPageImpl";
 
 static char kPlateKey;
 
-// The page dressed now; the bar is given back when it is no longer on top.
-static __weak UIViewController *sg_dressedPage;
-
 #pragma mark - the bar
 
 // Whether `controller` is the page's controller or holds it among its children (the hosting controller of Navigation's page API
@@ -46,43 +43,6 @@ static BOOL holdsPage(UIViewController *controller, int depth) {
     }
     return NO;
 }
-
-static void update(UIView *bar) {
-    if (!SGBelowiOS26()) return;
-    UINavigationController *navigation = SGRNavigationOf(bar);
-    UIViewController *top = navigation.topViewController;
-    if (top && top.viewIfLoaded.window && holdsPage(top, 0)) {
-        if (sg_dressedPage != top) {
-            sg_dressedPage = top;
-            SGLog(@"redesign profile: bar dressed for the playlists page");
-        }
-        SGRDressBarPageTitleless(top);
-        return;
-    }
-    UIViewController *dressed = sg_dressedPage;
-    if (dressed) {
-        sg_dressedPage = nil;
-        SGRUndressBarPage(dressed);
-    }
-}
-
-%group SGRPlaylistsBar
-%hook SPNavigationBar
-- (void)layoutSubviews {
-    %orig;
-    update((UIView *)self);
-}
-%end
-
-// UIKit builds the bar's buttons and title while laying this view out, which is after the bar's own pass.
-%hook _UINavigationBarContentView
-- (void)layoutSubviews {
-    %orig;
-    UIView *bar = ((UIView *)self).superview;
-    if ([bar isKindOfClass:NSClassFromString(@"SPNavigationBar")]) update(bar);
-}
-%end
-%end
 
 #pragma mark - the plate at the foot
 
@@ -156,12 +116,10 @@ static void dressPlate(UIView *view) {
 %ctor {
     if (!SGRedesignedUI()) return;
     if (!SGBelowiOS26()) return;
-    SGRequireClasses(@[@"SPNavigationBar", @"_UINavigationBarContentView"]);
-    %init(SGRPlaylistsBar);
-    // Spotify's bar is kept out of sight from the push, not from the first pass that finds the page.
-    SGRRegisterBarPages(^BOOL(UIViewController *top) {
-        return holdsPage(top, 0);
-    });
+    SGRDressBarPagesFound(^UIViewController *(UINavigationController *navigation) {
+        UIViewController *top = navigation.topViewController;
+        return top && holdsPage(top, 0) ? top : nil;
+    }, SGRBarStyleTitleless);
     Class graphics = SGRSwiftClass(@"SwiftUI", @"_UIGraphicsView");
     if (graphics) {
         SGRPassView(graphics, ^(UIView *v) { dressPlate(v); });

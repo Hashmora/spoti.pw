@@ -9,42 +9,9 @@
 #import "Redesigned/Kit/SGRKit.h"
 #import "Pages.h"
 
-%group SGRYourUpdates
-%hook SGRNotificationCenter
-- (void)viewWillAppear:(BOOL)animated {
-    %orig;
-    SGRDressBarPage((UIViewController *)self);
-}
-
-- (void)viewDidLayoutSubviews {
-    %orig;
-    SGRDressBarPage((UIViewController *)self);
-}
-
-- (void)viewDidAppear:(BOOL)animated {
-    %orig;
-    // The bar's buttons are made after the first layout.
-    __weak UIViewController *weak = (UIViewController *)self;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.25 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        if (weak) SGRDressBarPage(weak);
-    });
-}
-
-- (void)viewWillDisappear:(BOOL)animated {
-    %orig;
-    SGRUndressBarPage((UIViewController *)self);
-}
-%end
-%end
-
 %ctor {
-    if (!SGRedesignedUI()) return;
-    if (!SGBelowiOS26()) return;
+    if (!SGRedesignedUI() || !SGBelowiOS26()) return;
     Class page = SGRSwiftClass(@"YourUpdates_CommonImpl", @"NotificationCenterViewController");
-    if (page) {
-        SGRRegisterBarPages(^BOOL(UIViewController *top) { return [top isKindOfClass:page]; });
-        %init(SGRYourUpdates, SGRNotificationCenter = page);
-    } else {
-        SGLog(@"class YourUpdates_CommonImpl.NotificationCenterViewController not found, Your Updates keeps Spotify's bar");
-    }
+    if (!page) SGLog(@"class YourUpdates_CommonImpl.NotificationCenterViewController not found, Your Updates keeps Spotify's bar");
+    SGRDressBarPagesOf(page, NO);
 }

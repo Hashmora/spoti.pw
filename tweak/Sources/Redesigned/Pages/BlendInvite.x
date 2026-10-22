@@ -10,39 +10,9 @@
 #import "Redesigned/Kit/SGRKit.h"
 #import "Pages.h"
 
-%group SGRBlendInvite
-%hook SGRBlendInvitation
-- (void)viewWillAppear:(BOOL)animated {
-    %orig;
-    SGRDressBarPage((UIViewController *)self);
-}
-
-- (void)viewDidLayoutSubviews {
-    %orig;
-    SGRDressBarPage((UIViewController *)self);
-}
-
-- (void)viewDidAppear:(BOOL)animated {
-    %orig;
-    // The bar's buttons are made after the first layout.
-    SGRRepeatPass((UIViewController *)self, @[@0.25, @0.6], ^(UIViewController *c) { SGRDressBarPage(c); });
-}
-
-- (void)viewWillDisappear:(BOOL)animated {
-    %orig;
-    SGRUndressBarPage((UIViewController *)self);
-}
-%end
-%end
-
 %ctor {
-    if (!SGRedesignedUI()) return;
-    if (!SGBelowiOS26()) return;
+    if (!SGRedesignedUI() || !SGBelowiOS26()) return;
     Class page = SGRSwiftClass(@"Blend_BlendInvitationImpl", @"BIViewController");
-    if (page) {
-        SGRRegisterBarPages(^BOOL(UIViewController *top) { return SGRPageIsOrHolds(top, page); });
-        %init(SGRBlendInvite, SGRBlendInvitation = page);
-    } else {
-        SGLog(@"class Blend_BlendInvitationImpl.BIViewController not found, Create a Blend keeps Spotify's bar");
-    }
+    if (!page) SGLog(@"class Blend_BlendInvitationImpl.BIViewController not found, Create a Blend keeps Spotify's bar");
+    SGRDressBarPagesOf(page, YES);
 }

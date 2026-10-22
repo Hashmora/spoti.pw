@@ -65,6 +65,24 @@ void SGRRegisterBarPages(SGRBarPageTest wants);
 // Cheap to call again.
 void SGRSyncBarBlur(UINavigationController *navigation);
 
+// `pass` on every layout of an SPNavigationBar and of its content view, where UIKit builds the bar's Back and title again
+// after the bar's own pass (PageAppearance.x hooks the two once for every page that is dressed from its bar).
+void SGRObserveBarPasses(void (^pass)(UIView *bar));
+
+// How a page's bar is dressed: SGRDressBarPage, SGRDressBarPageTitleless or SGRDressBarPageBackOnly.
+typedef NS_ENUM(NSInteger, SGRBarStyle) { SGRBarStyleFull, SGRBarStyleTitleless, SGRBarStyleBackOnly };
+
+// The pages of class `page`: their bar dressed on their own passes and given back as they go, Spotify's blur off from the
+// push (SGRRegisterBarPages). `hosted`: the page is a child of Spotify's page template, which is the top of the stack.
+// Nothing when `page` is nil.
+void SGRDressBarPagesOf(Class page, BOOL hosted);
+
+// The pages told by what they hold rather than by a class: `find` picks the page to dress from a navigation controller
+// (nil when none of these is on top), and the bar is dressed from its own passes while that page is on screen and given
+// back once it is not. Spotify's blur is off from the push for them too.
+typedef UIViewController *(^SGRBarPageFind)(UINavigationController *navigation);
+void SGRDressBarPagesFound(SGRBarPageFind find, SGRBarStyle style);
+
 // The AI playlist chat's body on glass, from the page's own passes (Pages/AIPlaylistChat.x): the opaque black and the fades
 // behind the last response and the footer go, and any card, bubble or field the views' own passes have not met yet is dressed.
 // Cheap to call again; below iOS 26 only.

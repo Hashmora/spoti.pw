@@ -72,12 +72,27 @@ static void syncAllStacks(void) {
 %end
 
 // UIKit builds the bar's buttons and title while laying the content view out, after the bar's own pass: Spotify's
-// controls are kept out of sight for a page that wants the redesign's bar from here (SGRSyncBarBlur).
+// controls are kept out of sight for a page that wants the redesign's bar from here (SGRSyncBarBlur), and the pages
+// dressed from the bar are dressed (SGRObserveBarPasses).
+static NSMutableArray<void (^)(UIView *)> *sg_barPasses;
+static Class sg_barClass;
+
+void SGRObserveBarPasses(void (^pass)(UIView *bar)) {
+    if (!sg_barPasses) sg_barPasses = [NSMutableArray array];
+    [sg_barPasses addObject:[pass copy]];
+}
+
+static void barLaidOut(UIView *bar) {
+    UINavigationController *navigation = SGRNavigationOf(bar);
+    if (navigation) SGRSyncBarBlur(navigation);
+    if (!SGBelowiOS26()) return;
+    for (void (^pass)(UIView *) in sg_barPasses) pass(bar);
+}
+
 %hook SPNavigationBar
 - (void)layoutSubviews {
     %orig;
-    UINavigationController *navigation = SGRNavigationOf((UIView *)self);
-    if (navigation) SGRSyncBarBlur(navigation);
+    barLaidOut((UIView *)self);
 }
 %end
 
@@ -85,14 +100,13 @@ static void syncAllStacks(void) {
 - (void)layoutSubviews {
     %orig;
     UIView *bar = ((UIView *)self).superview;
-    if (![bar isKindOfClass:NSClassFromString(@"SPNavigationBar")]) return;
-    UINavigationController *navigation = SGRNavigationOf(bar);
-    if (navigation) SGRSyncBarBlur(navigation);
+    if (sg_barClass && [bar isKindOfClass:sg_barClass]) barLaidOut(bar);
 }
 %end
 
 %ctor {
     if (!SGRedesignedUI()) return;
+    sg_barClass = NSClassFromString(@"SPNavigationBar");
     %init;
     SGRequireClasses(@[@"SPNavigationController", @"SPNavigationBar", @"_UINavigationBarContentView"]);
     // Spotify builds its blur again as the app comes back; it is settled at once and once more after its own pass.
