@@ -52,12 +52,16 @@ static id SGBlurFilter(CGFloat radius) {
 - (id<CAAction>)actionForLayer:(CALayer *)layer forKey:(NSString *)event { return (id<CAAction>)[NSNull null]; }
 @end
 
-static NSArray *SGBackdropFilters(CGFloat blur) {
+static NSArray *SGBackdropFiltersOf(CGFloat blur, BOOL saturate) {
     NSMutableArray *filters = [NSMutableArray array];
-    for (id filter in @[SGSaturationFilter() ?: NSNull.null, SGBlurFilter(blur) ?: NSNull.null]) {
+    for (id filter in @[(saturate ? SGSaturationFilter() : nil) ?: NSNull.null, SGBlurFilter(blur) ?: NSNull.null]) {
         if (filter != NSNull.null) [filters addObject:filter];
     }
     return filters;
+}
+
+static NSArray *SGBackdropFilters(CGFloat blur) {
+    return SGBackdropFiltersOf(blur, YES);
 }
 
 static CALayer *SGMakeBackdropLayer(id<CALayerDelegate> delegate) {
@@ -535,8 +539,16 @@ void SGLegacyGlassSpecular(CALayer *host, CGRect bounds, CGFloat radius) {
 - (void)setBlurRadius:(CGFloat)blurRadius {
     if (_blurRadius == blurRadius) return;
     _blurRadius = blurRadius;
-    NSArray *filters = SGBackdropFilters(blurRadius);
+    NSArray *filters = SGBackdropFiltersOf(blurRadius, !_clear);
     if (filters.count) _backdropLayer.filters = filters;
+}
+
+- (void)setClear:(BOOL)clear {
+    if (_clear == clear) return;
+    _clear = clear;
+    if (clear) _blurRadius = 1.2;
+    NSArray *filters = SGBackdropFiltersOf(_blurRadius, !clear);
+    _backdropLayer.filters = filters.count ? filters : nil;
 }
 
 - (void)setMagnification:(CGFloat)magnification {

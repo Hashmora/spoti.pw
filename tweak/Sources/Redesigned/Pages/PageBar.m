@@ -331,21 +331,13 @@ static void pinTrailing(UIView *view, UIView *more, UIView *extra) {
     }
 }
 
-// A UIButton showing a picture: not a bar button item of UIKit's, nor the hidden pair the Settings root carries.
-static BOOL iconButton(UIView *view) {
-    if (![view isKindOfClass:UIButton.class]) return NO;
-    UIButton *button = (UIButton *)view;
-    return button.currentImage != nil || button.imageView.image != nil;
-}
-
 // The bar's own background, which UIKit fills with its blur once the list scrolls (its standard appearance in place of
 // the scroll edge one), is above the page, so it covered the pinned Back: Settings scrolled showed a grey band with no
 // Back in it (the phone, 2026-10-23). Taking the background off left the list's text under the status bar with nothing
-// over it, so it keeps its blur with a hole the shape of each glass circle pinned to the page cut in it (Back, and a
-// control pinned at the trailing edge), by a mask, which UIKit does not touch.
-static void punchPinned(UINavigationBar *bar, UIView *page) {
+// over it, so it keeps its blur with a hole the shape of Back cut in it, by a mask, which UIKit does not touch.
+static void punchBack(UINavigationBar *bar, UIView *back) {
     UIView *background = SGRChildNamed(bar, @"_UIBarBackground");
-    if (!background || !page.window) return;
+    if (!background || !back.window) return;
     CAShapeLayer *mask = [background.layer.mask isKindOfClass:CAShapeLayer.class] ? (CAShapeLayer *)background.layer.mask : nil;
     if (background.layer.mask && !mask) return;
     if (!mask) {
@@ -356,11 +348,7 @@ static void punchPinned(UINavigationBar *bar, UIView *page) {
     }
     CGRect bounds = background.layer.bounds;
     UIBezierPath *path = [UIBezierPath bezierPathWithRect:CGRectInset(bounds, 0, -bounds.size.height)];
-    for (UIView *sub in page.subviews) {
-        if (![sub isKindOfClass:SGRMirrorButton.class] || sub.hidden || sub.alpha < 0.01) continue;
-        CGRect hole = [sub convertRect:sub.bounds toView:background];
-        if (CGRectIntersectsRect(hole, bounds)) [path appendPath:[UIBezierPath bezierPathWithOvalInRect:hole]];
-    }
+    [path appendPath:[UIBezierPath bezierPathWithOvalInRect:[back convertRect:back.bounds toView:background]]];
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     mask.frame = bounds;
@@ -399,7 +387,7 @@ void SGRDressBarPage(UIViewController *page) {
     if (item) {
         // An item the page set (a cross that dismisses it) does what the page made it do, which popping would not: the
         // glass circle mirrors and fires that button, as the pinned ⋯ does the page's own.
-        SGRPinnedBackOf(view, item);
+        punchBack(bar, SGRPinnedBackOf(view, item));
     } else {
         SGRBackProxy *proxy = objc_getAssociatedObject(view, &kProxyKey);
         if (!proxy) {
@@ -407,7 +395,7 @@ void SGRDressBarPage(UIViewController *page) {
             objc_setAssociatedObject(view, &kProxyKey, proxy, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         }
         proxy.navigation = navigation;
-        SGRPinnedBackOf(view, proxy);
+        punchBack(bar, SGRPinnedBackOf(view, proxy));
     }
 
     UIView *more = moreOf(content);
@@ -415,20 +403,10 @@ void SGRDressBarPage(UIViewController *page) {
     if ([sg_backOnly containsObject:page]) {
         // What holdControls concealed before this page's own controller existed is given back.
         restore(more);
-        // A plain button with a picture at the trailing edge (the gear another tweak puts on the Settings root, a
-        // UIButton 22x22 after the hidden pair) is a control of its own, and stood bare beside the title's capsule
-        // (the phone, 2026-10-23): it gets the glass circle in the corner that a ⋯ gets.
-        if (iconButton(extra)) {
-            conceal(extra);
-            SGRPinnedTrailing(view, &kExtraKey, extra, 0, [UIImage systemImageNamed:@"gearshape.fill"]);
-        } else {
-            restore(extra);
-        }
+        restore(extra);
     } else {
         pinTrailing(view, more, extra);
     }
-
-    punchPinned(bar, view);
 
     UIView *title = SGRChildNamed(content, @"_UINavigationBarTitleControl");
     if (title) {

@@ -38,6 +38,23 @@ static const CGFloat kPullShare = 0.3, kMaxPull = 14, kPullStretch = 0.25;
     _liftY = kLiftHeight;
     _pane = SGGlassFor(self, &kPaneKey);
     _pane.alpha = 0;
+    // The held lens is the system's clear glass (adaptive_liquid_glass's clearDark): what is under it keeps its own
+    // colour, barely blurred, under a white fill of 16% (#FDFAFB), and its edge bends more than a pane's (lens size
+    // reference 28.7 against the regular glass's 38.8). On the boosted pane glass a switch's green showed through as a
+    // solid neon blob (the phone, 2026-10-23).
+    if ([_pane isKindOfClass:SGLegacyGlassView.class]) {
+        SGLegacyGlassView *glass = (SGLegacyGlassView *)_pane;
+        glass.clear = YES;
+        glass.lensScale = 1.35;
+    }
+    _ring = [CAShapeLayer layer];
+    _ring.fillColor = [UIColor colorWithRed:0xFD / 255.0 green:0xFA / 255.0 blue:0xFB / 255.0 alpha:0.16].CGColor;
+    _ring.strokeColor = UIColor.clearColor.CGColor;
+    _rim = [UIView new];
+    _rim.userInteractionEnabled = NO;
+    _rim.alpha = _pane.alpha;
+    [_rim.layer addSublayer:_ring];
+    [self addSubview:_rim];
     _pill = [UIView new];
     _pill.backgroundColor = UIColor.whiteColor;
     _pill.userInteractionEnabled = NO;
@@ -52,20 +69,14 @@ static const CGFloat kPullShare = 0.3, kMaxPull = 14, kPullStretch = 0.25;
 
 - (void)setFlat {
     _pill.layer.shadowOpacity = 0;
-    // iOS 26's held switch thumb: clear glass inside a bright white rim, lit a little and glowing softly round it.
-    _ring = [CAShapeLayer layer];
-    _ring.fillColor = [UIColor colorWithWhite:1 alpha:0.1].CGColor;
-    _ring.strokeColor = [UIColor colorWithWhite:1 alpha:0.85].CGColor;
-    _ring.lineWidth = 2;
+    // iOS 26's held switch thumb has a light rim and a soft glow round it; the 0.85 white of 2 pt read as a white
+    // outline drawn on, not the glass's own edge.
+    _ring.strokeColor = [UIColor colorWithWhite:1 alpha:0.55].CGColor;
+    _ring.lineWidth = 1.5;
     _ring.shadowColor = UIColor.whiteColor.CGColor;
-    _ring.shadowOpacity = 0.35;
+    _ring.shadowOpacity = 0.25;
     _ring.shadowRadius = 4;
     _ring.shadowOffset = CGSizeZero;
-    _rim = [UIView new];
-    _rim.userInteractionEnabled = NO;
-    _rim.alpha = _pane.alpha;
-    [_rim.layer addSublayer:_ring];
-    [self insertSubview:_rim aboveSubview:_pane];
     [self setNeedsLayout];
 }
 
