@@ -131,9 +131,10 @@ static __thread int sg_sizeDepth;
 
 %ctor {
     if (!SGRedesignedUI() || !SGBelowiOS26()) return;
-    // A switch with no row, for telling a crash on these pages apart from this file: off, the list stops at Spotify's
-    // pinned band as before. On unless set (pref spotifyglass.redesign.pinnedTabs 0).
-    if (!SGEnabled(@"spotifyglass.redesign.pinnedTabs")) return;
+    // Off unless set (pref spotifyglass.redesign.pinnedTabs 1): with it on, an artist's Show all crashed every time and
+    // with it off never (the phone, 2026-10-24, five tries), in a thread of Spotify's other than the main one, which the
+    // sizes and offsets this file moves sent into a recursion. The list stops at Spotify's pinned band, as before.
+    if (!SGHidden(@"spotifyglass.redesign.pinnedTabs")) return;
     sListClass = NSClassFromString(@"_TtC32CreativeWorkPlatform_TemplateKitP33_5F894CA2C02A3F3767683E90D6AA015014CollectionView");
     if (!sListClass) SGLog(@"redesign pinned tabs: CreativeWorkPlatform_TemplateKit's list class not found, the list keeps its pinned band");
     %init;
