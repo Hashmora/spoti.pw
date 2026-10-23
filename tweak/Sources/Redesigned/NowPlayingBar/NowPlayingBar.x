@@ -514,8 +514,18 @@ static BOOL inSheet(UIView *view) {
     return NO;
 }
 
+// Whether the controller stands in something presented over the app (a sheet), by its controllers rather than its views:
+// the DJ request sheet's bar lays out again as the sheet comes back, before its view is in the sheet, and taken then for
+// the tab bar's own it became the bar the tab bar's minimizing and the player's transitions follow, which broke both
+// until Spotify restarted (the phone, 2026-10-24).
+static BOOL inPresented(UIViewController *controller) {
+    UIViewController *root = controller;
+    while (root.parentViewController) root = root.parentViewController;
+    return root.presentingViewController != nil;
+}
+
 static void styleNowPlayingBar(UIViewController *container) {
-    if (container.isViewLoaded && inSheet(container.view)) {
+    if (inPresented(container) || (container.isViewLoaded && inSheet(container.view))) {
         UIVisualEffectView *pane = objc_getAssociatedObject(container.view, &kGlassKey);
         if (pane) [pane removeFromSuperview];
         return;
