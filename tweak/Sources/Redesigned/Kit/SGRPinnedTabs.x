@@ -71,17 +71,32 @@ static UIScrollView *containerAbove(UIView *view) {
     return nil;
 }
 
+// How deep in a list's setContentOffset of ours this thread is. Should Spotify answer the list's scroll by setting the
+// list again from inside it, that answer is passed through as it is, so no answer to an answer of ours can chain
+// without end. The container's own offset is worked out from the overlay alone and is always set.
+static __thread int sg_listDepth;
+
 %hook UIScrollView
 - (void)setContentOffset:(CGPoint)offset {
     UIScrollView *scroll = (UIScrollView *)self;
     NSString *ident = scroll.accessibilityIdentifier;
     if (ident && [ident isEqualToString:kContainerID]) {
-        offset = containerOffset(scroll, offset);
-    } else if (sListClass && [scroll isKindOfClass:sListClass]) {
-        CGFloat lift = liftOf(containerAbove(scroll));
-        if (lift > 0) offset.y = MAX(-scroll.adjustedContentInset.top, offset.y - lift);
+        %orig(containerOffset(scroll, offset));
+        return;
     }
+    if (!sListClass || sg_listDepth > 0 || ![scroll isKindOfClass:sListClass]) {
+        %orig(offset);
+        return;
+    }
+    CGFloat lift = liftOf(containerAbove(scroll));
+    if (lift <= 0) {
+        %orig(offset);
+        return;
+    }
+    offset.y = MAX(-scroll.adjustedContentInset.top, offset.y - lift);
+    sg_listDepth++;
     %orig(offset);
+    sg_listDepth--;
 }
 
 - (void)setContentSize:(CGSize)size {

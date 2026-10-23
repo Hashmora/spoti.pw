@@ -8,6 +8,7 @@
 // Threading: main thread only.
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
+#import "Artist.h"
 
 static char kAboutGlassKey;
 
@@ -18,6 +19,22 @@ static BOOL isCardGray(CGColorRef color) {
     return c[0] > 0.12 && c[0] < 0.19 && fabs(c[0] - c[1]) < 0.01 && fabs(c[1] - c[2]) < 0.01;
 }
 
+static char kAboutCardKey, kButtonGlassKey;
+
+// An Encore secondary button in the card (Follow): a ring drawn as a shape layer the size of its first subview. The
+// ring goes and the button stands on a glass capsule, as Spotify's other outlined buttons do (Kit/SGRCallToAction.x).
+static void dressButton(UIView *button) {
+    UIView *face = button.subviews.firstObject;
+    CGRect bounds = face.layer.bounds;
+    if (!face || bounds.size.width < 1) return;
+    for (CALayer *layer in face.layer.sublayers) {
+        if (![layer isKindOfClass:CAShapeLayer.class] || !CGRectEqualToRect(layer.frame, bounds)) continue;
+        CAShapeLayer *ring = (CAShapeLayer *)layer;
+        if (ring.strokeColor && CGColorGetAlpha(ring.strokeColor) > 0) ring.strokeColor = UIColor.clearColor.CGColor;
+    }
+    SGRGlassChip(button, face, NO, &kButtonGlassKey);
+}
+
 static void dressAbout(UIView *card) {
     if (!card.window || card.bounds.size.width < 1) return;
     SGRGlassPaneIn(card, &kAboutGlassKey, card.layer.cornerRadius > 0 ? card.layer.cornerRadius : 16);
@@ -25,11 +42,25 @@ static void dressAbout(UIView *card) {
     for (UIView *sub in card.subviews) {
         if (isCardGray(sub.layer.backgroundColor)) sub.backgroundColor = UIColor.clearColor;
     }
+    SGForEachView(card, ^(UIView *v) {
+        if ([NSStringFromClass(v.class) hasSuffix:@"Button9Secondary"]) dressButton(v);
+    });
 }
 
-%ctor {
-    if (!SGRedesignedUI()) return;
-    Class card = SGRPrivateSwiftClass(@"Creator_ECMKit", @"CreatorBiographyCardLayout");
-    if (card) SGRPassView(card, ^(UIView *v) { dressAbout(v); });
-    else SGLog(@"class Creator_ECMKit.CreatorBiographyCardLayout not found, the artist's About stays gray");
+// Found by name in the cell the artist's list lays out (ArtistSections.x), which knows the About cell by its
+// identifier: a class pass on the card's private class never ran on the phone (2026-10-23, the card stayed #282828).
+void SGRArtistDressAbout(UIView *cell) {
+    // The card is 452pt tall; a shorter cell is never it, and is not walked on every pass of the scroll.
+    if (cell.bounds.size.height < 300) return;
+    UIView *card = objc_getAssociatedObject(cell, &kAboutCardKey);
+    if (!card || ![card isDescendantOfView:cell]) {
+        card = nil;
+        __block UIView *found = nil;
+        SGForEachView(cell, ^(UIView *v) {
+            if (!found && [NSStringFromClass(v.class) hasSuffix:@"CreatorBiographyCardLayout"]) found = v;
+        });
+        card = found;
+        objc_setAssociatedObject(cell, &kAboutCardKey, card, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    if (card) dressAbout(card);
 }
