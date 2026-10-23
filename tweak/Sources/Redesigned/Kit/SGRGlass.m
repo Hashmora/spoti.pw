@@ -467,11 +467,39 @@ CGFloat SGRSheetCornerRadius(void) {
 // found the sheet by its identifier, and what a sheet with no such identifier (the share menu's) gets by name.
 static char kSheetChromeGlassKey, kSheetOriginalKey;
 
+// UIKit's shadow round a presented sheet: the UIDropShadowView the pane sits in, a few plain views up.
+static UIView *dropShadowOf(UIView *v) {
+    for (UIView *up = v.superview; up && ![up isKindOfClass:UIWindow.class]; up = up.superview) {
+        if ([NSStringFromClass(up.class) isEqualToString:@"UIDropShadowView"]) return up;
+    }
+    return nil;
+}
+
+// How much black the glass carries over a page Spotify leaves undimmed: what its dimming puts behind the queue.
+static const CGFloat kUndimmedSheetDim = 0.7;
+
+// A sheet UIKit holds at its full height with no dimming behind it (Save in) carries UIDropShadowView's shadow: with no
+// shadowPath it is the pane's own shape filled black at opacity 1 and blurred by 12, under the pane, and through the glass
+// the whole sheet read black (2026-10-23, the phone: shadowOpacity 1, and the glass showed the player once it was 0). A
+// glass pane has no shadow, and over a page with no dimming it takes the dimming's black itself.
+static void fitSheetSurroundings(UIView *v, UIView *glass) {
+    UIView *shadow = dropShadowOf(v);
+    if (shadow.layer.shadowOpacity > 0) shadow.layer.shadowOpacity = 0;
+    UIView *dimming = nil;
+    for (UIView *sibling in shadow.superview.subviews) {
+        if ([sibling.accessibilityIdentifier isEqualToString:@"Components.UI.SheetPresentation.Dimming"]) dimming = sibling;
+    }
+    if (!dimming || SGRReduceTransparency()) return;
+    CGColorRef fill = dimming.layer.backgroundColor;
+    BOOL undimmed = !fill || CGColorGetAlpha(fill) < 0.05;
+    SGRDimSheetGlass(glass, undimmed ? kUndimmedSheetDim : 0);
+}
+
 static UIView *chromeSheetView(UIView *v) {
     // What the pane looked like before the mod, so SGRRemoveSheetGlass can give it back.
     if (!objc_getAssociatedObject(v, &kSheetOriginalKey)) {
         id fill = v.layer.backgroundColor ? (id)[UIColor colorWithCGColor:v.layer.backgroundColor] : (id)[NSNull null];
-        objc_setAssociatedObject(v, &kSheetOriginalKey, @{ @"radius": @(v.layer.cornerRadius), @"corners": @(v.layer.maskedCorners), @"fill": fill }, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        objc_setAssociatedObject(v, &kSheetOriginalKey, @{ @"radius": @(v.layer.cornerRadius), @"corners": @(v.layer.maskedCorners), @"fill": fill, @"shadow": @(dropShadowOf(v).layer.shadowOpacity) }, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
     UIView *glass = SGGlassFor(v, &kSheetChromeGlassKey);
     glass.frame = v.bounds;
@@ -483,6 +511,7 @@ static UIView *chromeSheetView(UIView *v) {
     v.layer.maskedCorners = kCALayerMinXMinYCorner | kCALayerMaxXMinYCorner;
     SGShapeGlass(glass, radius, NO);
     SGRThickenSheetGlass(glass, radius);
+    fitSheetSurroundings(v, glass);
     if (v.layer.backgroundColor) v.layer.backgroundColor = NULL;
     CGFloat wide = v.bounds.size.width * SGRSheetBandShare;
     for (UIView *sub in v.subviews) stripSheetChrome(sub, glass, wide, 0);
@@ -524,6 +553,7 @@ void SGRRemoveSheetGlass(UIView *sheet) {
         id fill = original[@"fill"];
         // The pane's own paint was taken off for the glass, and with no glass behind it the page under the sheet shows through.
         sheet.backgroundColor = [fill isKindOfClass:UIColor.class] ? fill : UIColor.blackColor;
+        dropShadowOf(sheet).layer.shadowOpacity = [original[@"shadow"] floatValue];
         objc_setAssociatedObject(sheet, &kSheetOriginalKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
 }
