@@ -169,23 +169,32 @@ static const CGFloat kPlayStep = 1.0 / 120;
     [self playToTargets];
 }
 
+// Whether a finger lifts the pill into the glass bubble. With the legacy glass off the bubble's pane is a plain dark blur,
+// opaque, and held over the tabs it hid the icon under it (the phone, 2026-10-23): then the dark pill stays a pill,
+// under the icons, and slides with the finger from tab to tab on the same springs, as it did before the bubble.
+static BOOL bubbles(void) {
+    return SGUseLegacyGlass();
+}
+
 - (void)beginTouchAtX:(CGFloat)x minCenter:(CGFloat)minCenter maxCenter:(CGFloat)maxCenter {
     // Reduce Motion: the pill stays a pill and moves with the selection, as it did.
     if (CGRectIsEmpty(_restFrame) || self.hidden || SGRReduceMotion()) return;
     [self takeOverPlayback];
     _touching = YES;
-    _liftTarget = 1;
     _minCenter = minCenter;
     _maxCenter = maxCenter;
-    _vSq -= kLensPoke;
-    [self showGlass:YES animated:YES];
+    if (bubbles()) {
+        _liftTarget = 1;
+        _vSq -= kLensPoke;
+        [self showGlass:YES animated:YES];
+    }
     [self moveTouchToX:x];
 }
 
 - (void)moveTouchToX:(CGFloat)x {
     if (!_touching) return;
     CGFloat center = rubber(x, _minCenter, _maxCenter);
-    CGFloat width = _restFrame.size.width + kLensGrow;
+    CGFloat width = _restFrame.size.width + (bubbles() ? kLensGrow : 0);
     _tL = center - width / 2;
     _tR = center + width / 2;
     [self start];
@@ -197,7 +206,7 @@ static const CGFloat kPlayStep = 1.0 / 120;
     _liftTarget = 0;
     _tL = CGRectGetMinX(_restFrame);
     _tR = CGRectGetMaxX(_restFrame);
-    _vSq += kLensPoke * 0.6;
+    if (bubbles()) _vSq += kLensPoke * 0.6;
     // The glass goes back to the pill while the bubble is still on its way to the tab.
     [self showGlass:NO animated:YES];
     [self playToTargets];

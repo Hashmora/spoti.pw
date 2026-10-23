@@ -4,8 +4,12 @@
 
 static char kThumbKey, kImageKey, kSizeKey, kWatchKey, kPaneKey;
 
-// How much the held glass is bigger than the capsule at rest, the way iOS 26's thumb swells under a finger.
-static const CGFloat kLiftWidth = 1.5, kLiftHeight = 1.35;
+// How much the held glass is bigger than the capsule at rest, the way iOS 26's thumb swells under a finger: 37x24 to
+// 58x38.333, as LiquidGlassKit (github.com/DnV1eX/LiquidGlassKit, MIT) measured it for both the slider and the switch.
+static const CGFloat kLiftWidth = 58.0 / 37, kLiftHeight = 38.333 / 24;
+// The swell is a lively spring and the fall back a calmer, slower one (LiquidGlassKit: 0.4 s at 0.6, 0.6 s at 0.7).
+static const NSTimeInterval kLiftDuration = 0.4, kDropDuration = 0.6;
+static const CGFloat kLiftDamping = 0.6, kDropDamping = 0.7;
 // Past an end of the track the thumb follows the finger by this share of the overshoot, up to kMaxPull, and is
 // stretched along the pull and thinned across it by its share of kPullStretch.
 static const CGFloat kPullShare = 0.3, kMaxPull = 14, kPullStretch = 0.25;
@@ -17,7 +21,7 @@ static const CGFloat kPullShare = 0.3, kMaxPull = 14, kPullStretch = 0.25;
 @property (nonatomic) CGFloat liftX, liftY;
 - (void)setLifted:(BOOL)lifted;
 - (void)setPull:(CGFloat)pull;
-// No shadow under the capsule at rest: iOS 26's switch thumb is flat. Held, its glass wears the switch's bright rim.
+// No shadow under the capsule at rest: iOS 26's switch thumb is flat.
 - (void)setFlat;
 @end
 
@@ -26,6 +30,7 @@ static const CGFloat kPullShare = 0.3, kMaxPull = 14, kPullStretch = 0.25;
     UIView *_pane;
     UIView *_rim;
     CAShapeLayer *_ring;
+    UIView *_depth;
     BOOL _lifted;
     CGFloat _pull;
 }
@@ -38,23 +43,37 @@ static const CGFloat kPullShare = 0.3, kMaxPull = 14, kPullStretch = 0.25;
     _liftY = kLiftHeight;
     _pane = SGGlassFor(self, &kPaneKey);
     _pane.alpha = 0;
-    // The held lens is the system's clear glass (adaptive_liquid_glass's clearDark): what is under it keeps its own
-    // colour, barely blurred, under a white fill of 16% (#FDFAFB), and its edge bends more than a pane's (lens size
-    // reference 28.7 against the regular glass's 38.8). On the boosted pane glass a switch's green showed through as a
-    // solid neon blob (the phone, 2026-10-23).
+    // The held lens is a drop of clear glass, as LiquidGlassKit's thumb is: what is under it keeps its colours and its
+    // sharpness (no saturation, no blur), the middle shows it as it is and the edge bends it in hard over a band of
+    // glass thickness, under a near clear tint with a cool bias (0.9, 0.95, 1.0 at 12%), with no outline of its own.
+    // On the pane glass, saturated and blurred, a switch's green showed through as a neon blob, and a white outline
+    // drawn round it read as a ring, not a drop (the phone, 2026-10-23).
     if ([_pane isKindOfClass:SGLegacyGlassView.class]) {
         SGLegacyGlassView *glass = (SGLegacyGlassView *)_pane;
         glass.clear = YES;
-        glass.lensScale = 1.35;
+        glass.blurRadius = 0;
+        glass.lensScale = 2;
     }
     _ring = [CAShapeLayer layer];
-    _ring.fillColor = [UIColor colorWithRed:0xFD / 255.0 green:0xFA / 255.0 blue:0xFB / 255.0 alpha:0.16].CGColor;
+    _ring.fillColor = [UIColor colorWithRed:0.9 green:0.95 blue:1 alpha:0.12].CGColor;
     _ring.strokeColor = UIColor.clearColor.CGColor;
     _rim = [UIView new];
     _rim.userInteractionEnabled = NO;
     _rim.alpha = _pane.alpha;
     [_rim.layer addSublayer:_ring];
     [self addSubview:_rim];
+    // The drop's depth: a shadow cast down into it from its rim, multiplied over what it shows (LiquidGlassKit's
+    // ShadowView: a ring the drop's shape, radius 3.5, offset 5.5 down, opacity 0.2).
+    _depth = [UIView new];
+    _depth.userInteractionEnabled = NO;
+    _depth.backgroundColor = UIColor.clearColor;
+    _depth.layer.compositingFilter = @"multiplyBlendMode";
+    _depth.layer.shadowColor = UIColor.blackColor.CGColor;
+    _depth.layer.shadowOpacity = 0.2;
+    _depth.layer.shadowRadius = 3.5;
+    _depth.layer.shadowOffset = CGSizeMake(0, 5.5);
+    _depth.alpha = _pane.alpha;
+    [self addSubview:_depth];
     _pill = [UIView new];
     _pill.backgroundColor = UIColor.whiteColor;
     _pill.userInteractionEnabled = NO;
@@ -69,15 +88,6 @@ static const CGFloat kPullShare = 0.3, kMaxPull = 14, kPullStretch = 0.25;
 
 - (void)setFlat {
     _pill.layer.shadowOpacity = 0;
-    // iOS 26's held switch thumb has a light rim and a soft glow round it; the 0.85 white of 2 pt read as a white
-    // outline drawn on, not the glass's own edge.
-    _ring.strokeColor = [UIColor colorWithWhite:1 alpha:0.55].CGColor;
-    _ring.lineWidth = 1.5;
-    _ring.shadowColor = UIColor.whiteColor.CGColor;
-    _ring.shadowOpacity = 0.25;
-    _ring.shadowRadius = 4;
-    _ring.shadowOffset = CGSizeZero;
-    [self setNeedsLayout];
 }
 
 // The held glass is laid out at its held size and shrunk by a transform at rest, never grown from the capsule's: grown,
@@ -100,16 +110,23 @@ static const CGFloat kPullShare = 0.3, kMaxPull = 14, kPullStretch = 0.25;
     if (!CGRectEqualToRect(_pane.bounds, held)) _pane.bounds = held;
     _pane.center = middle;
     SGShapeGlass(_pane, held.size.height / 2, YES);
-    if (_rim) {
-        _rim.bounds = held;
-        _rim.center = middle;
-        [CATransaction begin];
-        [CATransaction setDisableActions:YES];
-        CGRect inner = CGRectInset(held, 1, 1);
-        _ring.frame = held;
-        _ring.path = [UIBezierPath bezierPathWithRoundedRect:inner cornerRadius:inner.size.height / 2].CGPath;
-        [CATransaction commit];
-    }
+    _rim.bounds = held;
+    _rim.center = middle;
+    _depth.bounds = held;
+    _depth.center = middle;
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    CGFloat heldRadius = held.size.height / 2, shadow = _depth.layer.shadowRadius;
+    _ring.frame = held;
+    _ring.path = [UIBezierPath bezierPathWithRoundedRect:held cornerRadius:heldRadius].CGPath;
+    UIBezierPath *ring = [UIBezierPath bezierPathWithRoundedRect:CGRectInset(held, -1, -shadow / 2) cornerRadius:heldRadius];
+    [ring appendPath:[[UIBezierPath bezierPathWithRoundedRect:CGRectInset(held, 0, shadow / 2) cornerRadius:heldRadius] bezierPathByReversingPath]];
+    _depth.layer.shadowPath = ring.CGPath;
+    // Only inside the drop.
+    CAShapeLayer *mask = [_depth.layer.mask isKindOfClass:CAShapeLayer.class] ? (CAShapeLayer *)_depth.layer.mask : [CAShapeLayer layer];
+    mask.path = [UIBezierPath bezierPathWithRoundedRect:held cornerRadius:heldRadius].CGPath;
+    _depth.layer.mask = mask;
+    [CATransaction commit];
     [self applyLift];
 }
 
@@ -118,6 +135,7 @@ static const CGFloat kPullShare = 0.3, kMaxPull = 14, kPullStretch = 0.25;
     _pill.transform = _lifted ? CGAffineTransformMakeScale(_liftX, _liftY) : CGAffineTransformIdentity;
     _pane.transform = _lifted ? CGAffineTransformIdentity : rest;
     _rim.transform = _pane.transform;
+    _depth.transform = _pane.transform;
 }
 
 // The pull is the whole thumb's transform; the swell is its parts' (applyLift), so either can change without the other
@@ -131,12 +149,14 @@ static const CGFloat kPullShare = 0.3, kMaxPull = 14, kPullStretch = 0.25;
     if (_lifted == lifted) return;
     _lifted = lifted;
     BOOL still = UIAccessibilityIsReduceMotionEnabled();
-    [UIView animateWithDuration:still ? 0.2 : (lifted ? 0.35 : 0.45) delay:0 usingSpringWithDamping:still ? 1 : (lifted ? 0.7 : 0.8)
+    [UIView animateWithDuration:still ? 0.2 : (lifted ? kLiftDuration : kDropDuration) delay:0
+         usingSpringWithDamping:still ? 1 : (lifted ? kLiftDamping : kDropDamping)
           initialSpringVelocity:0 options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionAllowUserInteraction animations:^{
         if (!still) [self applyLift];
         self->_pill.alpha = lifted ? 0 : 1;
         self->_pane.alpha = lifted ? 1 : 0;
         self->_rim.alpha = self->_pane.alpha;
+        self->_depth.alpha = self->_pane.alpha;
     } completion:nil];
 }
 
@@ -302,15 +322,18 @@ void SGGlassThumbAttach(UISlider *slider, CGSize size) {
 
 // iOS 26's switch, as adaptive_liquid_glass measured it from SwiftUI on iOS 26.4 (github.com/AymanOmara/
 // adaptive_liquid_glass, MIT: lib/src/controls/control_metrics.dart, glass_colors.dart): a 63 x 28 track, a flat white
-// 37 x 24 capsule 2 pt in from its ends, which grows into a clear glass lens 1.35 times across and 1.55 times down while
-// a finger holds it, on a spring of response 0.381 and damping 0.752, and moves to a new value on one of 0.3 and 0.78.
+// 37 x 24 capsule 2 pt in from its ends, which grows into a drop of clear glass 58 x 38.333 while a finger holds it
+// (LiquidGlassKit), and moves to a new value on a spring with no overshoot, 0.5 s. A tap swells the thumb, carries the
+// drop across and lets it fall back 0.2 s later; a drag follows the finger, on a rubber band past the ends.
 // The track is #464649 while off in the dark and the switch's on tint while on, blended as the thumb crosses.
 //
 // UIKit's switch stays the control: its value, its touches and its accessibility are its own, and only what it draws is
 // replaced, by this view inside it, its own drawing kept at alpha 0. The track is wider than UIKit's 51 pt, so it lines
 // up with the switch's trailing edge and reaches past its leading one.
 static const CGSize kSwitchTrack = {63, 28}, kSwitchThumb = {37, 24};
-static const CGFloat kSwitchInset = 2, kSwitchLiftX = 1.35, kSwitchLiftY = 1.55;
+static const CGFloat kSwitchInset = 2, kSwitchLiftX = 58.0 / 37, kSwitchLiftY = 38.333 / 24;
+// A tap's drop falls back this long after it set off across the track.
+static const NSTimeInterval kTapDropDelay = 0.2;
 
 @interface SGGlassSwitchView : UIView
 @property (nonatomic, weak) UISwitch *toggle;
@@ -348,11 +371,10 @@ static UIColor *trackColor(UISwitch *toggle, CGFloat position) {
     return [UIColor colorWithRed:r0 + (r1 - r0) * t green:g0 + (g1 - g0) * t blue:b0 + (b1 - b0) * t alpha:a0 + (a1 - a0) * t];
 }
 
-// The thumb's centre for `position`, in this view.
+// The thumb's centre for `position`, in this view; past 0 or 1 while a drag pulls it on its rubber band.
 - (CGPoint)thumbCenterAt:(CGFloat)position {
     CGFloat travel = kSwitchTrack.width - kSwitchThumb.width - 2 * kSwitchInset;
-    CGFloat p = MAX(0, MIN(1, position));
-    return CGPointMake(kSwitchInset + kSwitchThumb.width / 2 + travel * p, kSwitchTrack.height / 2);
+    return CGPointMake(kSwitchInset + kSwitchThumb.width / 2 + travel * position, kSwitchTrack.height / 2);
 }
 
 - (void)layoutSubviews {
@@ -374,7 +396,7 @@ static UIColor *trackColor(UISwitch *toggle, CGFloat position) {
         [UIView performWithoutAnimation:apply];
         return;
     }
-    [UIView animateWithDuration:0.45 delay:0 usingSpringWithDamping:0.78 initialSpringVelocity:0
+    [UIView animateWithDuration:0.5 delay:0 usingSpringWithDamping:1 initialSpringVelocity:0
                         options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionAllowUserInteraction
                      animations:apply completion:nil];
 }
@@ -394,6 +416,7 @@ static UIColor *trackColor(UISwitch *toggle, CGFloat position) {
     CGFloat _startX, _startPosition;
     BOOL _dragging, _startOn;
     NSUInteger _press;
+    UIImpactFeedbackGenerator *_tap;
 }
 
 - (instancetype)init {
@@ -418,6 +441,8 @@ static UIColor *trackColor(UISwitch *toggle, CGFloat position) {
     _startOn = toggle.isOn;
     _dragging = NO;
     _press++;
+    if (!_tap) _tap = [[UIImpactFeedbackGenerator alloc] initWithStyle:UIImpactFeedbackStyleLight];
+    [_tap prepare];
     [self.face.thumb setLifted:YES];
 }
 
@@ -426,8 +451,12 @@ static UIColor *trackColor(UISwitch *toggle, CGFloat position) {
     CGFloat dx = [_touch locationInView:self.view].x - _startX;
     if (!_dragging && fabs(dx) < 3) return;
     _dragging = YES;
+    // Past an end the thumb follows by the square root of the overshoot, a rubber band (LiquidGlassKit).
     CGFloat travel = kSwitchTrack.width - kSwitchThumb.width - 2 * kSwitchInset;
-    [self.face showPosition:MAX(0, MIN(1, _startPosition + dx / travel)) animated:NO];
+    CGFloat along = _startPosition * travel + dx;
+    if (along < 0) along = -sqrt(-along);
+    else if (along > travel) along = travel + sqrt(along - travel);
+    [self.face showPosition:along / travel animated:NO];
 }
 
 - (void)finishTurning:(BOOL)turn {
@@ -435,17 +464,26 @@ static UIColor *trackColor(UISwitch *toggle, CGFloat position) {
     _touch = nil;
     NSUInteger press = _press;
     BOOL startOn = _startOn;
-    BOOL want = !_dragging ? !startOn : self.face.position >= 0.5;
+    BOOL dragged = _dragging;
+    BOOL want = !dragged ? !startOn : self.face.position >= 0.5;
     // Whatever UIKit does with the touch, it does as the touch ends, after this: the switch is read a turn later.
     dispatch_async(dispatch_get_main_queue(), ^{
         UISwitch *toggle = (UISwitch *)self.view;
         if (press != self->_press || !toggle) return;
         if (turn && toggle.enabled && toggle.isOn == startOn && want != startOn) {
+            [self->_tap impactOccurred];
             [toggle setOn:want animated:YES];
             [toggle sendActionsForControlEvents:UIControlEventValueChanged];
         }
         [self.face showPosition:toggle.isOn ? 1 : 0 animated:YES];
-        [self.face.thumb setLifted:NO];
+        if (dragged) {
+            [self.face.thumb setLifted:NO];
+            return;
+        }
+        // A tap: the drop crosses, then falls back, unless a new touch has taken it in the meantime.
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kTapDropDelay * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            if (press == self->_press && !self->_touch) [self.face.thumb setLifted:NO];
+        });
     });
 }
 
