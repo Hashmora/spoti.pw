@@ -37,6 +37,14 @@ BOOL SGLegacyGlassAvailable(void);
 // sets more, as the system's magnifies the tabs under it.
 @property (nonatomic) CGFloat magnification;
 
+// How much of the lens's bend the pane takes, 1 by default; the tab bar's held bubble takes less, its icons smeared at
+// the rim under the whole of it.
+@property (nonatomic) CGFloat lensScale;
+
+// The backdrop at the screen's scale rather than at 1x, so what shows through is as sharp as the screen (the tab bar's
+// held bubble, whose magnified icons came out pixelated). NO by default: it costs nine times the pixels on a 3x screen.
+@property (nonatomic) BOOL sharp;
+
 @end
 
 // The light the system's glass draws along its rim: a thin white line whose brightness follows which way the rim faces,

@@ -330,7 +330,7 @@ static SGMeshTemplate *SGBuildTemplate(CGFloat radius, BOOL classic) {
 }
 
 // The mesh for `size`, from the cached template of its corner radius.
-static id SGMakeGlassMesh(CGSize size, CGFloat radius, CGFloat magnification, BOOL classic) {
+static id SGMakeGlassMesh(CGSize size, CGFloat radius, CGFloat magnification, CGFloat lensScale, BOOL classic) {
     radius = MIN(radius, MIN(size.width, size.height) / 2);
     if (radius <= 0 || size.width < 1 || size.height < 1) return nil;
 
@@ -348,7 +348,7 @@ static id SGMakeGlassMesh(CGSize size, CGFloat radius, CGFloat magnification, BO
     CGFloat insetU = kInsetPoints / W, insetV = kInsetPoints / H;
     CGFloat usableU = 1 - 2 * insetU, usableV = 1 - 2 * insetV;
     // The rim's shift in points: the measured strength over the band, the whole lens scaled down on a small pane.
-    CGFloat shift = classic ? kClassicShift : kLensStrength * SGEdgeBand(radius) * MIN(1, MIN(W, H) / 2 / kLensSizeRef);
+    CGFloat shift = (classic ? kClassicShift : kLensStrength * SGEdgeBand(radius) * MIN(1, MIN(W, H) / 2 / kLensSizeRef)) * lensScale;
     CGFloat dU = shift / W, dV = shift / H;
 
     NSUInteger vertexCount = tmpl.vertices.length / sizeof(SGTemplateVertex);
@@ -514,6 +514,7 @@ void SGLegacyGlassSpecular(CALayer *host, CGRect bounds, CGFloat radius) {
 
     _blurRadius = 2.0;
     _magnification = 1;
+    _lensScale = 1;
     _backdropDelegate = [SGNoActionsDelegate new];
     _backdropLayer = SGMakeBackdropLayer(_backdropDelegate);
     if (_backdropLayer) [self.layer addSublayer:_backdropLayer];
@@ -546,6 +547,24 @@ void SGLegacyGlassSpecular(CALayer *host, CGRect bounds, CGFloat radius) {
     [self setNeedsLayout];
 }
 
+- (void)setLensScale:(CGFloat)lensScale {
+    lensScale = MAX(0, lensScale);
+    if (_lensScale == lensScale) return;
+    _lensScale = lensScale;
+    _meshSize = CGSizeZero;
+    [self setNeedsLayout];
+}
+
+- (void)setSharp:(BOOL)sharp {
+    if (_sharp == sharp) return;
+    _sharp = sharp;
+    // A layer made by hand draws at 1x unless told otherwise; the backdrop at the screen's scale keeps what it shows
+    // as sharp as the screen, at nine times the pixels on a 3x screen, so only a pane that asks gets it.
+    CGFloat scale = sharp ? UIScreen.mainScreen.scale : 1.0;
+    _backdropLayer.contentsScale = scale;
+    _backdropLayer.rasterizationScale = scale;
+}
+
 - (BOOL)classic {
     return MIN(self.bounds.size.width, self.bounds.size.height) >= kClassicMinSide;
 }
@@ -571,7 +590,7 @@ void SGLegacyGlassSpecular(CALayer *host, CGRect bounds, CGFloat radius) {
     [CATransaction setDisableActions:YES];
     self.layer.cornerRadius = radius;
     _backdropLayer.frame = self.bounds;
-    id mesh = SGMakeGlassMesh(size, radius, _magnification, classic);
+    id mesh = SGMakeGlassMesh(size, radius, _magnification, _lensScale, classic);
     if (mesh) [_backdropLayer setValue:mesh forKey:@"meshTransform"];
     [CATransaction commit];
 }

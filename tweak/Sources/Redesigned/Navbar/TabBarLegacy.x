@@ -53,7 +53,7 @@ static const CGFloat kNavItemSpacing = 4;
 static const CGFloat kNavCircleSide = 48;   // the compact bar's circles before the now playing card has a radius to follow
 static const CGFloat kNavItemWidth = 90;    // fixed, so the capsule hugs its items instead of stretching them
 static const CGFloat kSelPillInset = 3;     // gap between the selection pill and the capsule's edge
-static const CGFloat kLensOverhang = 6;     // how far the held bubble stands out of the capsule's rim, above and below
+static const CGFloat kLensOverhang = 3;     // how far the held bubble stands out of the capsule's rim, above and below
 static __weak UIView *sg_stockBar;
 static CGFloat sg_room, sg_glassHeight;   // see "room for the glass bar"
 // See "compact". The circles' frames in the host's coordinates, the trailing one empty when no tab is set apart.

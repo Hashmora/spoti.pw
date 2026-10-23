@@ -10,16 +10,18 @@ static char kLensPaneKey, kLensFilmKey;
 static const CGFloat kLensMagnification = 1.2;
 // The held bubble does not blur what it shows: the panes' 2 pt blur, magnified with the icons, left them a smear.
 static const CGFloat kLensHeldBlur = 0, kLensRestBlur = 2;
+// ... and takes 40% of the lens's bend at its rim, which under the whole of it smeared the icons into its edge.
+static const CGFloat kLensHeldBend = 0.4;
 
 // The held bubble is this much wider than the pill (and taller by 2 * heldOutset, so it stands out of the capsule's
 // rim, as the system's does), and may be dragged this far past the first and the last tab.
-static const CGFloat kLensGrow = 12, kLensOverscroll = 14;
+static const CGFloat kLensGrow = 18, kLensOverscroll = 14;
 // The bubble's shape is one deformation, d: wider and shorter for d > 0, narrower and taller for d < 0, the height
 // giving way by kLensVolume of what the width gains so the bubble keeps its volume, and d held to kLensMaxDeform either
 // way, so a flick never swells it. Its size does not grow with speed. d is the squash spring below (the bubble's body
 // catching up as its speed changes) and a slight stretch along a fast move (up to kLensMaxSpeedStretch, by tanh of the
 // speed of its middle in pt/s). The edges' own lag widens it a little more, held to kLensMaxLag of its width.
-static const CGFloat kLensStretchSpeed = 2400, kLensMaxSpeedStretch = 0.12;
+static const CGFloat kLensStretchSpeed = 2400, kLensMaxSpeedStretch = 0.2;
 static const CGFloat kLensMaxDeform = 0.30, kLensVolume = 0.8, kLensMaxLag = 0.25;
 // The surface tension: once the edges are near their targets, they pull each other back to the bubble's width, with
 // a damper of their own, so a stretched bubble draws in and gives a small bounce rather than ringing. It is off
@@ -31,7 +33,7 @@ static const CGFloat kLensTension = 300, kLensTensionRatio = 0.45, kLensTensionR
 // (a gain kicks it the other way, less). It rings at about 2.4 Hz with a damping ratio of 0.3: a stop from a flick goes
 // narrow and tall, back past round a little, and settles in two bounces. A finger landing pokes it (kLensPoke) and one
 // let go pokes it back, so the bubble gives even with no move.
-static const CGFloat kLensSquashOmega = 15, kLensSquashRatio = 0.3, kLensSquashKick = 0.004;
+static const CGFloat kLensSquashOmega = 15, kLensSquashRatio = 0.3, kLensSquashKick = 0.008;
 static const CGFloat kLensPoke = 1.5;
 
 typedef struct { CGFloat k, c; } SGRSpring;   // unit mass
@@ -219,6 +221,8 @@ static const CGFloat kPlayStep = 1.0 / 120;
         SGLegacyGlassView *glass = (SGLegacyGlassView *)_pane;
         glass.magnification = on ? kLensMagnification : 1;
         glass.blurRadius = on ? kLensHeldBlur : kLensRestBlur;
+        glass.lensScale = on ? kLensHeldBend : 1;
+        glass.sharp = on;
     }
     void (^change)(void) = ^{
         SGRShowGlass(self->_pane, on);
