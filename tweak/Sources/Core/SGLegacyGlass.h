@@ -28,6 +28,11 @@ BOOL SGLegacyGlassAvailable(void);
 // control over text shows the text. A big pane (a sheet) sets more, or the page under it takes the eye.
 @property (nonatomic) CGFloat blurRadius;
 
+// Whether the pane wears the glass as it first was: YES for a big pane (a shorter side of 100 pt and more: the queue, the
+// sheets, the menus, the dialogs), with Telegram's lens, bent hard over a thin band at the edge, and its diagonal glare.
+// The measured lens of the small controls spreads over a wide band with a faint rim, which on a sheet read as a blur.
+@property (nonatomic, readonly) BOOL classic;
+
 // How much bigger what is behind the glass shows through it, about the middle, 1 by default. The tab bar's held bubble
 // sets more, as the system's magnifies the tabs under it.
 @property (nonatomic) CGFloat magnification;
@@ -40,3 +45,5 @@ BOOL SGLegacyGlassAvailable(void);
 // and a film over a pane calls this too, as it covers the pane's. Does nothing on iOS 26 and later, where the system's
 // glass has its own.
 void SGLegacyGlassSpecular(CALayer *host, CGRect bounds, CGFloat radius);
+// The classic pane's rim (SGLegacyGlassView.classic), the same way: its diagonal glare, in place of the other.
+void SGLegacyGlassClassicSpecular(CALayer *host, CGRect bounds, CGFloat radius);

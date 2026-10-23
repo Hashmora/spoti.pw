@@ -274,7 +274,10 @@ UIView *SGRGlassFilm(UIView *host, const void *key, UIView *glass, CGFloat radiu
     if (!CGRectEqualToRect(film.frame, glass.frame)) film.frame = glass.frame;
     if (film.layer.cornerRadius != radius) film.layer.cornerRadius = radius;
     // The film covers its pane, and with it the pane's own highlight, so the film carries one.
-    if ([glass isKindOfClass:SGLegacyGlassView.class]) SGLegacyGlassSpecular(film.layer, film.bounds, radius);
+    if ([glass isKindOfClass:SGLegacyGlassView.class]) {
+        if (((SGLegacyGlassView *)glass).classic) SGLegacyGlassClassicSpecular(film.layer, film.bounds, radius);
+        else SGLegacyGlassSpecular(film.layer, film.bounds, radius);
+    }
     return film;
 }
 

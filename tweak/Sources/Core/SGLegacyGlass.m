@@ -116,6 +116,36 @@ static CGFloat SGLensProfile(CGFloat depth, CGFloat band) {
     return MAX(0, exp(-MAX(0, depth) / decay) - cut) / (1 - cut);
 }
 
+// The classic lens, for the big panes (kClassicMinSide, SGLegacyGlassView.classic): the glass as it first was, ported from Telegram's
+// GenerateMesh.swift, whose bend eases in over a thin band at the edge and is pushed harder still in the strip at the rim.
+// On a sheet the measured lens spread over a wide band and its rim light was faint, so a sheet read as a plain blur.
+static const CGFloat kBezierX1 = 0.816137566137566, kBezierY1 = 0.20502645502645533;
+static const CGFloat kBezierX2 = 0.5806878306878306, kBezierY2 = 0.873015873015873;
+static const CGFloat kClassicBand = 12, kClassicOuterStrip = 2, kClassicShift = 20;
+// A pane counts as big, and takes the classic lens, from this shorter side on: the queue, the sheets, the menus and the
+// dialogs. The controls (the tab bar, the now playing bar, buttons, a switch's thumb, the tab bar's bubble) are smaller.
+static const CGFloat kClassicMinSide = 100;
+
+static CGFloat SGBezier(CGFloat t, CGFloat a1, CGFloat a2) {
+    return (((1.0 - 3.0 * a2 + 3.0 * a1) * t + (3.0 * a2 - 6.0 * a1)) * t + 3.0 * a1) * t;
+}
+
+static CGFloat SGBezierSlope(CGFloat t, CGFloat a1, CGFloat a2) {
+    return 3.0 * (1.0 - 3.0 * a2 + 3.0 * a1) * t * t + 2.0 * (3.0 * a2 - 6.0 * a1) * t + 3.0 * a1;
+}
+
+// The curve's y at x: Newton's method for the t that gives x, then y at that t.
+static CGFloat SGEase(CGFloat x) {
+    CGFloat t = x;
+    for (int i = 0; i < 4; i++) {
+        CGFloat slope = SGBezierSlope(t, kBezierX1, kBezierX2);
+        if (slope == 0.0) break;
+        t -= (SGBezier(t, kBezierX1, kBezierX2) - x) / slope;
+    }
+    CGFloat y = SGBezier(t, kBezierY1, kBezierY2);
+    return y >= 0.997 ? 1.0 : y;
+}
+
 // Signed distance from (x, y) to a width x height rounded rect at the origin (negative inside), and the
 // outward unit normal there.
 static CGFloat SGRoundedRectSDF(CGFloat x, CGFloat y, CGFloat width, CGFloat height, CGFloat radius, CGFloat *nx, CGFloat *ny) {
@@ -136,12 +166,12 @@ static CGFloat SGRoundedRectSDF(CGFloat x, CGFloat y, CGFloat width, CGFloat hei
 }
 
 // What a vertex samples from, relative to where it sits: inwards along the rim's normal, by the lens profile of its
-// depth, as a share of the rim's shift.
+// depth, as a share of the rim's shift; the classic lens by Telegram's eased curve of its share of the band.
 static void SGDisplacement(CGFloat x, CGFloat y, CGFloat width, CGFloat height, CGFloat radius, CGFloat edgeDistance,
-                           CGFloat *outDx, CGFloat *outDy, CGFloat *outSdf) {
+                           BOOL classic, CGFloat *outDx, CGFloat *outDy, CGFloat *outSdf) {
     CGFloat nx, ny;
     CGFloat sdf = SGRoundedRectSDF(x, y, width, height, radius, &nx, &ny);
-    CGFloat v = SGLensProfile(-sdf, edgeDistance);
+    CGFloat v = classic ? SGEase(MAX(0, MIN(1, 1.0 + sdf / edgeDistance))) : SGLensProfile(-sdf, edgeDistance);
     *outDx = -nx * v; *outDy = -ny * v; *outSdf = sdf;
 }
 
@@ -150,7 +180,7 @@ static void SGDisplacement(CGFloat x, CGFloat y, CGFloat width, CGFloat height, 
 // The mesh is built once per corner radius at a reference size, as vertices of a size-independent
 // (base + scale * size) position plus their unitless displacement. Fitting it to a real size is then one
 // affine remap per vertex, with no distance-field work per layout pass.
-typedef struct { CGFloat radius, refW, refH, edgeDistance, outerEdgeDistance; } SGMeshSpec;
+typedef struct { CGFloat radius, refW, refH, edgeDistance, outerEdgeDistance; BOOL classic; } SGMeshSpec;
 typedef struct { CGFloat baseX, scaleX, baseY, scaleY, dispX, dispY, depth; } SGTemplateVertex;
 
 static const NSInteger kCornerResolution = 12;
@@ -177,10 +207,16 @@ static const CGFloat kInsetPoints = -1.0;        // the mesh reaches this far pa
 
 static uint32_t SGAddVertex(SGMeshTemplate *t, SGMeshSpec spec, CGFloat baseX, CGFloat scaleX, CGFloat baseY, CGFloat scaleY, CGFloat depth) {
     CGFloat dx, dy, sdf;
-    SGDisplacement(baseX + scaleX * spec.refW, baseY + scaleY * spec.refH, spec.refW, spec.refH, spec.radius, spec.edgeDistance, &dx, &dy, &sdf);
+    SGDisplacement(baseX + scaleX * spec.refW, baseY + scaleY * spec.refH, spec.refW, spec.refH, spec.radius, spec.edgeDistance,
+                   spec.classic, &dx, &dy, &sdf);
     // The measured lens is steep enough at the rim on its own: no boost within the outer strip, which is kept for the
-    // vertices it puts where the lens changes fastest.
-    SGTemplateVertex v = {baseX, scaleX, baseY, scaleY, dx, dy, depth};
+    // vertices it puts where the lens changes fastest. The classic one has Telegram's smoothstep boost there.
+    CGFloat boost = 1.0;
+    if (spec.classic && spec.outerEdgeDistance > 0) {
+        CGFloat s = MAX(0.0, MIN(1.0, (spec.outerEdgeDistance + sdf) / spec.outerEdgeDistance));
+        boost += s * s * (3 - 2 * s) * 0.5;
+    }
+    SGTemplateVertex v = {baseX, scaleX, baseY, scaleY, dx * boost, dy * boost, depth};
     [t.vertices appendBytes:&v length:sizeof(v)];
     return (uint32_t)(t.vertices.length / sizeof(v)) - 1;
 }
@@ -244,8 +280,9 @@ static NSValue *SGAxisPoint(CGFloat base, CGFloat scale) {
     return [NSValue valueWithCGPoint:CGPointMake(base, scale)];
 }
 
-static SGMeshTemplate *SGBuildTemplate(CGFloat radius) {
-    SGMeshSpec spec = {radius, MAX(4 * radius, 100), MAX(4 * radius, 100), SGEdgeBand(radius), kOuterEdgeDistance};
+static SGMeshTemplate *SGBuildTemplate(CGFloat radius, BOOL classic) {
+    SGMeshSpec spec = {radius, MAX(4 * radius, 100), MAX(4 * radius, 100), classic ? MIN(kClassicBand, radius) : SGEdgeBand(radius),
+                       classic ? kClassicOuterStrip : kOuterEdgeDistance, classic};
     SGMeshTemplate *t = [SGMeshTemplate new];
     CGFloat R = radius;
 
@@ -256,7 +293,7 @@ static SGMeshTemplate *SGBuildTemplate(CGFloat radius) {
 
     // Ring radii: evenly spaced up to (1 - rim strip), then the strip's edge, then the rim itself.
     NSMutableArray<NSNumber *> *depths = [NSMutableArray array];
-    CGFloat innerMax = MAX(0, 1 - MAX(0, MIN(1, kOuterEdgeDistance / R)));
+    CGFloat innerMax = MAX(0, 1 - MAX(0, MIN(1, spec.outerEdgeDistance / R)));
     NSInteger innerSegments = MAX(1, radialSteps - 1);
     for (NSInteger i = 0; i <= innerSegments; i++) [depths addObject:@(innerMax * i / (CGFloat)innerSegments)];
     if (fabs(depths.lastObject.doubleValue - innerMax) >= 1e-4) [depths addObject:@(innerMax)];
@@ -293,17 +330,17 @@ static SGMeshTemplate *SGBuildTemplate(CGFloat radius) {
 }
 
 // The mesh for `size`, from the cached template of its corner radius.
-static id SGMakeGlassMesh(CGSize size, CGFloat radius, CGFloat magnification) {
+static id SGMakeGlassMesh(CGSize size, CGFloat radius, CGFloat magnification, BOOL classic) {
     radius = MIN(radius, MIN(size.width, size.height) / 2);
     if (radius <= 0 || size.width < 1 || size.height < 1) return nil;
 
     static NSCache<NSNumber *, SGMeshTemplate *> *cache;
     static dispatch_once_t once;
     dispatch_once(&once, ^{ cache = [NSCache new]; cache.countLimit = 24; });
-    NSNumber *key = @(round(radius * 10));
+    NSNumber *key = @(round(radius * 10) * 2 + (classic ? 1 : 0));
     SGMeshTemplate *tmpl = [cache objectForKey:key];
     if (!tmpl) {
-        tmpl = SGBuildTemplate(radius);
+        tmpl = SGBuildTemplate(radius, classic);
         [cache setObject:tmpl forKey:key];
     }
 
@@ -311,7 +348,7 @@ static id SGMakeGlassMesh(CGSize size, CGFloat radius, CGFloat magnification) {
     CGFloat insetU = kInsetPoints / W, insetV = kInsetPoints / H;
     CGFloat usableU = 1 - 2 * insetU, usableV = 1 - 2 * insetV;
     // The rim's shift in points: the measured strength over the band, the whole lens scaled down on a small pane.
-    CGFloat shift = kLensStrength * SGEdgeBand(radius) * MIN(1, MIN(W, H) / 2 / kLensSizeRef);
+    CGFloat shift = classic ? kClassicShift : kLensStrength * SGEdgeBand(radius) * MIN(1, MIN(W, H) / 2 / kLensSizeRef);
     CGFloat dU = shift / W, dV = shift / H;
 
     NSUInteger vertexCount = tmpl.vertices.length / sizeof(SGTemplateVertex);
@@ -395,12 +432,50 @@ static CGImageRef SGRimLight(CGSize size, CGFloat radius) {
     return (__bridge CGImageRef)object;
 }
 
+// The classic pane's rim: the glare it first had, a one point line bright at the top-left and the bottom-right corners
+// and gone along the rest.
+static NSString *const kClassicSpecularName = @"sg.specular.classic";
+
+void SGLegacyGlassClassicSpecular(CALayer *host, CGRect bounds, CGFloat radius) {
+    if (@available(iOS 26.0, *)) return;
+    if (!host || bounds.size.width < 2 || bounds.size.height < 2) return;
+    CAGradientLayer *rim = nil;
+    for (CALayer *sub in host.sublayers) {
+        if ([sub.name isEqualToString:kClassicSpecularName]) rim = (CAGradientLayer *)sub;
+        if ([sub.name isEqualToString:kSpecularName]) sub.hidden = YES;
+    }
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    if (!rim) {
+        rim = [CAGradientLayer layer];
+        rim.name = kClassicSpecularName;
+        rim.startPoint = CGPointMake(0, 0);
+        rim.endPoint = CGPointMake(1, 1);
+        rim.locations = @[@0, @0.28, @0.72, @1];
+        rim.colors = @[(id)[UIColor colorWithWhite:1 alpha:0.75].CGColor,
+                       (id)[UIColor colorWithWhite:1 alpha:0].CGColor,
+                       (id)[UIColor colorWithWhite:1 alpha:0].CGColor,
+                       (id)[UIColor colorWithWhite:1 alpha:0.55].CGColor];
+        rim.zPosition = 100;
+        rim.mask = stroke(UIColor.whiteColor.CGColor, 1);
+        [host addSublayer:rim];
+    }
+    rim.hidden = NO;
+    rim.frame = bounds;
+    CAShapeLayer *line = (CAShapeLayer *)rim.mask;
+    line.frame = rim.bounds;
+    line.path = rimPath(rim.bounds, 0.5, radius);
+    [CATransaction commit];
+}
+
 void SGLegacyGlassSpecular(CALayer *host, CGRect bounds, CGFloat radius) {
     if (@available(iOS 26.0, *)) return;
     if (!host || bounds.size.width < 2 || bounds.size.height < 2) return;
     CALayer *rim = nil;
     for (CALayer *sub in host.sublayers) {
         if ([sub.name isEqualToString:kSpecularName]) rim = sub;
+        // A pane that has grown out of the big panes' size draws this rim instead of theirs.
+        if ([sub.name isEqualToString:kClassicSpecularName]) sub.hidden = YES;
     }
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
@@ -413,6 +488,7 @@ void SGLegacyGlassSpecular(CALayer *host, CGRect bounds, CGFloat radius) {
         rim.mask = stroke(UIColor.whiteColor.CGColor, kRimWidth);
         [host addSublayer:rim];
     }
+    rim.hidden = NO;
     rim.frame = bounds;
     CGImageRef light = SGRimLight(bounds.size, radius);
     if ((__bridge id)light != rim.contents) rim.contents = (__bridge id)light;
@@ -470,6 +546,10 @@ void SGLegacyGlassSpecular(CALayer *host, CGRect bounds, CGFloat radius) {
     [self setNeedsLayout];
 }
 
+- (BOOL)classic {
+    return MIN(self.bounds.size.width, self.bounds.size.height) >= kClassicMinSide;
+}
+
 - (void)setCapsule:(BOOL)capsule {
     if (_capsule == capsule) return;
     _capsule = capsule;
@@ -481,7 +561,9 @@ void SGLegacyGlassSpecular(CALayer *host, CGRect bounds, CGFloat radius) {
     CGSize size = self.bounds.size;
     CGFloat radius = _capsule ? MIN(size.width, size.height) / 2 : _cornerRadius;
     if (CGSizeEqualToSize(size, _meshSize) && radius == _meshRadius) return;
-    SGLegacyGlassSpecular(self.layer, self.bounds, radius);
+    BOOL classic = self.classic;
+    if (classic) SGLegacyGlassClassicSpecular(self.layer, self.bounds, radius);
+    else SGLegacyGlassSpecular(self.layer, self.bounds, radius);
     _meshSize = size;
     _meshRadius = radius;
 
@@ -489,7 +571,7 @@ void SGLegacyGlassSpecular(CALayer *host, CGRect bounds, CGFloat radius) {
     [CATransaction setDisableActions:YES];
     self.layer.cornerRadius = radius;
     _backdropLayer.frame = self.bounds;
-    id mesh = SGMakeGlassMesh(size, radius, _magnification);
+    id mesh = SGMakeGlassMesh(size, radius, _magnification, classic);
     if (mesh) [_backdropLayer setValue:mesh forKey:@"meshTransform"];
     [CATransaction commit];
 }
