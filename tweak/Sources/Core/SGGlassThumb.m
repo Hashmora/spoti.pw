@@ -17,13 +17,15 @@ static const CGFloat kPullShare = 0.3, kMaxPull = 14, kPullStretch = 0.25;
 @property (nonatomic) CGFloat liftX, liftY;
 - (void)setLifted:(BOOL)lifted;
 - (void)setPull:(CGFloat)pull;
-// No shadow under the capsule at rest: iOS 26's switch thumb is flat.
+// No shadow under the capsule at rest: iOS 26's switch thumb is flat. Held, its glass wears the switch's bright rim.
 - (void)setFlat;
 @end
 
 @implementation SGGlassThumbView {
     UIView *_pill;
     UIView *_pane;
+    UIView *_rim;
+    CAShapeLayer *_ring;
     BOOL _lifted;
     CGFloat _pull;
 }
@@ -50,25 +52,68 @@ static const CGFloat kPullShare = 0.3, kMaxPull = 14, kPullStretch = 0.25;
 
 - (void)setFlat {
     _pill.layer.shadowOpacity = 0;
+    // iOS 26's held switch thumb: clear glass inside a bright white rim, lit a little and glowing softly round it.
+    _ring = [CAShapeLayer layer];
+    _ring.fillColor = [UIColor colorWithWhite:1 alpha:0.1].CGColor;
+    _ring.strokeColor = [UIColor colorWithWhite:1 alpha:0.85].CGColor;
+    _ring.lineWidth = 2;
+    _ring.shadowColor = UIColor.whiteColor.CGColor;
+    _ring.shadowOpacity = 0.35;
+    _ring.shadowRadius = 4;
+    _ring.shadowOffset = CGSizeZero;
+    _rim = [UIView new];
+    _rim.userInteractionEnabled = NO;
+    _rim.alpha = _pane.alpha;
+    [_rim.layer addSublayer:_ring];
+    [self insertSubview:_rim aboveSubview:_pane];
+    [self setNeedsLayout];
+}
+
+// The held glass is laid out at its held size and shrunk by a transform at rest, never grown from the capsule's: grown,
+// it magnified the bit of track under the capsule, so the lens was the track's colour through and through (device,
+// 2026-10-23) and showed nothing of what is round the track.
+- (CGSize)heldSize {
+    return CGSizeMake(self.bounds.size.width * _liftX, self.bounds.size.height * _liftY);
 }
 
 - (void)layoutSubviews {
     [super layoutSubviews];
     CGRect bounds = self.bounds;
     CGFloat radius = bounds.size.height / 2;
-    _pill.frame = bounds;
+    CGPoint middle = CGPointMake(CGRectGetMidX(bounds), CGRectGetMidY(bounds));
+    _pill.bounds = bounds;
+    _pill.center = middle;
     _pill.layer.cornerRadius = radius;
     _pill.layer.shadowPath = [UIBezierPath bezierPathWithRoundedRect:bounds cornerRadius:radius].CGPath;
-    if (!CGRectEqualToRect(_pane.frame, bounds)) _pane.frame = bounds;
-    SGShapeGlass(_pane, radius, YES);
+    CGRect held = (CGRect){CGPointZero, [self heldSize]};
+    if (!CGRectEqualToRect(_pane.bounds, held)) _pane.bounds = held;
+    _pane.center = middle;
+    SGShapeGlass(_pane, held.size.height / 2, YES);
+    if (_rim) {
+        _rim.bounds = held;
+        _rim.center = middle;
+        [CATransaction begin];
+        [CATransaction setDisableActions:YES];
+        CGRect inner = CGRectInset(held, 1, 1);
+        _ring.frame = held;
+        _ring.path = [UIBezierPath bezierPathWithRoundedRect:inner cornerRadius:inner.size.height / 2].CGPath;
+        [CATransaction commit];
+    }
+    [self applyLift];
 }
 
-// The swell and the pull are one transform, so either can change without the other jumping.
+- (void)applyLift {
+    CGAffineTransform rest = CGAffineTransformMakeScale(1 / _liftX, 1 / _liftY);
+    _pill.transform = _lifted ? CGAffineTransformMakeScale(_liftX, _liftY) : CGAffineTransformIdentity;
+    _pane.transform = _lifted ? CGAffineTransformIdentity : rest;
+    _rim.transform = _pane.transform;
+}
+
+// The pull is the whole thumb's transform; the swell is its parts' (applyLift), so either can change without the other
+// jumping.
 - (CGAffineTransform)pose {
-    CGFloat lift = _lifted ? 1 : 0;
     CGFloat stretch = fabs(_pull) / kMaxPull * kPullStretch;
-    CGFloat sx = (1 + (_liftX - 1) * lift) * (1 + stretch), sy = (1 + (_liftY - 1) * lift) * (1 - stretch * 0.5);
-    return CGAffineTransformScale(CGAffineTransformMakeTranslation(_pull, 0), sx, sy);
+    return CGAffineTransformScale(CGAffineTransformMakeTranslation(_pull, 0), 1 + stretch, 1 - stretch * 0.5);
 }
 
 - (void)setLifted:(BOOL)lifted {
@@ -77,9 +122,10 @@ static const CGFloat kPullShare = 0.3, kMaxPull = 14, kPullStretch = 0.25;
     BOOL still = UIAccessibilityIsReduceMotionEnabled();
     [UIView animateWithDuration:still ? 0.2 : (lifted ? 0.35 : 0.45) delay:0 usingSpringWithDamping:still ? 1 : (lifted ? 0.7 : 0.8)
           initialSpringVelocity:0 options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionAllowUserInteraction animations:^{
-        if (!still) self.transform = [self pose];
+        if (!still) [self applyLift];
         self->_pill.alpha = lifted ? 0 : 1;
         self->_pane.alpha = lifted ? 1 : 0;
+        self->_rim.alpha = self->_pane.alpha;
     } completion:nil];
 }
 
@@ -325,7 +371,9 @@ static UIColor *trackColor(UISwitch *toggle, CGFloat position) {
 @end
 
 // Watches the switch's touches without taking any, as the slider's watch does: the thumb lifts at the touch, follows a
-// drag along the track, and once UIKit has turned the switch at the touch's end, goes to where it settled.
+// drag along the track, and at the touch's end the switch turns (a tap) or goes to the side the thumb was let go on (a
+// drag). UIKit's own drawing, which took the switch's touches, is kept unseen and out of hit-testing (hideOwnDrawing),
+// so the turn is made here; it is made only if UIKit has not turned the switch itself, so it never turns twice.
 @interface SGGlassSwitchWatch : UIGestureRecognizer <UIGestureRecognizerDelegate>
 @property (nonatomic, weak) SGGlassSwitchView *face;
 @end
@@ -333,7 +381,7 @@ static UIColor *trackColor(UISwitch *toggle, CGFloat position) {
 @implementation SGGlassSwitchWatch {
     UITouch *_touch;
     CGFloat _startX, _startPosition;
-    BOOL _dragging;
+    BOOL _dragging, _startOn;
     NSUInteger _press;
 }
 
@@ -356,6 +404,7 @@ static UIColor *trackColor(UISwitch *toggle, CGFloat position) {
     _touch = touches.anyObject;
     _startX = [_touch locationInView:toggle].x;
     _startPosition = self.face.position;
+    _startOn = toggle.isOn;
     _dragging = NO;
     _press++;
     [self.face.thumb setLifted:YES];
@@ -370,39 +419,52 @@ static UIColor *trackColor(UISwitch *toggle, CGFloat position) {
     [self.face showPosition:MAX(0, MIN(1, _startPosition + dx / travel)) animated:NO];
 }
 
-- (void)finish {
+- (void)finishTurning:(BOOL)turn {
     if (!_touch) return;
     _touch = nil;
     NSUInteger press = _press;
-    // UIKit turns the switch as the touch ends, after this: its state is read a turn later.
+    BOOL startOn = _startOn;
+    BOOL want = !_dragging ? !startOn : self.face.position >= 0.5;
+    // Whatever UIKit does with the touch, it does as the touch ends, after this: the switch is read a turn later.
     dispatch_async(dispatch_get_main_queue(), ^{
         UISwitch *toggle = (UISwitch *)self.view;
         if (press != self->_press || !toggle) return;
+        if (turn && toggle.enabled && toggle.isOn == startOn && want != startOn) {
+            [toggle setOn:want animated:YES];
+            [toggle sendActionsForControlEvents:UIControlEventValueChanged];
+        }
         [self.face showPosition:toggle.isOn ? 1 : 0 animated:YES];
         [self.face.thumb setLifted:NO];
     });
 }
 
 - (void)touchesEnded:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
-    if (_touch && [touches containsObject:_touch]) [self finish];
+    if (!_touch || ![touches containsObject:_touch]) return;
+    // A tap that slid off the switch is no tap, as UIKit's own buttons have it.
+    UIView *view = self.view;
+    BOOL inside = _dragging || CGRectContainsPoint(CGRectInset(view.bounds, -16, -16), [_touch locationInView:view]);
+    [self finishTurning:inside];
 }
 
 - (void)touchesCancelled:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
-    if (_touch && [touches containsObject:_touch]) [self finish];
+    if (_touch && [touches containsObject:_touch]) [self finishTurning:NO];
 }
 
-- (void)reset { [self finish]; }
+- (void)reset { [self finishTurning:NO]; }
 
 @end
 
 static char kSwitchFaceKey;
 
-// UIKit's own drawing of the switch, kept unseen: everything in it but the face. By its layer's opacity, not the view's
-// alpha: UIKit hit-tests no view under 0.01 alpha, and the switch's own view inside it is what takes its touches, so at
-// alpha 0 the switch never turned (device, 2026-10-23).
+// UIKit's own drawing of the switch, kept unseen: everything in it but the face. It took the switch's touches, but a
+// view at alpha 0 is not hit-tested (and alpha is its layer's opacity, so hiding it by the layer changed nothing: the
+// switch still never turned, device, 2026-10-23). It is taken out of hit-testing outright, so the touches land on the
+// switch, where SGGlassSwitchWatch turns it.
 static void hideOwnDrawing(UISwitch *toggle, UIView *face) {
     for (UIView *sub in toggle.subviews) {
-        if (sub != face && sub.layer.opacity > 0) sub.layer.opacity = 0;
+        if (sub == face) continue;
+        if (sub.alpha > 0) sub.alpha = 0;
+        if (sub.userInteractionEnabled) sub.userInteractionEnabled = NO;
     }
 }
 
