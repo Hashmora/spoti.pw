@@ -183,7 +183,7 @@ static BOOL inSaveIn(UIView *view) {
 - (void)setOpaque:(BOOL)opaque {
     if (opaque && sg_saveInSheet) {
         UIView *view = (UIView *)self.delegate;
-        if ([view isKindOfClass:UIView.class] && view.layer == self && inSaveIn(view)) opaque = NO;
+        if ([view isKindOfClass:UIView.class] && view.layer == self && !isGlass(view) && !isGlass(view.superview) && inSaveIn(view)) opaque = NO;
     }
     %orig(opaque);
 }
