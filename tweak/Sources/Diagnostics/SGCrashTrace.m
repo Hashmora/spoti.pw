@@ -71,7 +71,18 @@ static void putFrame(int fd, uintptr_t address) {
     put(fd, "\n");
 }
 
+static volatile sig_atomic_t sg_inHandler;
+
 static void handler(int signal, siginfo_t *info, void *context) {
+    // Handed back to by a handler this one handed on to (each keeping the other as the one before): end it here.
+    if (sg_inHandler) {
+        struct sigaction fallback = {0};
+        fallback.sa_handler = SIG_DFL;
+        sigaction(signal, &fallback, NULL);
+        raise(signal);
+        return;
+    }
+    sg_inHandler = 1;
     int fd = open(sg_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (fd >= 0) {
         put(fd, "signal ");
@@ -129,18 +140,42 @@ static void logLastCrash(NSString *path) {
     }
 }
 
+// Our handler for every signal that has lost it, the one there now kept as the one to hand on to. Spotify's crash
+// reporter sets its own after launch, and a crash on the phone left no trace though ours was in (2026-10-24), so this
+// runs again every few seconds.
+static int arm(void) {
+    int armed = 0;
+    for (int i = 0; i < kSignalCount; i++) {
+        struct sigaction current;
+        if (sigaction(kSignals[i], NULL, &current) == 0 && (current.sa_flags & SA_SIGINFO) && current.sa_sigaction == handler) continue;
+        struct sigaction action = {0};
+        action.sa_sigaction = handler;
+        action.sa_flags = SA_SIGINFO | SA_ONSTACK;
+        sigemptyset(&action.sa_mask);
+        struct sigaction previous;
+        if (sigaction(kSignals[i], &action, &previous) == 0) {
+            sg_previous[i] = previous;
+            armed++;
+        }
+    }
+    return armed;
+}
+
 static void install(void) {
     static void *altStack;
     altStack = malloc(SIGSTKSZ * 4);
     stack_t stack = {.ss_sp = altStack, .ss_size = SIGSTKSZ * 4, .ss_flags = 0};
     sigaltstack(&stack, NULL);
-    for (int i = 0; i < kSignalCount; i++) {
-        struct sigaction action = {0};
-        action.sa_sigaction = handler;
-        action.sa_flags = SA_SIGINFO | SA_ONSTACK;
-        sigemptyset(&action.sa_mask);
-        sigaction(kSignals[i], &action, &sg_previous[i]);
-    }
+    arm();
+    static dispatch_source_t timer;
+    timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
+    dispatch_source_set_timer(timer, dispatch_time(DISPATCH_TIME_NOW, 10 * NSEC_PER_SEC), 10 * NSEC_PER_SEC, NSEC_PER_SEC);
+    dispatch_source_set_event_handler(timer, ^{
+        int armed = arm();
+        static int told;
+        if (armed && told++ < 3) SGLog(@"crash trace: another handler had taken %d signals, taken back", armed);
+    });
+    dispatch_resume(timer);
 }
 
 __attribute__((constructor)) static void SGCrashTraceInit(void) {

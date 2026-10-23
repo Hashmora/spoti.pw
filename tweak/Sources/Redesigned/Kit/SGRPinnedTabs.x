@@ -19,7 +19,7 @@ static NSString *const kOverlayID = @"PCFFTabLayoutViewController.overlayScrollV
 static NSString *const kTabsID = @"PCFFTabLayoutViewController.tabsViewAccessibilityID";
 
 // On the container: the pinned band learnt (NSNumber, 0 for none); the block. On the overlay: Spotify's own content height.
-static char kLiftKey, kTabsKey, kRawHeightKey;
+static char kLiftKey, kTabsKey, kRawHeightKey, kSetHeightKey;
 static Class sListClass;
 
 static UIScrollView *siblingWithID(UIView *view, NSString *ident) {
@@ -56,7 +56,10 @@ static CGPoint containerOffset(UIScrollView *container, CGPoint offset) {
         SGLog(@"redesign pinned tabs: the block was pinned %.0fpt down, it goes on to the top", lift);
         // The overlay's range, set before the lift was known, grows now.
         NSNumber *raw = objc_getAssociatedObject(overlay, &kRawHeightKey);
-        if (raw && lift > 0) overlay.contentSize = CGSizeMake(overlay.contentSize.width, raw.doubleValue);
+        if (raw && lift > 0) {
+            objc_setAssociatedObject(overlay, &kSetHeightKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            overlay.contentSize = CGSizeMake(overlay.contentSize.width, raw.doubleValue);
+        }
     }
     if (liftOf(container) <= 0) return offset;
     offset.y = MIN(finger, top);
@@ -99,15 +102,30 @@ static __thread int sg_listDepth;
     sg_listDepth--;
 }
 
+// Opening an artist's Show all crashed every time with this file on, 1.7 s of a main thread at work and then SIGSEGV,
+// and never with it off (the phone, 2026-10-24): a size of the overlay's that Spotify works out from the size the
+// overlay has, which was ours with the lift in it, came back each time a lift taller. A height that is the one this
+// set last is Spotify's own echo of it, and goes through as it is, and nothing is added inside a set of ours.
+static __thread int sg_sizeDepth;
+
 - (void)setContentSize:(CGSize)size {
     UIScrollView *scroll = (UIScrollView *)self;
     NSString *ident = scroll.accessibilityIdentifier;
-    if (ident && [ident isEqualToString:kOverlayID]) {
-        objc_setAssociatedObject(scroll, &kRawHeightKey, @(size.height), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        UIScrollView *container = siblingWithID(scroll, kContainerID);
-        size.height += MAX(0, liftOf(container));
+    if (sg_sizeDepth > 0 || !ident || ![ident isEqualToString:kOverlayID]) {
+        %orig(size);
+        return;
     }
+    NSNumber *set = objc_getAssociatedObject(scroll, &kSetHeightKey);
+    if (set && fabs(size.height - set.doubleValue) < 0.5) {
+        %orig(size);
+        return;
+    }
+    objc_setAssociatedObject(scroll, &kRawHeightKey, @(size.height), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    size.height += MAX(0, liftOf(siblingWithID(scroll, kContainerID)));
+    objc_setAssociatedObject(scroll, &kSetHeightKey, @(size.height), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    sg_sizeDepth++;
     %orig(size);
+    sg_sizeDepth--;
 }
 %end
 

@@ -426,11 +426,34 @@ static void insetFeed(UIScrollView *feed) {
     if (atRest) feed.contentOffset = CGPointMake(feed.contentOffset.x, -feed.adjustedContentInset.top);
 }
 
+// The header element's black: Spotify paints it again as the page scrolls, after any pass of ours, and the band stayed
+// (the phone, 2026-10-24). Its own -setBackgroundColor: is hooked once the element is known: the class is a Swift
+// generic's specialization, made at its first use, so it is not there to be hooked at launch.
+static BOOL sg_headerClear;
+
+%group SGRHomeHeaderPaint
+%hook SGRHomeHeaderElement
+- (void)setBackgroundColor:(UIColor *)color {
+    %orig(sg_headerClear ? UIColor.clearColor : color);
+}
+%end
+%end
+
+static void keepHeaderClear(UIView *element) {
+    static Class hooked;
+    if (!hooked) {
+        hooked = element.class;
+        %init(SGRHomeHeaderPaint, SGRHomeHeaderElement = hooked);
+        SGLog(@"redesign home: the header's paint is kept clear (%@)", NSStringFromClass(hooked));
+    }
+    sg_headerClear = YES;
+    if (SGIsVisibleColor(element.layer.backgroundColor)) element.backgroundColor = UIColor.clearColor;
+}
+
 static void liftFeed(UIView *element) {
     UIView *page = element.superview;
     if (!SGBelowiOS26() || !page) return;
-    // Spotify paints the header black again after it lays out, so it is cleared on every pass.
-    if (SGIsVisibleColor(element.layer.backgroundColor)) element.backgroundColor = UIColor.clearColor;
+    if ([NSStringFromClass(element.class) containsString:@"HomeHeaderElement"]) keepHeaderClear(element);
     if (objc_getAssociatedObject(element, &kLiftedKey)) {
         insetFeed(sg_feed);
         return;
