@@ -10,6 +10,8 @@ static const CGFloat kLiftWidth = 58.0 / 37, kLiftHeight = 38.333 / 24;
 // The swell is a lively spring and the fall back a calmer, slower one (LiquidGlassKit: 0.4 s at 0.6, 0.6 s at 0.7).
 static const NSTimeInterval kLiftDuration = 0.4, kDropDuration = 0.6;
 static const CGFloat kLiftDamping = 0.6, kDropDamping = 0.7;
+// The held lens's white rim, in points.
+static const CGFloat kEdgeWidth = 3.5;
 // Past an end of the track the thumb follows the finger by this share of the overshoot, up to kMaxPull, and is
 // stretched along the pull and thinned across it by its share of kPullStretch.
 static const CGFloat kPullShare = 0.3, kMaxPull = 14, kPullStretch = 0.25;
@@ -30,7 +32,7 @@ static const CGFloat kPullShare = 0.3, kMaxPull = 14, kPullStretch = 0.25;
     UIView *_pane;
     UIView *_rim;
     CAShapeLayer *_ring;
-    UIView *_depth;
+    CAShapeLayer *_edge;
     BOOL _lifted;
     CGFloat _pull;
 }
@@ -52,7 +54,7 @@ static const CGFloat kPullShare = 0.3, kMaxPull = 14, kPullStretch = 0.25;
         SGLegacyGlassView *glass = (SGLegacyGlassView *)_pane;
         glass.clear = YES;
         glass.blurRadius = 0;
-        glass.lensScale = 2;
+        glass.lensScale = 1.1;
     }
     _ring = [CAShapeLayer layer];
     _ring.fillColor = [UIColor colorWithRed:0.9 green:0.95 blue:1 alpha:0.12].CGColor;
@@ -61,19 +63,19 @@ static const CGFloat kPullShare = 0.3, kMaxPull = 14, kPullStretch = 0.25;
     _rim.userInteractionEnabled = NO;
     _rim.alpha = _pane.alpha;
     [_rim.layer addSublayer:_ring];
+    // iOS 26's held thumb (the system's switch, compared on the phone, 2026-10-24): a thick bright white rim round the
+    // clear lens, glowing softly out of it, with the track showing through the middle. Without it the lens, the track's
+    // green pulled in to its edge, read as a solid green blob, and a shadow cast inside it made it denser still.
+    _edge = [CAShapeLayer layer];
+    _edge.fillColor = nil;
+    _edge.strokeColor = [UIColor colorWithWhite:1 alpha:0.95].CGColor;
+    _edge.lineWidth = kEdgeWidth;
+    _edge.shadowColor = UIColor.whiteColor.CGColor;
+    _edge.shadowOpacity = 0.45;
+    _edge.shadowRadius = 5;
+    _edge.shadowOffset = CGSizeZero;
+    [_rim.layer addSublayer:_edge];
     [self addSubview:_rim];
-    // The drop's depth: a shadow cast down into it from its rim, multiplied over what it shows (LiquidGlassKit's
-    // ShadowView: a ring the drop's shape, radius 3.5, offset 5.5 down, opacity 0.2).
-    _depth = [UIView new];
-    _depth.userInteractionEnabled = NO;
-    _depth.backgroundColor = UIColor.clearColor;
-    _depth.layer.compositingFilter = @"multiplyBlendMode";
-    _depth.layer.shadowColor = UIColor.blackColor.CGColor;
-    _depth.layer.shadowOpacity = 0.2;
-    _depth.layer.shadowRadius = 3.5;
-    _depth.layer.shadowOffset = CGSizeMake(0, 5.5);
-    _depth.alpha = _pane.alpha;
-    [self addSubview:_depth];
     _pill = [UIView new];
     _pill.backgroundColor = UIColor.whiteColor;
     _pill.userInteractionEnabled = NO;
@@ -112,20 +114,14 @@ static const CGFloat kPullShare = 0.3, kMaxPull = 14, kPullStretch = 0.25;
     SGShapeGlass(_pane, held.size.height / 2, YES);
     _rim.bounds = held;
     _rim.center = middle;
-    _depth.bounds = held;
-    _depth.center = middle;
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
-    CGFloat heldRadius = held.size.height / 2, shadow = _depth.layer.shadowRadius;
+    CGFloat heldRadius = held.size.height / 2;
     _ring.frame = held;
     _ring.path = [UIBezierPath bezierPathWithRoundedRect:held cornerRadius:heldRadius].CGPath;
-    UIBezierPath *ring = [UIBezierPath bezierPathWithRoundedRect:CGRectInset(held, -1, -shadow / 2) cornerRadius:heldRadius];
-    [ring appendPath:[[UIBezierPath bezierPathWithRoundedRect:CGRectInset(held, 0, shadow / 2) cornerRadius:heldRadius] bezierPathByReversingPath]];
-    _depth.layer.shadowPath = ring.CGPath;
-    // Only inside the drop.
-    CAShapeLayer *mask = [_depth.layer.mask isKindOfClass:CAShapeLayer.class] ? (CAShapeLayer *)_depth.layer.mask : [CAShapeLayer layer];
-    mask.path = [UIBezierPath bezierPathWithRoundedRect:held cornerRadius:heldRadius].CGPath;
-    _depth.layer.mask = mask;
+    CGRect edge = CGRectInset(held, kEdgeWidth / 2, kEdgeWidth / 2);
+    _edge.frame = held;
+    _edge.path = [UIBezierPath bezierPathWithRoundedRect:edge cornerRadius:edge.size.height / 2].CGPath;
     [CATransaction commit];
     [self applyLift];
 }
@@ -135,7 +131,6 @@ static const CGFloat kPullShare = 0.3, kMaxPull = 14, kPullStretch = 0.25;
     _pill.transform = _lifted ? CGAffineTransformMakeScale(_liftX, _liftY) : CGAffineTransformIdentity;
     _pane.transform = _lifted ? CGAffineTransformIdentity : rest;
     _rim.transform = _pane.transform;
-    _depth.transform = _pane.transform;
 }
 
 // The pull is the whole thumb's transform; the swell is its parts' (applyLift), so either can change without the other
@@ -156,7 +151,6 @@ static const CGFloat kPullShare = 0.3, kMaxPull = 14, kPullStretch = 0.25;
         self->_pill.alpha = lifted ? 0 : 1;
         self->_pane.alpha = lifted ? 1 : 0;
         self->_rim.alpha = self->_pane.alpha;
-        self->_depth.alpha = self->_pane.alpha;
     } completion:nil];
 }
 
