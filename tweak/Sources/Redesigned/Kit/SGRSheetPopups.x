@@ -190,6 +190,16 @@ static BOOL inSaveIn(UIView *view) {
 %end
 %end
 
+// UIKit gives a sheet back its shadow as it moves between detents; a glassed sheet's is kept off (SGRSheetShadowHeld).
+%group SGRSheetShadow
+%hook CALayer
+- (void)setShadowOpacity:(float)opacity {
+    if (opacity > 0 && SGRSheetShadowHeld(self)) opacity = 0;
+    %orig(opacity);
+}
+%end
+%end
+
 // The page's own views (ATPMainView, and the strip under the list that holds Done) are repainted on every layout: the
 // paint, the opaque flag and the fade behind the button go each time, as in the queue (QueueGlass.x).
 static void clearSaveInView(UIView *view) {
@@ -437,6 +447,7 @@ static void connectMenuChrome(UIViewController *controller) {
 
 %ctor {
     if (!SGRedesignedUI() || !SGBelowiOS26()) return;
+    %init(SGRSheetShadow);
     SGRPassSwiftController(@"NavigationUI_SheetImpl", @"ContainerViewController", ^(UIViewController *c) { chrome(c); });
     SGRPassSwiftController(@"Connect_ContextMenuPageImpl", @"ContextMenuViewController", ^(UIViewController *c) { connectMenuChrome(c); });
     SGRPassSwiftController(@"SmartShuffle_CoreImpl", @"PlayModePickerViewController", ^(UIViewController *c) { pickerChrome(c); });

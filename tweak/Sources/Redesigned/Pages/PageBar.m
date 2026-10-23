@@ -30,7 +30,7 @@
 #import "Redesigned/Kit/SGRKit.h"
 #import "Pages.h"
 
-static char kMoreKey, kExtraKey, kProxyKey, kTitleGlassKey, kBarStyleKey, kHeldKey, kConcealedKey;
+static char kMoreKey, kExtraKey, kProxyKey, kTitleGlassKey, kBarStyleKey, kHeldKey, kConcealedKey, kBarBackgroundKey;
 
 // The pages dressed now, weakly: the bar is given back only when none is left.
 static NSHashTable<UIViewController *> *sg_dressed;
@@ -331,6 +331,43 @@ static void pinTrailing(UIView *view, UIView *more, UIView *extra) {
     }
 }
 
+// A UIButton showing a picture: not a bar button item of UIKit's, nor the hidden pair the Settings root carries.
+static BOOL iconButton(UIView *view) {
+    if (![view isKindOfClass:UIButton.class]) return NO;
+    UIButton *button = (UIButton *)view;
+    return button.currentImage != nil || button.imageView.image != nil;
+}
+
+// The bar's own background, which UIKit fills with its blur once the list scrolls (its standard appearance in place of
+// the scroll edge one), is above the page, so it covered the pinned Back: Settings scrolled showed a grey band with no
+// Back in it (the phone, 2026-10-23). Taking the background off left the list's text under the status bar with nothing
+// over it, so it keeps its blur with a hole the shape of each glass circle pinned to the page cut in it (Back, and a
+// control pinned at the trailing edge), by a mask, which UIKit does not touch.
+static void punchPinned(UINavigationBar *bar, UIView *page) {
+    UIView *background = SGRChildNamed(bar, @"_UIBarBackground");
+    if (!background || !page.window) return;
+    CAShapeLayer *mask = [background.layer.mask isKindOfClass:CAShapeLayer.class] ? (CAShapeLayer *)background.layer.mask : nil;
+    if (background.layer.mask && !mask) return;
+    if (!mask) {
+        mask = [CAShapeLayer layer];
+        mask.fillRule = kCAFillRuleEvenOdd;
+        background.layer.mask = mask;
+        objc_setAssociatedObject(bar, &kBarBackgroundKey, background, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    CGRect bounds = background.layer.bounds;
+    UIBezierPath *path = [UIBezierPath bezierPathWithRect:CGRectInset(bounds, 0, -bounds.size.height)];
+    for (UIView *sub in page.subviews) {
+        if (![sub isKindOfClass:SGRMirrorButton.class] || sub.hidden || sub.alpha < 0.01) continue;
+        CGRect hole = [sub convertRect:sub.bounds toView:background];
+        if (CGRectIntersectsRect(hole, bounds)) [path appendPath:[UIBezierPath bezierPathWithOvalInRect:hole]];
+    }
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    mask.frame = bounds;
+    mask.path = path.CGPath;
+    [CATransaction commit];
+}
+
 void SGRDressBarPage(UIViewController *page) {
     UIView *view = page.viewIfLoaded;
     UINavigationController *navigation = page.navigationController;
@@ -378,10 +415,20 @@ void SGRDressBarPage(UIViewController *page) {
     if ([sg_backOnly containsObject:page]) {
         // What holdControls concealed before this page's own controller existed is given back.
         restore(more);
-        restore(extra);
+        // A plain button with a picture at the trailing edge (the gear another tweak puts on the Settings root, a
+        // UIButton 22x22 after the hidden pair) is a control of its own, and stood bare beside the title's capsule
+        // (the phone, 2026-10-23): it gets the glass circle in the corner that a ⋯ gets.
+        if (iconButton(extra)) {
+            conceal(extra);
+            SGRPinnedTrailing(view, &kExtraKey, extra, 0, [UIImage systemImageNamed:@"gearshape.fill"]);
+        } else {
+            restore(extra);
+        }
     } else {
         pinTrailing(view, more, extra);
     }
+
+    punchPinned(bar, view);
 
     UIView *title = SGRChildNamed(content, @"_UINavigationBarTitleControl");
     if (title) {
@@ -415,6 +462,11 @@ static void undressBar(UIViewController *page, UINavigationController *navigatio
     if (style) {
         bar.overrideUserInterfaceStyle = (UIUserInterfaceStyle)style.integerValue;
         objc_setAssociatedObject(bar, &kBarStyleKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    UIView *background = objc_getAssociatedObject(bar, &kBarBackgroundKey);
+    if (background) {
+        background.layer.mask = nil;
+        objc_setAssociatedObject(bar, &kBarBackgroundKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
     UIView *content = SGRChildNamed(bar, @"_UINavigationBarContentView");
     reveal(SGRChildNamed(content, @"_UIButtonBarButton"));

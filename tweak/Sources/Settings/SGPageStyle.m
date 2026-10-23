@@ -268,13 +268,26 @@ UITableViewCell *SGDequeueCell(UITableView *table, NSString *identifier) {
 }
 
 // Spotify's list titles carry its typeface at 13pt.
+// The rows' titles are the font most of the list's labels between 14 and 18 pt have (16 pt in Spotify 9.1): the first
+// 13 pt label it once took was the drawer's "Eevee" badge, bold, and the row read smaller and heavier than its
+// neighbours (the phone, 2026-10-23). A list with no such label keeps the old 13 pt rule.
 void SGAdoptFonts(UIView *list, UIView *row) {
     if (sg_spotifyFont) return;
+    NSCountedSet<UIFont *> *titles = [NSCountedSet set];
+    __block UIFont *small = nil;
     SGForEachView(list, ^(UIView *v) {
-        if (sg_spotifyFont || ![v isKindOfClass:UILabel.class] || SGIsInside(v, row)) return;
+        if (![v isKindOfClass:UILabel.class] || SGIsInside(v, row)) return;
         UILabel *label = (UILabel *)v;
-        if (label.text.length >= 2 && label.font.pointSize == 13) sg_spotifyFont = label.font;
+        if (label.text.length < 2) return;
+        CGFloat size = label.font.pointSize;
+        if (size >= 14 && size <= 18) [titles addObject:label.font];
+        else if (!small && size == 13) small = label.font;
     });
+    UIFont *best = nil;
+    for (UIFont *font in titles) {
+        if (!best || [titles countForObject:font] > [titles countForObject:best]) best = font;
+    }
+    sg_spotifyFont = best ?: small;
 }
 
 UIViewController *SGTopController(void) {

@@ -81,6 +81,9 @@ UIView *SGRGlassSheetView(UIView *sheet);
 // that was glassed before it was known to be one that stays Spotify's, as Edit profile (Profile/ProfileEdit.x). Safe to call on
 // every pass; does nothing on a sheet that was never glassed.
 void SGRRemoveSheetGlass(UIView *sheet);
+// Whether `layer` is the shadow of a sheet SGRGlassSheetChrome glassed, which UIKit gives its shadow back on every move
+// between detents: Kit/SGRSheetPopups.x keeps it at 0 as it is written.
+BOOL SGRSheetShadowHeld(CALayer *layer);
 // The top corner radius of every sheet the mod glasses: the screen's, as the Genius meanings sheet has it.
 CGFloat SGRSheetCornerRadius(void);
 // The body SGRGlassSheetChrome puts on a sheet's pane (heavier blur, dark tint, hairline rim), for a sheet

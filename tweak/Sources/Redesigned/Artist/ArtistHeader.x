@@ -36,6 +36,10 @@
 // How much of the photo's height the dissolve into the field covers, and the scrim over the top of it that
 // keeps the status bar and the back button legible on a bright picture. The playlist's and the album's.
 static const CGFloat kDissolve = 0.46, kTopScrim = 140, kTopScrimAlpha = 0.28;
+// A photo bright across its top (a white studio wall) turned the pinned Back and ⋯ into white discs with their white glyphs
+// lost in them (the phone, 2026-10-23): the scrim grows with the top's brightness, from kTopScrimAlpha at kBrightFrom up to
+// kBrightScrimAlpha for a white top.
+static const CGFloat kBrightFrom = 0.45, kBrightScrimAlpha = 0.62;
 // A photo view narrower than this is a placeholder glyph, and a picture shorter than this one mid load.
 static const CGFloat kMinCover = 80, kMinHero = 120;
 // The collapsed ImageHeaderView, Spotify's navigation bar; the text fades out over the last kFade before it.
@@ -185,6 +189,45 @@ static UIView *containerOf(UIView *header) {
     SGRObserveImage(source, ^(UIImageView *view) { [weakSelf takeArtwork:view late:YES]; });
 }
 
+// The mean luminance of the band of `image` the scrim covers, as the hero shows it (aspect fill, the top of a picture
+// taller than the hero kept): drawn into a few pixels and averaged.
+static CGFloat topBrightness(UIImage *image, CGSize shown) {
+    CGSize size = image.size;
+    if (size.width < 1 || size.height < 1 || shown.width < 1 || shown.height < 1) return 0;
+    CGFloat scale = MAX(shown.width / size.width, shown.height / size.height);
+    CGFloat band = MIN(kTopScrim, shown.height) / scale;
+    CGFloat inset = (size.width - shown.width / scale) / 2;
+    enum { W = 12, H = 3 };
+    uint8_t pixels[W * H * 4] = {0};
+    CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
+    CGContextRef context = CGBitmapContextCreate(pixels, W, H, 8, W * 4, space, (CGBitmapInfo)kCGImageAlphaPremultipliedLast);
+    CGColorSpaceRelease(space);
+    if (!context) return 0;
+    UIGraphicsPushContext(context);
+    CGContextTranslateCTM(context, 0, H);
+    CGContextScaleCTM(context, 1, -1);
+    CGFloat sx = W / (size.width - 2 * inset), sy = H / band;
+    [image drawInRect:CGRectMake(-inset * sx, 0, size.width * sx, size.height * sy)];
+    UIGraphicsPopContext();
+    CGContextRelease(context);
+    CGFloat sum = 0;
+    for (int i = 0; i < W * H; i++) {
+        sum += (0.2126 * pixels[i * 4] + 0.7152 * pixels[i * 4 + 1] + 0.0722 * pixels[i * 4 + 2]) / 255.0;
+    }
+    return sum / (W * H);
+}
+
+- (void)darkenScrimFor:(UIImage *)image {
+    CGSize shown = self.bounds.size.width > 0 ? self.bounds.size : CGSizeMake(UIScreen.mainScreen.bounds.size.width, kTopScrim * 3);
+    CGFloat light = topBrightness(image, shown);
+    CGFloat t = MAX(0, MIN(1, (light - kBrightFrom) / (1 - kBrightFrom)));
+    CGFloat alpha = kTopScrimAlpha + (kBrightScrimAlpha - kTopScrimAlpha) * t;
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    _scrim.colors = @[(id)[UIColor colorWithWhite:0 alpha:alpha].CGColor, (id)UIColor.clearColor.CGColor];
+    [CATransaction commit];
+}
+
 // `late` is a photo that arrived after the header had laid out -- the artist opened for the first time,
 // whose picture is still being fetched while the page is already on screen (issue #52). The log line says
 // once that the watch, and not one of the header's passes, is what filled the hero.
@@ -192,6 +235,7 @@ static UIView *containerOf(UIView *header) {
     UIImage *image = source.image;
     if (!image || _picture.image == image) return;
     _picture.image = image;
+    [self darkenScrimFor:image];
     // The page's field takes its color from the same picture.
     SGRArtistSetArtwork(self, image);
     static BOOL logged;

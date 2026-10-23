@@ -402,13 +402,11 @@ static void layoutRoot(UIView *page) {
     NSArray<UIView *> *trailing = placeRoot(header);
     if (!trailing.count) return;
 
-    // Search and + are plain 48pt icon buttons with nothing behind them; the avatar is skipped, its image already fills the circle so glass behind it would
-    // never show.
+    // Search and + are plain 48pt icon buttons with nothing behind them, and the avatar is a 32pt picture: each stands on
+    // a 44pt glass circle, the avatar's showing round it as Home's pill does round Home's (the phone, 2026-10-23: the
+    // avatar was the one control of the row with nothing behind it).
     if (SGBelowiOS26()) {
-        for (UIView *control in trailing) {
-            if (isFace(control)) continue;
-            SGRGlassInside(control, &kRoundGlassKey, 44);
-        }
+        for (UIView *control in trailing) SGRGlassInside(control, &kRoundGlassKey, 44);
     }
 
     // The first pass that laid the header out, not the first pass at all: a page appearing lays out before

@@ -22,7 +22,7 @@
 // Layout passes without the header before that is logged.
 static const NSUInteger kMissesLogged = 60;
 
-static char kTitleKey;
+static char kTitleKey, kFaceGlassKey;
 
 static __weak UICollectionView *sg_list;
 static __weak UIStackView *sg_row;
@@ -115,6 +115,9 @@ static void layoutHeader(UIStackView *row) {
         [row setNeedsLayout];
     }
     [row layoutIfNeeded];
+    // The avatar on a glass circle as large as the other pages' corner buttons, as Home's sits in its pill: bare, it was the
+    // one control of the header with nothing behind it (the phone, 2026-10-23).
+    if (face && SGBelowiOS26()) SGRGlassInside(face, &kFaceGlassKey, 44);
 
     UILabel *title = titleIn(row);
     if (![title.text isEqualToString:text]) {

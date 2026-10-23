@@ -465,7 +465,7 @@ CGFloat SGRSheetCornerRadius(void) {
 
 // The pane, the corners and the stripped grey of one sheet view `v`: what SGRGlassSheetChrome does once it has
 // found the sheet by its identifier, and what a sheet with no such identifier (the share menu's) gets by name.
-static char kSheetChromeGlassKey, kSheetOriginalKey;
+static char kSheetChromeGlassKey, kSheetOriginalKey, kShadowHeldKey;
 
 // UIKit's shadow round a presented sheet: the UIDropShadowView the pane sits in, a few plain views up.
 static UIView *dropShadowOf(UIView *v) {
@@ -482,8 +482,18 @@ static const CGFloat kUndimmedSheetDim = 0.7;
 // shadowPath it is the pane's own shape filled black at opacity 1 and blurred by 12, under the pane, and through the glass
 // the whole sheet read black (2026-10-23, the phone: shadowOpacity 1, and the glass showed the player once it was 0). A
 // glass pane has no shadow, and over a page with no dimming it takes the dimming's black itself.
+//
+// Taking it off once was not enough: UIKit writes the shadow again as the sheet moves between its detents and during its
+// presentation, so Save in opened black and went to glass only on a later pass, and dragged up from its small detent it
+// stayed black (the phone, 2026-10-23: shadowOpacity back at 1 after the drag). The shadow's layer is marked, and
+// SGRSheetPopups.x's hook keeps it at 0 whenever UIKit writes it.
+BOOL SGRSheetShadowHeld(CALayer *layer) {
+    return objc_getAssociatedObject(layer, &kShadowHeldKey) != nil;
+}
+
 static void fitSheetSurroundings(UIView *v, UIView *glass) {
     UIView *shadow = dropShadowOf(v);
+    if (shadow && !SGRSheetShadowHeld(shadow.layer)) objc_setAssociatedObject(shadow.layer, &kShadowHeldKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     if (shadow.layer.shadowOpacity > 0) shadow.layer.shadowOpacity = 0;
     UIView *dimming = nil;
     for (UIView *sibling in shadow.superview.subviews) {
@@ -553,7 +563,9 @@ void SGRRemoveSheetGlass(UIView *sheet) {
         id fill = original[@"fill"];
         // The pane's own paint was taken off for the glass, and with no glass behind it the page under the sheet shows through.
         sheet.backgroundColor = [fill isKindOfClass:UIColor.class] ? fill : UIColor.blackColor;
-        dropShadowOf(sheet).layer.shadowOpacity = [original[@"shadow"] floatValue];
+        CALayer *shadow = dropShadowOf(sheet).layer;
+        objc_setAssociatedObject(shadow, &kShadowHeldKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        shadow.shadowOpacity = [original[@"shadow"] floatValue];
         objc_setAssociatedObject(sheet, &kSheetOriginalKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
 }
