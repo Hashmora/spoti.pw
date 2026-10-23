@@ -484,6 +484,7 @@ void SGRLogTabBarRow(UIView *tabBar) {
 
 %ctor {
     if (!SGRedesignedUI()) return;
+    SGRMigrateNavbarSplit();
     %init;
     SGRequireClasses(@[
         @"SPNavigationController",

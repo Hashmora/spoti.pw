@@ -626,12 +626,14 @@ static BOOL createMenuUp(UIView *view) {
     %orig;
 }
 
+// Only the container's view moves to the row, by a transform; Spotify's layout view above it stays at the
+// bar's old place and took every touch there (#70), so a touch on nothing of the moved bar's goes through.
 - (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
     UIView *hit = %orig;
     UIView *moved = sg_inline;
-    if ((hit && hit != (UIView *)self) || ![moved isDescendantOfView:(UIView *)self]) return hit;
+    if (![moved isDescendantOfView:(UIView *)self] || (hit && [hit isDescendantOfView:moved])) return hit;
     UIView *inside = [moved hitTest:[(UIView *)self convertPoint:point toView:moved] withEvent:event];
-    return inside && inside != moved ? inside : hit;
+    return inside && inside != moved ? inside : nil;
 }
 %end
 

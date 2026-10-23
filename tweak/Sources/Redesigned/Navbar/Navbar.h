@@ -21,6 +21,10 @@ void SGRSetNavbarLayout(NSArray<NSDictionary *> *layout);
 // place only, so it leaves the bar's list while it is here.
 NSArray<NSDictionary *> *SGRNavbarSplit(void);
 void SGRSetNavbarSplit(NSArray<NSDictionary *> *split);
+// The split tabs as they were stored before they had a list of their own (.split, the identities of entries of the
+// bar's list) moved over to that list, once: when .split is there and the list is not. Run at launch, so a settings
+// backup from before, which an import writes back before it restarts, is moved over too.
+void SGRMigrateNavbarSplit(void);
 // Spotify's own tabs in Spotify's order, as Navbar.x last saw them on the bar.
 NSArray<NSString *> *SGRNavbarStock(void);
 void SGRSetNavbarStock(NSArray<NSString *> *stock);
