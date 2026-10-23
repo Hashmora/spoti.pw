@@ -1,3 +1,7 @@
+#import <dlfcn.h>
+#if __has_feature(ptrauth_calls)
+#import <ptrauth.h>
+#endif
 #import <mach/mach.h>
 #import <mach-o/dyld.h>
 #import <mach-o/loader.h>
@@ -110,4 +114,59 @@ BOOL SGRebindImport(const char *symbol, void *replacement, void **original) {
         }
     }
     return rebound;
+}
+
+#pragma mark - the jailbreak's hooker
+
+typedef void (*SGMSHookFunction)(void *symbol, void *replace, void **result);
+
+// MSHookFunction as the process has it, or from ElleKit's libraries where a rootless or a rootful jailbreak keeps them.
+static SGMSHookFunction hooker(void) {
+    static SGMSHookFunction found;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        found = (SGMSHookFunction)dlsym(RTLD_DEFAULT, "MSHookFunction");
+        const char *paths[] = {"/var/jb/usr/lib/libellekit.dylib", "/var/jb/usr/lib/libsubstrate.dylib",
+                               "/usr/lib/libellekit.dylib", "/usr/lib/libsubstrate.dylib"};
+        for (size_t i = 0; !found && i < sizeof paths / sizeof *paths; i++) {
+            if (access(paths[i], R_OK) != 0) continue;
+            void *handle = dlopen(paths[i], RTLD_NOW);
+            if (handle) found = (SGMSHookFunction)dlsym(handle, "MSHookFunction");
+        }
+        SGLog(@"rebind: the jailbreak's MSHookFunction %@", found ? @"is there" : @"is not there");
+    });
+    return found;
+}
+
+BOOL SGHookFunctionInline(void *function, void *replacement, void **original) {
+    if (@available(iOS 26.0, *)) return NO;
+    SGMSHookFunction hook = hooker();
+    if (!hook || !function || !replacement) return NO;
+    void *held = NULL;
+    hook(function, replacement, &held);
+    if (!held) return NO;
+    if (original) *original = held;
+    return YES;
+}
+
+BOOL SGCalledFromMainExecutable(void *returnAddress) {
+    static uintptr_t start, end;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        intptr_t slide = 0;
+        const struct mach_header_64 *header = mainExecutable(&slide);
+        const struct load_command *command = header ? (const struct load_command *)(header + 1) : NULL;
+        for (uint32_t i = 0; header && i < header->ncmds; i++, command = (const struct load_command *)((const char *)command + command->cmdsize)) {
+            if (command->cmd != LC_SEGMENT_64 || strcmp(((const struct segment_command_64 *)command)->segname, SEG_TEXT) != 0) continue;
+            const struct segment_command_64 *text = (const struct segment_command_64 *)command;
+            start = (uintptr_t)slide + (uintptr_t)text->vmaddr;
+            end = start + (uintptr_t)text->vmsize;
+        }
+    });
+    // A return address carries a pointer authentication code in its top bits on arm64e.
+#if __has_feature(ptrauth_calls)
+    returnAddress = ptrauth_strip(returnAddress, ptrauth_key_return_address);
+#endif
+    uintptr_t address = (uintptr_t)returnAddress;
+    return address >= start && address < end;
 }
