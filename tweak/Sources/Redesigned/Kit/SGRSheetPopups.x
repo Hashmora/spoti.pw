@@ -207,6 +207,20 @@ static void clearSaveInView(UIView *view) {
     clearOpaqueAbove(view);
 }
 
+// Each playlist row of Save in (Encore's ListRow, id=Playlist.Row.AddToPlaylist) draws its own fill as a shape layer the
+// size of the row, under the row's views: not a background colour, so no clearing of paint reached it, and the rows,
+// one under the next, covered the whole list in black over the glass (the tree with sublayers, 2026-10-23: a
+// CAShapeLayer 390x64 in every row, and a second one inset by 4 at opacity 0, the press highlight, which stays).
+static void clearSaveInRow(UIView *row) {
+    if (![row.accessibilityIdentifier isEqualToString:@"Playlist.Row.AddToPlaylist"] || !SGRSheetPaneOf(row)) return;
+    CGRect bounds = row.layer.bounds;
+    for (CALayer *layer in row.layer.sublayers) {
+        if (![layer isKindOfClass:CAShapeLayer.class] || !CGRectEqualToRect(layer.frame, bounds)) continue;
+        CAShapeLayer *fill = (CAShapeLayer *)layer;
+        if (fill.fillColor && CGColorGetAlpha(fill.fillColor) > 0) fill.fillColor = UIColor.clearColor.CGColor;
+    }
+}
+
 static void chrome(UIViewController *sheet) {
     UIViewController *content = contentIn(sheet, 0);
     UIView *root = content.viewIfLoaded;
@@ -440,6 +454,7 @@ static void connectMenuChrome(UIViewController *controller) {
     }
     SGRPassView(SGRSwiftClass(@"PlaylistCuration_AddToPlaylistImpl", @"ATPMainView"), ^(UIView *v) { clearSaveInView(v); });
     SGRPassView(SGRSwiftClass(@"PlaylistCuration_AddToPlaylistImpl", @"ATPDoneButtonView"), ^(UIView *v) { clearSaveInView(v); });
+    SGRPassView(NSClassFromString(@"_TtCE16Encore_LayoutKitO16EncoreFoundation6Encore7ListRow"), ^(UIView *v) { clearSaveInRow(v); });
     Class round = NSClassFromString(@"_TtCO27PodcastPlaybackSpeed_ECMKit26PodcastDialogPlaybackSpeed11RoundButton");
     if (round) %init(SGRSpeedButtons, SGRRoundButton = round);
 }
