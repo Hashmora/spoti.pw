@@ -1201,7 +1201,9 @@ static void rebind(void) {
         sg_reachable = SGRebindImport("AudioOutputUnitStart", startOutput, (void **)&sg_startOutput) && sg_startOutput;
         if (!sg_reachable) {
             sg_startOutput = NULL;
-            sg_reachable = hookInline();
+            // A switch with no row, for telling a crash on a jailbroken phone apart from these hooks: off, the audio
+            // features are unavailable there as before. On unless set (pref spotifyglass.audio.jailbreakHooks 0).
+            sg_reachable = SGEnabled(@"spotifyglass.audio.jailbreakHooks") && hookInline();
             if (!sg_reachable) SGLog(@"audio: Spotify does not import AudioOutputUnitStart, its output cannot be reached");
             return;
         }

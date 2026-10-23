@@ -113,6 +113,9 @@ static __thread int sg_listDepth;
 
 %ctor {
     if (!SGRedesignedUI() || !SGBelowiOS26()) return;
+    // A switch with no row, for telling a crash on these pages apart from this file: off, the list stops at Spotify's
+    // pinned band as before. On unless set (pref spotifyglass.redesign.pinnedTabs 0).
+    if (!SGEnabled(@"spotifyglass.redesign.pinnedTabs")) return;
     sListClass = NSClassFromString(@"_TtC32CreativeWorkPlatform_TemplateKitP33_5F894CA2C02A3F3767683E90D6AA015014CollectionView");
     if (!sListClass) SGLog(@"redesign pinned tabs: CreativeWorkPlatform_TemplateKit's list class not found, the list keeps its pinned band");
     %init;
