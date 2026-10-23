@@ -397,10 +397,12 @@ static UIColor *trackColor(UISwitch *toggle, CGFloat position) {
 
 static char kSwitchFaceKey;
 
-// UIKit's own drawing of the switch, kept unseen: everything in it but the face.
+// UIKit's own drawing of the switch, kept unseen: everything in it but the face. By its layer's opacity, not the view's
+// alpha: UIKit hit-tests no view under 0.01 alpha, and the switch's own view inside it is what takes its touches, so at
+// alpha 0 the switch never turned (device, 2026-10-23).
 static void hideOwnDrawing(UISwitch *toggle, UIView *face) {
     for (UIView *sub in toggle.subviews) {
-        if (sub != face && sub.alpha > 0) sub.alpha = 0;
+        if (sub != face && sub.layer.opacity > 0) sub.layer.opacity = 0;
     }
 }
 

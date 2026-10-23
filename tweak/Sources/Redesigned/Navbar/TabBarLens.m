@@ -8,6 +8,8 @@ static char kLensPaneKey, kLensFilmKey;
 // The held bubble magnifies the tabs under it, as the system's does (about 1.2 across and down: adaptive_liquid_glass's
 // measure of iOS 26.4's tab bar, lib/src/tab_bar/tab_bar_metrics.dart, magnifyX 1.21 and magnifyY 1.19).
 static const CGFloat kLensMagnification = 1.2;
+// The held bubble does not blur what it shows: the panes' 2 pt blur, magnified with the icons, left them a smear.
+static const CGFloat kLensHeldBlur = 0, kLensRestBlur = 2;
 
 // The held bubble is this much wider than the pill (and taller by 2 * heldOutset, so it stands out of the capsule's
 // rim, as the system's does), and may be dragged this far past the first and the last tab.
@@ -79,7 +81,6 @@ static const CGFloat kPlayStep = 1.0 / 120;
     // While the glass is up the bubble stands over the tabs, so its glass bends and magnifies their icons; at rest it is
     // back under them, below the view that was over it.
     __weak UIView *_restAbove;
-    NSUInteger _glassTurn;
     CADisplayLink *_link;
     // The two edges: where they are, how fast they go and where they are going.
     CGFloat _L, _R, _vL, _vR, _tL, _tR;
@@ -211,22 +212,21 @@ static const CGFloat kPlayStep = 1.0 / 120;
 - (void)showGlass:(BOOL)on animated:(BOOL)animated {
     if (_glassOn == on) return;
     _glassOn = on;
-    NSUInteger turn = ++_glassTurn;
-    if (on) [self standOverTabs:YES];
-    if ([_pane isKindOfClass:SGLegacyGlassView.class]) ((SGLegacyGlassView *)_pane).magnification = on ? kLensMagnification : 1;
+    // Over the tabs while the glass is up; back under them as soon as it goes, so the pill coming back draws under the
+    // icon, never over it while the glass fades.
+    [self standOverTabs:on];
+    if ([_pane isKindOfClass:SGLegacyGlassView.class]) {
+        SGLegacyGlassView *glass = (SGLegacyGlassView *)_pane;
+        glass.magnification = on ? kLensMagnification : 1;
+        glass.blurRadius = on ? kLensHeldBlur : kLensRestBlur;
+    }
     void (^change)(void) = ^{
         SGRShowGlass(self->_pane, on);
         self->_film.alpha = on ? 1 : 0;
         self->_rest.alpha = on ? 0 : 1;
     };
-    void (^done)(BOOL) = ^(BOOL finished) {
-        if (!on && turn == self->_glassTurn) [self standOverTabs:NO];
-    };
-    if (animated) SGRAnimate(on ? SGRMotionRespond : SGRMotionFade, change, done);
-    else {
-        [UIView performWithoutAnimation:change];
-        done(YES);
-    }
+    if (animated) SGRAnimate(on ? SGRMotionRespond : SGRMotionFade, change, nil);
+    else [UIView performWithoutAnimation:change];
 }
 
 // Over every sibling (the tabs), or back under the one that was over it.
