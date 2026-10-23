@@ -16,15 +16,58 @@ static const struct mach_header_64 *mainExecutable(intptr_t *slide) {
     return NULL;
 }
 
+// What protection the page holding `address` has now and at most, for the log when a write is refused.
+static NSString *protectionOf(vm_address_t address) {
+    vm_address_t region = address;
+    vm_size_t size = 0;
+    vm_region_basic_info_data_64_t info;
+    mach_msg_type_number_t count = VM_REGION_BASIC_INFO_COUNT_64;
+    mach_port_t object = MACH_PORT_NULL;
+    if (vm_region_64(mach_task_self(), &region, &size, VM_REGION_BASIC_INFO_64, (vm_region_info_t)&info, &count, &object) != KERN_SUCCESS) return @"unknown";
+    return [NSString stringWithFormat:@"now %d, at most %d, shared %d", info.protection, info.max_protection, info.shared];
+}
+
+// The page copied, the slot written in the copy, and the copy mapped over the page: for a page the kernel will not
+// make writable in place, which vm_protect refused with KERN_PROTECTION_FAILURE on an iPhone 11 on iOS 17.5.1 while
+// the same build on an iPhone 13 on the same iOS took it (the phone, 2026-10-23), so Speed and pitch, the audio
+// effects, Music Haptics and Connect's discovery all went.
+static BOOL writeByRemap(vm_address_t start, void **slot, void *value) {
+    vm_size_t page = vm_page_size;
+    vm_address_t copy = 0;
+    if (vm_allocate(mach_task_self(), &copy, page, VM_FLAGS_ANYWHERE) != KERN_SUCCESS) return NO;
+    memcpy((void *)copy, (const void *)start, page);
+    *(void **)(copy + ((vm_address_t)slot - start)) = value;
+    vm_protect(mach_task_self(), copy, page, FALSE, VM_PROT_READ);
+    vm_address_t target = start;
+    vm_prot_t current = VM_PROT_NONE, maximum = VM_PROT_NONE;
+    kern_return_t result = vm_remap(mach_task_self(), &target, page, 0, VM_FLAGS_FIXED | VM_FLAGS_OVERWRITE, mach_task_self(), copy,
+                                    FALSE, &current, &maximum, VM_INHERIT_COPY);
+    vm_deallocate(mach_task_self(), copy, page);
+    if (result != KERN_SUCCESS || target != start) {
+        SGLog(@"rebind: remapping the page failed too (%d)", result);
+        return NO;
+    }
+    return YES;
+}
+
 // Writes one pointer, making its page writable first; a page dyld made read only after binding
-// (__DATA_CONST, __AUTH_CONST) is copied and made read only again.
+// (__DATA_CONST, __AUTH_CONST) is copied and made read only again. Where that is refused, the page is made writable
+// without the copy, and failing that, replaced by a written copy of itself (writeByRemap).
 static BOOL writeSlot(void **slot, void *value, BOOL readOnly) {
     vm_size_t page = vm_page_size;
     vm_address_t start = (vm_address_t)slot & ~(page - 1);
     kern_return_t result = vm_protect(mach_task_self(), start, page, FALSE, VM_PROT_READ | VM_PROT_WRITE | VM_PROT_COPY);
+    if (result != KERN_SUCCESS) result = vm_protect(mach_task_self(), start, page, FALSE, VM_PROT_READ | VM_PROT_WRITE);
     if (result != KERN_SUCCESS) {
-        SGLog(@"rebind: vm_protect failed (%d)", result);
-        return NO;
+        static int logged;
+        if (logged++ < 3) SGLog(@"rebind: vm_protect failed (%d), the page %@", result, protectionOf(start));
+        if (!writeByRemap(start, slot, value)) return NO;
+        static BOOL told;
+        if (!told) {
+            told = YES;
+            SGLog(@"rebind: the page was replaced by a written copy of itself");
+        }
+        return YES;
     }
     *slot = value;
     if (readOnly) vm_protect(mach_task_self(), start, page, FALSE, VM_PROT_READ);
