@@ -20,6 +20,7 @@
 #import "TabBarLens.h"
 #import "Redesigned/Kit/SGRGlass.h"
 #import "Redesigned/Kit/SGRTokens.h"
+#import "Redesigned/Kit/SGRAccent.h"
 #import "Redesigned/NowPlayingBar/NowPlayingBar.h"
 #import "Settings/SGPage.h"
 #import "Shared/Navigation/TabItems.h"
@@ -27,7 +28,7 @@
 #import <objc/message.h>
 
 static char kBarKey, kHostKey, kNavGlassKey, kNavTintKey, kSelPillKey, kRetriesKey, kGlyphOverlayKey, kOutlineLiveKey, kFilledLiveKey, kCreateDiscKey, kGlyphsTakenKey;
-static char kCirclePaneKey, kCircleFilmKey, kLeadKey, kTrailKey;
+static char kCirclePaneKey, kCircleFilmKey, kLeadKey, kTrailKey, kTabColorKey, kTemplateKey;
 // The film over the bar's glass: a grey, so it draws what it shows towards a dark grey from both sides, as the
 // system's bar does in the dark. Bright content under it is darkened a little (white comes out at 0.85), and
 // plain black is lifted to 0.1, so the bar stands out of a black page instead of melting into it. A black film
@@ -388,6 +389,42 @@ static void pruneStrayButtons(UITabBar *bar) {
     }
 }
 
+// The open tab's color: the accent with Tabs in the accent on (SGRKeyTabAccent), else white like the rest.
+static UIColor *openTabColor(void) {
+    if (!SGFlag(SGRKeyTabAccent, NO)) return UIColor.whiteColor;
+    NSInteger rgb = SGRAccentRGB();
+    return [UIColor colorWithRed:((rgb >> 16) & 0xFF) / 255.0 green:((rgb >> 8) & 0xFF) / 255.0 blue:(rgb & 0xFF) / 255.0 alpha:1];
+}
+
+// The bar's appearance, every tab white and the open one in openTabColor, set again only when that changes: with an
+// appearance set, tintColor alone does not decide the colors.
+static void applyTabColors(UITabBar *bar) {
+    UIColor *open = openTabColor();
+    if ([objc_getAssociatedObject(bar, &kTabColorKey) isEqual:open]) return;
+    objc_setAssociatedObject(bar, &kTabColorKey, open, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    UITabBarAppearance *appearance = [UITabBarAppearance new];
+    [appearance configureWithTransparentBackground];
+    for (UITabBarItemAppearance *layout in @[appearance.stackedLayoutAppearance, appearance.inlineLayoutAppearance, appearance.compactInlineLayoutAppearance]) {
+        layout.normal.iconColor = UIColor.whiteColor;
+        layout.normal.titleTextAttributes = @{NSForegroundColorAttributeName: UIColor.whiteColor};
+        layout.selected.iconColor = open;
+        layout.selected.titleTextAttributes = @{NSForegroundColorAttributeName: open};
+    }
+    bar.standardAppearance = appearance;
+    bar.scrollEdgeAppearance = appearance;
+}
+
+// `image` as a template, made once per image, for an overlay that takes the open tab's color: Spotify's glyphs are
+// bitmaps rendered white (renderLayer), whose alpha is the glyph.
+static UIImage *templateOf(UIImage *image) {
+    UIImage *made = objc_getAssociatedObject(image, &kTemplateKey);
+    if (!made) {
+        made = [image imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+        objc_setAssociatedObject(image, &kTemplateKey, made, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    return made;
+}
+
 // UITabBar does not repaint an icon between its outline and filled bitmaps when the selection changes on this bar,
 // so each item's glyph is drawn by an image view of ours laid over UIKit's in the item's button (selectedImage on
 // the selected item, image on the rest) and UIKit's is hidden. Run from layout and the selection setter.
@@ -395,6 +432,9 @@ static void paintGlyphs(UITabBar *bar) {
     NSArray<UITabBarItem *> *items = bar.items;
     NSArray<UIView *> *buttons = tabButtons(bar);
     if (!items.count || buttons.count != items.count) return;
+    applyTabColors(bar);
+    UIColor *open = openTabColor();
+    BOOL tinted = ![open isEqual:UIColor.whiteColor];
     for (NSUInteger i = 0; i < items.count; i++) {
         UITabBarItem *item = items[i];
         UIView *button = buttons[i];
@@ -403,7 +443,10 @@ static void paintGlyphs(UITabBar *bar) {
         for (UIView *v in button.subviews) {
             if (v != overlay && [v isKindOfClass:UIImageView.class] && v.bounds.size.width >= 2) { native = (UIImageView *)v; break; }
         }
-        UIImage *want = (item == bar.selectedItem && item.selectedImage) ? item.selectedImage : item.image;
+        BOOL selected = item == bar.selectedItem;
+        UIImage *want = (selected && item.selectedImage) ? item.selectedImage : item.image;
+        // Create is never the open tab, and its overlay is turned black on white while its menu is up (turnCreate).
+        if (want && selected && tinted) want = templateOf(want);
         if (!native || !want) {
             overlay.hidden = YES;
             continue;
@@ -423,6 +466,7 @@ static void paintGlyphs(UITabBar *bar) {
         if (!CGSizeEqualToSize(overlay.bounds.size, nativeFrame.size)) overlay.bounds = (CGRect){CGPointZero, nativeFrame.size};
         if (!CGPointEqualToPoint(overlay.center, nativeCenter)) overlay.center = nativeCenter;
         if (overlay.image != want) overlay.image = want;
+        if (selected && tinted && ![overlay.tintColor isEqual:open]) overlay.tintColor = open;
         overlay.hidden = NO;
         native.hidden = YES;
     }
@@ -1155,17 +1199,8 @@ static void syncBarCore(UIView *stockBar, BOOL rescanSelection) {
         bar.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
         // The glass (navGlass) is the bar's only background.
         bar.backgroundColor = UIColor.clearColor;
-        UITabBarAppearance *appearance = [UITabBarAppearance new];
-        [appearance configureWithTransparentBackground];
-        // White in every state, on the appearance: with one set, tintColor alone does not decide the colors.
-        for (UITabBarItemAppearance *layout in @[appearance.stackedLayoutAppearance, appearance.inlineLayoutAppearance, appearance.compactInlineLayoutAppearance]) {
-            for (UITabBarItemStateAppearance *state in @[layout.normal, layout.selected]) {
-                state.iconColor = UIColor.whiteColor;
-                state.titleTextAttributes = @{NSForegroundColorAttributeName: UIColor.whiteColor};
-            }
-        }
-        bar.standardAppearance = appearance;
-        bar.scrollEdgeAppearance = appearance;
+        // White in every state but the open tab's, which Tabs in the accent may tint.
+        applyTabColors(bar);
         bar.delegate = bar;
         bar.stockBar = stockBar;
         UILongPressGestureRecognizer *hold = [[UILongPressGestureRecognizer alloc] initWithTarget:bar action:@selector(held:)];
