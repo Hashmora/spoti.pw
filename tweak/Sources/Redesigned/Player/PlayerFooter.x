@@ -331,7 +331,8 @@ void SGRPlayerLowerRow(UIView *row) {
 }
 %end
 
-// The Connect button lays itself out again when the device changes (its name comes or goes, another device's glyph),
+// The Connect button lays itself out again when the device changes (its name comes or goes, another device's glyph,
+// the button's width with them),
 // with no pass of the footer around it: the glyph moved inside it while the footer's transform, worked out from where
 // the glyph was, stayed, so Connect slid off its place (the phone, 2026-10-24: switched to another device from
 // elsewhere, the DJ footer's Connect 11pt left of its slot). The footer is laid out again whenever the glyph moves, and
@@ -344,7 +345,11 @@ static char kGlyphSeenKey;
     UIView *connect = (UIView *)self;
     UIView *glyph = connectGlyphIn(connect);
     if (!glyph) return;
+    // The glyph's place in the button and the button's size: the glyph keeps its place at the button's leading edge while
+    // the button grows and shrinks with the device's name (101.5pt with "iPhone", 51 without, the phone, 2026-10-24), and
+    // the element holding it is laid out again round its new size, so either one moving is a move of the glyph.
     CGRect seen = [glyph convertRect:glyph.bounds toView:connect];
+    seen.size = connect.bounds.size;
     NSValue *was = objc_getAssociatedObject(connect, &kGlyphSeenKey);
     objc_setAssociatedObject(connect, &kGlyphSeenKey, [NSValue valueWithCGRect:seen], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     if (!was || CGRectEqualToRect(was.CGRectValue, seen)) return;
