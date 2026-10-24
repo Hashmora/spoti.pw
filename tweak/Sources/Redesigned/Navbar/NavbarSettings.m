@@ -2,6 +2,7 @@
 #import "Settings/SGPage.h"
 #import "Settings/SGPageStyle.h"
 #import "Navbar.h"
+#import "Redesigned/Kit/SGRAccent.h"
 #import "Shared/Navigation/AddTabSheet.h"
 #import "Redesigned/Kit/SGRTokens.h"
 
@@ -675,6 +676,8 @@ typedef NS_ENUM(NSInteger, SGRNavbarSection) {
 
 - (NSInteger)tableView:(UITableView *)table numberOfRowsInSection:(NSInteger)section {
     if (section == SGRNavbarSectionTabs) return (NSInteger)_entries.count;
+    // Tabs in the accent, under the switch, for the capsule bar below iOS 26 only: iOS 26's bar is the system's.
+    if (section == SGRNavbarSectionSwitch) return SGRLegacyTabBarOn() ? 2 : 1;
     return section == SGRNavbarSectionLinks ? 2 : 1;
 }
 
@@ -774,6 +777,15 @@ typedef NS_ENUM(NSInteger, SGRNavbarSection) {
     UITableViewCell *cell = SGDequeueCell(table, @"navbar");
     switch (path.section) {
         case SGRNavbarSectionSwitch: {
+            if (path.row == 1) {
+                SGFillCell(cell, @"Tabs in the accent", @"The open tab, and Create's disc while its menu is open; white when off", nil, nil);
+                UISwitch *toggle = [UISwitch new];
+                toggle.onTintColor = SGGreen();
+                toggle.on = SGFlag(SGRKeyTabAccent, NO);
+                [toggle addTarget:self action:@selector(accentToggled:) forControlEvents:UIControlEventValueChanged];
+                cell.accessoryView = toggle;
+                break;
+            }
             SGFillCell(cell, @"Custom tab bar", @"Your order, hidden tabs and tabs you add", nil, nil);
             UISwitch *toggle = [UISwitch new];
             toggle.onTintColor = SGGreen();
@@ -902,6 +914,11 @@ typedef NS_ENUM(NSInteger, SGRNavbarSection) {
     [[UISelectionFeedbackGenerator new] selectionChanged];
     SGRRefreshTabBar();
     [self showChoices];
+}
+
+- (void)accentToggled:(UISwitch *)toggle {
+    SGSetEnabled(SGRKeyTabAccent, toggle.on);
+    SGRRefreshTabBar();
 }
 
 - (void)customToggled:(UISwitch *)toggle {

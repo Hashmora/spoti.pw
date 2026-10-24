@@ -153,14 +153,44 @@ static void followCreateClose(UIView *stockBar);
 
 #pragma mark - the compact bar's circles
 
+static UIColor *openTabColor(void);
+
+// The disc's mask with the plus cut out of it, turned as the open plus is: the disc in the accent shows the glass
+// through the plus, the way it looked before Tabs in the accent, rather than a plus of its own on top.
+static CALayer *discHole(UIImage *glyph, CGFloat size) {
+    if (!glyph || size < 1) return nil;
+    UIGraphicsImageRendererFormat *format = [UIGraphicsImageRendererFormat preferredFormat];
+    format.opaque = NO;
+    UIImage *mask = [[[UIGraphicsImageRenderer alloc] initWithSize:CGSizeMake(size, size) format:format] imageWithActions:^(UIGraphicsImageRendererContext *context) {
+        CGContextRef c = context.CGContext;
+        [UIColor.whiteColor setFill];
+        CGContextFillEllipseInRect(c, CGRectMake(0, 0, size, size));
+        CGContextTranslateCTM(c, size / 2, size / 2);
+        CGContextRotateCTM(c, M_PI_4);
+        CGSize g = glyph.size;
+        [glyph drawInRect:CGRectMake(-g.width / 2, -g.height / 2, g.width, g.height) blendMode:kCGBlendModeDestinationOut alpha:1];
+    }];
+    CALayer *layer = [CALayer layer];
+    layer.frame = CGRectMake(0, 0, size, size);
+    layer.contents = (__bridge id)mask.CGImage;
+    return layer;
+}
+
 // Create's menu open: its plus turns 45 degrees, black, onto a white disc that grows in behind it; closed, back again.
+// With Tabs in the accent the disc is the accent's and the plus is cut out of it.
 static void turnCreate(UIView *disc, UIView *glyph, BOOL open) {
+    UIColor *accent = openTabColor();
+    BOOL tinted = ![accent isEqual:UIColor.whiteColor];
+    disc.backgroundColor = tinted ? accent : UIColor.whiteColor;
+    UIImage *image = [glyph isKindOfClass:UIImageView.class] ? ((UIImageView *)glyph).image : nil;
+    disc.layer.mask = tinted ? discHole(image, disc.bounds.size.width) : nil;
     [UIView animateWithDuration:0.32 delay:0 usingSpringWithDamping:0.8 initialSpringVelocity:0
         options:UIViewAnimationOptionBeginFromCurrentState animations:^{
         disc.alpha = open ? 1 : 0;
         disc.transform = open ? CGAffineTransformIdentity : CGAffineTransformMakeScale(0.4, 0.4);
         glyph.transform = open ? CGAffineTransformMakeRotation(M_PI_4) : CGAffineTransformIdentity;
-        glyph.tintColor = open ? UIColor.blackColor : UIColor.whiteColor;
+        glyph.tintColor = open && !tinted ? UIColor.blackColor : UIColor.whiteColor;
+        glyph.alpha = open && tinted ? 0 : 1;
     } completion:nil];
 }
 
@@ -445,8 +475,11 @@ static void paintGlyphs(UITabBar *bar) {
         }
         BOOL selected = item == bar.selectedItem;
         UIImage *want = (selected && item.selectedImage) ? item.selectedImage : item.image;
-        // Create is never the open tab, and its overlay is turned black on white while its menu is up (turnCreate).
-        if (want && selected && tinted) want = templateOf(want);
+        // Create is selected while its menu is up, but is no tab to open: turnCreate draws it then.
+        BOOL create = [bar isKindOfClass:SGRLegacyTabBar.class] && i < ((SGRLegacyTabBar *)bar).sources.count
+            && isCreateSource(((SGRLegacyTabBar *)bar).sources[i]);
+        BOOL accent = selected && tinted && !create;
+        if (want && accent) want = templateOf(want);
         if (!native || !want) {
             overlay.hidden = YES;
             continue;
@@ -466,7 +499,10 @@ static void paintGlyphs(UITabBar *bar) {
         if (!CGSizeEqualToSize(overlay.bounds.size, nativeFrame.size)) overlay.bounds = (CGRect){CGPointZero, nativeFrame.size};
         if (!CGPointEqualToPoint(overlay.center, nativeCenter)) overlay.center = nativeCenter;
         if (overlay.image != want) overlay.image = want;
-        if (selected && tinted && ![overlay.tintColor isEqual:open]) overlay.tintColor = open;
+        // Every pass, every tab: a symbol glyph is a template already, so one left in the accent kept it once it was
+        // no longer open, until every tab was the accent's. Create's own tint is turnCreate's.
+        UIColor *tint = accent ? open : UIColor.whiteColor;
+        if (!create && ![overlay.tintColor isEqual:tint]) overlay.tintColor = tint;
         overlay.hidden = NO;
         native.hidden = YES;
     }

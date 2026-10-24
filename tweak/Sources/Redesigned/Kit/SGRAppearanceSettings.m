@@ -63,10 +63,7 @@ NSArray<SGModRow *> *SGRAppearanceRows(void) {
         SGWithSymbol(colour, @"eyedropper"),
         SGWithSymbol(SGOptionRow(@"Plain checkmark", @"A saved song's tick without its circle, in the accent", SGRKeyPlainCheck), @"checkmark"),
     ] mutableCopy];
-    // From iOS 26 the system draws the glass and the tab bar itself, so neither switch gets a row.
-    if (SGBelowiOS26()) {
-        [rows addObject:SGWithSymbol(SGOptionRow(@"Tabs in the accent", @"The open tab on the tab bar; white when off", SGRKeyTabAccent), @"dock.rectangle")];
-        [rows addObject:legacyGlassRow()];
-    }
+    // From iOS 26 the system draws the glass itself, so the switch gets no row.
+    if (SGBelowiOS26()) [rows addObject:legacyGlassRow()];
     return rows;
 }
