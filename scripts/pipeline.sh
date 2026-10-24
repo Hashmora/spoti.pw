@@ -201,6 +201,21 @@ if [ ${#ICONS[@]} -gt 0 ]; then
   rm -rf "$PATCH"
 fi
 
+# Music Haptics > Everywhere plays outside Spotify through an add-on in SpringBoard (addons/haptics), which a jailbroken
+# phone installs with its package manager. Its .deb goes inside Spotify.app, where the Vibrations page hands it to Sileo
+# or Filza (Shared/Haptics/SGHapticRelay.h), and next to the IPA in out/ for an install of Vitrine's .deb alone.
+echo "==> building the Vitrine Haptics add-on"
+env -u MAKELEVEL gmake -C "$ROOT/addons/haptics" clean package THEOS_PACKAGE_SCHEME=rootless >/dev/null
+ADDON_DEB="$(ls -t "$ROOT"/addons/haptics/packages/*.deb | head -1)"
+cp "$ADDON_DEB" "$ROOT/out/VitrineHaptics.deb"
+PATCH="$(mktemp -d)"
+mkdir -p "$PATCH/$APP_DIR"
+cp "$ADDON_DEB" "$PATCH/${APP_DIR}VitrineHaptics.deb"
+OUT_ABS="$(cd "$(dirname "$OUT")" && pwd)/$(basename "$OUT")"
+(cd "$PATCH" && zip -q "$OUT_ABS" "${APP_DIR}VitrineHaptics.deb")
+rm -rf "$PATCH"
+echo "    $ADDON_DEB"
+
 if [ -n "${EXT_DIR:-}" ]; then
   echo "==> adding the Live Activity intents to Spotify's App Intents metadata"
   "$ROOT/scripts/merge-appintents.py" "$OUT" "$APP_DIR" "$EXT_DIR/app/Metadata.appintents"

@@ -3,8 +3,14 @@
 // keeps listening to its own sound and hands each tap and each level of the rumble to SpringBoard, which is always in
 // front and plays them. The SpringBoard side is an add-on package of its own, Vitrine Haptics (addons/haptics), installed
 // once with a package manager on a jailbroken phone: Vitrine's IPA lives in Spotify's sandbox and has no way into
-// SpringBoard, so it carries none of it. Everywhere is offered on a jailbroken phone; switched on without the add-on,
-// the page says what to install and links to it, and nothing plays behind Spotify until it answers.
+// SpringBoard. The IPA build lays the add-on's .deb inside Spotify.app (scripts/pipeline.sh), and the page hands that
+// file to the package manager through the system's Open In (Sileo and Filza both take a .deb that way), so installing it
+// is two taps. An install of Vitrine's .deb alone has no copy inside Spotify: there the page asks for the add-on's own
+// .deb, built alongside, to be installed too. Everywhere is offered on a jailbroken phone; nothing plays behind Spotify
+// until the add-on answers.
+//
+// The add-on answers with its build number (kSGRelayAddonBuild, raised whenever addons/haptics changes) as the state of
+// its pong, so a copy inside Spotify newer than the one installed is offered as an update.
 //
 // The two talk by Darwin notifications, which a sandboxed app may post and which carry no payload: the value is in the
 // name. A tap is one of kSGRelayLevels intensities times kSGRelaySharpnesses sharpnesses, the rumble one of
@@ -13,13 +19,15 @@
 // starts too, so whichever comes up second is heard.
 //
 // Threading: the posts are made from any thread; the answer is taken on the main queue.
-#import <Foundation/Foundation.h>
+#import <UIKit/UIKit.h>
 
 #define kSGRelayPrefix "com.vitrine.haptics."
 #define kSGRelayPing kSGRelayPrefix "ping"
 #define kSGRelayPong kSGRelayPrefix "pong"
 // kSGRelayPrefix "tap.<1...kSGRelayLevels>.<0...kSGRelaySharpnesses-1>" and kSGRelayPrefix "rumble.<0...kSGRelayLevels>".
 enum { kSGRelayLevels = 10, kSGRelaySharpnesses = 3 };
+// The add-on's build, set on its pong; raise it with every change to addons/haptics.
+enum { kSGRelayAddonBuild = 1 };
 
 // The key of the switch, off until switched on.
 #define SGKeyMusicHapticsEverywhere @"spotifyglass.haptics.music.everywhere"
@@ -28,9 +36,15 @@ enum { kSGRelayLevels = 10, kSGRelaySharpnesses = 3 };
 BOOL SGHapticRelayAvailable(void);
 // Whether Everywhere is offered: on a jailbroken phone, or wherever the add-on has answered.
 BOOL SGHapticEverywhereOffered(void);
-// Where the add-on is installed from, opened from the page's notice: the releases of Vitrine's repo for now, where the
-// add-on's .deb is attached, until it has a package source of its own.
-NSString *SGHapticAddonURL(void);
+// The add-on's .deb inside Spotify.app, from the IPA build; nil in an install of Vitrine's .deb alone.
+NSURL *SGHapticAddonPackage(void);
+// The add-on's build as it answered, 0 before it has or when its answer carried none.
+uint64_t SGHapticAddonInstalledBuild(void);
+// Whether the add-on answered with an older build than the copy inside Spotify.
+BOOL SGHapticAddonOutdated(void);
+// Hands the copy inside Spotify to the package manager (the system's Open In, Save to Files among its choices), from
+// `view`. NO when there is no copy.
+BOOL SGHapticAddonShare(UIView *view);
 // Posted on the main thread when SpringBoard first answers, for the Vibrations page to show the switch.
 extern NSNotificationName const SGHapticRelayAvailableNotification;
 // Asks SpringBoard whether it is there; called once at launch.

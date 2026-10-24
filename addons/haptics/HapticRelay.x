@@ -107,6 +107,13 @@ static void listen(const char *name, void (^handler)(void)) {
         float value = (float)level / kSGRelayLevels;
         listen(name, ^{ rumble(value); });
     }
-    listen(kSGRelayPing, ^{ notify_post(kSGRelayPong); });
+    // The pong carries the add-on's build, so Spotify can tell an older one from the copy it carries.
+    static int pong;
+    notify_register_check(kSGRelayPong, &pong);
+    notify_set_state(pong, kSGRelayAddonBuild);
+    listen(kSGRelayPing, ^{
+        notify_set_state(pong, kSGRelayAddonBuild);
+        notify_post(kSGRelayPong);
+    });
     notify_post(kSGRelayPong);
 }

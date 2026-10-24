@@ -17,17 +17,30 @@
 static NSString *const kMusicInfo = @"The iPhone taps along with the drums and rumbles under the bass, worked out from the sound as Spotify plays it. Only while Spotify is open: iOS stops an app's own haptics in the background, and a song playing on another device through Connect has no sound here to follow.\n\nWith In the Background on too, iOS plays its own haptic track for the songs it has one for, and this waits, so the two never double up.";
 
 static NSString *const kEverywhereInfo = @"With a jailbreak, Music Haptics above keeps playing when Spotify leaves the screen: on the home screen, in other apps and on the lock screen. Spotify still listens to its own sound, and SpringBoard, which iOS lets play haptics at any time, plays the taps and the rumble for it.\n\nThat part is an add-on, Vitrine Haptics, installed once with a package manager (Sileo, Zebra or Filza): Vitrine itself lives in Spotify and cannot reach SpringBoard.";
-// Everywhere switched on without the add-on: what it needs, and the way to it. The switch stays on, and Everywhere plays
-// as soon as the add-on answers (SGHapticRelayAvailableNotification).
+// The add-on's .deb inside Spotify handed to the package manager, once the alert it is picked from has gone.
+static void shareAddon(void) {
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.35 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        SGHapticAddonShare(SGTopController().view);
+    });
+}
+
+// Everywhere switched on without the add-on: what it needs and, from Vitrine's IPA, the add-on itself, two taps away
+// (Install, then Sileo or Filza). An install of Vitrine's .deb alone carries no copy, so there it asks for the add-on's
+// own .deb to be installed alongside. The switch stays on, and Everywhere plays once the add-on answers.
 static void explainAddon(void) {
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Everywhere needs Vitrine Haptics"
-        message:@"Outside Spotify the vibrations are played by SpringBoard, through a small add-on Vitrine cannot install by itself. Install Vitrine Haptics once with your package manager (Sileo, Zebra or Filza), then respring. Everywhere stays on and starts playing once the add-on is there."
-        preferredStyle:UIAlertControllerStyleAlert];
+    BOOL carried = SGHapticAddonPackage() != nil;
+    NSString *message = carried
+        ? @"Outside Spotify the vibrations are played by SpringBoard, through a small add-on that comes with Vitrine. Tap Install, pick Sileo or Filza, install it, then respring. Everywhere stays on and starts playing once the add-on is there."
+        : @"Outside Spotify the vibrations are played by SpringBoard, through a small add-on. Install the Vitrine Haptics package alongside Vitrine's: VitrineHaptics.deb comes with the same build. Then respring; Everywhere stays on and starts playing once the add-on is there.";
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Everywhere needs Vitrine Haptics" message:message
+                                                            preferredStyle:UIAlertControllerStyleAlert];
     alert.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
-    [alert addAction:[UIAlertAction actionWithTitle:@"Get Vitrine Haptics" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
-        SGOpenURL(SGHapticAddonURL());
-    }]];
-    [alert addAction:[UIAlertAction actionWithTitle:@"Later" style:UIAlertActionStyleCancel handler:nil]];
+    if (carried) {
+        [alert addAction:[UIAlertAction actionWithTitle:@"Install" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) { shareAddon(); }]];
+        [alert addAction:[UIAlertAction actionWithTitle:@"Later" style:UIAlertActionStyleCancel handler:nil]];
+    } else {
+        [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleCancel handler:nil]];
+    }
     [SGTopController() presentViewController:alert animated:YES completion:nil];
 }
 
@@ -168,6 +181,9 @@ static NSArray<SGModSection *> *sections(SGVibrationsPreview *preview, void (^ex
     };
     everywhere.waitsOn = SGKeyMusicHaptics;
     everywhere.visible = ^BOOL { return SGHapticEverywhereOffered(); };
+    // A newer add-on inside this Vitrine than the one SpringBoard runs: the same two taps put it in place.
+    SGModRow *addonUpdate = SGActionRow(@"Update Vitrine Haptics", @"A newer add-on comes with this Vitrine", ^{ shareAddon(); });
+    addonUpdate.visible = ^BOOL { return SGHapticAddonOutdated(); };
 
     SGModRow *background = SGOptionRow(@"In the Background", nil, SGKeyMusicHapticsBackground);
     background.info = kBackgroundInfo;
@@ -191,7 +207,7 @@ static NSArray<SGModSection *> *sections(SGVibrationsPreview *preview, void (^ex
 
     return @[
         SGSection(nil, @[SGWithSymbol(controls, @"hand.tap"), controlStrength]),
-        SGSection(nil, @[SGWithSymbol(music, @"waveform"), musicStrength, follows, everywhere, background, unlisted, status, systemOff]),
+        SGSection(nil, @[SGWithSymbol(music, @"waveform"), musicStrength, follows, everywhere, addonUpdate, background, unlisted, status, systemOff]),
     ];
 }
 

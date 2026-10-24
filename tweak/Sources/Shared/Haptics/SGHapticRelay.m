@@ -2,7 +2,6 @@
 #import "Core/SGCore.h"
 #import <notify.h>
 #import "Core/SGRebind.h"
-#import "Settings/SGPageStyle.h"
 #import <stdatomic.h>
 
 NSNotificationName const SGHapticRelayAvailableNotification = @"SGHapticRelayAvailableNotification";
@@ -15,8 +14,32 @@ BOOL SGHapticRelayAvailable(void) {
     return sg_available;
 }
 
-NSString *SGHapticAddonURL(void) {
-    return [SGRepoURL stringByAppendingString:@"/releases"];
+static uint64_t sg_installedBuild;
+
+NSURL *SGHapticAddonPackage(void) {
+    return [NSBundle.mainBundle URLForResource:@"VitrineHaptics" withExtension:@"deb"];
+}
+
+uint64_t SGHapticAddonInstalledBuild(void) {
+    return sg_installedBuild;
+}
+
+BOOL SGHapticAddonOutdated(void) {
+    return sg_available && sg_installedBuild > 0 && sg_installedBuild < kSGRelayAddonBuild && SGHapticAddonPackage();
+}
+
+BOOL SGHapticAddonShare(UIView *view) {
+    NSURL *package = SGHapticAddonPackage();
+    if (!package || !view.window) return NO;
+    // Kept while its menu is up: the menu goes when its controller does.
+    static UIDocumentInteractionController *share;
+    share = [UIDocumentInteractionController interactionControllerWithURL:package];
+    share.UTI = @"org.debian.deb-archive";
+    share.name = @"Vitrine Haptics";
+    CGRect at = CGRectMake(CGRectGetMidX(view.bounds), CGRectGetMidY(view.bounds), 1, 1);
+    BOOL shown = [share presentOptionsMenuFromRect:at inView:view animated:YES];
+    SGLog(@"music haptics: the add-on's .deb handed to the system's Open In (%@)", shown ? @"shown" : @"nothing takes it");
+    return shown;
 }
 
 BOOL SGHapticEverywhereOffered(void) {
@@ -28,9 +51,12 @@ void SGHapticRelayAsk(void) {
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         notify_register_dispatch(kSGRelayPong, &token, dispatch_get_main_queue(), ^(int t) {
+            uint64_t build = 0;
+            if (notify_get_state(t, &build) == NOTIFY_STATUS_OK) sg_installedBuild = build;
             if (sg_available) return;
             sg_available = YES;
-            SGLog(@"music haptics: SpringBoard plays them everywhere");
+            SGLog(@"music haptics: SpringBoard plays them everywhere (the add-on's build %llu, this one carries %d)",
+                  (unsigned long long)sg_installedBuild, kSGRelayAddonBuild);
             [NSNotificationCenter.defaultCenter postNotificationName:SGHapticRelayAvailableNotification object:nil];
         });
     });
