@@ -1042,8 +1042,9 @@ static void showWaiting(UITableViewCell *cell, BOOL waiting, NSString *switchTit
 
 // A UISwitch or an SGGlowSwitch, both answering isOn.
 // How long the glass switch takes from a tap to rest: the drop falls back 0.2 s after it sets off and settles over the
-// next half second (Core/SGGlassThumb.m).
-static const NSTimeInterval kGlassSwitchSettle = 0.7;
+// next 0.6 s (Core/SGGlassThumb.m: kTapDropDelay, kDropDuration), with a little to spare. At 0.7 s the reload still
+// cut the fall short now and then.
+static const NSTimeInterval kGlassSwitchSettle = 0.95;
 
 - (void)toggled:(UIControl *)toggle {
     BOOL on = [(UISwitch *)toggle isOn];

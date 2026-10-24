@@ -926,7 +926,7 @@ typedef NS_ENUM(NSInteger, SGRNavbarSection) {
     SGRRefreshTabBar();
     [self showChoices];
     // After the glass switch's drop has settled (SGModPage.m): the reload puts a new switch in its place.
-    NSTimeInterval wait = SGUseLegacyGlass() ? 0.7 : 0;
+    NSTimeInterval wait = SGUseLegacyGlass() ? 0.95 : 0;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(wait * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         [UIView performWithoutAnimation:^{
             [self.tableView reloadSections:[NSIndexSet indexSetWithIndex:SGRNavbarSectionSwitch] withRowAnimation:UITableViewRowAnimationNone];

@@ -19,10 +19,11 @@ static const CGFloat kHeldLensScale = 0.6;
 // card's colour, and the track at kLensShrink about the drop's middle, inset kLensBand from the rim, where the glass
 // bends the real track and card.
 static const CGFloat kLensShrink = 0.7, kLensBand = 1.25;
-// The shrunk track is cut by a capsule this far inside the middle, so where it runs under the rim it ends on a thin
-// crescent of the card's dark that follows the drop's curve, as the system's lens bends the track in at its edge; cut
-// straight at the band it read as a plain sausage of green (the phone against iOS 26's own, 2026-10-24).
-static const CGFloat kMiniInset = 2.5;
+// Where the track runs on past an edge of the drop, the shrunk track flares out to the drop's whole height over this
+// much of that edge, following its curve, as the system's lens bends the track in at its rim; cut straight it read
+// as a plain sausage of green, and a gap of the card's dark between it and the rim as a dark band no lens has (the
+// phone against iOS 26's own, 2026-10-24). The flare comes in over this much of the track past the edge.
+static const CGFloat kFlareWidth = 8, kFlareRamp = 6;
 // The rim's light: a 1 pt line lit only on the top left and the bottom right, as the system's is, not a whole ring.
 static const CGFloat kGlareWidth = 1;
 // Past an end of the track the thumb follows the finger by this share of the overshoot, up to kMaxPull, and is
@@ -54,6 +55,7 @@ static const CGFloat kPullShare = 0.3, kMaxPull = 14, kPullStretch = 0.25;
     UIView *_inner;
     UIView *_miniClip;
     UIView *_mini;
+    CAShapeLayer *_flareLeft, *_flareRight;
     CAGradientLayer *_glare;
     CAShapeLayer *_glareRing;
     CGRect _track;
@@ -109,6 +111,10 @@ static const CGFloat kPullShare = 0.3, kMaxPull = 14, kPullStretch = 0.25;
     _mini.userInteractionEnabled = NO;
     _mini.layer.cornerCurve = kCACornerCurveContinuous;
     [_miniClip addSubview:_mini];
+    _flareLeft = [CAShapeLayer layer];
+    _flareRight = [CAShapeLayer layer];
+    [_miniClip.layer addSublayer:_flareLeft];
+    [_miniClip.layer addSublayer:_flareRight];
     [self addSubview:_inner];
     _ring = [CAShapeLayer layer];
     _ring.fillColor = [UIColor colorWithRed:0.9 green:0.95 blue:1 alpha:0.06].CGColor;
@@ -157,6 +163,10 @@ static const CGFloat kPullShare = 0.3, kMaxPull = 14, kPullStretch = 0.25;
     _hasTrack = YES;
     _inner.hidden = NO;
     _mini.backgroundColor = color;
+    CGColorRef fill = color.CGColor;
+    for (CAShapeLayer *flare in @[_flareLeft, _flareRight]) {
+        if (!CGColorEqualToColor(flare.fillColor, fill)) [self setLayer:flare value:(__bridge id)fill forKey:@"fillColor"];
+    }
     [self placeMini];
 }
 
@@ -172,10 +182,48 @@ static const CGFloat kPullShare = 0.3, kMaxPull = 14, kPullStretch = 0.25;
     CGRect mini = CGRectMake(c.x + (CGRectGetMinX(inDrop) - c.x) * kLensShrink, c.y + (CGRectGetMinY(inDrop) - c.y) * kLensShrink,
                              inDrop.size.width * kLensShrink, inDrop.size.height * kLensShrink);
     // In the inner view's points, which is the drop inset by the band.
-    mini = CGRectOffset(mini, -kLensBand - kMiniInset, -kLensBand - kMiniInset);
+    mini = CGRectOffset(mini, -kLensBand, -kLensBand);
     if (size.width < 1) return;
     _mini.frame = mini;
     _mini.layer.cornerRadius = mini.size.height / 2;
+    // How far the track runs past each edge of the drop decides how much each side flares.
+    CGFloat pastLeft = -CGRectGetMinX(inDrop), pastRight = CGRectGetMaxX(inDrop) - held.width;
+    CGSize clip = _miniClip.bounds.size;
+    [self setLayer:_flareLeft value:(__bridge id)[self flareAt:NO width:kFlareWidth * MAX(0, MIN(1, pastLeft / kFlareRamp)) mini:mini clip:clip] forKey:@"path"];
+    [self setLayer:_flareRight value:(__bridge id)[self flareAt:YES width:kFlareWidth * MAX(0, MIN(1, pastRight / kFlareRamp)) mini:mini clip:clip] forKey:@"path"];
+}
+
+// One edge's flare, in the clip's points: from the shrunk track's top and bottom `width` in from that edge, curving out
+// to the edge's whole height; the clip's capsule rounds it to the drop's curve. The same elements at any width, so
+// one flare can move into the next.
+- (CGPathRef)flareAt:(BOOL)right width:(CGFloat)width mini:(CGRect)mini clip:(CGSize)clip {
+    CGFloat top = CGRectGetMinY(mini), bottom = CGRectGetMaxY(mini), h = clip.height;
+    CGFloat edge = right ? clip.width : 0, in = right ? clip.width - width : width;
+    CGFloat ease = right ? clip.width - width * 0.35 : width * 0.35;
+    UIBezierPath *path = [UIBezierPath bezierPath];
+    [path moveToPoint:CGPointMake(in, top)];
+    [path addCurveToPoint:CGPointMake(edge, -1) controlPoint1:CGPointMake(ease, top) controlPoint2:CGPointMake(edge, top * 0.5)];
+    [path addLineToPoint:CGPointMake(edge, h + 1)];
+    [path addCurveToPoint:CGPointMake(in, bottom) controlPoint1:CGPointMake(edge, bottom + (h - bottom) * 0.5) controlPoint2:CGPointMake(ease, bottom)];
+    [path closePath];
+    return path.CGPath;
+}
+
+// A layer's value set as the views round it move: in the caller's view animation, along with it, or at once without one.
+- (void)setLayer:(CALayer *)layer value:(id)value forKey:(NSString *)key {
+    NSTimeInterval duration = UIView.inheritedAnimationDuration;
+    if (duration > 0) {
+        CABasicAnimation *move = [CABasicAnimation animationWithKeyPath:key];
+        move.fromValue = [layer.presentationLayer ?: layer valueForKey:key];
+        move.toValue = value;
+        move.duration = duration;
+        move.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseOut];
+        [layer addAnimation:move forKey:key];
+    }
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    [layer setValue:value forKey:key];
+    [CATransaction commit];
 }
 
 // The held glass is laid out at its held size and shrunk by a transform at rest, never grown from the capsule's: grown,
@@ -204,7 +252,7 @@ static const CGFloat kPullShare = 0.3, kMaxPull = 14, kPullStretch = 0.25;
     _inner.bounds = (CGRect){CGPointZero, inner.size};
     _inner.center = middle;
     _inner.layer.cornerRadius = inner.size.height / 2;
-    CGRect clip = CGRectInset((CGRect){CGPointZero, inner.size}, kMiniInset, kMiniInset);
+    CGRect clip = (CGRect){CGPointZero, inner.size};
     _miniClip.frame = clip;
     _miniClip.layer.cornerRadius = clip.size.height / 2;
     [self placeMini];
