@@ -331,6 +331,32 @@ void SGRPlayerLowerRow(UIView *row) {
 }
 %end
 
+// The Connect button lays itself out again when the device changes (its name comes or goes, another device's glyph),
+// with no pass of the footer around it: the glyph moved inside it while the footer's transform, worked out from where
+// the glyph was, stayed, so Connect slid off its place (the phone, 2026-10-24: switched to another device from
+// elsewhere, the DJ footer's Connect 11pt left of its slot). The footer is laid out again whenever the glyph moves, and
+// its pass puts the button back on its place, the ordinary player's and the DJ's alike.
+static char kGlyphSeenKey;
+
+%hook _TtC23Connect_EntryPointsImpl37ConnectButtonOutputSwitcherViewHolder
+- (void)layoutSubviews {
+    %orig;
+    UIView *connect = (UIView *)self;
+    UIView *glyph = connectGlyphIn(connect);
+    if (!glyph) return;
+    CGRect seen = [glyph convertRect:glyph.bounds toView:connect];
+    NSValue *was = objc_getAssociatedObject(connect, &kGlyphSeenKey);
+    objc_setAssociatedObject(connect, &kGlyphSeenKey, [NSValue valueWithCGRect:seen], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    if (!was || CGRectEqualToRect(was.CGRectValue, seen)) return;
+    // The footer unit's view: the first ancestor a controller owns.
+    for (UIView *v = connect.superview; v; v = v.superview) {
+        if (![v.nextResponder isKindOfClass:UIViewController.class]) continue;
+        [v setNeedsLayout];
+        break;
+    }
+}
+%end
+
 %ctor {
     if (!SGRedesignedUI()) return;
     %init;
