@@ -9,6 +9,7 @@ NSNotificationName const SGHapticRelayAvailableNotification = @"SGHapticRelayAva
 static BOOL sg_available;
 // The rumble's level as last posted, so an unchanged one is not posted again; -1 before any.
 static atomic_int sg_rumbleSent = -1;
+static atomic_uint_fast64_t sg_rumbleSentAt;
 
 BOOL SGHapticRelayAvailable(void) {
     return sg_available;
@@ -53,6 +54,7 @@ void SGHapticRelayAsk(void) {
         notify_register_dispatch(kSGRelayPong, &token, dispatch_get_main_queue(), ^(int t) {
             uint64_t build = 0;
             if (notify_get_state(t, &build) == NOTIFY_STATUS_OK) sg_installedBuild = build;
+            SGHapticRelaySendLockScreen();
             if (sg_available) return;
             sg_available = YES;
             SGLog(@"music haptics: SpringBoard plays them everywhere (the add-on's build %llu, this one carries %d)",
@@ -61,6 +63,10 @@ void SGHapticRelayAsk(void) {
         });
     });
     notify_post(kSGRelayPing);
+}
+
+void SGHapticRelaySendLockScreen(void) {
+    notify_post(SGFlag(SGKeyMusicHapticsLockScreen, YES) ? kSGRelayLockOn : kSGRelayLockOff);
 }
 
 static int bucket(float value, int count) {
@@ -80,7 +86,11 @@ void SGHapticRelayTap(float intensity, float sharpness) {
 void SGHapticRelayRumble(float level) {
     int b = bucket(level, kSGRelayLevels);
     if (!sg_available) return;
-    if (atomic_exchange(&sg_rumbleSent, b) == b) return;
+    uint64_t now = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+    BOOL same = atomic_exchange(&sg_rumbleSent, b) == b;
+    // Unchanged, it goes again now and then while it is on, the add-on's sign that Spotify still means it.
+    if (same && (b == 0 || now - atomic_load(&sg_rumbleSentAt) < (uint64_t)(kSGRelayRumbleKeepalive * NSEC_PER_SEC))) return;
+    atomic_store(&sg_rumbleSentAt, now);
     char name[64];
     snprintf(name, sizeof name, kSGRelayPrefix "rumble.%d", b);
     notify_post(name);

@@ -494,6 +494,7 @@ static void relayLevel(const SGMusicEvent *event) {
     sg_rumbling = YES;
     sg_rumbleSentAt = heard;
     sg_rumbleSent = level;
+    // SGHapticRelayRumble posts a level that has not changed only as its keepalive, so a steady rumble keeps being heard.
     relayAt(lead, ^{ SGHapticRelayRumble(played); });
 }
 

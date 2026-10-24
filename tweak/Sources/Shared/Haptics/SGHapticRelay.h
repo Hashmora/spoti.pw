@@ -27,10 +27,25 @@
 // kSGRelayPrefix "tap.<1...kSGRelayLevels>.<0...kSGRelaySharpnesses-1>" and kSGRelayPrefix "rumble.<0...kSGRelayLevels>".
 enum { kSGRelayLevels = 10, kSGRelaySharpnesses = 3 };
 // The add-on's build, set on its pong; raise it with every change to addons/haptics.
-enum { kSGRelayAddonBuild = 1 };
+// 2: the rumble's keepalive and the lock screen switch.
+enum { kSGRelayAddonBuild = 2 };
+// Whether the add-on plays while the phone is locked, told it by Spotify as the switch is set and each time the add-on
+// answers: kSGRelayPrefix "lockscreen.1" plays there, "lockscreen.0" does not.
+#define kSGRelayLockOn kSGRelayPrefix "lockscreen.1"
+#define kSGRelayLockOff kSGRelayPrefix "lockscreen.0"
+// A rumble that is on is posted again at least this often, unchanged or not, and the add-on stops one it has not heard
+// of for kSGRelayRumbleLapse: a Spotify that went away mid-rumble (another copy of it opened, the app killed) left the
+// last level vibrating with nothing to stop it (the phone, 2026-10-24).
+#define kSGRelayRumbleKeepalive 0.2
+#define kSGRelayRumbleLapse 0.6
 
 // The key of the switch, off until switched on.
 #define SGKeyMusicHapticsEverywhere @"spotifyglass.haptics.music.everywhere"
+// Everywhere's second switch, on the lock screen as well; on unless switched off. With Everywhere it makes the three
+// places Music Haptics plays: in Spotify only, everywhere but the lock screen, everywhere.
+#define SGKeyMusicHapticsLockScreen @"spotifyglass.haptics.music.lockscreen"
+// Tells the add-on the lock screen switch as it is now. Main thread.
+void SGHapticRelaySendLockScreen(void);
 
 // Whether SpringBoard's side has answered in this launch. Main thread.
 BOOL SGHapticRelayAvailable(void);

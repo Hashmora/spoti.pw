@@ -181,6 +181,11 @@ static NSArray<SGModSection *> *sections(SGVibrationsPreview *preview, void (^ex
     };
     everywhere.waitsOn = SGKeyMusicHaptics;
     everywhere.visible = ^BOOL { return SGHapticEverywhereOffered(); };
+    // Everywhere's second switch: with it, Music Haptics plays in Spotify only, everywhere but the lock screen, or everywhere.
+    SGModRow *lockScreen = SGSwitchRow(@"On the lock screen", @"Off: only while the phone is unlocked", SGKeyMusicHapticsLockScreen);
+    lockScreen.changed = ^(BOOL on) { SGHapticRelaySendLockScreen(); };
+    lockScreen.waitsOn = SGKeyMusicHapticsEverywhere;
+    lockScreen.visible = ^BOOL { return SGHapticEverywhereOffered(); };
     // A newer add-on inside this Vitrine than the one SpringBoard runs: the same two taps put it in place.
     SGModRow *addonUpdate = SGActionRow(@"Update Vitrine Haptics", @"A newer add-on comes with this Vitrine", ^{ shareAddon(); });
     addonUpdate.visible = ^BOOL { return SGHapticAddonOutdated(); };
@@ -207,7 +212,7 @@ static NSArray<SGModSection *> *sections(SGVibrationsPreview *preview, void (^ex
 
     return @[
         SGSection(nil, @[SGWithSymbol(controls, @"hand.tap"), controlStrength]),
-        SGSection(nil, @[SGWithSymbol(music, @"waveform"), musicStrength, follows, everywhere, addonUpdate, background, unlisted, status, systemOff]),
+        SGSection(nil, @[SGWithSymbol(music, @"waveform"), musicStrength, follows, everywhere, lockScreen, addonUpdate, background, unlisted, status, systemOff]),
     ];
 }
 

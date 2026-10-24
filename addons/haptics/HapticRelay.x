@@ -21,6 +21,9 @@ static dispatch_queue_t sg_queue;
 static CHHapticEngine *sg_engine;
 static id<CHHapticAdvancedPatternPlayer> sg_rumble;
 static BOOL sg_rumbling;
+// When the rumble was last asked for, and whether it may play while the phone is locked (Spotify's switch) and is.
+static CFTimeInterval sg_rumbleHeardAt;
+static BOOL sg_lockScreen = YES, sg_locked;
 
 static BOOL engineUp(void) {
     if (!CHHapticEngine.capabilitiesForHardware.supportsHaptics) return NO;
@@ -51,8 +54,13 @@ static CHHapticEventParameter *parameter(CHHapticEventParameterID identifier, fl
     return [[CHHapticEventParameter alloc] initWithParameterID:identifier value:value];
 }
 
+// Whether a tap or the rumble may play now: not while the phone is locked with the lock screen switch off.
+static BOOL plays(void) {
+    return sg_lockScreen || !sg_locked;
+}
+
 static void tap(float intensity, float sharpness) {
-    if (!engineUp()) return;
+    if (!plays() || !engineUp()) return;
     CHHapticEvent *hit = [[CHHapticEvent alloc] initWithEventType:CHHapticEventTypeHapticTransient parameters:@[
         parameter(CHHapticEventParameterIDHapticIntensity, intensity),
         parameter(CHHapticEventParameterIDHapticSharpness, sharpness),
@@ -63,7 +71,8 @@ static void tap(float intensity, float sharpness) {
 }
 
 static void rumble(float level) {
-    if (level <= 0) {
+    sg_rumbleHeardAt = CACurrentMediaTime();
+    if (level <= 0 || !plays()) {
         if (sg_rumbling) [sg_rumble stopAtTime:CHHapticTimeImmediate error:nil];
         sg_rumbling = NO;
         return;
@@ -83,6 +92,17 @@ static void rumble(float level) {
                                                                                          value:level relativeTime:0];
     [sg_rumble sendParameters:@[control] atTime:CHHapticTimeImmediate error:nil];
     if (!sg_rumbling) sg_rumbling = [sg_rumble startAtTime:CHHapticTimeImmediate error:nil];
+}
+
+// Stops a rumble Spotify has stopped speaking for (kSGRelayRumbleLapse): checked a few times a second.
+static void watchRumble(void) {
+    static dispatch_source_t timer;
+    timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, sg_queue);
+    dispatch_source_set_timer(timer, dispatch_time(DISPATCH_TIME_NOW, 0), (uint64_t)(0.2 * NSEC_PER_SEC), (uint64_t)(0.05 * NSEC_PER_SEC));
+    dispatch_source_set_event_handler(timer, ^{
+        if (sg_rumbling && CACurrentMediaTime() - sg_rumbleHeardAt > kSGRelayRumbleLapse) rumble(0);
+    });
+    dispatch_resume(timer);
 }
 
 static void listen(const char *name, void (^handler)(void)) {
@@ -107,6 +127,20 @@ static void listen(const char *name, void (^handler)(void)) {
         float value = (float)level / kSGRelayLevels;
         listen(name, ^{ rumble(value); });
     }
+    listen(kSGRelayLockOn, ^{ sg_lockScreen = YES; });
+    listen(kSGRelayLockOff, ^{
+        sg_lockScreen = NO;
+        if (sg_locked) rumble(0);
+    });
+    // SpringBoard's own lock state, as its notification's state has it (1 locked).
+    static int lockToken;
+    notify_register_dispatch("com.apple.springboard.lockstate", &lockToken, sg_queue, ^(int t) {
+        uint64_t state = 0;
+        notify_get_state(t, &state);
+        sg_locked = state != 0;
+        if (sg_locked && !sg_lockScreen) rumble(0);
+    });
+    watchRumble();
     // The pong carries the add-on's build, so Spotify can tell an older one from the copy it carries.
     static int pong;
     notify_register_check(kSGRelayPong, &pong);
