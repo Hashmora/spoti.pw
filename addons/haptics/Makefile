@@ -10,7 +10,7 @@ PACKAGE_VERSION := $(or $(shell cat ../../version.txt 2>/dev/null | tr - '~'),0.
 include $(THEOS)/makefiles/common.mk
 
 TWEAK_NAME := VitrineAddon
-VitrineAddon_FILES := HapticRelay.x LockCover.x
+VitrineAddon_FILES := HapticRelay.x LockCover.x MediaRemoteUIDump.x
 VitrineAddon_CFLAGS := -fobjc-arc
 VitrineAddon_FRAMEWORKS := UIKit CoreHaptics AVFoundation CoreMedia
 VitrineAddon_LOGOS_DEFAULT_GENERATOR := internal
