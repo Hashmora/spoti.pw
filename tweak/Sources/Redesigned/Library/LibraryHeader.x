@@ -57,7 +57,7 @@ NSString *const SGRLibraryListIdentifier = @"YourLibraryContent.collectionView";
 // 24pt glyph 20pt from the screen, and the 32pt avatar inside its own 48pt box 16pt from it, which is the
 // margin Home gives the avatar.
 static const CGFloat kRowInset = 8;
-static char kTitleKey, kRowWatchedKey;
+static char kTitleKey, kRowWatchedKey, kGroupGlassKey, kFolderGroupKey;
 static char kRecentsKey, kSearchKey, kPlusKey, kHeaderTitleKey;
 static char kRoundGlassKey;
 static char kBackKey, kMenuKey, kFolderPlusKey, kPlayKey, kPauseKey, kFolderTitleKey;
@@ -385,6 +385,9 @@ static void raiseList(UIView *page, UIView *header, UIView *filters) {
     SGLog(@"redesign library: list raised under the chips by %.0fpt, top inset %.1f", extra, inset.top);
 }
 
+// How far a group's capsule reaches past its first and last control: the 48pt buttons hold their glyphs well inside.
+static const CGFloat kGroupPad = -2;
+
 static void layoutRoot(UIView *page) {
     UIView *header = childNamed(page, @"YourLibraryHeaderView");
     if (!header) return;
@@ -402,11 +405,14 @@ static void layoutRoot(UIView *page) {
     NSArray<UIView *> *trailing = placeRoot(header);
     if (!trailing.count) return;
 
-    // Search and + are plain 48pt icon buttons with nothing behind them, and the avatar is a 32pt picture: each stands on
-    // a 44pt glass circle, the avatar's showing round it as Home's pill does round Home's (the phone, 2026-10-23: the
-    // avatar was the one control of the row with nothing behind it).
+    // Search, + and the avatar, side by side, stand on one 44pt glass capsule, as iOS 26 groups a bar's buttons and as
+    // Home's pill holds its own (the phone, 2026-10-24: a circle each read as three loose buttons).
     if (SGBelowiOS26()) {
-        for (UIView *control in trailing) SGRGlassInside(control, &kRoundGlassKey, 44);
+        UIView *host = trailing.firstObject.superview;
+        BOOL shared = YES;
+        for (UIView *control in trailing) shared = shared && control.superview == host;
+        if (shared && trailing.count > 1) SGRGlassGroupPill(host, trailing, &kGroupGlassKey, 44, kGroupPad);
+        else for (UIView *control in trailing) SGRGlassInside(control, &kRoundGlassKey, 44);
     }
 
     // The first pass that laid the header out, not the first pass at all: a page appearing lays out before
@@ -443,9 +449,16 @@ static void layoutFolder(UIView *page) {
         UIView *back = SGRFindByIdentifier(header, @"YourLibraryFolderHeader.back", &kBackKey);
         UIView *more = SGRFindByIdentifier(header, @"YourLibraryFolderHeader.contextMenu", &kMenuKey);
         UIView *plus = SGRFindByIdentifier(header, @"YourLibraryFolderHeader.plus", &kFolderPlusKey);
-        for (UIView *control in @[back ?: (id)NSNull.null, more ?: (id)NSNull.null, plus ?: (id)NSNull.null]) {
-            if (![control isKindOfClass:UIView.class] || control.bounds.size.width < 1) continue;
-            SGRGlassInside(control, &kRoundGlassKey, 44);
+        // Back alone on a circle; ⋯ and + beside each other on one capsule, as on the root header.
+        if (back.bounds.size.width >= 1) SGRGlassInside(back, &kRoundGlassKey, 44);
+        NSMutableArray<UIView *> *pair = [NSMutableArray array];
+        for (UIView *control in @[more ?: (id)NSNull.null, plus ?: (id)NSNull.null]) {
+            if ([control isKindOfClass:UIView.class] && control.bounds.size.width >= 1) [pair addObject:control];
+        }
+        if (pair.count > 1 && pair.firstObject.superview == pair.lastObject.superview) {
+            SGRGlassGroupPill(pair.firstObject.superview, pair, &kFolderGroupKey, 44, kGroupPad);
+        } else {
+            for (UIView *control in pair) SGRGlassInside(control, &kRoundGlassKey, 44);
         }
     }
 

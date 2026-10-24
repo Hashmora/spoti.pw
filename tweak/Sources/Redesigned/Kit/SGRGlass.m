@@ -130,6 +130,40 @@ UIView *SGRGlassCapsuleInside(UIView *control, const void *key, CGSize size, BOO
     return glassInside(control, key, size, YES, prominent);
 }
 
+UIView *SGRGlassGroupPill(UIView *host, NSArray<UIView *> *controls, const void *key, CGFloat height, CGFloat pad) {
+    if (@available(iOS 26.0, *)) return nil;
+    if (!host || !key) return nil;
+    UIView *holder = objc_getAssociatedObject(host, key);
+    if (!holder) {
+        holder = [UIView new];
+        holder.userInteractionEnabled = NO;
+        holder.accessibilityElementsHidden = YES;
+        objc_setAssociatedObject(host, key, holder, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    // The span of the controls, by their centres and sizes, which a transform on them leaves alone.
+    CGFloat minX = CGFLOAT_MAX, maxX = -CGFLOAT_MAX, midY = 0;
+    NSUInteger counted = 0;
+    for (UIView *control in controls) {
+        if (control.bounds.size.width < 1 || control.hidden || control.alpha < 0.01) continue;
+        CGPoint center = [control.superview convertPoint:control.center toView:host];
+        minX = MIN(minX, center.x - control.bounds.size.width / 2);
+        maxX = MAX(maxX, center.x + control.bounds.size.width / 2);
+        midY += center.y;
+        counted++;
+    }
+    if (!counted) {
+        holder.hidden = YES;
+        return nil;
+    }
+    midY /= counted;
+    if (holder.superview != host) [host insertSubview:holder atIndex:0];
+    else if (host.subviews.firstObject != holder) [host sendSubviewToBack:holder];
+    holder.hidden = NO;
+    CGRect frame = CGRectMake(round(minX - pad), round(midY - height / 2), round(maxX - minX + 2 * pad), height);
+    if (!CGRectEqualToRect(holder.frame, frame)) holder.frame = frame;
+    return SGRGlassCapsuleInside(holder, key, frame.size, NO);
+}
+
 void SGRShowGlass(UIView *shape, BOOL shown) {
     if ([shape isKindOfClass:UIVisualEffectView.class]) {
         UIVisualEffectView *glass = (UIVisualEffectView *)shape;
