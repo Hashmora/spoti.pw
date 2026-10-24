@@ -20,9 +20,11 @@ static const CGFloat kBarScale = 0.86;
 // as it flies, then opens out this far past the menu's edge before it settles. The flight takes the first share of the
 // time and the opening out reaches past the edge at the second (the recording: off the button by 0.15 s, a circle half
 // the menu by 0.22, the menu whole by 0.35, so about 0.4 s in all).
-static const CGFloat kBubbleMinDrop = 30, kBubbleMaxDrop = 56, kBubbleGrowShare = 0.6, kBubbleOvershoot = 4;
-static const NSTimeInterval kBubbleDuration = 0.42, kBubbleRowsDelay = 0.12;
-static const double kBubbleFlightShare = 0.42, kBubblePastShare = 0.8;
+// Stronger than the recording's timings alone gave: at a 4 pt overshoot and a quick flight it read as the menu fading in
+// (the phone, 2026-10-24), so the circle stays a circle a little longer and opens out further past the edge.
+static const CGFloat kBubbleMinDrop = 30, kBubbleMaxDrop = 56, kBubbleGrowShare = 0.55, kBubbleOvershoot = 9;
+static const NSTimeInterval kBubbleDuration = 0.5, kBubbleRowsDelay = 0.16;
+static const double kBubbleFlightShare = 0.46, kBubblePastShare = 0.78;
 static const CGFloat kBubbleRowsScale = 0.94;
 // A touch counts as where a menu came from for this long; a control bigger than this is a row or a page, and the
 // drop leaves from the finger instead.

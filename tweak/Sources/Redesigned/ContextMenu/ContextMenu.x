@@ -39,13 +39,16 @@ static const NSTimeInterval kRowsPoll = 0.1;
 static const NSTimeInterval kQuickWait = 4;
 // How long the player's menu waits for Spotify's sheet once its ⋯ action has been run for it.
 static const NSTimeInterval kRequestWindow = 3;
+// How far under its button a menu opens below iOS 26.
+static const CGFloat kMenuGap = 8;
 
-// Whether a page's ⋯ (the one SGRPinnedMore pins over the playlist, album and artist pages) opens the system
-// menu. It does on iOS 26. Below it the system menu is the player's alone and the page's ⋯ opens Spotify's own
-// sheet, which the redesign dresses (SGRGlassSheetChrome, PlaylistMenu.x).
+// Whether a page's ⋯ (the one SGRPinnedMore pins over the playlist, album, artist and profile pages) opens the system
+// menu. It does on every iOS the redesign runs on: below iOS 26 the menu wears the mod's glass and opens out of a drop
+// (ContextMenuGlass.x), as the player's does, rather than Spotify's sheet coming up from the bottom. Each opening reads
+// the rows of the sheet that tap brought up (an uncached deferred element of a session of its own), so no page's rows
+// show on another's menu.
 static BOOL pageMenu(void) {
-    if (@available(iOS 26.0, *)) return YES;
-    return NO;
+    return YES;
 }
 
 static NSString *const kSheetClass = @"_TtC24ContextMenu_InternalImpl25ContextMenuViewController";
@@ -323,6 +326,15 @@ static UIMenu *inlineGroup(NSArray<UIMenuElement *> *children) {
 @end
 
 @implementation SGRMenuAnchor
+
+// Below iOS 26 UIKit opens a button's menu over the button, from its middle; iOS 26 opens it under the button, which
+// stays in sight. The menu is hung from a point just under the button for that (the phone, 2026-10-24: the menu
+// covered the ⋯ it came from).
+- (CGPoint)menuAttachmentPointForConfiguration:(UIContextMenuConfiguration *)configuration {
+    CGPoint point = [super menuAttachmentPointForConfiguration:configuration];
+    if (@available(iOS 26.0, *)) return point;
+    return CGPointMake(point.x, CGRectGetMaxY(self.bounds) + kMenuGap);
+}
 
 - (void)contextMenuInteraction:(UIContextMenuInteraction *)interaction willDisplayMenuForConfiguration:(UIContextMenuConfiguration *)configuration
                       animator:(id<UIContextMenuInteractionAnimating>)animator {
