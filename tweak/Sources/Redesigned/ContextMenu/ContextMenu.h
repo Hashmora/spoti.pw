@@ -56,6 +56,3 @@ UIControl *SGRSystemMenuFront(UIView *button);
 // of its own. Nil while `host` has no size.
 static const CGFloat SGRMenuDim = 0.42;
 UIView *SGRMenuGlass(UIView *host, const void *key, CGFloat dim);
-
-// Whether the system menu up now is the player's (its quick row, its items and More).
-BOOL SGRSystemMenuIsPlayers(void);
