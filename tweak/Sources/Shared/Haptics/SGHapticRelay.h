@@ -34,7 +34,8 @@ enum { kSGRelayLevels = 10, kSGRelaySharpnesses = 3 };
 //    cover and played with no audio session, and the still cover's switch (kSGRelayLockStillOn).
 // 6: the lock screen's artwork gone while the song is paused.
 // 7: that behind a switch of its own (kSGRelayLockPauseHides).
-enum { kSGRelayAddonBuild = 7 };
+// 8: the cover and the clip fitted to the width on bands of their edges' colours, and a pause that fades them whole.
+enum { kSGRelayAddonBuild = 8 };
 // Below iOS 26, the add-on also fills the lock screen with the now playing cover while Spotify's switch for it is on
 // (AnimatedArtwork.h, SGKeyLockCoverAddon): told "lockart.1" and "lockart.0" as the switch is set and each time the
 // add-on answers. It reads the cover from MediaRemote, as the lock screen's own player does.

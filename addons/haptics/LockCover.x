@@ -6,9 +6,11 @@
 // The cover is read from MediaRemote, as the lock screen's own player reads it, and follows its now playing info as it
 // changes. A cover all of one grey (the skeleton Spotify names for a moment before the cover is in, after a seek) is
 // left out. Over it the track's moving artwork plays, looping, when Spotify has one (kSGRelayLockClip): a file in
-// Spotify's caches, found through the data container of the now playing app. It is fitted whole to the screen's width
-// rather than filling it (a 9:16 Canvas filled a 9:19.5 screen cut off at both sides, far too large), on the cover
-// blurred behind it, so the bands above and below are in the clip's own colours.
+// Spotify's caches, found through the data container of the now playing app. The cover and the clip are fitted whole to
+// the screen's width rather than filling it (a square cover or a 9:16 Canvas filled a 9:19.5 screen cut off at both
+// sides, far too large), and the bands above and below them take the colour of the picture's own top and bottom edges,
+// as a redesigned playlist's page runs on in its cover's colour below it (Redesigned/Kit/SGRPalette.h); for a clip, its
+// first frame's.
 //
 // The clip is not played by an AVPlayer: one in SpringBoard took an audio session, which the system counted as playback
 // and paused Spotify for, and once Spotify played again the player was the one paused, left on a still frame (the phone,
@@ -64,9 +66,34 @@ static __weak UIView *sg_holder;
 @property (nonatomic, readonly) UIImageView *picture;
 @end
 
+// The average colour of `image`'s top and bottom strips, a twentieth of its height each.
+static void edgeColors(CGImageRef image, UIColor **top, UIColor **bottom) {
+    *top = *bottom = UIColor.blackColor;
+    if (!image) return;
+    enum { width = 16, height = 20 };
+    uint8_t pixels[width * height * 4] = {0};
+    CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
+    CGContextRef context = CGBitmapContextCreate(pixels, width, height, 8, width * 4, space, (CGBitmapInfo)kCGImageAlphaPremultipliedLast);
+    CGColorSpaceRelease(space);
+    if (!context) return;
+    CGContextDrawImage(context, CGRectMake(0, 0, width, height), image);
+    CGContextRelease(context);
+    // The bitmap's first row is the picture's top.
+    for (int edge = 0; edge < 2; edge++) {
+        int row = edge == 0 ? 0 : height - 1;
+        double r = 0, g = 0, b = 0;
+        for (int x = 0; x < width; x++) {
+            const uint8_t *p = pixels + (row * width + x) * 4;
+            r += p[0]; g += p[1]; b += p[2];
+        }
+        UIColor *color = [UIColor colorWithRed:r / width / 255 green:g / width / 255 blue:b / width / 255 alpha:1];
+        if (edge == 0) *top = color; else *bottom = color;
+    }
+}
+
 @implementation SGVLockCover {
     CAGradientLayer *_shade;
-    UIVisualEffectView *_blur;
+    CAGradientLayer *_bands;
     AVSampleBufferDisplayLayer *_video;
     dispatch_queue_t _feed;
     AVURLAsset *_asset;
@@ -90,9 +117,27 @@ static __weak UIView *sg_holder;
     _video = nil;
     _reader = nil;
     _output = nil;
-    [UIView animateWithDuration:kCoverFade animations:^{ self->_blur.alpha = clip ? 1 : 0; }];
-    if (!clip) return;
+    if (!clip) {
+        [self paintBands:_picture.image.CGImage];
+        return;
+    }
     _asset = [AVURLAsset URLAssetWithURL:clip options:nil];
+    // The bands in the clip's colours, from its first frame, once it is made.
+    AVAssetImageGenerator *frames = [AVAssetImageGenerator assetImageGeneratorWithAsset:_asset];
+    frames.appliesPreferredTrackTransform = YES;
+    frames.maximumSize = CGSizeMake(64, 64);
+    __weak SGVLockCover *weakSelf = self;
+    NSUInteger asked = _run;
+    [frames generateCGImagesAsynchronouslyForTimes:@[[NSValue valueWithCMTime:kCMTimeZero]]
+                                 completionHandler:^(CMTime requested, CGImageRef image, CMTime actual, AVAssetImageGeneratorResult result, NSError *error) {
+        if (result != AVAssetImageGeneratorSucceeded || !image) return;
+        CGImageRetain(image);
+        dispatch_async(dispatch_get_main_queue(), ^{
+            SGVLockCover *cover = weakSelf;
+            if (cover && cover->_run == asked) [cover paintBands:image];
+            CGImageRelease(image);
+        });
+    }];
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
     _track = [_asset tracksWithMediaType:AVMediaTypeVideo].firstObject;
@@ -116,6 +161,23 @@ static __weak UIView *sg_holder;
         if (run != self->_run || ![self startReader]) return;
         [video requestMediaDataWhenReadyOnQueue:self->_feed usingBlock:^{ [self feed:video run:run]; }];
     });
+}
+
+// The bands above and below the picture in its top and bottom edges' colours, the top's at the top running into the
+// bottom's at the bottom, eased across as the picture changes.
+- (void)paintBands:(CGImageRef)image {
+    if (!image) return;
+    UIColor *top, *bottom;
+    edgeColors(image, &top, &bottom);
+    NSArray *colors = @[(id)top.CGColor, (id)bottom.CGColor];
+    CABasicAnimation *ease = [CABasicAnimation animationWithKeyPath:@"colors"];
+    ease.fromValue = (_bands.presentationLayer ?: _bands).colors;
+    ease.duration = kCoverFade;
+    [_bands addAnimation:ease forKey:@"colors"];
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    _bands.colors = colors;
+    [CATransaction commit];
 }
 
 // The clip read once more from its start: the video track alone, its samples as they are in the file.
@@ -170,14 +232,12 @@ static __weak UIView *sg_holder;
     if (!(self = [super initWithFrame:frame])) return nil;
     self.userInteractionEnabled = NO;
     self.clipsToBounds = YES;
-    self.backgroundColor = UIColor.blackColor;
+    _bands = [CAGradientLayer layer];
+    _bands.colors = @[(id)UIColor.blackColor.CGColor, (id)UIColor.blackColor.CGColor];
+    [self.layer addSublayer:_bands];
     _picture = [UIImageView new];
-    _picture.contentMode = UIViewContentModeScaleAspectFill;
+    _picture.contentMode = UIViewContentModeScaleAspectFit;
     [self addSubview:_picture];
-    // The cover blurred, round a clip that does not fill the screen: in the clip's colours, near enough.
-    _blur = [[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemThickMaterialDark]];
-    _blur.alpha = 0;
-    [self addSubview:_blur];
     _shade = [CAGradientLayer layer];
     _shade.colors = @[(id)[UIColor colorWithWhite:0 alpha:0].CGColor, (id)[UIColor colorWithWhite:0 alpha:kShadeBottom].CGColor];
     _shade.locations = @[@0.35, @1];
@@ -188,8 +248,8 @@ static __weak UIView *sg_holder;
 - (void)layoutSubviews {
     [super layoutSubviews];
     _picture.frame = self.bounds;
-    _blur.frame = self.bounds;
     [CATransaction begin];
+    _bands.frame = self.bounds;
     [CATransaction setDisableActions:YES];
     _shade.frame = self.bounds;
     _video.frame = self.bounds;
@@ -219,9 +279,21 @@ static void showCover(void) {
     if (shown && cover.picture.image != sg_cover) {
         [UIView transitionWithView:cover.picture duration:kCoverFade options:UIViewAnimationOptionTransitionCrossDissolve
                         animations:^{ cover.picture.image = sg_cover; } completion:nil];
+        if (!sg_clip) [cover paintBands:sg_cover.CGImage];
     }
-    [cover playClip:shown ? sg_clip : nil];
-    [UIView animateWithDuration:kCoverFade animations:^{ cover.alpha = shown ? 1 : 0; }];
+    if (shown) {
+        [cover playClip:sg_clip];
+        [UIView animateWithDuration:kCoverFade delay:0 options:UIViewAnimationOptionBeginFromCurrentState animations:^{ cover.alpha = 1; } completion:nil];
+        return;
+    }
+    // Going: the whole of it fades as it is, the clip still playing under the fade, and the clip stops only once it is
+    // out of sight. Stopped first, the cover came up under the clip for a moment before it faded too (the phone,
+    // 2026-10-24: a Canvas paused).
+    [UIView animateWithDuration:kCoverFade delay:0 options:UIViewAnimationOptionBeginFromCurrentState animations:^{ cover.alpha = 0; }
+                     completion:^(BOOL finished) {
+        BOOL still = sg_on && (sg_playing || !sg_hidePaused) && sg_cover && (sg_clip || sg_still);
+        if (!still) [cover playClip:nil];
+    }];
 }
 
 // A picture all of one colour, near enough: the grey skeleton Spotify names as the cover for a moment.
