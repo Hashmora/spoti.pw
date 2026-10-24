@@ -96,7 +96,6 @@ static void offerUpdate(void) {
         UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Update Vitrine Addon"
             message:@"This Vitrine comes with a newer Vitrine Addon than the one installed. Tap Update, pick Sileo or Filza, install it, then respring."
             preferredStyle:UIAlertControllerStyleAlert];
-        alert.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
         [alert addAction:[UIAlertAction actionWithTitle:@"Update" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) { SGHapticAddonShareSoon(); }]];
         [alert addAction:[UIAlertAction actionWithTitle:@"Later" style:UIAlertActionStyleCancel handler:nil]];
         [top presentViewController:alert animated:YES completion:nil];
@@ -111,7 +110,6 @@ void SGHapticAddonExplain(NSString *feature) {
         : [NSString stringWithFormat:@"%@ is played by SpringBoard, through a small add-on that comes inside Vitrine's IPA. This install has no copy of it: install Vitrine from its IPA, then turn the switch on again to put the add-on in place.", feature];
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Needs Vitrine Addon" message:message
                                                             preferredStyle:UIAlertControllerStyleAlert];
-    alert.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
     if (carried) {
         [alert addAction:[UIAlertAction actionWithTitle:@"Install" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) { SGHapticAddonShareSoon(); }]];
         [alert addAction:[UIAlertAction actionWithTitle:@"Later" style:UIAlertActionStyleCancel handler:nil]];
