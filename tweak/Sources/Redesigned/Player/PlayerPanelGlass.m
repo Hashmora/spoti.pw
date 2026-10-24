@@ -15,8 +15,9 @@
 #import "Redesigned/Kit/SGRPass.h"
 #import "Shared/Player/SpeedPitch.h"
 
-// The black over the pane: lighter than the menu's, whose rows are long white labels; the panel is sliders.
-static const CGFloat kPanelDim = 0.26;
+// The black over the pane: the menu's own, so a panel from the ⋯ (Speed, Pitch & Reverb, Lyrics Source) reads as dark
+// as the list it opens from. A lighter one, picked for the sliders, left both panels' text with too little contrast.
+static const CGFloat kPanelDim = SGRMenuDim;
 static char kPanelGlassKey;
 static char kPanelSettleKey;
 
