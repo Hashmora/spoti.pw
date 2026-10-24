@@ -410,6 +410,13 @@ static void fadeButton(UIView *button, BOOL away) {
 @implementation SGRMenuFront
 
 - (UIContextMenuConfiguration *)contextMenuInteraction:(UIContextMenuInteraction *)interaction configurationForMenuAtLocation:(CGPoint)location {
+    // Opened from code by the session that waited for its rows (openWhenRead): its menu, from the sheet it has, and no
+    // second session asking Spotify for a second sheet.
+    SGRMenuSession *pending = self.session;
+    if (pending && pending.presented && !pending.displayed && !pending.ended) {
+        self.menu = [pending menu];
+        return [super contextMenuInteraction:interaction configurationForMenuAtLocation:location];
+    }
     SGRMenuSession *session = [SGRMenuSession new];
     session.direct = YES;
     session.opened = YES;
