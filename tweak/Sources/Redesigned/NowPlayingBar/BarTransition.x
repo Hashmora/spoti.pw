@@ -119,15 +119,7 @@ static CGRect scaledFrame(UIView *pane, UIView *source, CGSize to) {
 @property (nonatomic) BOOL seen;                          // the stand-in has been in a window
 @property (nonatomic) NSUInteger waited;
 @property (nonatomic) CFTimeInterval born;
-// The tab bar's stand-in on a close, kept to lay over the real bar as it comes back (handOver), and where it was last
-// drawn, in the window.
-@property (nonatomic, strong) UIView *kept;
-@property (nonatomic) CGRect lastInWindow;
-@property (nonatomic, weak) UIWindow *lastWindow;
 @end
-
-// How long the stand-in stays over the real tab bar once Spotify has taken it down, and how long it takes to fade.
-static const NSTimeInterval kHandOverHold = 0.05, kHandOverFade = 0.15;
 
 // Alive while the display link is: it retains its target, and stop breaks that.
 static NSMutableSet<SGStandInGlass *> *sg_followers;
@@ -195,30 +187,7 @@ static void startWatch(void);
     self.link = nil;
     [self.holder removeFromSuperview];
     [self restoreReal];
-    [self handOver];
     [sg_followers removeObject:self];
-}
-
-// The tab bar's stand-in, which Spotify has just taken down, laid back over the real bar where it was last drawn and
-// faded out: the real bar's glass comes back with its window and needs a frame or two to draw, and shown in the turn
-// the stand-in went, it blinked between them as the player closed (the phone, 2026-10-24: the tab bar that hides and comes
-// back as another). The real bar is whole under it by then.
-- (void)handOver {
-    UIView *standIn = self.kept;
-    self.kept = nil;
-    UIWindow *window = self.lastWindow;
-    if (!standIn || !window || CGRectIsEmpty(self.lastInWindow) || standIn.window) return;
-    [UIView performWithoutAnimation:^{
-        standIn.transform = CGAffineTransformIdentity;
-        standIn.frame = self.lastInWindow;
-        standIn.alpha = 1;
-        standIn.hidden = NO;
-        standIn.userInteractionEnabled = NO;
-        [window addSubview:standIn];
-    }];
-    [UIView animateWithDuration:kHandOverFade delay:kHandOverHold options:UIViewAnimationOptionCurveEaseOut | UIViewAnimationOptionAllowUserInteraction
-                     animations:^{ standIn.alpha = 0; }
-                     completion:^(BOOL finished) { [standIn removeFromSuperview]; }];
 }
 
 // The stand-in has been on screen and is not any more. Also called from the pre-commit watch below, so
@@ -276,12 +245,6 @@ static void startWatch(void);
         // Not added yet (the setter runs before Spotify adds it), or gone for good.
         if (self.seen || ++self.waited > 30) [self stop];
         return;
-    }
-    if (self.kept && snapshot.window) {
-        // Where the stand-in is drawn this frame, for the hand-over.
-        CALayer *drawn = snapshot.layer.presentationLayer ?: snapshot.layer;
-        self.lastInWindow = [parent convertRect:drawn.frame toView:nil];
-        self.lastWindow = snapshot.window;
     }
     if (self.watchOnly) return;
     if (self.holder.superview != parent) [self attachTo:parent below:snapshot];
@@ -358,7 +321,6 @@ static void backWithGlass(UIView *snapshot, UIView *source, NSString *what, BOOL
         watch.panes = panes;
         watch.hideRealBar = YES;
         watch.watchOnly = YES;
-        watch.kept = snapshot;
         [watch start];
     }
 
