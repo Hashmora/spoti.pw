@@ -70,14 +70,24 @@ static UIVisualEffectView *copyPane(UIView *pane) {
 }
 
 // One copy of a pane at `frame` (already in the stand-in's coordinates). A legacy pane is copied as a
-// legacy pane with the original's corner radius; it builds its mesh for the copy's own size.
+// legacy pane with all of the original's settings, its shape, blur, lens and clearness; it builds its mesh for the
+// copy's own size. With the corners alone it took the default blur and lens, so the tab bar's stand-in was another
+// bar from the one it stood in for, and the real one came back looking different.
 static UIView *copyGlass(UIView *pane, CGRect frame) {
     UIView *glass;
     if ([pane isKindOfClass:SGLegacyGlassView.class]) {
+        SGLegacyGlassView *source = (SGLegacyGlassView *)pane;
         SGLegacyGlassView *legacy = [[SGLegacyGlassView alloc] initWithFrame:frame];
         legacy.userInteractionEnabled = NO;
         legacy.overrideUserInterfaceStyle = pane.traitCollection.userInterfaceStyle;
-        legacy.cornerRadius = pane.layer.cornerRadius;
+        legacy.capsule = source.capsule;
+        legacy.cornerRadius = source.capsule ? pane.layer.cornerRadius : source.cornerRadius;
+        // Clear first: it sets a blur of its own, which the original's then replaces.
+        legacy.clear = source.clear;
+        legacy.blurRadius = source.blurRadius;
+        legacy.magnification = source.magnification;
+        legacy.lensScale = source.lensScale;
+        legacy.sharp = source.sharp;
         glass = legacy;
     } else {
         glass = copyPane(pane);
@@ -109,7 +119,15 @@ static CGRect scaledFrame(UIView *pane, UIView *source, CGSize to) {
 @property (nonatomic) BOOL seen;                          // the stand-in has been in a window
 @property (nonatomic) NSUInteger waited;
 @property (nonatomic) CFTimeInterval born;
+// The tab bar's stand-in on a close, kept to lay over the real bar as it comes back (handOver), and where it was last
+// drawn, in the window.
+@property (nonatomic, strong) UIView *kept;
+@property (nonatomic) CGRect lastInWindow;
+@property (nonatomic, weak) UIWindow *lastWindow;
 @end
+
+// How long the stand-in stays over the real tab bar once Spotify has taken it down, and how long it takes to fade.
+static const NSTimeInterval kHandOverHold = 0.05, kHandOverFade = 0.15;
 
 // Alive while the display link is: it retains its target, and stop breaks that.
 static NSMutableSet<SGStandInGlass *> *sg_followers;
@@ -177,7 +195,30 @@ static void startWatch(void);
     self.link = nil;
     [self.holder removeFromSuperview];
     [self restoreReal];
+    [self handOver];
     [sg_followers removeObject:self];
+}
+
+// The tab bar's stand-in, which Spotify has just taken down, laid back over the real bar where it was last drawn and
+// faded out: the real bar's glass comes back with its window and needs a frame or two to draw, and shown in the turn
+// the stand-in went, it blinked between them as the player closed (the phone, 2026-10-24: the tab bar that hides and comes
+// back as another). The real bar is whole under it by then.
+- (void)handOver {
+    UIView *standIn = self.kept;
+    self.kept = nil;
+    UIWindow *window = self.lastWindow;
+    if (!standIn || !window || CGRectIsEmpty(self.lastInWindow) || standIn.window) return;
+    [UIView performWithoutAnimation:^{
+        standIn.transform = CGAffineTransformIdentity;
+        standIn.frame = self.lastInWindow;
+        standIn.alpha = 1;
+        standIn.hidden = NO;
+        standIn.userInteractionEnabled = NO;
+        [window addSubview:standIn];
+    }];
+    [UIView animateWithDuration:kHandOverFade delay:kHandOverHold options:UIViewAnimationOptionCurveEaseOut | UIViewAnimationOptionAllowUserInteraction
+                     animations:^{ standIn.alpha = 0; }
+                     completion:^(BOOL finished) { [standIn removeFromSuperview]; }];
 }
 
 // The stand-in has been on screen and is not any more. Also called from the pre-commit watch below, so
@@ -235,6 +276,12 @@ static void startWatch(void);
         // Not added yet (the setter runs before Spotify adds it), or gone for good.
         if (self.seen || ++self.waited > 30) [self stop];
         return;
+    }
+    if (self.kept && snapshot.window) {
+        // Where the stand-in is drawn this frame, for the hand-over.
+        CALayer *drawn = snapshot.layer.presentationLayer ?: snapshot.layer;
+        self.lastInWindow = [parent convertRect:drawn.frame toView:nil];
+        self.lastWindow = snapshot.window;
     }
     if (self.watchOnly) return;
     if (self.holder.superview != parent) [self attachTo:parent below:snapshot];
@@ -311,6 +358,7 @@ static void backWithGlass(UIView *snapshot, UIView *source, NSString *what, BOOL
         watch.panes = panes;
         watch.hideRealBar = YES;
         watch.watchOnly = YES;
+        watch.kept = snapshot;
         [watch start];
     }
 
