@@ -80,8 +80,22 @@ static void glassClose(UIView *root) {
 // The Reshuffle capsule (Encore Primary button, id=reshuffle-button) that floats over the list once the
 // queue has been played through: it is the sheet's one primary action, so its glass carries the white film
 // (prominent) and reads a step brighter than Clear and Edit instead of vanishing into the sheet.
+//
+// Encore draws the button's fill as a shape layer the size of the button in the plain view over the glass, not as a
+// background colour (trees/continuous/1.txt: SGLegacyGlassView first, then a 89.5x32 UIView with a CAShapeLayer), so
+// the capsule still read as Spotify's flat black one with the glass under it. That layer is hidden, not given a clear
+// fill, since Encore sets the fill again as the button is pressed and let go.
 static void glassReshuffle(UIView *root) {
-    SGRGlassFlatBoxFilm(SGRFindByIdentifier(root, @"reshuffle-button", &kReshuffleKey), &kReshuffleGlassKey);
+    UIView *button = SGRFindByIdentifier(root, @"reshuffle-button", &kReshuffleKey);
+    UIView *glass = SGRGlassFlatBoxFilm(button, &kReshuffleGlassKey);
+    if (!glass) return;
+    CGSize size = button.bounds.size;
+    for (UIView *sub in button.subviews) {
+        if (sub == glass || !CGSizeEqualToSize(sub.bounds.size, size)) continue;
+        for (CALayer *layer in sub.layer.sublayers) {
+            if ([layer isKindOfClass:CAShapeLayer.class] && CGSizeEqualToSize(layer.bounds.size, size) && !layer.hidden) layer.hidden = YES;
+        }
+    }
 }
 
 // The Now playing row's play / pause button (id=header-play-button, 15.txt): Spotify draws a dark grey shadow

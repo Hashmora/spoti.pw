@@ -358,7 +358,10 @@ static const NSTimeInterval kTapDropDelay = 0.2;
 
 static UIColor *trackColor(UISwitch *toggle, CGFloat position) {
     UIColor *off = [UIColor colorWithRed:0x46 / 255.0 green:0x46 / 255.0 blue:0x49 / 255.0 alpha:1];
-    UIColor *on = toggle.onTintColor ?: UIColor.systemGreenColor;
+    // Resolved in the dark, as the face is drawn: getRed: reads a dynamic colour in whatever trait is current, which in a
+    // light-mode phone gave the light green (#34C759) instead of the dark one iOS 26 draws on black (#30D158).
+    UITraitCollection *dark = [UITraitCollection traitCollectionWithUserInterfaceStyle:UIUserInterfaceStyleDark];
+    UIColor *on = [(toggle.onTintColor ?: UIColor.systemGreenColor) resolvedColorWithTraitCollection:dark];
     CGFloat r0, g0, b0, a0, r1, g1, b1, a1;
     if (![off getRed:&r0 green:&g0 blue:&b0 alpha:&a0] || ![on getRed:&r1 green:&g1 blue:&b1 alpha:&a1]) return position > 0.5 ? on : off;
     CGFloat t = MAX(0, MIN(1, position));
