@@ -712,11 +712,10 @@ static void raiseHost(UIWindow *window) {
     if (quick) [children addObject:quick];
     NSArray<UIMenuElement *> *ours = self.items();
     if (ours.count) [children addObject:inlineGroup(ours)];
-    // Spotify's rows in the menu itself, under a separator, rather than in a submenu: UIKit opened More upward over the
-    // menu, the menu itself slid down and dimmed under it, and nothing makes a submenu open downward (the phone,
-    // 2026-10-24). The menu is held to a height and scrolls (ContextMenuGlass.x).
-    UIMenu *more = [UIMenu menuWithTitle:@"" image:nil identifier:kMoreMenu options:UIMenuOptionsDisplayInline children:@[[self deferredRows]]];
-    [children addObject:more];
+    // More opens Spotify's rows over the menu, which goes while they are up and comes back with More's back
+    // (ContextMenuGlass.x): as a section of the menu itself they made a long menu that scrolled badly (the phone, 2026-10-24).
+    UIMenu *more = [UIMenu menuWithTitle:@"More" image:[UIImage systemImageNamed:@"ellipsis.circle"] identifier:kMoreMenu options:0 children:@[[self deferredRows]]];
+    [children addObject:inlineGroup(@[more])];
     return [UIMenu menuWithTitle:@"" image:nil identifier:kTopMenu options:0 children:children];
 }
 

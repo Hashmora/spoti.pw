@@ -109,13 +109,11 @@ static void bubbleMenu(UIView *list) {
 // A long menu (a playlist's, some twenty rows) runs nearly the height of the screen, and still scrolls; it is held to a
 // shorter list that scrolls, so it stays a menu by the button rather than a sheet over the page (the phone, 2026-10-24).
 static const CGFloat kMenuMaxShare = 0.55;
-// The player's, longer since its More is a section of it: still well clear of the player's controls at the bottom.
-static const CGFloat kPlayerMenuMaxShare = 0.65;
 
 // Never while a submenu is open: a list held to its height under a submenu UIKit lays out round the full one moved and
 // cut the two (the phone, 2026-10-24).
 static void holdHeight(UIView *menuView) {
-    CGFloat most = round(menuView.window.bounds.size.height * (SGRSystemMenuIsPlayers() ? kPlayerMenuMaxShare : kMenuMaxShare));
+    CGFloat most = round(menuView.window.bounds.size.height * kMenuMaxShare);
     if (most < 100) return;
     Class list = NSClassFromString(@"_UIContextMenuListView");
     NSUInteger lists = 0;
@@ -138,12 +136,35 @@ static void holdHeight(UIView *menuView) {
     }
 }
 
+// A submenu open (the player's More) stands alone: the menu under it, which UIKit leaves slid down and dimmed behind it,
+// fades out while it is up and back as it closes (the phone, 2026-10-24). The lists are laid one over the other, the
+// submenu's last; only alpha is touched, on views of UIKit's own menu, which UIKit puts back as it lays them out again.
+static const NSTimeInterval kSubmenuFade = 0.2;
+static char kUnderKey;
+
+static void hideUnder(UIView *menuView) {
+    Class list = NSClassFromString(@"_UIContextMenuListView");
+    NSMutableArray<UIView *> *lists = [NSMutableArray array];
+    for (UIView *sub in menuView.subviews) if ([sub isKindOfClass:list]) [lists addObject:sub];
+    UIView *top = lists.lastObject;
+    for (UIView *each in lists) {
+        BOOL under = each != top;
+        BOOL was = [objc_getAssociatedObject(each, &kUnderKey) boolValue];
+        if (under == was && (under ? each.alpha < 0.01 : YES)) continue;
+        objc_setAssociatedObject(each, &kUnderKey, @(under), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        [UIView animateWithDuration:kSubmenuFade delay:0 options:UIViewAnimationOptionBeginFromCurrentState animations:^{
+            each.alpha = under ? 0 : 1;
+        } completion:nil];
+    }
+}
+
 // The menu's own view lays out as a submenu comes in or goes out, which reaches the lists it holds.
 %hook _UIContextMenuView
 - (void)layoutSubviews {
     %orig;
     holdHeight((UIView *)self);
     glassLists((UIView *)self);
+    hideUnder((UIView *)self);
 }
 %end
 

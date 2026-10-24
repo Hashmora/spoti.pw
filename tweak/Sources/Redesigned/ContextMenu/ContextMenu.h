@@ -57,6 +57,5 @@ UIControl *SGRSystemMenuFront(UIView *button);
 static const CGFloat SGRMenuDim = 0.42;
 UIView *SGRMenuGlass(UIView *host, const void *key, CGFloat dim);
 
-// Whether the system menu up now is the player's, for its glass (ContextMenuGlass.x), which holds it to a longer list
-// than the others: its More is a section of it.
+// Whether the system menu up now is the player's (its quick row, its items and More).
 BOOL SGRSystemMenuIsPlayers(void);
