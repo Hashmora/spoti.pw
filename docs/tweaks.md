@@ -759,6 +759,8 @@ leaves it running:
     scripts/phone.py settings.open | settings.page "Appearance"
     scripts/phone.py wait --id X [--gone 1] | --menu 1 | --log "system menu: the player's menu is up" [--timeout 3]
     scripts/phone.py screenshot out.png
+    scripts/phone.py layers --id sheet-view [--depth 6] [--up 1]
+    scripts/phone.py get | set --id sheet-view --path layer.sublayers.0.enabled [--value false]
 
 Views are addressed as the tree prints them: `id=` is the accessibility identifier, `a11y=` the accessibility
 label, the quoted text a label's, and a class with an index counts that class's views in the tree's order.
@@ -767,7 +769,10 @@ way: a UITouch and the IOHIDEvent gesture recognizers read, through `-[UIApplica
 controls get their control events, recognizers recognize, and a button whose menu is its primary action opens
 it on the touch down. `menu.pick` taps a row of the system's menu, not of Spotify's own sheet (tap that by
 `--text`). `log` reads the app's last 2000 `SGLog` lines from memory, so no device log capture is needed;
-a log wait looks from the start of the last command that did something. Everything runs on the main thread
+a log wait looks from the start of the last command that did something. `get` and `set` read and write a
+property by key path from the view named (or the key window), a number indexing an array, so a guess about what
+draws something is tried live; `layers` prints the layer tree with what changes how it draws (opacity, masks,
+filters, a backdrop's own keys). Everything runs on the main thread
 through `dispatch_async` and a semaphore with a timeout, waited on from the server's thread only. Checked in
 the simulator by harness/driver/.
 
