@@ -189,7 +189,7 @@ static void turnCreate(UIView *disc, UIView *glyph, BOOL open) {
         disc.alpha = open ? 1 : 0;
         disc.transform = open ? CGAffineTransformIdentity : CGAffineTransformMakeScale(0.4, 0.4);
         glyph.transform = open ? CGAffineTransformMakeRotation(M_PI_4) : CGAffineTransformIdentity;
-        glyph.tintColor = open && !tinted ? UIColor.blackColor : UIColor.whiteColor;
+        glyph.tintColor = open ? UIColor.blackColor : accent;
         glyph.alpha = open && tinted ? 0 : 1;
     } completion:nil];
 }
@@ -419,15 +419,20 @@ static void pruneStrayButtons(UITabBar *bar) {
     }
 }
 
-// The open tab's color: the accent with Tabs in the accent on (SGRKeyTabAccent), else white like the rest.
+// The tabs' color: the accent with Tabs in the accent on (SGRKeyTabAccent), else white. Every tab takes it; the open
+// one stands out by its filled glyph, as it does in white.
 static UIColor *openTabColor(void) {
     if (!SGFlag(SGRKeyTabAccent, NO)) return UIColor.whiteColor;
     NSInteger rgb = SGRAccentRGB();
     return [UIColor colorWithRed:((rgb >> 16) & 0xFF) / 255.0 green:((rgb >> 8) & 0xFF) / 255.0 blue:(rgb & 0xFF) / 255.0 alpha:1];
 }
 
-// The bar's appearance, every tab white and the open one in openTabColor, set again only when that changes: with an
-// appearance set, tintColor alone does not decide the colors.
+static BOOL tintedTabs(void) {
+    return SGFlag(SGRKeyTabAccent, NO);
+}
+
+// The bar's appearance, every tab in openTabColor, set again only when that changes: with an appearance set, tintColor
+// alone does not decide the colors.
 static void applyTabColors(UITabBar *bar) {
     UIColor *open = openTabColor();
     if ([objc_getAssociatedObject(bar, &kTabColorKey) isEqual:open]) return;
@@ -435,8 +440,8 @@ static void applyTabColors(UITabBar *bar) {
     UITabBarAppearance *appearance = [UITabBarAppearance new];
     [appearance configureWithTransparentBackground];
     for (UITabBarItemAppearance *layout in @[appearance.stackedLayoutAppearance, appearance.inlineLayoutAppearance, appearance.compactInlineLayoutAppearance]) {
-        layout.normal.iconColor = UIColor.whiteColor;
-        layout.normal.titleTextAttributes = @{NSForegroundColorAttributeName: UIColor.whiteColor};
+        layout.normal.iconColor = open;
+        layout.normal.titleTextAttributes = @{NSForegroundColorAttributeName: open};
         layout.selected.iconColor = open;
         layout.selected.titleTextAttributes = @{NSForegroundColorAttributeName: open};
     }
@@ -478,8 +483,7 @@ static void paintGlyphs(UITabBar *bar) {
         // Create is selected while its menu is up, but is no tab to open: turnCreate draws it then.
         BOOL create = [bar isKindOfClass:SGRLegacyTabBar.class] && i < ((SGRLegacyTabBar *)bar).sources.count
             && isCreateSource(((SGRLegacyTabBar *)bar).sources[i]);
-        BOOL accent = selected && tinted && !create;
-        if (want && accent) want = templateOf(want);
+        if (want && tinted) want = templateOf(want);
         if (!native || !want) {
             overlay.hidden = YES;
             continue;
@@ -499,13 +503,14 @@ static void paintGlyphs(UITabBar *bar) {
         if (!CGSizeEqualToSize(overlay.bounds.size, nativeFrame.size)) overlay.bounds = (CGRect){CGPointZero, nativeFrame.size};
         if (!CGPointEqualToPoint(overlay.center, nativeCenter)) overlay.center = nativeCenter;
         if (overlay.image != want) overlay.image = want;
-        // Every pass, every tab: a symbol glyph is a template already, so one left in the accent kept it once it was
-        // no longer open, until every tab was the accent's. Create's own tint is turnCreate's.
-        UIColor *tint = accent ? open : UIColor.whiteColor;
-        if (!create && ![overlay.tintColor isEqual:tint]) overlay.tintColor = tint;
+        // Every pass, every tab, so a switch of the setting reaches them all. Create's plus while its menu is up (turned
+        // on its disc) is turnCreate's.
+        UIColor *tint = open;
+        BOOL createOpen = create && !CGAffineTransformIsIdentity(overlay.transform);
+        if (!createOpen && ![overlay.tintColor isEqual:tint]) overlay.tintColor = tint;
         overlay.hidden = NO;
-        // The name under it too: UIKit does not repaint it from the appearance's selected colour as the selection
-        // changes on this bar, any more than it does the icon, so it stayed white under an accent icon.
+        // The name under it too: UIKit does not repaint it from the appearance as the selection changes on this bar,
+        // any more than it does the icon, so it stayed white under an accent icon.
         for (UIView *v in button.subviews) {
             if (![v isKindOfClass:UILabel.class]) continue;
             UILabel *name = (UILabel *)v;
@@ -1051,7 +1056,9 @@ static void placeCompact(UIView *stockBar, SGRLegacyTabBar *bar, UIView *host, N
     NSUInteger leadIndex = leadItem ? [bar.items indexOfObject:leadItem] : NSNotFound;
     __weak UIView *weakStock = stockBar;
     if (lead) {
+        if (tintedTabs() && leadImage) leadImage = templateOf(leadImage);
         if (lead.glyph.image != leadImage) lead.glyph.image = leadImage;
+        if (![lead.glyph.tintColor isEqual:openTabColor()]) lead.glyph.tintColor = openTabColor();
         lead.item = leadItem;
         lead.accessibilityLabel = leadIndex < sources.count ? labelIn(sources[leadIndex]).text : nil;
         if (!lead.onTap) {
@@ -1068,7 +1075,9 @@ static void placeCompact(UIView *stockBar, SGRLegacyTabBar *bar, UIView *host, N
         }
     }
     if (trail) {
+        if (tintedTabs() && trailImage) trailImage = templateOf(trailImage);
         if (trail.glyph.image != trailImage) trail.glyph.image = trailImage;
+        if (CGAffineTransformIsIdentity(trail.glyph.transform) && ![trail.glyph.tintColor isEqual:openTabColor()]) trail.glyph.tintColor = openTabColor();
         trail.item = trailItem;
         trail.holdsCreate = trailSource && isCreateSource(trailSource);
         if (!trail.holdsCreate) [trail setCreateOpen:NO];
