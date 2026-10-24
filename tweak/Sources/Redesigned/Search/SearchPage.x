@@ -22,7 +22,7 @@
 // Layout passes without the header before that is logged.
 static const NSUInteger kMissesLogged = 60;
 
-static char kTitleKey, kFaceGlassKey;
+static char kTitleKey, kFaceGlassKey, kFollowerKey;
 
 static __weak UICollectionView *sg_list;
 static __weak UIStackView *sg_row;
@@ -134,6 +134,56 @@ static void clearStatusPlate(UIView *page) {
     }
 }
 
+// The title and the avatar scroll away with the page, as Home's do (HomeHeader.x, followScroll): they rise with what is
+// under them and fade over the row's height. Spotify slid and faded the row itself on earlier builds; on this one it
+// stays, and with the black plate gone (clearStatusPlate) the two stood over the cards scrolling under them (the phone,
+// 2026-10-24). The avatar's glass takes no alpha (SGRGlass.h): it goes once the row is half faded and comes back with it.
+static __weak UIView *sg_face;
+static BOOL sg_faceGlassShown = YES;
+
+static void rise(UIView *view, CGAffineTransform transform, CGFloat alpha) {
+    if (!view) return;
+    if (!CGAffineTransformEqualToTransform(view.transform, transform)) view.transform = transform;
+    if (view.alpha != alpha) view.alpha = alpha;
+}
+
+static void followScroll(UIScrollView *list) {
+    UIStackView *row = sg_row;
+    if (!list || !row || !SGBelowiOS26()) return;
+    CGFloat height = MAX(1, row.bounds.size.height);
+    CGFloat scrolled = MAX(0, list.contentOffset.y + list.adjustedContentInset.top);
+    CGAffineTransform up = CGAffineTransformMakeTranslation(0, -MIN(scrolled, height));
+    CGFloat alpha = 1 - MIN(1, scrolled / height);
+    rise(objc_getAssociatedObject(row, &kTitleKey), up, alpha);
+    UIView *face = sg_face;
+    if (!face) return;
+    rise(face, up, alpha);
+    BOOL shown = alpha > 0.5;
+    UIView *glass = objc_getAssociatedObject(face, &kFaceGlassKey);
+    if (glass && shown != sg_faceGlassShown) {
+        sg_faceGlassShown = shown;
+        [UIView animateWithDuration:0.15 animations:^{ SGRShowGlass(glass, shown); }];
+    }
+}
+
+@interface SGRSearchTitleFollower : NSObject
+@property (nonatomic, weak) UIScrollView *list;
+@end
+
+@implementation SGRSearchTitleFollower
+- (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context {
+    followScroll(self.list);
+}
+@end
+
+static void followList(UIScrollView *list) {
+    if (!list || objc_getAssociatedObject(list, &kFollowerKey)) return;
+    SGRSearchTitleFollower *follower = [SGRSearchTitleFollower new];
+    follower.list = list;
+    [list addObserver:follower forKeyPath:@"contentOffset" options:0 context:NULL];
+    objc_setAssociatedObject(list, &kFollowerKey, follower, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+}
+
 static void layoutHeader(UIStackView *row) {
     vanish(sg_scrim);
 
@@ -151,6 +201,7 @@ static void layoutHeader(UIStackView *row) {
     // The avatar on a glass circle as large as the other pages' corner buttons, as Home's sits in its pill: bare, it was the
     // one control of the header with nothing behind it (the phone, 2026-10-23).
     if (face && SGBelowiOS26()) SGRGlassInside(face, &kFaceGlassKey, 44);
+    sg_face = face;
 
     UILabel *title = titleIn(row);
     if (![title.text isEqualToString:text]) {
@@ -182,6 +233,8 @@ static void layoutHeader(UIStackView *row) {
     if (SGBelowiOS26()) {
         clearHeaderBlock(sg_row, view);
         clearStatusPlate(view);
+        followList(sg_list);
+        followScroll(sg_list);
     }
     SGRSearchCloseGap(sg_list);
 }
