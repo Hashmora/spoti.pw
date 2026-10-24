@@ -88,6 +88,7 @@ static UIView *copyGlass(UIView *pane, CGRect frame) {
         legacy.magnification = source.magnification;
         legacy.lensScale = source.lensScale;
         legacy.sharp = source.sharp;
+        legacy.rimless = source.rimless;
         glass = legacy;
     } else {
         glass = copyPane(pane);

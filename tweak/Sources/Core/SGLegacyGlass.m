@@ -593,8 +593,15 @@ void SGLegacyGlassSpecular(CALayer *host, CGRect bounds, CGFloat radius) {
     CGFloat radius = _capsule ? MIN(size.width, size.height) / 2 : _cornerRadius;
     if (CGSizeEqualToSize(size, _meshSize) && radius == _meshRadius) return;
     BOOL classic = self.classic;
-    if (classic) SGLegacyGlassClassicSpecular(self.layer, self.bounds, radius);
-    else SGLegacyGlassSpecular(self.layer, self.bounds, radius);
+    if (_rimless) {
+        for (CALayer *sub in self.layer.sublayers) {
+            if ([sub.name isEqualToString:kSpecularName] || [sub.name isEqualToString:kClassicSpecularName]) sub.hidden = YES;
+        }
+    } else if (classic) {
+        SGLegacyGlassClassicSpecular(self.layer, self.bounds, radius);
+    } else {
+        SGLegacyGlassSpecular(self.layer, self.bounds, radius);
+    }
     _meshSize = size;
     _meshRadius = radius;
 

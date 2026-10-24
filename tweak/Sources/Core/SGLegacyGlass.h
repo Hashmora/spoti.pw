@@ -50,6 +50,9 @@ BOOL SGLegacyGlassAvailable(void);
 // held bubble, whose magnified icons came out pixelated). NO by default: it costs nine times the pixels on a 3x screen.
 @property (nonatomic) BOOL sharp;
 
+// No light along the rim: for a pane whose owner draws its own (a held switch's lens, lit on two arcs only). NO by default.
+@property (nonatomic) BOOL rimless;
+
 @end
 
 // The light the system's glass draws along its rim: a thin white line whose brightness follows which way the rim faces,

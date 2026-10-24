@@ -18,7 +18,13 @@ static const CGFloat kHeldLensScale = 0.6;
 // The backdrop glass cannot shrink (it holds only what is under it), so the switch's lens draws its middle itself: the
 // card's colour, and the track at kLensShrink about the drop's middle, inset kLensBand from the rim, where the glass
 // bends the real track and card.
-static const CGFloat kLensShrink = 0.7, kLensBand = 3;
+static const CGFloat kLensShrink = 0.7, kLensBand = 1.25;
+// The shrunk track is cut by a capsule this far inside the middle, so where it runs under the rim it ends on a thin
+// crescent of the card's dark that follows the drop's curve, as the system's lens bends the track in at its edge; cut
+// straight at the band it read as a plain sausage of green (the phone against iOS 26's own, 2026-10-24).
+static const CGFloat kMiniInset = 2.5;
+// The rim's light: a 1 pt line lit only on the top left and the bottom right, as the system's is, not a whole ring.
+static const CGFloat kGlareWidth = 1;
 // Past an end of the track the thumb follows the finger by this share of the overshoot, up to kMaxPull, and is
 // stretched along the pull and thinned across it by its share of kPullStretch.
 static const CGFloat kPullShare = 0.3, kMaxPull = 14, kPullStretch = 0.25;
@@ -46,7 +52,10 @@ static const CGFloat kPullShare = 0.3, kMaxPull = 14, kPullStretch = 0.25;
     CAShapeLayer *_ring;
     CALayer *_shade;
     UIView *_inner;
+    UIView *_miniClip;
     UIView *_mini;
+    CAGradientLayer *_glare;
+    CAShapeLayer *_glareRing;
     CGRect _track;
     BOOL _hasTrack;
     BOOL _lifted;
@@ -74,6 +83,8 @@ static const CGFloat kPullShare = 0.3, kMaxPull = 14, kPullStretch = 0.25;
         // At the screen's scale: a 1x backdrop under a lens this small showed the track soft, and the thumb is small enough
         // for the cost.
         glass.sharp = YES;
+        // Its light is the thumb's own (_glare), on two arcs, not the pane's along nearly all of the rim.
+        glass.rimless = YES;
     }
     // The shadow under the drop, its own layer behind the glass so the glass does not take it for its backdrop.
     _shade = [CALayer layer];
@@ -89,10 +100,15 @@ static const CGFloat kPullShare = 0.3, kMaxPull = 14, kPullStretch = 0.25;
     _inner.layer.cornerCurve = kCACornerCurveContinuous;
     _inner.hidden = YES;
     _inner.alpha = _pane.alpha;
+    _miniClip = [UIView new];
+    _miniClip.userInteractionEnabled = NO;
+    _miniClip.clipsToBounds = YES;
+    _miniClip.layer.cornerCurve = kCACornerCurveContinuous;
+    [_inner addSubview:_miniClip];
     _mini = [UIView new];
     _mini.userInteractionEnabled = NO;
     _mini.layer.cornerCurve = kCACornerCurveContinuous;
-    [_inner addSubview:_mini];
+    [_miniClip addSubview:_mini];
     [self addSubview:_inner];
     _ring = [CAShapeLayer layer];
     _ring.fillColor = [UIColor colorWithRed:0.9 green:0.95 blue:1 alpha:0.06].CGColor;
@@ -101,6 +117,18 @@ static const CGFloat kPullShare = 0.3, kMaxPull = 14, kPullStretch = 0.25;
     _rim.userInteractionEnabled = NO;
     _rim.alpha = _pane.alpha;
     [_rim.layer addSublayer:_ring];
+    _glare = [CAGradientLayer layer];
+    _glare.startPoint = CGPointMake(0, 0);
+    _glare.endPoint = CGPointMake(1, 1);
+    _glare.colors = @[(id)[UIColor colorWithWhite:1 alpha:0.75].CGColor, (id)[UIColor colorWithWhite:1 alpha:0].CGColor,
+                      (id)[UIColor colorWithWhite:1 alpha:0].CGColor, (id)[UIColor colorWithWhite:1 alpha:0.45].CGColor];
+    _glare.locations = @[@0, @0.32, @0.68, @1];
+    _glareRing = [CAShapeLayer layer];
+    _glareRing.fillColor = nil;
+    _glareRing.strokeColor = UIColor.whiteColor.CGColor;
+    _glareRing.lineWidth = kGlareWidth;
+    _glare.mask = _glareRing;
+    [_rim.layer addSublayer:_glare];
     [self addSubview:_rim];
     _pill = [UIView new];
     _pill.backgroundColor = UIColor.whiteColor;
@@ -144,7 +172,7 @@ static const CGFloat kPullShare = 0.3, kMaxPull = 14, kPullStretch = 0.25;
     CGRect mini = CGRectMake(c.x + (CGRectGetMinX(inDrop) - c.x) * kLensShrink, c.y + (CGRectGetMinY(inDrop) - c.y) * kLensShrink,
                              inDrop.size.width * kLensShrink, inDrop.size.height * kLensShrink);
     // In the inner view's points, which is the drop inset by the band.
-    mini = CGRectOffset(mini, -kLensBand, -kLensBand);
+    mini = CGRectOffset(mini, -kLensBand - kMiniInset, -kLensBand - kMiniInset);
     if (size.width < 1) return;
     _mini.frame = mini;
     _mini.layer.cornerRadius = mini.size.height / 2;
@@ -176,12 +204,19 @@ static const CGFloat kPullShare = 0.3, kMaxPull = 14, kPullStretch = 0.25;
     _inner.bounds = (CGRect){CGPointZero, inner.size};
     _inner.center = middle;
     _inner.layer.cornerRadius = inner.size.height / 2;
+    CGRect clip = CGRectInset((CGRect){CGPointZero, inner.size}, kMiniInset, kMiniInset);
+    _miniClip.frame = clip;
+    _miniClip.layer.cornerRadius = clip.size.height / 2;
     [self placeMini];
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     CGFloat heldRadius = held.size.height / 2;
     _ring.frame = held;
     _ring.path = [UIBezierPath bezierPathWithRoundedRect:held cornerRadius:heldRadius].CGPath;
+    _glare.frame = held;
+    _glareRing.frame = _glare.bounds;
+    CGRect line = CGRectInset(held, kGlareWidth / 2, kGlareWidth / 2);
+    _glareRing.path = [UIBezierPath bezierPathWithRoundedRect:line cornerRadius:line.size.height / 2].CGPath;
     _shade.bounds = held;
     _shade.position = middle;
     _shade.shadowPath = [UIBezierPath bezierPathWithRoundedRect:held cornerRadius:heldRadius].CGPath;
