@@ -63,6 +63,8 @@ static char kAnchorKey, kFrontKey, kPlacedKey, kSessionKey;
 
 @class SGRMenuSession;
 static void pageKinds(UIView *button, SGRMenuSession *session);
+@class SGRMenuAnchor;
+static SGRMenuAnchor *anchorIn(UIView *host);
 // The session whose pick is being fired on its hidden sheet, for a page the row pushes inside the sheet.
 static __weak SGRMenuSession *sg_firing;
 // The player's menu asking Spotify for its sheet, and when: the next presentation is that sheet.
@@ -341,28 +343,14 @@ static UIMenu *inlineGroup(NSArray<UIMenuElement *> *children) {
 // it stayed beside the menu). Its alpha before is put back, whatever the page had it at.
 static char kFadedAlphaKey;
 
-// A button's menu opened from code: -[UIControl performPrimaryAction] (iOS 17.4), else the interaction's private way in.
-static void openMenuFrom(UIControl *button) {
-    if (!button.window) return;
-    SEL perform = NSSelectorFromString(@"performPrimaryAction");
-    if ([button respondsToSelector:perform]) {
-        ((void (*)(id, SEL))objc_msgSend)(button, perform);
-        return;
-    }
-    UIContextMenuInteraction *interaction = button.contextMenuInteraction;
-    SEL present = NSSelectorFromString(@"_presentMenuAtLocation:");
-    if ([interaction respondsToSelector:present]) {
-        CGPoint middle = CGPointMake(CGRectGetMidX(button.bounds), CGRectGetMidY(button.bounds));
-        ((void (*)(id, SEL, CGPoint))objc_msgSend)(interaction, present, middle);
-    }
-}
-
 // iOS 26 opens a button's menu from the button's top, where the button was; below iOS 26 UIKit hangs it from the
 // button's middle, a half button lower. It hangs from the top here (the phone, 2026-10-24).
 - (CGPoint)menuAttachmentPointForConfiguration:(UIContextMenuConfiguration *)configuration {
     CGPoint point = [super menuAttachmentPointForConfiguration:configuration];
     if (@available(iOS 26.0, *)) return point;
-    return CGPointMake(point.x, CGRectGetMinY(self.bounds));
+    // The button's own middle across, not the point UIKit answers, which put the menu at the other side of the screen
+    // now and then (the phone, 2026-10-24).
+    return CGPointMake(CGRectGetMidX(self.bounds), CGRectGetMinY(self.bounds));
 }
 
 static void fadeButton(UIView *button, BOOL away) {
@@ -1006,7 +994,14 @@ static void rememberPage(NSString *kind) {
     }
     if (self.openWhenRead && !self.ended && !self.displayed) {
         self.openWhenRead = NO;
-        openMenuFrom(self.anchor);
+        // From the hidden anchor inside the ⋯, as the page's menus opened from Spotify's sheet are (present): the mod's
+        // button over the ⋯ had turned the touch down, and a menu asked of it from code then never came (the phone,
+        // 2026-10-24: Spotify's sheet shown instead, a second later).
+        UIView *button = self.anchor.superview;
+        if (button) {
+            self.anchor = anchorIn(button);
+            [self present];
+        }
         // Should the menu not come up, Spotify's sheet is shown, so the tap still gets its options.
         __weak SGRMenuSession *weakSelf = self;
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
@@ -1274,6 +1269,9 @@ void SGRSystemMenuWatch(UIView *button, SGRMenuItems items, SGRMenuKind kind) {
     if (!front) {
         front = [SGRMenuFront buttonWithType:UIButtonTypeCustom];
         front.showsMenuAsPrimaryAction = YES;
+        // Spotify's order, top to bottom, wherever the menu opens: UIKit turns a menu opening upward from its button
+        // upside down otherwise, its first row last (the phone, 2026-10-24).
+        front.preferredMenuElementOrder = UIContextMenuConfigurationElementOrderFixed;
         // UIKit opens a button's menu on touch down only while the button holds one; a finger's touch on a
         // button with none is taken and opens nothing (phone, and harness/system-menu with a finger's touch,
         // 2026-10-06; -performPrimaryAction, which the harness tapped with before, opens the menu either way).
@@ -1326,6 +1324,7 @@ static SGRMenuAnchor *anchorIn(UIView *host) {
     if (!anchor) {
         anchor = [SGRMenuAnchor buttonWithType:UIButtonTypeCustom];
         anchor.showsMenuAsPrimaryAction = YES;
+        anchor.preferredMenuElementOrder = UIContextMenuConfigurationElementOrderFixed;
         anchor.userInteractionEnabled = NO;
         // VoiceOver reaches the ⋯ itself, whose tap brings the menu up the same way.
         anchor.isAccessibilityElement = NO;
