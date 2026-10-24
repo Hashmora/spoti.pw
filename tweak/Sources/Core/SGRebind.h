@@ -17,5 +17,7 @@ BOOL SGRebindImport(const char *symbol, void *replacement, void **original);
 // system's frameworks too, so a replacement tells Spotify's calls by SGCalledFromMainExecutable and hands the rest to
 // `original`. NO when there is no hooker (any device without a jailbreak) or on iOS 26 and later.
 BOOL SGHookFunctionInline(void *function, void *replacement, void **original);
+// Whether the jailbreak's hooker is in the process or can be loaded: a jailbroken phone, whatever way Vitrine came onto it.
+BOOL SGJailbroken(void);
 // Whether `returnAddress` (__builtin_return_address(0) of a hooked function) is in the main executable's code.
 BOOL SGCalledFromMainExecutable(void *returnAddress);

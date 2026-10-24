@@ -138,6 +138,10 @@ static SGMSHookFunction hooker(void) {
     return found;
 }
 
+BOOL SGJailbroken(void) {
+    return hooker() != NULL;
+}
+
 BOOL SGHookFunctionInline(void *function, void *replacement, void **original) {
     if (@available(iOS 26.0, *)) return NO;
     SGMSHookFunction hook = hooker();
