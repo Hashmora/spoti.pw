@@ -18,6 +18,10 @@ UIColor *SGRInkOnAccent(UIColor *accent);
 // white, as the bar had it, until switched on. Applies as the bar lays out again.
 #define SGRKeyTabAccent @"spotifyglass.redesign.tabbar.accent"
 
+// What a UIColor made from these components comes out as: one of Spotify's greens turns into the accent while it is
+// swapped. NO, and the components untouched, for any other color.
+BOOL SGRAccentSwap(CGFloat *r, CGFloat *g, CGFloat *b);
+
 // Plain checkmark (SGRPlainCheck.x): a saved song's circled tick as a plain checkmark in the accent. Off until switched
 // on, read at launch.
 #define SGRKeyPlainCheck @"spotifyglass.redesign.plainCheck"

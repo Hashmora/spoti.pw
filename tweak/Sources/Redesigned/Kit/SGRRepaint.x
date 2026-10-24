@@ -78,8 +78,16 @@ static BOOL isLibraryHeader(UIView *view) {
     return [name hasSuffix:@"YourLibraryHeaderView"] || [name hasSuffix:@"FolderHeaderView"];
 }
 
+// One walk up from the view says which roots it is inside, the way SGIsInside would for each: not past a
+// visual effect view. The roots are then taken in their order, not in the order the walk meets them.
+enum { kInNowPlaying = 1, kInLyrics = 2, kInPage = 4 };
+
 %hook CALayer
 - (void)setBackgroundColor:(CGColorRef)color {
+    if (!color) {
+        %orig;
+        return;
+    }
     BOOL legacyLook = SGBelowiOS26();
     if (legacyLook && color && CGColorGetAlpha(color) > 0.5) {
         UIView *header = (UIView *)self.delegate;
@@ -136,34 +144,44 @@ static BOOL isLibraryHeader(UIView *view) {
             else color = SGRSelectedChipPaint(color);
         }
     }
-    if (color && (sgr_nowPlayingRoot || sgr_lyricsPageRoot || sgr_playlistRoot || sgr_albumRoot || sgr_artistRoot || sgr_sheetChromeRoot)) {
+    UIView *nowPlaying = sgr_nowPlayingRoot, *lyrics = sgr_lyricsPageRoot;
+    UIView *playlist = sgr_playlistRoot, *album = sgr_albumRoot, *artist = sgr_artistRoot;
+    UIView *sheet = sgr_sheetChromeRoot;
+    // A page only ever loses the base surface, so another color asks after the player and the lyrics alone.
+    if (color && (playlist || album || artist) && !SGIsBaseSurface(color)) playlist = album = artist = nil;
+    if (color && (nowPlaying || lyrics || playlist || album || artist || sheet)) {
         UIView *view = (UIView *)self.delegate;
         if ([view isKindOfClass:UIView.class] && view.layer == self && !SGKeepsColor(view)) {
-            if (SGIsInside(view, sgr_nowPlayingRoot)) {
+            NSUInteger inside = 0;
+            for (UIView *v = view; v && !(inside & kInNowPlaying); v = v.superview) {
+                if ([v isKindOfClass:UIVisualEffectView.class]) break;
+                if (v == nowPlaying) inside |= kInNowPlaying;
+                if (v == lyrics) inside |= kInLyrics;
+                if (v == playlist || v == album || v == artist) inside |= kInPage;
+            }
+            if (inside & kInNowPlaying) {
                 // Its size is judged when the bar picks its card: Spotify can paint a card before it sizes it.
                 // The Jam strip's avatar keeps its colour, or only its initial is left.
                 if (!SGRIsStripAvatar(view)) {
                     if (SGIsVisibleColor(color) && ![sgr_nowPlayingPainted containsObject:view]) {
                         [sgr_nowPlayingPainted addObject:view];
-                        UIView *bar = sgr_nowPlayingRoot;
-                        dispatch_async(dispatch_get_main_queue(), ^{ [bar.superview setNeedsLayout]; });
+                        dispatch_async(dispatch_get_main_queue(), ^{ [nowPlaying.superview setNeedsLayout]; });
                     }
                     color = NULL;
                 }
-            } else if (SGIsInside(view, sgr_lyricsPageRoot)) {
+            } else if (inside & (kInLyrics | kInPage)) {
                 color = NULL;
-            } else if (SGIsBaseSurface(color) && (SGIsInside(view, sgr_playlistRoot) || SGIsInside(view, sgr_albumRoot) || SGIsInside(view, sgr_artistRoot))) {
-                color = NULL;
-            } else if (SGRIsSwiftUICard(view) && SGRIsSheetSurface(color) && SGIsInside(view, sgr_sheetChromeRoot)) {
-                // The device picker's cards: translucent rather than an opaque grey on the glass.
-                color = SGRSheetCardFill();
-            } else if (SGIsVisibleColor(color) && SGRIsSheetChromeArea(view, sgr_sheetChromeRoot) && !SGRIsSheetCard(view)) {
-                color = NULL;
-            } else if (SGRIsSheetSurface(color) && !SGRIsSheetCard(view) && SGIsInside(view, sgr_sheetChromeRoot)
-                       && sgr_sheetChromeRoot.bounds.size.width > 1
-                       && view.bounds.size.width >= sgr_sheetChromeRoot.bounds.size.width * SGRSheetBandShare) {
-                // A band in the sheet's own list (the queue's QueueCell and TrackRowQueue.Cell, #1F1F1F).
-                color = NULL;
+            } else if (sheet) {
+                if (SGRIsSwiftUICard(view) && SGRIsSheetSurface(color) && SGIsInside(view, sheet)) {
+                    // The device picker's cards: translucent rather than an opaque grey on the glass.
+                    color = SGRSheetCardFill();
+                } else if (SGIsVisibleColor(color) && SGRIsSheetChromeArea(view, sheet) && !SGRIsSheetCard(view)) {
+                    color = NULL;
+                } else if (SGRIsSheetSurface(color) && !SGRIsSheetCard(view) && SGIsInside(view, sheet)
+                           && sheet.bounds.size.width > 1 && view.bounds.size.width >= sheet.bounds.size.width * SGRSheetBandShare) {
+                    // A band in the sheet's own list (the queue's QueueCell and TrackRowQueue.Cell, #1F1F1F).
+                    color = NULL;
+                }
             }
         }
     }
