@@ -106,10 +106,36 @@ static void bubbleMenu(UIView *list) {
 }
 %end
 
+// A long menu (a playlist's, some twenty rows) runs nearly the height of the screen, and still scrolls; it is held to a
+// shorter list that scrolls, so it stays a menu by the button rather than a sheet over the page (the phone, 2026-10-24).
+static const CGFloat kMenuMaxShare = 0.55;
+
+static void holdHeight(UIView *menuView) {
+    CGFloat most = round(menuView.window.bounds.size.height * kMenuMaxShare);
+    if (most < 100) return;
+    Class list = NSClassFromString(@"_UIContextMenuListView");
+    for (UIView *sub in menuView.subviews) {
+        if (![sub isKindOfClass:list] || sub.bounds.size.height <= most + 0.5) continue;
+        CGRect frame = sub.frame;
+        frame.size.height = most;
+        sub.frame = frame;
+        [sub layoutIfNeeded];
+        // Its platter and its list of rows, laid out from its height, are held to it as well.
+        SGForEachView(sub, ^(UIView *v) {
+            if (v == sub || v.bounds.size.height <= most + 0.5) return;
+            if (![v isKindOfClass:UICollectionView.class] && object_getClass(v) != UIView.class) return;
+            CGRect f = v.frame;
+            f.size.height = MAX(0, most - f.origin.y);
+            v.frame = f;
+        });
+    }
+}
+
 // The menu's own view lays out as a submenu comes in or goes out, which reaches the lists it holds.
 %hook _UIContextMenuView
 - (void)layoutSubviews {
     %orig;
+    holdHeight((UIView *)self);
     glassLists((UIView *)self);
 }
 %end

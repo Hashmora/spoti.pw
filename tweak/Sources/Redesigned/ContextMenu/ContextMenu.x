@@ -295,6 +295,9 @@ static UIMenu *inlineGroup(NSArray<UIMenuElement *> *children) {
 // A page's: the rows stored for its kind of page, when none are stored for the page itself (kind).
 @property (nonatomic, copy) NSString *fallbackKind;
 @property (nonatomic) BOOL displayed, revealed, ended, opened;
+// A page's ⋯ touched with no rows stored for it: the menu waits for Spotify's rows and opens whole, from code, rather
+// than on the system's loading row.
+@property (nonatomic) BOOL openWhenRead;
 @property (nonatomic, copy) void (^pick)(void);
 // When the ⋯ was touched (0 for a pinned ⋯, whose touch is the Kit's) and when the sheet was taken over, for
 // the log of where the time to the menu goes.
@@ -311,6 +314,8 @@ static UIMenu *inlineGroup(NSArray<UIMenuElement *> *children) {
 - (void)adoptSheet:(UIViewController *)presented from:(UIViewController *)presenter completion:(void (^)(void))completion;
 - (void)rowPresented;
 - (UIMenu *)menu;
+// The rows stored for this menu's kind, nil when none are.
+- (NSArray<UIMenuElement *> *)storedElements;
 @end
 
 // An invisible button over the ⋯ that only hosts the menu. It takes touches only while the menu is up
@@ -335,6 +340,30 @@ static UIMenu *inlineGroup(NSArray<UIMenuElement *> *children) {
 // as the menu goes. Below iOS 26 the ⋯ under the menu is faded out for as long as the menu is up (the phone, 2026-10-24:
 // it stayed beside the menu). Its alpha before is put back, whatever the page had it at.
 static char kFadedAlphaKey;
+
+// A button's menu opened from code: -[UIControl performPrimaryAction] (iOS 17.4), else the interaction's private way in.
+static void openMenuFrom(UIControl *button) {
+    if (!button.window) return;
+    SEL perform = NSSelectorFromString(@"performPrimaryAction");
+    if ([button respondsToSelector:perform]) {
+        ((void (*)(id, SEL))objc_msgSend)(button, perform);
+        return;
+    }
+    UIContextMenuInteraction *interaction = button.contextMenuInteraction;
+    SEL present = NSSelectorFromString(@"_presentMenuAtLocation:");
+    if ([interaction respondsToSelector:present]) {
+        CGPoint middle = CGPointMake(CGRectGetMidX(button.bounds), CGRectGetMidY(button.bounds));
+        ((void (*)(id, SEL, CGPoint))objc_msgSend)(interaction, present, middle);
+    }
+}
+
+// iOS 26 opens a button's menu from the button's top, where the button was; below iOS 26 UIKit hangs it from the
+// button's middle, a half button lower. It hangs from the top here (the phone, 2026-10-24).
+- (CGPoint)menuAttachmentPointForConfiguration:(UIContextMenuConfiguration *)configuration {
+    CGPoint point = [super menuAttachmentPointForConfiguration:configuration];
+    if (@available(iOS 26.0, *)) return point;
+    return CGPointMake(point.x, CGRectGetMinY(self.bounds));
+}
 
 static void fadeButton(UIView *button, BOOL away) {
     if (@available(iOS 26.0, *)) return;
@@ -392,6 +421,14 @@ static void fadeButton(UIView *button, BOOL away) {
     // A page's pinned ⋯: its rows, stored under the page and its kind of page, and no quick row or More.
     if (!self.items) pageKinds(self.spotify, session);
     self.session = session;
+    // Nothing stored for this page or its kind yet: no menu at the touch, which would open on the system's loading row
+    // and then have the rows laid over it (the phone, 2026-10-24). Spotify's sheet is asked for now, unseen, and the
+    // menu opens from here once its rows are read (readRows), a fraction of a second later.
+    if (!self.items && ![session storedElements].count) {
+        session.openWhenRead = YES;
+        [session requestSheet];
+        return nil;
+    }
     self.menu = [session menu];
     return [super contextMenuInteraction:interaction configurationForMenuAtLocation:location];
 }
@@ -955,8 +992,14 @@ static void rememberPage(NSString *kind) {
     // A page's menu: its anchor's menu becomes the rows themselves. UIKit builds the menu it shows again from the
     // anchor's (the one asked for while the sheet came up is never on screen), so the menu comes up whole instead of
     // from its loading row, growing down as the rows come (device, 2026-10-23).
-    if (!self.items && self.anchor && !self.ended) {
+    // Not while the menu is up: a button given a new menu as its own shows that one over it (the phone, 2026-10-24: a
+    // second menu over the first). The menu up is put right in place instead (refreshMore, the deferred rows).
+    if (!self.items && self.anchor && !self.ended && !self.displayed) {
         self.anchor.menu = [UIMenu menuWithTitle:@"" image:nil identifier:kTopMenu options:0 children:[self rowElements]];
+    }
+    if (self.openWhenRead && !self.ended && !self.displayed) {
+        self.openWhenRead = NO;
+        openMenuFrom(self.anchor);
     }
 
     NSArray<dispatch_block_t> *waiting = _whenRead;
