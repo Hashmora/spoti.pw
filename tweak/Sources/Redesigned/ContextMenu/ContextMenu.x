@@ -291,6 +291,8 @@ static UIMenu *inlineGroup(NSArray<UIMenuElement *> *children) {
 @property (nonatomic, weak) SGRMenuAnchor *anchor;
 @property (nonatomic, copy) SGRMenuItems items;
 @property (nonatomic, copy) NSString *kind;
+// A page's: the rows stored for its kind of page, when none are stored for the page itself (kind).
+@property (nonatomic, copy) NSString *fallbackKind;
 @property (nonatomic) BOOL displayed, revealed, ended, opened;
 @property (nonatomic, copy) void (^pick)(void);
 // When the ⋯ was touched (0 for a pinned ⋯, whose touch is the Kit's) and when the sheet was taken over, for
@@ -460,6 +462,7 @@ static void raiseHost(UIWindow *window) {
 }
 
 @implementation SGRMenuSession {
+    BOOL _showedStored;
     // The sheet's rows in its groups (the mod's header rows, each section, the mod's footer rows), nil until
     // the sheet has them; read once.
     NSArray<NSArray<SGRSheetRow *> *> *_groups;
@@ -658,7 +661,7 @@ static void raiseHost(UIWindow *window) {
 // A page's ⋯: Spotify's rows, waited for. The player's: the quick row, the player's items and More, none of
 // them waited for; More's rows are, when More is opened before the sheet has them.
 - (UIMenu *)menu {
-    if (!self.items) return [UIMenu menuWithChildren:@[[self deferredRows]]];
+    if (!self.items) return [UIMenu menuWithTitle:@"" image:nil identifier:kTopMenu options:0 children:@[[self deferredRows]]];
     NSMutableArray<UIMenuElement *> *children = [NSMutableArray array];
     UIMenu *quick = [self quickRow];
     if (quick) [children addObject:quick];
@@ -678,9 +681,12 @@ static void raiseHost(UIWindow *window) {
             completion(session ? [session rowElements] : @[]);
             return;
         }
-        // The player's: the rows the last sheet of this kind had, at once, the live ones put in when they come.
-        NSArray<UIMenuElement *> *stored = session.direct ? [session storedElements] : nil;
+        // The rows the last sheet of this kind had, at once, the live ones put in when they come: the player's for the
+        // kind of track, a page's for that page or, failing it, for its kind of page. So no menu opens on the system's
+        // loading row (the phone, 2026-10-24: every page's menu did, for the 0.2 s its sheet took).
+        NSArray<UIMenuElement *> *stored = [session storedElements];
         if (stored.count) {
+            session->_showedStored = YES;
             completion(stored);
             return;
         }
@@ -739,10 +745,29 @@ static NSString *storedKey(NSString *kind) {
     return [NSString stringWithFormat:@"%@.%@", kStoredRowsKey, kind.length ? kind : @"track"];
 }
 
+// Pages whose own rows are kept, the latest last: only so many, so the store does not grow with every page opened.
+static const NSUInteger kStoredPages = 24;
+
+static void rememberPage(NSString *kind) {
+    NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
+    NSString *listKey = [kStoredRowsKey stringByAppendingString:@".pages"];
+    NSMutableArray<NSString *> *pages = [[defaults arrayForKey:listKey] mutableCopy] ?: [NSMutableArray array];
+    [pages removeObject:kind];
+    [pages addObject:kind];
+    while (pages.count > kStoredPages) {
+        [defaults removeObjectForKey:storedKey(pages.firstObject)];
+        [pages removeObjectAtIndex:0];
+    }
+    [defaults setObject:pages forKey:listKey];
+}
+
 // The rows the last sheet of this kind had, as stored: title, subtitle, enabled and glyph, but for the quick ones.
 // Picking one waits for the live rows and fires the row of that title (fireTitle).
 - (NSArray<UIMenuElement *> *)storedElements {
-    NSArray<NSArray<NSDictionary *> *> *groups = [NSUserDefaults.standardUserDefaults arrayForKey:storedKey(self.kind)];
+    if (!self.direct && !self.kind.length) return nil;
+    NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
+    NSArray<NSArray<NSDictionary *> *> *groups = [defaults arrayForKey:storedKey(self.kind)];
+    if (![groups isKindOfClass:NSArray.class] && self.fallbackKind.length) groups = [defaults arrayForKey:storedKey(self.fallbackKind)];
     if (![groups isKindOfClass:NSArray.class]) return nil;
     __weak SGRMenuSession *weakSelf = self;
     NSMutableArray<UIMenuElement *> *elements = [NSMutableArray array];
@@ -783,14 +808,27 @@ static NSString *storedKey(NSString *kind) {
         if (rows.count) [groups addObject:rows];
     }
     NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
-    if (!groups.count || [[defaults arrayForKey:storedKey(self.kind)] isEqual:groups]) return;
-    [defaults setObject:groups forKey:storedKey(self.kind)];
+    if (!groups.count) return;
+    if (![[defaults arrayForKey:storedKey(self.kind)] isEqual:groups]) [defaults setObject:groups forKey:storedKey(self.kind)];
+    if (self.fallbackKind.length && ![self.kind isEqualToString:self.fallbackKind]) rememberPage(self.kind);
+    if (self.fallbackKind.length && ![[defaults arrayForKey:storedKey(self.fallbackKind)] isEqual:groups]) {
+        [defaults setObject:groups forKey:storedKey(self.fallbackKind)];
+    }
 }
 
 // The live rows came while More shows the stored ones or the loading row: More is put right in place.
 - (void)refreshMore {
-    if (!self.direct || !self.displayed || self.ended) return;
+    if (!self.displayed || self.ended) return;
     NSArray<UIMenuElement *> *live = [self rowElements];
+    // A page's menu that opened on stored rows: the whole of it is put right, as it shows.
+    if (!self.direct) {
+        if (!_showedStored) return;
+        [self.anchor.contextMenuInteraction updateVisibleMenuWithBlock:^UIMenu *(UIMenu *visible) {
+            if (![visible.identifier isEqualToString:kTopMenu]) return visible;
+            return [visible menuByReplacingChildren:live];
+        }];
+        return;
+    }
     [self.anchor.contextMenuInteraction updateVisibleMenuWithBlock:^UIMenu *(UIMenu *visible) {
         if (![visible.identifier isEqualToString:kMoreMenu]) return visible;
         return [visible menuByReplacingChildren:live];
@@ -907,11 +945,13 @@ static NSString *storedKey(NSString *kind) {
     SGLog(@"system menu: %lu of Spotify's rows and %lu of the mod's read in %.0f ms, %.2f s after the %@", (unsigned long)read,
           (unsigned long)(header.count + footer.count), (now - started) * 1000, now - from, self.touchedAt ? @"⋯ touch" : @"takeover");
     if (self.items) [self matchQuick];
-    if (self.direct) [self storeRows];
+    if (self.direct || self.kind.length) [self storeRows];
     // A page's menu: its anchor's menu becomes the rows themselves. UIKit builds the menu it shows again from the
     // anchor's (the one asked for while the sheet came up is never on screen), so the menu comes up whole instead of
     // from its loading row, growing down as the rows come (device, 2026-10-23).
-    if (!self.items && self.anchor && !self.ended) self.anchor.menu = [UIMenu menuWithChildren:[self rowElements]];
+    if (!self.items && self.anchor && !self.ended) {
+        self.anchor.menu = [UIMenu menuWithTitle:@"" image:nil identifier:kTopMenu options:0 children:[self rowElements]];
+    }
 
     NSArray<dispatch_block_t> *waiting = _whenRead;
     _whenRead = [NSMutableArray array];
@@ -1246,6 +1286,26 @@ static NSString *controllersIn(UIViewController *presented) {
     return [names componentsJoinedByString:@" > "];
 }
 
+// The kinds a page's rows are stored under: the page itself, by its URI (a playlist, an album, an artist), and its kind
+// of page, by its controller's class, for a page whose own are not stored yet. Rows stored for another page of the kind
+// show only until the live ones come, a fraction of a second, and a row picked before then fires only if the page's own
+// sheet has a row of that title; otherwise the sheet itself is shown.
+static void pageKinds(UIView *button, SGRMenuSession *session) {
+    UIViewController *page = nil;
+    for (UIResponder *r = button.nextResponder; r && !page; r = r.nextResponder) {
+        if ([r isKindOfClass:UIViewController.class]) page = (UIViewController *)r;
+    }
+    if (!page) return;
+    NSString *uri = nil;
+    for (UIViewController *vc = page; vc && !uri; vc = vc.parentViewController) {
+        if (![vc respondsToSelector:@selector(URI)]) continue;
+        id value = ((id (*)(id, SEL))objc_msgSend)(vc, @selector(URI));
+        uri = [value isKindOfClass:NSURL.class] ? ((NSURL *)value).absoluteString : [value isKindOfClass:NSString.class] ? value : nil;
+    }
+    session.fallbackKind = [@"page." stringByAppendingString:NSStringFromClass(page.class)];
+    session.kind = uri.length ? [@"page." stringByAppendingString:uri] : session.fallbackKind;
+}
+
 // Whether this sheet is a watched ⋯'s, and if so its session, with the sheet's presentation now the menu's.
 // `via` says which way in asked, for the log.
 static SGRMenuSession *takeOver(UIViewController *presented, NSString *via) {
@@ -1288,6 +1348,7 @@ static SGRMenuSession *takeOver(UIViewController *presented, NSString *via) {
     session.takenAt = CACurrentMediaTime();
     session.presented = presented;
     session.anchor = anchorIn(button);
+    pageKinds(button, session);
     objc_setAssociatedObject(presented, &kSessionKey, session, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     SGLog(@"system menu: the ⋯ sheet taken over %@ (%@)", via, session.items ? @"the player's" : @"a page's");
     return session;
