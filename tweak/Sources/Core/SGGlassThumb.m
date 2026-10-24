@@ -23,7 +23,9 @@ static const CGFloat kLensShrink = 0.7, kLensBand = 1.25;
 // much of that edge, following its curve, as the system's lens bends the track in at its rim; cut straight it read
 // as a plain sausage of green, and a gap of the card's dark between it and the rim as a dark band no lens has (the
 // phone against iOS 26's own, 2026-10-24). The flare comes in over this much of the track past the edge.
-static const CGFloat kFlareWidth = 8, kFlareRamp = 6;
+// Wider and quicker to rise than at first (8 pt, its curve leaving the track a third of the way out), which read as
+// too slight a bulge beside the system's (the phone, 2026-10-24).
+static const CGFloat kFlareWidth = 12, kFlareRamp = 6, kFlareLift = 0.6;
 // The rim's light: a 1 pt line lit only on the top left and the bottom right, as the system's is, not a whole ring.
 static const CGFloat kGlareWidth = 1;
 // Past an end of the track the thumb follows the finger by this share of the overshoot, up to kMaxPull, and is
@@ -199,12 +201,12 @@ static const CGFloat kPullShare = 0.3, kMaxPull = 14, kPullStretch = 0.25;
 - (CGPathRef)flareAt:(BOOL)right width:(CGFloat)width mini:(CGRect)mini clip:(CGSize)clip {
     CGFloat top = CGRectGetMinY(mini), bottom = CGRectGetMaxY(mini), h = clip.height;
     CGFloat edge = right ? clip.width : 0, in = right ? clip.width - width : width;
-    CGFloat ease = right ? clip.width - width * 0.35 : width * 0.35;
+    CGFloat ease = right ? clip.width - width * kFlareLift : width * kFlareLift;
     UIBezierPath *path = [UIBezierPath bezierPath];
     [path moveToPoint:CGPointMake(in, top)];
-    [path addCurveToPoint:CGPointMake(edge, -1) controlPoint1:CGPointMake(ease, top) controlPoint2:CGPointMake(edge, top * 0.5)];
+    [path addCurveToPoint:CGPointMake(edge, -1) controlPoint1:CGPointMake(ease, top * 0.6) controlPoint2:CGPointMake(edge, top * 0.2)];
     [path addLineToPoint:CGPointMake(edge, h + 1)];
-    [path addCurveToPoint:CGPointMake(in, bottom) controlPoint1:CGPointMake(edge, bottom + (h - bottom) * 0.5) controlPoint2:CGPointMake(ease, bottom)];
+    [path addCurveToPoint:CGPointMake(in, bottom) controlPoint1:CGPointMake(edge, bottom + (h - bottom) * 0.8) controlPoint2:CGPointMake(ease, bottom + (h - bottom) * 0.4)];
     [path closePath];
     return path.CGPath;
 }
