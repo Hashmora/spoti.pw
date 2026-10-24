@@ -1041,6 +1041,10 @@ static void showWaiting(UITableViewCell *cell, BOOL waiting, NSString *switchTit
 }
 
 // A UISwitch or an SGGlowSwitch, both answering isOn.
+// How long the glass switch takes from a tap to rest: the drop falls back 0.2 s after it sets off and settles over the
+// next half second (Core/SGGlassThumb.m).
+static const NSTimeInterval kGlassSwitchSettle = 0.7;
+
 - (void)toggled:(UIControl *)toggle {
     BOOL on = [(UISwitch *)toggle isOn];
     NSIndexPath *path = [self pathOf:toggle];
@@ -1050,8 +1054,10 @@ static void showWaiting(UITableViewCell *cell, BOOL waiting, NSString *switchTit
     else SGSetEnabled(row.key, on != row.inverted);
     if (row.changed) row.changed(on);
     // A glowing switch is let finish its slide before the reload puts a new one in its place; rows coming
-    // or going are let finish first too.
-    NSTimeInterval wait = [toggle isKindOfClass:SGGlowSwitch.class] ? 0.45 : 0;
+    // or going are let finish first too. So is iOS 26's switch below iOS 26 (SGGlassSwitch.x): its drop crosses the
+    // track and falls back over about 0.7 s, and a reload at once put a fresh switch in its place mid-way, so all
+    // that showed of a flip was the drop coming up and going.
+    NSTimeInterval wait = [toggle isKindOfClass:SGGlowSwitch.class] ? 0.45 : SGUseLegacyGlass() ? kGlassSwitchSettle : 0;
     void (^reload)(void) = ^{
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(wait * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ [self.tableView reloadData]; });
     };

@@ -504,6 +504,13 @@ static void paintGlyphs(UITabBar *bar) {
         UIColor *tint = accent ? open : UIColor.whiteColor;
         if (!create && ![overlay.tintColor isEqual:tint]) overlay.tintColor = tint;
         overlay.hidden = NO;
+        // The name under it too: UIKit does not repaint it from the appearance's selected colour as the selection
+        // changes on this bar, any more than it does the icon, so it stayed white under an accent icon.
+        for (UIView *v in button.subviews) {
+            if (![v isKindOfClass:UILabel.class]) continue;
+            UILabel *name = (UILabel *)v;
+            if (![name.textColor isEqual:tint]) name.textColor = tint;
+        }
         native.hidden = YES;
     }
 }
