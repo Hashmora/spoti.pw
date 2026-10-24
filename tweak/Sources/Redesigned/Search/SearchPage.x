@@ -120,6 +120,20 @@ static void clearHeaderBlock(UIStackView *row, UIView *page) {
     if (SGIsVisibleColor(block.layer.backgroundColor)) block.layer.backgroundColor = NULL;
 }
 
+// The plate Spotify lays over the top of the page behind the status bar: a plain view the page's width and the status
+// bar's height (48pt on a 414pt phone), black, the page's last child, over the list (the phone, 2026-10-24). It goes the
+// way the header's block does, so only the field's glass stands over the cards as they scroll under it.
+static void clearStatusPlate(UIView *page) {
+    CGFloat width = page.bounds.size.width;
+    for (UIView *sub in page.subviews) {
+        if (object_getClass(sub) != UIView.class || sub.frame.origin.y > 0.5 || fabs(sub.bounds.size.width - width) > 0.5) continue;
+        if (sub.bounds.size.height < 1 || sub.bounds.size.height > 80) continue;
+        SGRHoldClear(sub);
+        if (sub.backgroundColor) sub.backgroundColor = nil;
+        if (SGIsVisibleColor(sub.layer.backgroundColor)) sub.layer.backgroundColor = NULL;
+    }
+}
+
 static void layoutHeader(UIStackView *row) {
     vanish(sg_scrim);
 
@@ -165,7 +179,10 @@ static void layoutHeader(UIStackView *row) {
     UIView *view = ((UIViewController *)self).viewIfLoaded;
     if (!view || !findParts(view)) return;
     layoutHeader(sg_row);
-    if (SGBelowiOS26()) clearHeaderBlock(sg_row, view);
+    if (SGBelowiOS26()) {
+        clearHeaderBlock(sg_row, view);
+        clearStatusPlate(view);
+    }
     SGRSearchCloseGap(sg_list);
 }
 
