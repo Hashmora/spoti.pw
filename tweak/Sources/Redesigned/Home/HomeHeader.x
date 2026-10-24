@@ -434,6 +434,10 @@ static void keepHeaderClear(UIView *element) {
     if (held != element) {
         held = element;
         SGRHoldClear(element);
+        // And every element of its class, made later: Home builds its header again with the feed and paints the new one
+        // black as it makes it, before a pass of the page has found it (the phone, 2026-10-24: the element at y 48,
+        // 414x50, #000000@1.00 over the feed as it scrolled, gone once its fill was taken off).
+        SGRHoldClearClass(object_getClass(element));
         SGLog(@"redesign home: the header's fill is held clear");
     }
     if (SGIsVisibleColor(element.layer.backgroundColor)) element.layer.backgroundColor = NULL;

@@ -28,6 +28,23 @@ void SGRHoldClear(UIView *view) {
     [heldClear addObject:view];
 }
 
+// Classes are never unloaded, so plain pointers do; a handful at most.
+static Class heldClearClasses[8];
+static int heldClearClassCount;
+
+void SGRHoldClearClass(Class cls) {
+    if (!cls) return;
+    for (int i = 0; i < heldClearClassCount; i++) if (heldClearClasses[i] == cls) return;
+    if (heldClearClassCount < 8) heldClearClasses[heldClearClassCount++] = cls;
+}
+
+static BOOL ofHeldClearClass(id owner) {
+    if (!heldClearClassCount || !owner) return NO;
+    Class cls = object_getClass(owner);
+    for (int i = 0; i < heldClearClassCount; i++) if (heldClearClasses[i] == cls) return YES;
+    return NO;
+}
+
 // The flat, translucent white Spotify tints an unselected filter chip with (#FFFFFF@0.10). A selected chip is painted a solid colour of its own, which is never this.
 static BOOL isNeutralTint(CGColorRef color) {
     if (!color || CFGetTypeID(color) != CGColorGetTypeID()) return NO;
@@ -80,6 +97,9 @@ static BOOL isLibraryHeader(UIView *view) {
     if (legacyLook && color && sgr_showSearchHeader && self.delegate == sgr_showSearchHeader && CGColorGetAlpha(color) > 0.5) color = NULL;
     // The Add songs sheet's search bar: its grey goes, the glass (Playlist/PlaylistAddSearch.x) stands in its place.
     if (legacyLook && color && sgr_addSongsSearchBar && self.delegate == sgr_addSongsSearchBar && CGColorGetAlpha(color) > 0.5) color = NULL;
+    // A class the Kit holds clear (SGRHoldClearClass), whichever view of it is painted.
+    if (legacyLook && color && heldClearClassCount && CGColorGetAlpha(color) > 0.05 && ofHeldClearClass(self.delegate)
+        && ((UIView *)self.delegate).layer == self) color = NULL;
     // A fill the Kit holds clear (SGRHoldClear): the button or disc is on glass, and Spotify's paint goes whenever it is set.
     if (legacyLook && color && heldClear.count && CGColorGetAlpha(color) > 0.05 && NSThread.isMainThread) {
         UIView *held = (UIView *)self.delegate;

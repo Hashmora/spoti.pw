@@ -42,6 +42,9 @@ extern __weak UIView *sgr_addSongsSearchBar;
 // dressed with glass whose Spotify paint comes back as it is pressed, let go or reused: the plus of the account lists
 // (Pages/AccountPlus.x). Clear it once as well: this keeps it clear, it does not clear it.
 void SGRHoldClear(UIView *view);
+// The same for every view of `cls`, those made later included, from the moment Spotify paints one: for a view the page
+// makes again (Home's header element, rebuilt with the feed) that is painted as it is made, before any pass reaches it.
+void SGRHoldClearClass(Class cls);
 
 // Defined in Redesigned/Library/LibraryHeader.x, declared here because the repaint hook is lower than the
 // part: a library filter chip's fill was just painted (selected, deselected, pressed), so its glass is brought
