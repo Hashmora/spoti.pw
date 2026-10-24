@@ -18,6 +18,7 @@ BOOL SGHapticRelayAvailable(void) {
 }
 
 static uint64_t sg_installedBuild;
+static void offerUpdate(void);
 
 NSURL *SGHapticAddonPackage(void) {
     return [NSBundle.mainBundle URLForResource:@"VitrineAddon" withExtension:@"deb"];
@@ -60,6 +61,7 @@ void SGHapticRelayAsk(void) {
             SGHapticRelaySendLockArt();
             if (sg_available) return;
             sg_available = YES;
+            offerUpdate();
             SGLog(@"music haptics: SpringBoard plays them everywhere (the add-on's build %llu, this one carries %d)",
                   (unsigned long long)sg_installedBuild, kSGRelayAddonBuild);
             [NSNotificationCenter.defaultCenter postNotificationName:SGHapticRelayAvailableNotification object:nil];
@@ -73,9 +75,33 @@ void SGHapticRelaySendLockArt(void) {
     notify_post(SGFlag(SGKeyLockCoverAddon, NO) ? kSGRelayLockArtOn : kSGRelayLockArtOff);
 }
 
-static void shareAddonSoon(void) {
+void SGHapticAddonShareSoon(void) {
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.35 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         SGHapticAddonShare(SGTopController().view);
+    });
+}
+
+// A new Vitrine carrying a newer add-on than the one SpringBoard runs: said once for each add-on build it carries, a
+// moment after launch, with the same two taps to put it in place. Only the add-on's answer starts it, so only a
+// jailbroken phone with the add-on installed ever sees it.
+static NSString *const kUpdateOfferedKey = @"spotifyglass.addon.updateOffered";
+
+static void offerUpdate(void) {
+    if (!SGHapticAddonOutdated()) return;
+    NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
+    if ([defaults integerForKey:kUpdateOfferedKey] >= kSGRelayAddonBuild) return;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        UIViewController *top = SGTopController();
+        if (!top || !SGHapticAddonOutdated() || SGIsAlertController(top)) return;
+        [defaults setInteger:kSGRelayAddonBuild forKey:kUpdateOfferedKey];
+        UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Update Vitrine Addon"
+            message:@"This Vitrine comes with a newer Vitrine Addon than the one installed. Tap Update, pick Sileo or Filza, install it, then respring."
+            preferredStyle:UIAlertControllerStyleAlert];
+        alert.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
+        [alert addAction:[UIAlertAction actionWithTitle:@"Update" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) { SGHapticAddonShareSoon(); }]];
+        [alert addAction:[UIAlertAction actionWithTitle:@"Later" style:UIAlertActionStyleCancel handler:nil]];
+        [top presentViewController:alert animated:YES completion:nil];
+        SGLog(@"music haptics: the add-on's build %llu is older than this Vitrine's %d, its update offered", (unsigned long long)sg_installedBuild, kSGRelayAddonBuild);
     });
 }
 
@@ -88,7 +114,7 @@ void SGHapticAddonExplain(NSString *feature) {
                                                             preferredStyle:UIAlertControllerStyleAlert];
     alert.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
     if (carried) {
-        [alert addAction:[UIAlertAction actionWithTitle:@"Install" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) { shareAddonSoon(); }]];
+        [alert addAction:[UIAlertAction actionWithTitle:@"Install" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) { SGHapticAddonShareSoon(); }]];
         [alert addAction:[UIAlertAction actionWithTitle:@"Later" style:UIAlertActionStyleCancel handler:nil]];
     } else {
         [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleCancel handler:nil]];

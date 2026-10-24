@@ -15,7 +15,9 @@ static NSArray<NSString *> *presets(void) {
 // it has not, a row that says so, and panes stay a plain blur.
 static SGModRow *legacyGlassRow(void) {
     if (SGLegacyGlassAvailable()) {
-        SGModRow *row = SGOptionRow(@"Legacy Liquid Glass", @"An approximation of iOS 26's glass for the navbar and round buttons, on this iOS.", SGKeyLegacyGlass);
+        NSString *subtitle = [NSString stringWithFormat:@"An approximation of iOS 26's glass for the navbar and round buttons, on iOS %@.",
+                              UIDevice.currentDevice.systemVersion];
+        SGModRow *row = SGOptionRow(@"Legacy Liquid Glass", subtitle, SGKeyLegacyGlass);
         // Every pane is made one way or the other at launch (SGUseLegacyGlass), so a change waits for the restart, as
         // Redesigned UI's does.
         row.changed = ^(BOOL on) {

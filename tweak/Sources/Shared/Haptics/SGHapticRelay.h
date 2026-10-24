@@ -83,6 +83,8 @@ BOOL SGHapticAddonOutdated(void);
 // Hands the copy inside Spotify to the package manager (the system's Open In, Save to Files among its choices), from
 // `view`. NO when there is no copy.
 BOOL SGHapticAddonShare(UIView *view);
+// The add-on's .deb handed to the package manager a moment from now, once an alert it was picked from has gone.
+void SGHapticAddonShareSoon(void);
 // Posted on the main thread when SpringBoard first answers, for the Vibrations page to show the switch.
 extern NSNotificationName const SGHapticRelayAvailableNotification;
 // Asks SpringBoard whether it is there; called once at launch.
