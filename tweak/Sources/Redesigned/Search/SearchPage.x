@@ -101,6 +101,25 @@ static UILabel *titleIn(UIStackView *row) {
     return title;
 }
 
+// The header's own block, the ElementView the toolbar row and the field sit in, a child of the page beside the list:
+// Spotify paints it black, so the field scrolled over the cards stood on a black band rather than on glass alone (the
+// phone, 2026-10-24). Its fill is taken off, the view's own colour too (a view puts that back on its layer), and held
+// clear for every block of its class, as Home's header is (HomeHeader.x). The page behind it is black already.
+static void clearHeaderBlock(UIStackView *row, UIView *page) {
+    UIView *block = row;
+    while (block.superview && block.superview != page) block = block.superview;
+    if (!block || block == row || block.superview != page) return;
+    static __weak UIView *held;
+    if (held != block) {
+        held = block;
+        SGRHoldClear(block);
+        SGRHoldClearClass(object_getClass(block));
+        SGLog(@"redesign search: the header's block (%@) held clear", NSStringFromClass(block.class));
+    }
+    if (block.backgroundColor) block.backgroundColor = nil;
+    if (SGIsVisibleColor(block.layer.backgroundColor)) block.layer.backgroundColor = NULL;
+}
+
 static void layoutHeader(UIStackView *row) {
     vanish(sg_scrim);
 
@@ -146,6 +165,7 @@ static void layoutHeader(UIStackView *row) {
     UIView *view = ((UIViewController *)self).viewIfLoaded;
     if (!view || !findParts(view)) return;
     layoutHeader(sg_row);
+    if (SGBelowiOS26()) clearHeaderBlock(sg_row, view);
     SGRSearchCloseGap(sg_list);
 }
 
