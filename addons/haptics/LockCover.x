@@ -16,7 +16,8 @@
 // handed to an AVSampleBufferDisplayLayer on a timebase of its own, looped by starting the reader over with the times
 // moved on: no audio session, no now playing, nothing of Spotify's to interrupt. It is a view of the add-on's at the back of the cover sheet's view (CSCoverSheetViewController), over the
 // wallpaper and under everything the lock screen draws, the cover filling the screen and a shade over its lower part so
-// the player and the notifications stay legible. With no now playing info it goes.
+// the player and the notifications stay legible. With no now playing info it goes, and while the song is paused, so the
+// lock screen has its wallpaper back until it plays again.
 //
 // Threading: MediaRemote's answers come on the main queue; the view is the main thread's.
 #import <AVFoundation/AVFoundation.h>
@@ -32,6 +33,7 @@
 typedef void (*SGMRGetInfo)(dispatch_queue_t queue, void (^handler)(CFDictionaryRef info));
 typedef void (*SGMRRegister)(dispatch_queue_t queue);
 typedef void (*SGMRGetApp)(dispatch_queue_t queue, void (^handler)(CFStringRef bundle));
+typedef void (*SGMRIsPlaying)(dispatch_queue_t queue, void (^handler)(Boolean playing));
 
 @interface LSApplicationProxy : NSObject
 + (instancetype)applicationProxyForIdentifier:(NSString *)identifier;
@@ -44,6 +46,10 @@ static const CGFloat kShadeBottom = 0.55;
 
 static SGMRGetInfo sg_getInfo;
 static SGMRGetApp sg_getApp;
+static SGMRIsPlaying sg_isPlaying;
+// Whether the now playing app is playing: paused, the artwork goes, the cover and the clip alike, and comes back as it
+// plays again (the phone, 2026-10-24: the still cover stayed over a paused song).
+static BOOL sg_playing;
 static NSURL *sg_clip;   // the clip to play, nil for the still cover
 static BOOL sg_on;
 // The still cover where there is no clip (Spotify's switch, on until switched off): off, the cover shows only with a clip.
@@ -197,7 +203,7 @@ static void showCover(void) {
     UIView *holder = sg_holder;
     if (!holder) return;
     SGVLockCover *cover = objc_getAssociatedObject(holder, &kCoverKey);
-    BOOL shown = sg_on && sg_cover && (sg_clip || sg_still);
+    BOOL shown = sg_on && sg_playing && sg_cover && (sg_clip || sg_still);
     if (!cover && !shown) return;
     if (!cover) {
         cover = [[SGVLockCover alloc] initWithFrame:holder.bounds];
@@ -295,6 +301,16 @@ static void readCover(void) {
 }
 %end
 
+// Playing or paused, as MediaRemote has it now.
+static void readPlaying(void) {
+    if (!sg_isPlaying) return;
+    sg_isPlaying(dispatch_get_main_queue(), ^(Boolean playing) {
+        if (sg_playing == (BOOL)playing) return;
+        sg_playing = playing;
+        showCover();
+    });
+}
+
 static void listenArt(const char *name, BOOL on) {
     int token;
     notify_register_dispatch(name, &token, dispatch_get_main_queue(), ^(int t) {
@@ -310,6 +326,7 @@ static void listenArt(const char *name, BOOL on) {
     void *remote = dlopen("/System/Library/PrivateFrameworks/MediaRemote.framework/MediaRemote", RTLD_NOW);
     sg_getInfo = remote ? (SGMRGetInfo)dlsym(remote, "MRMediaRemoteGetNowPlayingInfo") : NULL;
     sg_getApp = remote ? (SGMRGetApp)dlsym(remote, "MRMediaRemoteGetNowPlayingApplicationDisplayID") : NULL;
+    sg_isPlaying = remote ? (SGMRIsPlaying)dlsym(remote, "MRMediaRemoteGetNowPlayingApplicationIsPlaying") : NULL;
     SGMRRegister registerFor = remote ? (SGMRRegister)dlsym(remote, "MRMediaRemoteRegisterForNowPlayingNotifications") : NULL;
     if (!sg_getInfo || !registerFor) return;
     %init;
@@ -319,6 +336,11 @@ static void listenArt(const char *name, BOOL on) {
             dispatch_async(dispatch_get_main_queue(), ^{ if (sg_on) readCover(); });
         }];
     }
+    [NSNotificationCenter.defaultCenter addObserverForName:@"kMRMediaRemoteNowPlayingApplicationIsPlayingDidChangeNotification" object:nil queue:nil
+                                                usingBlock:^(NSNotification *note) {
+        dispatch_async(dispatch_get_main_queue(), ^{ readPlaying(); });
+    }];
+    readPlaying();
     listenArt(kSGRelayLockArtOn, YES);
     listenArt(kSGRelayLockArtOff, NO);
     int stillOnToken, stillOffToken;

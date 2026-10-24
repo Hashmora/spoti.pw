@@ -32,7 +32,8 @@ enum { kSGRelayLevels = 10, kSGRelaySharpnesses = 3 };
 // 4: the track's moving artwork there in place of the still cover (kSGRelayLockClip), and no skeleton cover.
 // 5: Vitrine Addon (the package renamed, com.vitrine.addon replacing com.vitrine.haptics), the clip fitted on the blurred
 //    cover and played with no audio session, and the still cover's switch (kSGRelayLockStillOn).
-enum { kSGRelayAddonBuild = 5 };
+// 6: the lock screen's artwork gone while the song is paused.
+enum { kSGRelayAddonBuild = 6 };
 // Below iOS 26, the add-on also fills the lock screen with the now playing cover while Spotify's switch for it is on
 // (AnimatedArtwork.h, SGKeyLockCoverAddon): told "lockart.1" and "lockart.0" as the switch is set and each time the
 // add-on answers. It reads the cover from MediaRemote, as the lock screen's own player does.
