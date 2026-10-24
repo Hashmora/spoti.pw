@@ -16,12 +16,14 @@ static const CGFloat kArriveScale = 0.9;
 static const NSTimeInterval kBarStagger = 0.04;
 static const CGFloat kBarScale = 0.86;
 
-// The bubble: the drop leaves the control at most this big across, and grows to this share of the menu's shorter side
-// as it flies; the flight, the opening out after it (a spring with a little overshoot) and the fade at its end.
-static const CGFloat kBubbleMinDrop = 30, kBubbleMaxDrop = 56, kBubbleGrowShare = 0.75;
-static const NSTimeInterval kBubbleFlight = 0.2, kBubbleOpenDelay = 0.15, kBubbleOpen = 0.42, kBubbleFadeDelay = 0.36,
-                            kBubbleFade = 0.14, kBubbleArriveDelay = 0.14;
-static const CGFloat kBubbleOpenDamping = 0.7, kBubbleArriveScale = 0.96;
+// The bubble: the drop leaves the control at most this big across and grows to this share of the menu's shorter side
+// as it flies, then opens out this far past the menu's edge before it settles. The flight takes the first share of the
+// time and the opening out reaches past the edge at the second (the recording: off the button by 0.15 s, a circle half
+// the menu by 0.22, the menu whole by 0.35, so about 0.4 s in all).
+static const CGFloat kBubbleMinDrop = 30, kBubbleMaxDrop = 56, kBubbleGrowShare = 0.6, kBubbleOvershoot = 4;
+static const NSTimeInterval kBubbleDuration = 0.42, kBubbleRowsDelay = 0.12;
+static const double kBubbleFlightShare = 0.42, kBubblePastShare = 0.8;
+static const CGFloat kBubbleRowsScale = 0.94;
 // A touch counts as where a menu came from for this long; a control bigger than this is a row or a page, and the
 // drop leaves from the finger instead.
 static const CFTimeInterval kTouchLife = 1.0;
@@ -156,54 +158,77 @@ void SGRGlassBarAppear(UIView *bar) {
 static CGRect sTouchRect;
 static CFTimeInterval sTouchAt;
 
-void SGRGlassBubbleOpen(UIView *target, CGFloat targetRadius, SGRGlassMaker glass) {
-    if (!motionOn() || !target || !glass || !sTouchAt || CACurrentMediaTime() - sTouchAt > kTouchLife) return;
+// A rounded rect as Core Graphics draws one, whatever its corners: every path of the bubble has the same elements, so
+// Core Animation can move one into the next. The corners are kept under half the shorter side, which it refuses.
+static CGPathRef roundedPath(CGRect rect, CGFloat radius) {
+    CGFloat most = MAX(0, MIN(rect.size.width, rect.size.height) / 2 - 0.01);
+    CGFloat r = MAX(0, MIN(radius, most));
+    return CGPathCreateWithRoundedRect(rect, r, r, NULL);
+}
+
+static CGRect around(CGPoint middle, CGFloat side) {
+    return CGRectMake(middle.x - side / 2, middle.y - side / 2, side, side);
+}
+
+// The first view of `kind` inside `view`, a few levels down.
+static UIView *firstOf(UIView *view, Class kind, int depth) {
+    if (depth > 6) return nil;
+    for (UIView *sub in view.subviews) {
+        if ([sub isKindOfClass:kind]) return sub;
+        UIView *found = firstOf(sub, kind, depth + 1);
+        if (found) return found;
+    }
+    return nil;
+}
+
+void SGRGlassBubbleOpen(UIView *target, CGFloat targetRadius) {
+    if (!motionOn() || !target || !sTouchAt || CACurrentMediaTime() - sTouchAt > kTouchLife) return;
     CGRect source = sTouchRect;
     sTouchAt = 0;
     dispatch_async(dispatch_get_main_queue(), ^{
-        UIWindow *window = target.window;
-        if (!onScreen(target)) return;
-        [window layoutIfNeeded];
-        CGRect end = [target convertRect:target.bounds toView:nil];
-        if (end.size.width < 1 || end.size.height < 1) return;
+        if (!onScreen(target) || target.layer.mask) return;
+        [target.window layoutIfNeeded];
+        CGRect bounds = target.bounds;
+        if (bounds.size.width < 1 || bounds.size.height < 1) return;
         CGFloat drop = MAX(kBubbleMinDrop, MIN(kBubbleMaxDrop, MIN(source.size.width, source.size.height)));
-        CGFloat grown = MAX(drop, MIN(end.size.width, end.size.height) * kBubbleGrowShare);
-        CGPoint middle = CGPointMake(CGRectGetMidX(end), CGRectGetMidY(end));
+        CGFloat grown = MAX(drop, MIN(bounds.size.width, bounds.size.height) * kBubbleGrowShare);
+        CGPoint from = [target convertPoint:CGPointMake(CGRectGetMidX(source), CGRectGetMidY(source)) fromView:nil];
+        CGPoint middle = CGPointMake(CGRectGetMidX(bounds), CGRectGetMidY(bounds));
 
-        // A circle of its grown size, shrunk to the drop by a transform: the flight grows it by the transform and the
-        // opening out by its bounds, two animations of their own that overlap as the recording's do.
-        UIView *bubble = [[UIView alloc] initWithFrame:CGRectMake(0, 0, grown, grown)];
-        bubble.userInteractionEnabled = NO;
-        bubble.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
-        bubble.clipsToBounds = YES;
-        bubble.layer.cornerRadius = grown / 2;
-        bubble.layer.cornerCurve = kCACornerCurveContinuous;
-        bubble.center = CGPointMake(CGRectGetMidX(source), CGRectGetMidY(source));
-        bubble.transform = CGAffineTransformMakeScale(drop / grown, drop / grown);
-        UIView *pane = glass(bubble);
-        if (!pane) return;
-        // The pane at the menu's size, in the bubble's middle, clipped by it (see the morph).
-        pane.autoresizingMask = UIViewAutoresizingNone;
-        pane.bounds = CGRectMake(0, 0, MAX(grown, end.size.width), MAX(grown, end.size.height));
-        pane.center = CGPointMake(grown / 2, grown / 2);
-        SGShapeGlass(pane, targetRadius, NO);
-        [window addSubview:bubble];
-
-        arrive(target.layer, kBubbleArriveDelay, kBubbleArriveScale);
-        UIViewAnimationOptions options = UIViewAnimationOptionAllowUserInteraction | UIViewAnimationOptionBeginFromCurrentState;
-        [UIView animateWithDuration:kBubbleFlight delay:0 options:options | UIViewAnimationOptionCurveEaseInOut animations:^{
-            bubble.center = middle;
-            bubble.transform = CGAffineTransformIdentity;
-        } completion:nil];
-        [UIView animateWithDuration:kBubbleOpen delay:kBubbleOpenDelay usingSpringWithDamping:kBubbleOpenDamping
-              initialSpringVelocity:0 options:options animations:^{
-            bubble.bounds = CGRectMake(0, 0, end.size.width, end.size.height);
-            bubble.layer.cornerRadius = targetRadius;
-            pane.center = CGPointMake(end.size.width / 2, end.size.height / 2);
-        } completion:nil];
-        [UIView animateWithDuration:kBubbleFade delay:kBubbleFadeDelay options:UIViewAnimationOptionCurveEaseOut
-                         animations:^{ bubble.alpha = 0; }
-                         completion:^(BOOL finished) { [bubble removeFromSuperview]; }];
+        // The menu itself is the bubble, as iOS 26's is: a mask cut from it starts as a drop over the button, flies to
+        // its middle growing as a circle, and opens out into its shape a little past it before it settles. Its glass and
+        // its rows show through the whole way. A drop of glass laid over the menu instead hid it until the end and read
+        // as a flat disc of the page's colour (the phone, 2026-10-24).
+        CGPathRef start = roundedPath(around(from, drop), drop / 2);
+        CGPathRef flown = roundedPath(around(middle, grown), grown / 2);
+        CGPathRef past = roundedPath(CGRectInset(bounds, -kBubbleOvershoot, -kBubbleOvershoot), targetRadius + kBubbleOvershoot);
+        CGPathRef end = roundedPath(bounds, targetRadius);
+        CAShapeLayer *mask = [CAShapeLayer layer];
+        mask.frame = bounds;
+        mask.path = end;
+        CAKeyframeAnimation *open = [CAKeyframeAnimation animationWithKeyPath:@"path"];
+        open.values = @[(__bridge id)start, (__bridge id)flown, (__bridge id)past, (__bridge id)end];
+        open.keyTimes = @[@0, @(kBubbleFlightShare), @(kBubblePastShare), @1];
+        open.timingFunctions = @[
+            [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseIn],
+            [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseOut],
+            [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseInEaseOut],
+        ];
+        open.duration = kBubbleDuration;
+        CGPathRelease(start);
+        CGPathRelease(flown);
+        CGPathRelease(past);
+        CGPathRelease(end);
+        [CATransaction begin];
+        [CATransaction setCompletionBlock:^{
+            if (target.layer.mask == mask) target.layer.mask = nil;
+        }];
+        target.layer.mask = mask;
+        [mask addAnimation:open forKey:@"sgr.bubble"];
+        [CATransaction commit];
+        // The rows come in as the drop opens, a little smaller first.
+        UIView *rows = firstOf(target, UICollectionView.class, 0);
+        if (rows) arrive(rows.layer, kBubbleRowsDelay, kBubbleRowsScale);
     });
 }
 

@@ -14,7 +14,7 @@
 
 // The corners UIKit cuts a menu with.
 static const CGFloat kMenuRadius = 14;
-static char kMenuGlassKey, kBubbleGlassKey;
+static char kMenuGlassKey;
 
 // The view holding UIKit's blur: the menu's own surface. Found by the blur rather than by how the platter is
 // clipped, since a submenu (More) is another list that UIKit builds when it opens, and its platter is not
@@ -80,7 +80,7 @@ static void bubbleMenu(UIView *list) {
     while (menu && ![menu isKindOfClass:NSClassFromString(@"_UIContextMenuView")]) menu = menu.superview;
     if (!menu || objc_getAssociatedObject(menu, &kBubbledKey)) return;
     objc_setAssociatedObject(menu, &kBubbledKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    SGRGlassBubbleOpen(list, kMenuRadius, ^UIView *(UIView *host) { return SGRMenuGlass(host, &kBubbleGlassKey, SGRMenuDim); });
+    SGRGlassBubbleOpen(list, kMenuRadius);
 }
 
 %hook _UIContextMenuListView
