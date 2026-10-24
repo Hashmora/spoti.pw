@@ -10,7 +10,13 @@
 // A clip that comes later takes the cover's place as it comes; with none the system's cover stays as it is, and closed,
 // everything of the system's comes back. The clip holds still while the song is paused.
 //
-// Only the large cover's view is hooked, as it lays out and as it comes and goes.
+// MediaRemoteUI gives the large cover its alpha back as it animates (the phone, 2026-10-25: the cover stayed over the clip
+// until the screen had gone off and on a few times), so a hidden cover keeps alpha 0 whatever it is set to, and gets the
+// last alpha MediaRemoteUI asked for back. A tap that closes the large cover (the field's own, heard alongside it) gives
+// the cover back at once, for MediaRemoteUI to shrink it into the player as it does with no clip, and fades the clip out
+// over it: hidden, the cover had nothing to shrink and the clip went at once.
+//
+// Only the large cover's view and the cover itself are hooked, as they lay out, come and go and take an alpha.
 //
 // Threading: main thread.
 #import <UIKit/UIKit.h>
@@ -29,7 +35,34 @@ static SGMRIsPlaying sg_isPlaying;
 static BOOL sg_on, sg_playing = YES, sg_showing;
 static NSURL *sg_clip;   // this process's own copy of the shared clip, nil for none
 static __weak UIView *sg_field;   // the large cover's CoverSheetBackgroundView, while it is open
-static char kClipKey;
+static char kClipKey, kTapKey, kHiddenKey, kWantedKey, kClosedKey;
+static BOOL sg_settingAlpha;   // the alpha set here, not MediaRemoteUI's to remember
+
+@interface SGVFieldTap : NSObject <UIGestureRecognizerDelegate>
+@end
+
+static void closing(UIView *field);
+
+@implementation SGVFieldTap
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)recognizer shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)other {
+    return YES;
+}
+- (void)tapped:(UITapGestureRecognizer *)tap {
+    closing(tap.view);
+}
+@end
+
+// The large cover hidden or given back: alpha 0 held while hidden, the alpha MediaRemoteUI last asked for after.
+static void hideArtwork(UIView *artwork, BOOL hidden, BOOL animated) {
+    if (!artwork || !!objc_getAssociatedObject(artwork, &kHiddenKey) == hidden) return;
+    NSNumber *wanted = objc_getAssociatedObject(artwork, &kWantedKey);
+    objc_setAssociatedObject(artwork, &kHiddenKey, hidden ? @YES : nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    CGFloat alpha = hidden ? 0 : (wanted ? wanted.doubleValue : 1);
+    sg_settingAlpha = YES;
+    [UIView animateWithDuration:animated ? kFade : 0 delay:0 options:UIViewAnimationOptionBeginFromCurrentState
+                     animations:^{ artwork.alpha = alpha; } completion:nil];
+    sg_settingAlpha = NO;
+}
 
 // The large cover in the field: the field's MRUArtworkView.
 static UIView *artworkIn(UIView *field) {
@@ -51,7 +84,8 @@ static void apply(void) {
         return;
     }
     UIView *artwork = artworkIn(field);
-    BOOL on = sg_on && sg_clip && artwork;
+    // Closed by a tap, the field stays the system's until it is shown again.
+    BOOL on = sg_on && sg_clip && artwork && !objc_getAssociatedObject(field, &kClosedKey);
     SGVLockClip *clip = objc_getAssociatedObject(field, &kClipKey);
     if (!clip && on) {
         clip = [[SGVLockClip alloc] initWithFrame:field.bounds];
@@ -60,24 +94,42 @@ static void apply(void) {
         objc_setAssociatedObject(field, &kClipKey, clip, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
     if (clip) {
-        // Over the field (its MTKView), under the large cover.
-        if (clip.superview != field) {
-            if (artwork) [field insertSubview:clip belowSubview:artwork];
-            else [field addSubview:clip];
-        }
+        // Over the field and the large cover, so a cover MediaRemoteUI shows for a moment stays under it.
+        if (clip.superview != field || field.subviews.lastObject != clip) [field addSubview:clip];
         if (!CGRectEqualToRect(clip.frame, field.bounds)) clip.frame = field.bounds;
     }
+    if (on && !objc_getAssociatedObject(field, &kTapKey)) {
+        SGVFieldTap *handler = [SGVFieldTap new];
+        UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc] initWithTarget:handler action:@selector(tapped:)];
+        tap.delegate = handler;
+        tap.cancelsTouchesInView = NO;
+        tap.delaysTouchesEnded = NO;
+        [field addGestureRecognizer:tap];
+        objc_setAssociatedObject(field, &kTapKey, handler, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
     tellShowing(on);
-    [UIView animateWithDuration:kFade delay:0 options:UIViewAnimationOptionBeginFromCurrentState animations:^{
-        artwork.alpha = on ? 0 : 1;
+    hideArtwork(artwork, on, YES);
+    BOOL shown = clip.alpha > 0.99;
+    [UIView animateWithDuration:shown == on ? 0 : kFade delay:0 options:UIViewAnimationOptionBeginFromCurrentState animations:^{
         clip.alpha = on ? 1 : 0;
     } completion:^(BOOL finished) {
-        if (!(sg_on && sg_clip && artworkIn(field))) [clip playClip:nil];
+        if (!(sg_on && sg_clip && artworkIn(field)) || objc_getAssociatedObject(field, &kClosedKey)) [clip playClip:nil];
     }];
     if (on) {
         [clip playClip:sg_clip];
         [clip setPlaying:sg_playing];
     }
+}
+
+// The large cover closing on a tap: the cover back at once, for MediaRemoteUI to shrink it, the clip fading over it.
+static void closing(UIView *field) {
+    SGVLockClip *clip = objc_getAssociatedObject(field, &kClipKey);
+    if (!clip || clip.alpha < 0.01) return;
+    objc_setAssociatedObject(field, &kClosedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    hideArtwork(artworkIn(field), NO, NO);
+    tellShowing(NO);
+    [UIView animateWithDuration:0.25 delay:0 options:UIViewAnimationOptionBeginFromCurrentState
+                     animations:^{ clip.alpha = 0; } completion:nil];
 }
 
 // The shared clip copied into this process's own temporary folder under a new name, so the clip view takes a new file.
@@ -106,15 +158,32 @@ static void readPlaying(void) {
 - (void)didMoveToWindow {
     %orig;
     UIView *field = (UIView *)self;
-    if (field.window) sg_field = field;
+    if (field.window) {
+        sg_field = field;
+        objc_setAssociatedObject(field, &kClosedKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
     apply();
 }
 
 - (void)layoutSubviews {
     %orig;
-    sg_field = (UIView *)self;
+    UIView *field = (UIView *)self;
+    sg_field = field;
+    // A field closed by a tap and kept, hidden, for the next time: it is the clip's again as it is shown.
+    UIWindow *window = field.window;
+    if (field.hidden || field.alpha < 0.01 || !window || window.hidden || window.alpha < 0.01)
+        objc_setAssociatedObject(field, &kClosedKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     if (sg_on || sg_showing) apply();
 }
+%end
+
+%group SGVArtwork
+%hook MRUArtworkView
+- (void)setAlpha:(CGFloat)alpha {
+    if (!sg_settingAlpha) objc_setAssociatedObject(self, &kWantedKey, @(alpha), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    %orig(objc_getAssociatedObject(self, &kHiddenKey) ? 0 : alpha);
+}
+%end
 %end
 
 static void listen(const char *name, void (^handler)(void)) {
@@ -133,6 +202,7 @@ static void listen(const char *name, void (^handler)(void)) {
     sg_isPlaying = remote ? (SGMRIsPlaying)dlsym(remote, "MRMediaRemoteGetNowPlayingApplicationIsPlaying") : NULL;
     SGMRRegister registerFor = remote ? (SGMRRegister)dlsym(remote, "MRMediaRemoteRegisterForNowPlayingNotifications") : NULL;
     %init;
+    if (objc_getClass("MRUArtworkView")) %init(SGVArtwork);
     if (registerFor) registerFor(dispatch_get_main_queue());
     [NSNotificationCenter.defaultCenter addObserverForName:@"kMRMediaRemoteNowPlayingApplicationIsPlayingDidChangeNotification" object:nil queue:nil
                                                 usingBlock:^(NSNotification *note) {

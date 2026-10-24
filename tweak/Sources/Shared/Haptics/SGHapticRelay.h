@@ -43,7 +43,9 @@ enum { kSGRelayLevels = 10, kSGRelaySharpnesses = 3 };
 // 12: loaded into MediaRemoteUI too, which draws the lock screen's player, to say what its views are.
 // 13: the clip in place of the large cover inside MediaRemoteUI, handed over by SpringBoard, which hides the widgets
 //     under the clock as it shows; no tree walked or dumped.
-enum { kSGRelayAddonBuild = 13 };
+// 14: the large cover held hidden under the clip whatever alpha MediaRemoteUI gives it, and a tap that closes it gives
+//     the cover back to shrink into the player while the clip fades.
+enum { kSGRelayAddonBuild = 14 };
 // Below iOS 26, the add-on also fills the lock screen with the now playing cover while Spotify's switch for it is on
 // (AnimatedArtwork.h, SGKeyLockCoverAddon): told "lockart.1" and "lockart.0" as the switch is set and each time the
 // add-on answers. It reads the cover from MediaRemote, as the lock screen's own player does.
