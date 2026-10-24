@@ -160,6 +160,8 @@ UIViewController *SGPlayerSettingsPage(void) {
     // Switch to video is the same chip of Spotify's player under either look.
     [sections addObject:SGSection(native ? nil : @"Hide on the player", @[
         SGHideRow(@"Switch to video", @"The chip over the title of a song with a music video", SGKeyHideVideoSwitch),
+        // Spotify's own, under either look: a tap on a cover opens it full screen, where it turns a little with the phone.
+        SGKillRow(@"No tilting full screen cover", @"ios-creativeworkcommons-cover-art-tilt-configuration-kit.cover_art_tilt_enabled"),
     ])];
 
     [sections addObject:SGNotedSection(@"Lossless", @[
