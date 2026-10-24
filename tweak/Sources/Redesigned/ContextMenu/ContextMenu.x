@@ -1027,7 +1027,17 @@ static void rememberPage(NSString *kind) {
 
 - (SGRSheetRow *)rowAt:(NSIndexPath *)path inTable:(UITableView *)table {
     UITableViewCell *cell = [table cellForRowAtIndexPath:path];
-    if (!cell && [table.dataSource respondsToSelector:@selector(tableView:cellForRowAtIndexPath:)]) cell = [table.dataSource tableView:table cellForRowAtIndexPath:path];
+    if (!cell && [table.dataSource respondsToSelector:@selector(tableView:cellForRowAtIndexPath:)]) {
+        cell = [table.dataSource tableView:table cellForRowAtIndexPath:path];
+        // A row past the hidden sheet's first screen comes from its data source unlaid, its glyph's views without a size,
+        // so glyphIn found none: only the first five rows of a menu had their icons (the phone, 2026-10-24). It is given its
+        // row's size and laid out before it is read; each row is still read from its own cell, of this sheet.
+        CGRect rect = [table rectForRowAtIndexPath:path];
+        CGFloat height = rect.size.height >= 1 ? rect.size.height : MAX(table.rowHeight, 48);
+        cell.frame = CGRectMake(0, 0, table.bounds.size.width, height);
+        [cell setNeedsLayout];
+        [cell layoutIfNeeded];
+    }
     NSArray<UILabel *> *labels = labelsIn(cell);
     if (!labels.count) return nil;
     SGRSheetRow *row = [SGRSheetRow new];
