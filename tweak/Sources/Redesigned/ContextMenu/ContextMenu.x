@@ -39,8 +39,9 @@ static const NSTimeInterval kRowsPoll = 0.1;
 static const NSTimeInterval kQuickWait = 4;
 // How long the player's menu waits for Spotify's sheet once its ⋯ action has been run for it.
 static const NSTimeInterval kRequestWindow = 3;
-// How far under its button a menu opens below iOS 26.
-static const CGFloat kMenuGap = 8;
+// The ⋯ under a menu below iOS 26: how fast it goes as the menu comes, and how long after the menu starts to go it comes
+// back, as the menu has shrunk most of the way into it.
+static const NSTimeInterval kButtonFade = 0.12, kButtonBackDelay = 0.12;
 
 // Whether a page's ⋯ (the one SGRPinnedMore pins over the playlist, album, artist and profile pages) opens the system
 // menu. It does on every iOS the redesign runs on: below iOS 26 the menu wears the mod's glass and opens out of a drop
@@ -327,24 +328,39 @@ static UIMenu *inlineGroup(NSArray<UIMenuElement *> *children) {
 
 @implementation SGRMenuAnchor
 
-// Below iOS 26 UIKit opens a button's menu over the button, from its middle; iOS 26 opens it under the button, which
-// stays in sight. The menu is hung from a point just under the button for that (the phone, 2026-10-24: the menu
-// covered the ⋯ it came from).
-- (CGPoint)menuAttachmentPointForConfiguration:(UIContextMenuConfiguration *)configuration {
-    CGPoint point = [super menuAttachmentPointForConfiguration:configuration];
-    if (@available(iOS 26.0, *)) return point;
-    return CGPointMake(point.x, CGRectGetMaxY(self.bounds) + kMenuGap);
+// iOS 26's menu takes the place of the button it opens from: the button goes as the menu comes out of it and is back
+// as the menu goes. Below iOS 26 the ⋯ under the menu is faded out for as long as the menu is up (the phone, 2026-10-24:
+// it stayed beside the menu). Its alpha before is put back, whatever the page had it at.
+static char kFadedAlphaKey;
+
+static void fadeButton(UIView *button, BOOL away) {
+    if (@available(iOS 26.0, *)) return;
+    if (!button) return;
+    NSNumber *was = objc_getAssociatedObject(button, &kFadedAlphaKey);
+    if (away) {
+        if (was) return;
+        objc_setAssociatedObject(button, &kFadedAlphaKey, @(button.alpha), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        [UIView animateWithDuration:kButtonFade delay:0 options:UIViewAnimationOptionBeginFromCurrentState animations:^{ button.alpha = 0; } completion:nil];
+        return;
+    }
+    if (!was) return;
+    objc_setAssociatedObject(button, &kFadedAlphaKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    [UIView animateWithDuration:kButtonFade delay:kButtonBackDelay options:UIViewAnimationOptionBeginFromCurrentState
+                     animations:^{ button.alpha = was.doubleValue; } completion:nil];
 }
 
 - (void)contextMenuInteraction:(UIContextMenuInteraction *)interaction willDisplayMenuForConfiguration:(UIContextMenuConfiguration *)configuration
                       animator:(id<UIContextMenuInteractionAnimating>)animator {
     [super contextMenuInteraction:interaction willDisplayMenuForConfiguration:configuration animator:animator];
     [self.session shown];
+    // The ⋯ this anchor covers: the page's pinned one, or Spotify's for the player's (the mod's button sits inside it).
+    fadeButton(self.superview, YES);
 }
 
 - (void)contextMenuInteraction:(UIContextMenuInteraction *)interaction willEndForConfiguration:(UIContextMenuConfiguration *)configuration
                       animator:(id<UIContextMenuInteractionAnimating>)animator {
     [super contextMenuInteraction:interaction willEndForConfiguration:configuration animator:animator];
+    fadeButton(self.superview, NO);
     SGRMenuSession *session = self.session;
     self.session = nil;
     self.userInteractionEnabled = [self isKindOfClass:SGRMenuFront.class];

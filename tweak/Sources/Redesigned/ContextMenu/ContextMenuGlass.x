@@ -12,10 +12,10 @@
 #import "Redesigned/Kit/SGRKit.h"
 #import "Redesigned/ContextMenu/ContextMenu.h"
 
-// The corners UIKit cuts a menu with, which the panels from the ⋯ keep; and the menu's own, rounder, as iOS 26's menus
-// are (the Photos app's, ScreenRecording 2026-10-24, about 24 pt on a 250 pt menu): UIKit's 14 read as a plain card next
-// to them (the phone, 2026-10-24).
-static const CGFloat kMenuRadius = 14, kMenuRadius26 = 24;
+// The corners UIKit cuts a menu with. Rounder ones, as iOS 26's menus have, were tried (24 pt): UIKit's own shape under
+// the platter (its shadow and cut-out) kept its 14 pt corners, and the glass's rim light ran round the rounder ones over
+// them (the phone, 2026-10-24), so the menu keeps UIKit's.
+static const CGFloat kMenuRadius = 14;
 static char kMenuGlassKey;
 
 // The view holding UIKit's blur: the menu's own surface. Found by the blur rather than by how the platter is
@@ -56,11 +56,7 @@ static void glassMenu(UIView *list) {
     if (!platter || platter.bounds.size.width < 1 || platter.bounds.size.height < 1) return;
     if (list.overrideUserInterfaceStyle != UIUserInterfaceStyleDark) list.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
 
-    // The platter's own corners as well as the pane's: it clips the pane and the rows.
-    CGFloat radius = MIN(kMenuRadius26, platter.bounds.size.height / 2);
-    if (platter.layer.cornerRadius != radius) platter.layer.cornerRadius = radius;
-    if (platter.layer.cornerCurve != kCACornerCurveContinuous) platter.layer.cornerCurve = kCACornerCurveContinuous;
-    UIView *glass = menuGlass(platter, &kMenuGlassKey, SGRMenuDim, radius);
+    UIView *glass = menuGlass(platter, &kMenuGlassKey, SGRMenuDim, kMenuRadius);
 
     // UIKit's own blur goes; the pane above is the mod's, which is a UIVisualEffectView too when it is not
     // the legacy glass.
@@ -90,7 +86,7 @@ static void bubbleMenu(UIView *list) {
     while (menu && ![menu isKindOfClass:NSClassFromString(@"_UIContextMenuView")]) menu = menu.superview;
     if (!menu || objc_getAssociatedObject(menu, &kBubbledKey)) return;
     objc_setAssociatedObject(menu, &kBubbledKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    SGRGlassBubbleOpen(list, kMenuRadius26);
+    SGRGlassBubbleOpen(list, kMenuRadius);
 }
 
 %hook _UIContextMenuListView
