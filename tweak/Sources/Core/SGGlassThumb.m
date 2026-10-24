@@ -10,8 +10,13 @@ static const CGFloat kLiftWidth = 58.0 / 37, kLiftHeight = 38.333 / 24;
 // The swell is a lively spring and the fall back a calmer, slower one (LiquidGlassKit: 0.4 s at 0.6, 0.6 s at 0.7).
 static const NSTimeInterval kLiftDuration = 0.4, kDropDuration = 0.6;
 static const CGFloat kLiftDamping = 0.6, kDropDamping = 0.7;
-// The held lens's white rim, in points.
-static const CGFloat kEdgeWidth = 3.5;
+// The held lens's rim, in points: a thin bright line, as the system's lens has over the switch's track.
+static const CGFloat kEdgeWidth = 1.25;
+// How much of the measured lens the held glass takes. The whole of it bent a 38 pt lens over nearly all its height (a
+// 22 pt shift at the rim), so the track's green was pulled across the whole drop and its middle read as a blur with a
+// sliver of the card at one end (the phone against iOS 26's own switch, 2026-10-24). At this share the bend stays in a
+// band of a few points at the rim and the middle shows the track and the card beyond its end as they are.
+static const CGFloat kHeldLensScale = 0.3;
 // Past an end of the track the thumb follows the finger by this share of the overshoot, up to kMaxPull, and is
 // stretched along the pull and thinned across it by its share of kPullStretch.
 static const CGFloat kPullShare = 0.3, kMaxPull = 14, kPullStretch = 0.25;
@@ -25,6 +30,9 @@ static const CGFloat kPullShare = 0.3, kMaxPull = 14, kPullStretch = 0.25;
 - (void)setPull:(CGFloat)pull;
 // No shadow under the capsule at rest: iOS 26's switch thumb is flat.
 - (void)setFlat;
+// The colour the held lens glows with, round its rim: the switch's track colour, as iOS 26's lens glows green over a switch
+// that is on. White unless set.
+- (void)setGlowColor:(UIColor *)color;
 @end
 
 @implementation SGGlassThumbView {
@@ -54,25 +62,28 @@ static const CGFloat kPullShare = 0.3, kMaxPull = 14, kPullStretch = 0.25;
         SGLegacyGlassView *glass = (SGLegacyGlassView *)_pane;
         glass.clear = YES;
         glass.blurRadius = 0;
-        glass.lensScale = 1.1;
+        glass.lensScale = kHeldLensScale;
+        // At the screen's scale: a 1x backdrop under a lens this small showed the track soft, and the thumb is small enough
+        // for the cost.
+        glass.sharp = YES;
     }
     _ring = [CAShapeLayer layer];
-    _ring.fillColor = [UIColor colorWithRed:0.9 green:0.95 blue:1 alpha:0.12].CGColor;
+    _ring.fillColor = [UIColor colorWithRed:0.9 green:0.95 blue:1 alpha:0.06].CGColor;
     _ring.strokeColor = UIColor.clearColor.CGColor;
     _rim = [UIView new];
     _rim.userInteractionEnabled = NO;
     _rim.alpha = _pane.alpha;
     [_rim.layer addSublayer:_ring];
-    // iOS 26's held thumb (the system's switch, compared on the phone, 2026-10-24): a thick bright white rim round the
-    // clear lens, glowing softly out of it, with the track showing through the middle. Without it the lens, the track's
-    // green pulled in to its edge, read as a solid green blob, and a shadow cast inside it made it denser still.
+    // iOS 26's held thumb (its own switch, 2026-10-24): a thin bright rim round the clear lens and a soft glow of the
+    // track's colour out of it, the track sharp through the middle. A 3.5 pt white rim with a white glow read as a thick
+    // frame round a blur.
     _edge = [CAShapeLayer layer];
     _edge.fillColor = nil;
-    _edge.strokeColor = [UIColor colorWithWhite:1 alpha:0.95].CGColor;
+    _edge.strokeColor = [UIColor colorWithWhite:1 alpha:0.85].CGColor;
     _edge.lineWidth = kEdgeWidth;
     _edge.shadowColor = UIColor.whiteColor.CGColor;
-    _edge.shadowOpacity = 0.45;
-    _edge.shadowRadius = 5;
+    _edge.shadowOpacity = 0.5;
+    _edge.shadowRadius = 6;
     _edge.shadowOffset = CGSizeZero;
     [_rim.layer addSublayer:_edge];
     [self addSubview:_rim];
@@ -90,6 +101,11 @@ static const CGFloat kPullShare = 0.3, kMaxPull = 14, kPullStretch = 0.25;
 
 - (void)setFlat {
     _pill.layer.shadowOpacity = 0;
+}
+
+- (void)setGlowColor:(UIColor *)color {
+    CGColorRef glow = (color ?: UIColor.whiteColor).CGColor;
+    if (!CGColorEqualToColor(_edge.shadowColor, glow)) _edge.shadowColor = glow;
 }
 
 // The held glass is laid out at its held size and shrunk by a transform at rest, never grown from the capsule's: grown,
@@ -389,6 +405,8 @@ static UIColor *trackColor(UISwitch *toggle, CGFloat position) {
         self.thumb.center = [self thumbCenterAt:position];
         self->_track.backgroundColor = trackColor(self.toggle, position);
     };
+    // The glow takes the colour of the side the switch ends on, not the blend, which is grey for half the way.
+    [self.thumb setGlowColor:position >= 0.5 ? trackColor(self.toggle, 1) : nil];
     if (!animated || UIAccessibilityIsReduceMotionEnabled()) {
         [UIView performWithoutAnimation:apply];
         return;
