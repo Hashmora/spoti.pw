@@ -48,7 +48,7 @@ NSArray *SGLockScreenMotionRows(void) {
     }
     // Below iOS 26 with a jailbreak the add-on in SpringBoard draws the cover full screen itself.
     if (SGHapticEverywhereOffered()) {
-        SGModRow *cover = SGOptionRow(@"Full-screen cover", @"The playing song's cover behind the lock screen, drawn by the Vitrine Haptics add-on", SGKeyLockCoverAddon);
+        SGModRow *cover = SGOptionRow(@"Full-screen cover", @"The Canvas or Apple Music's animated cover behind the lock screen, else the still cover, drawn by the Vitrine Haptics add-on", SGKeyLockCoverAddon);
         cover.changed = ^(BOOL on) {
             SGHapticRelaySendLockArt();
             if (on && !SGHapticRelayAvailable()) SGHapticAddonExplain(@"The full-screen cover");

@@ -12,7 +12,7 @@ include $(THEOS)/makefiles/common.mk
 TWEAK_NAME := VitrineHaptics
 VitrineHaptics_FILES := HapticRelay.x LockCover.x
 VitrineHaptics_CFLAGS := -fobjc-arc
-VitrineHaptics_FRAMEWORKS := UIKit CoreHaptics
+VitrineHaptics_FRAMEWORKS := UIKit CoreHaptics AVFoundation
 VitrineHaptics_LOGOS_DEFAULT_GENERATOR := internal
 
 include $(THEOS_MAKE_PATH)/tweak.mk

@@ -4,11 +4,14 @@
 // there.
 //
 // The cover is read from MediaRemote, as the lock screen's own player reads it, and follows its now playing info as it
-// changes. It is a view of the add-on's at the back of the cover sheet's view (CSCoverSheetViewController), over the
+// changes. A cover all of one grey (the skeleton Spotify names for a moment before the cover is in, after a seek) is
+// left out. Over it the track's moving artwork plays, muted and looping, when Spotify has one (kSGRelayLockClip): a
+// file in Spotify's caches, found through the data container of the now playing app. It is a view of the add-on's at the back of the cover sheet's view (CSCoverSheetViewController), over the
 // wallpaper and under everything the lock screen draws, the cover filling the screen and a shade over its lower part so
 // the player and the notifications stay legible. With no now playing info it goes.
 //
 // Threading: MediaRemote's answers come on the main queue; the view is the main thread's.
+#import <AVFoundation/AVFoundation.h>
 #import <UIKit/UIKit.h>
 #import <dlfcn.h>
 #import <objc/runtime.h>
@@ -20,12 +23,20 @@
 
 typedef void (*SGMRGetInfo)(dispatch_queue_t queue, void (^handler)(CFDictionaryRef info));
 typedef void (*SGMRRegister)(dispatch_queue_t queue);
+typedef void (*SGMRGetApp)(dispatch_queue_t queue, void (^handler)(CFStringRef bundle));
+
+@interface LSApplicationProxy : NSObject
++ (instancetype)applicationProxyForIdentifier:(NSString *)identifier;
+@property (nonatomic, readonly) NSURL *dataContainerURL;
+@end
 
 static const NSTimeInterval kCoverFade = 0.35;
 // The shade over the cover's lower part, as dark as it gets at the bottom.
 static const CGFloat kShadeBottom = 0.55;
 
 static SGMRGetInfo sg_getInfo;
+static SGMRGetApp sg_getApp;
+static NSURL *sg_clip;   // the clip to play, nil for the still cover
 static BOOL sg_on;
 static UIImage *sg_cover;
 static NSData *sg_coverData;
@@ -37,6 +48,32 @@ static __weak UIView *sg_holder;
 
 @implementation SGVLockCover {
     CAGradientLayer *_shade;
+    AVQueuePlayer *_player;
+    AVPlayerLooper *_looper;
+    AVPlayerLayer *_video;
+    NSURL *_playing;
+}
+
+// The clip over the cover, muted and looping, or none: the cover shows until the clip's first frame is ready.
+- (void)playClip:(NSURL *)clip {
+    if ((clip == nil && _playing == nil) || [clip isEqual:_playing]) return;
+    [_player pause];
+    [_video removeFromSuperlayer];
+    _looper = nil;
+    _player = nil;
+    _video = nil;
+    _playing = clip;
+    if (!clip) return;
+    AVPlayerItem *item = [AVPlayerItem playerItemWithURL:clip];
+    _player = [AVQueuePlayer queuePlayerWithItems:@[]];
+    _player.muted = YES;
+    _player.preventsDisplaySleepDuringVideoPlayback = NO;
+    _looper = [AVPlayerLooper playerLooperWithPlayer:_player templateItem:item];
+    _video = [AVPlayerLayer playerLayerWithPlayer:_player];
+    _video.videoGravity = AVLayerVideoGravityResizeAspectFill;
+    _video.frame = self.bounds;
+    [self.layer insertSublayer:_video below:_shade];
+    [_player play];
 }
 
 - (instancetype)initWithFrame:(CGRect)frame {
@@ -60,6 +97,7 @@ static __weak UIView *sg_holder;
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     _shade.frame = self.bounds;
+    _video.frame = self.bounds;
     [CATransaction commit];
 }
 
@@ -87,7 +125,49 @@ static void showCover(void) {
         [UIView transitionWithView:cover.picture duration:kCoverFade options:UIViewAnimationOptionTransitionCrossDissolve
                         animations:^{ cover.picture.image = sg_cover; } completion:nil];
     }
+    [cover playClip:shown ? sg_clip : nil];
     [UIView animateWithDuration:kCoverFade animations:^{ cover.alpha = shown ? 1 : 0; }];
+}
+
+// A picture all of one colour, near enough: the grey skeleton Spotify names as the cover for a moment.
+static BOOL isSkeleton(UIImage *image) {
+    CGImageRef cg = image.CGImage;
+    if (!cg) return YES;
+    enum { side = 8 };
+    uint8_t pixels[side * side * 4] = {0};
+    CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
+    CGContextRef context = CGBitmapContextCreate(pixels, side, side, 8, side * 4, space, (CGBitmapInfo)kCGImageAlphaPremultipliedLast);
+    CGColorSpaceRelease(space);
+    if (!context) return NO;
+    CGContextDrawImage(context, CGRectMake(0, 0, side, side), cg);
+    CGContextRelease(context);
+    int lo = 255, hi = 0;
+    for (int i = 0; i < side * side; i++) {
+        int luma = (pixels[i * 4] * 3 + pixels[i * 4 + 1] * 6 + pixels[i * 4 + 2]) / 10;
+        lo = MIN(lo, luma);
+        hi = MAX(hi, luma);
+    }
+    return hi - lo < 12;
+}
+
+// Spotify's clip for the playing track, in the data container of the now playing app.
+static void readClip(void) {
+    if (!sg_getApp) return;
+    sg_getApp(dispatch_get_main_queue(), ^(CFStringRef bundle) {
+        NSString *identifier = (__bridge NSString *)bundle;
+        Class proxies = NSClassFromString(@"LSApplicationProxy");
+        NSURL *container = identifier.length && proxies ? [[proxies applicationProxyForIdentifier:identifier] dataContainerURL] : nil;
+        NSURL *clip = [container URLByAppendingPathComponent:@"Library/Caches/" kSGLockClipName];
+        // A new path each time, so the player takes the new file rather than the one it has.
+        if (clip && [NSFileManager.defaultManager fileExistsAtPath:clip.path]) {
+            NSURL *copy = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:[NSString stringWithFormat:@"vitrine-lockclip-%u.mp4", arc4random()]]];
+            if (sg_clip.isFileURL) [NSFileManager.defaultManager removeItemAtURL:sg_clip error:nil];
+            sg_clip = [NSFileManager.defaultManager copyItemAtURL:clip toURL:copy error:nil] ? copy : nil;
+        } else {
+            sg_clip = nil;
+        }
+        showCover();
+    });
 }
 
 // The now playing cover, read again: MediaRemote's info carries it as image data.
@@ -107,7 +187,7 @@ static void readCover(void) {
         }
         if ([data isEqualToData:sg_coverData]) return;
         UIImage *image = [UIImage imageWithData:data];
-        if (!image) return;
+        if (!image || isSkeleton(image)) return;
         sg_coverData = data;
         sg_cover = image;
         showCover();
@@ -142,6 +222,7 @@ static void listenArt(const char *name, BOOL on) {
     if (@available(iOS 26.0, *)) return;
     void *remote = dlopen("/System/Library/PrivateFrameworks/MediaRemote.framework/MediaRemote", RTLD_NOW);
     sg_getInfo = remote ? (SGMRGetInfo)dlsym(remote, "MRMediaRemoteGetNowPlayingInfo") : NULL;
+    sg_getApp = remote ? (SGMRGetApp)dlsym(remote, "MRMediaRemoteGetNowPlayingApplicationDisplayID") : NULL;
     SGMRRegister registerFor = remote ? (SGMRRegister)dlsym(remote, "MRMediaRemoteRegisterForNowPlayingNotifications") : NULL;
     if (!sg_getInfo || !registerFor) return;
     %init;
@@ -153,4 +234,11 @@ static void listenArt(const char *name, BOOL on) {
     }
     listenArt(kSGRelayLockArtOn, YES);
     listenArt(kSGRelayLockArtOff, NO);
+    int clipToken, noneToken;
+    notify_register_dispatch(kSGRelayLockClip, &clipToken, dispatch_get_main_queue(), ^(int t) { readClip(); });
+    notify_register_dispatch(kSGRelayLockClipNone, &noneToken, dispatch_get_main_queue(), ^(int t) {
+        if (sg_clip.isFileURL) [NSFileManager.defaultManager removeItemAtURL:sg_clip error:nil];
+        sg_clip = nil;
+        showCover();
+    });
 }
