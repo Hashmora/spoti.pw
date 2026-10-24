@@ -72,6 +72,7 @@ void SGHapticRelayAsk(void) {
 
 void SGHapticRelaySendLockArt(void) {
     notify_post(SGFlag(SGKeyLockCoverStill, YES) ? kSGRelayLockStillOn : kSGRelayLockStillOff);
+    notify_post(SGFlag(SGKeyLockCoverHidePaused, YES) ? kSGRelayLockPauseHides : kSGRelayLockPauseStays);
     notify_post(SGFlag(SGKeyLockCoverAddon, NO) ? kSGRelayLockArtOn : kSGRelayLockArtOff);
 }
 

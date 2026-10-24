@@ -17,7 +17,7 @@
 // moved on: no audio session, no now playing, nothing of Spotify's to interrupt. It is a view of the add-on's at the back of the cover sheet's view (CSCoverSheetViewController), over the
 // wallpaper and under everything the lock screen draws, the cover filling the screen and a shade over its lower part so
 // the player and the notifications stay legible. With no now playing info it goes, and while the song is paused, so the
-// lock screen has its wallpaper back until it plays again.
+// lock screen has its wallpaper back until it plays again, unless Spotify's Hide while paused is off.
 //
 // Threading: MediaRemote's answers come on the main queue; the view is the main thread's.
 #import <AVFoundation/AVFoundation.h>
@@ -50,6 +50,8 @@ static SGMRIsPlaying sg_isPlaying;
 // Whether the now playing app is playing: paused, the artwork goes, the cover and the clip alike, and comes back as it
 // plays again (the phone, 2026-10-24: the still cover stayed over a paused song).
 static BOOL sg_playing;
+// Spotify's switch for it, on until switched off: off, the artwork stays over a paused song, as it did at first.
+static BOOL sg_hidePaused = YES;
 static NSURL *sg_clip;   // the clip to play, nil for the still cover
 static BOOL sg_on;
 // The still cover where there is no clip (Spotify's switch, on until switched off): off, the cover shows only with a clip.
@@ -203,7 +205,7 @@ static void showCover(void) {
     UIView *holder = sg_holder;
     if (!holder) return;
     SGVLockCover *cover = objc_getAssociatedObject(holder, &kCoverKey);
-    BOOL shown = sg_on && sg_playing && sg_cover && (sg_clip || sg_still);
+    BOOL shown = sg_on && (sg_playing || !sg_hidePaused) && sg_cover && (sg_clip || sg_still);
     if (!cover && !shown) return;
     if (!cover) {
         cover = [[SGVLockCover alloc] initWithFrame:holder.bounds];
@@ -343,6 +345,9 @@ static void listenArt(const char *name, BOOL on) {
     readPlaying();
     listenArt(kSGRelayLockArtOn, YES);
     listenArt(kSGRelayLockArtOff, NO);
+    int pauseHidesToken, pauseStaysToken;
+    notify_register_dispatch(kSGRelayLockPauseHides, &pauseHidesToken, dispatch_get_main_queue(), ^(int t) { sg_hidePaused = YES; showCover(); });
+    notify_register_dispatch(kSGRelayLockPauseStays, &pauseStaysToken, dispatch_get_main_queue(), ^(int t) { sg_hidePaused = NO; showCover(); });
     int stillOnToken, stillOffToken;
     notify_register_dispatch(kSGRelayLockStillOn, &stillOnToken, dispatch_get_main_queue(), ^(int t) { sg_still = YES; showCover(); });
     notify_register_dispatch(kSGRelayLockStillOff, &stillOffToken, dispatch_get_main_queue(), ^(int t) { sg_still = NO; showCover(); });

@@ -25,6 +25,8 @@ SGLockArtwork SGLockScreenArtwork(void);
 // With it, the still cover where the track has no Canvas or animated cover, or until its clip is in; on until switched
 // off, when the lock screen keeps its wallpaper until a clip is ready.
 #define SGKeyLockCoverStill @"spotifyglass.lockscreen.cover.still"
+// With it, the artwork gone while the song is paused and back as it plays; on until switched off, when it stays.
+#define SGKeyLockCoverHidePaused @"spotifyglass.lockscreen.cover.hidePaused"
 // Under Moving artwork with lyrics, LyricsArtwork.x says whether the playing track has no synced lines (YES), so
 // LockScreenMotion.x shows its moving artwork plain, as Moving artwork does, or has them (NO), so it takes it off
 // for the lyrics' clips. Main queue.

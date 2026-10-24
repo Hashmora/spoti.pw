@@ -56,6 +56,9 @@ NSArray *SGLockScreenMotionRows(void) {
         SGModRow *still = SGSwitchRow(@"Cover without moving artwork", @"Off: the lock screen shows the artwork only once a clip is in", SGKeyLockCoverStill);
         still.changed = ^(BOOL on) { SGHapticRelaySendLockArt(); };
         still.waitsOn = SGKeyLockCoverAddon;
+        SGModRow *paused = SGSwitchRow(@"Hide while paused", @"Off: the artwork stays on the lock screen when the song is paused", SGKeyLockCoverHidePaused);
+        paused.changed = ^(BOOL on) { SGHapticRelaySendLockArt(); };
+        paused.waitsOn = SGKeyLockCoverAddon;
         // The add-on's update, offered here as on the Vibrations page: it draws this screen too.
         SGModRow *update = SGActionRow(@"Update Vitrine Addon", @"A newer add-on comes with this Vitrine", ^{
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.35 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
@@ -63,7 +66,7 @@ NSArray *SGLockScreenMotionRows(void) {
             });
         });
         update.visible = ^BOOL { return SGHapticAddonOutdated(); };
-        return @[cover, still, update];
+        return @[cover, still, paused, update];
     }
     return @[SGLockScreenArtworkNeedsRow()];
 }

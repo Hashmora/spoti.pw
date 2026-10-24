@@ -33,7 +33,8 @@ enum { kSGRelayLevels = 10, kSGRelaySharpnesses = 3 };
 // 5: Vitrine Addon (the package renamed, com.vitrine.addon replacing com.vitrine.haptics), the clip fitted on the blurred
 //    cover and played with no audio session, and the still cover's switch (kSGRelayLockStillOn).
 // 6: the lock screen's artwork gone while the song is paused.
-enum { kSGRelayAddonBuild = 6 };
+// 7: that behind a switch of its own (kSGRelayLockPauseHides).
+enum { kSGRelayAddonBuild = 7 };
 // Below iOS 26, the add-on also fills the lock screen with the now playing cover while Spotify's switch for it is on
 // (AnimatedArtwork.h, SGKeyLockCoverAddon): told "lockart.1" and "lockart.0" as the switch is set and each time the
 // add-on answers. It reads the cover from MediaRemote, as the lock screen's own player does.
@@ -48,6 +49,10 @@ enum { kSGRelayAddonBuild = 6 };
 // each time the add-on answers: "lockstill.1" the still cover, "lockstill.0" nothing until a clip is in.
 #define kSGRelayLockStillOn kSGRelayPrefix "lockstill.1"
 #define kSGRelayLockStillOff kSGRelayPrefix "lockstill.0"
+// Whether the artwork goes while the song is paused (SGKeyLockCoverHidePaused): "lockpause.1" it goes, "lockpause.0" it
+// stays, as it did before the switch.
+#define kSGRelayLockPauseHides kSGRelayPrefix "lockpause.1"
+#define kSGRelayLockPauseStays kSGRelayPrefix "lockpause.0"
 // Whether the add-on plays while the phone is locked, told it by Spotify as the switch is set and each time the add-on
 // answers: kSGRelayPrefix "lockscreen.1" plays there, "lockscreen.0" does not.
 #define kSGRelayLockOn kSGRelayPrefix "lockscreen.1"
