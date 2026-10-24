@@ -1,4 +1,4 @@
-// Vitrine Haptics, an add-on package of its own for a jailbroken phone, loaded into SpringBoard: it plays the taps and
+// Vitrine Addon, an add-on package of its own for a jailbroken phone, loaded into SpringBoard: it plays the taps and
 // the rumble Spotify's Music Haptics hands it while Spotify is not in front (tweak/Sources/Shared/Haptics/SGHapticRelay.h,
 // which names the notifications), since iOS plays haptics for SpringBoard at any time and for an app in the background
 // never. Vitrine itself (its IPA or its .deb) does not carry it: it is installed once with a package manager.

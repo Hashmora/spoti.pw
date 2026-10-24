@@ -1,12 +1,20 @@
-// Vitrine Haptics, the lock screen's full-screen cover below iOS 26: while Spotify's switch for it is on
+// Vitrine Addon, the lock screen's full-screen cover below iOS 26: while Spotify's switch for it is on
 // (SGKeyLockCoverAddon, told as kSGRelayLockArtOn / kSGRelayLockArtOff), the now playing cover fills the lock screen
 // behind its clock and its player, as iOS 26 fills it with an app's artwork. iOS 26 does it itself, so nothing is done
 // there.
 //
 // The cover is read from MediaRemote, as the lock screen's own player reads it, and follows its now playing info as it
 // changes. A cover all of one grey (the skeleton Spotify names for a moment before the cover is in, after a seek) is
-// left out. Over it the track's moving artwork plays, muted and looping, when Spotify has one (kSGRelayLockClip): a
-// file in Spotify's caches, found through the data container of the now playing app. It is a view of the add-on's at the back of the cover sheet's view (CSCoverSheetViewController), over the
+// left out. Over it the track's moving artwork plays, looping, when Spotify has one (kSGRelayLockClip): a file in
+// Spotify's caches, found through the data container of the now playing app. It is fitted whole to the screen's width
+// rather than filling it (a 9:16 Canvas filled a 9:19.5 screen cut off at both sides, far too large), on the cover
+// blurred behind it, so the bands above and below are in the clip's own colours.
+//
+// The clip is not played by an AVPlayer: one in SpringBoard took an audio session, which the system counted as playback
+// and paused Spotify for, and once Spotify played again the player was the one paused, left on a still frame (the phone,
+// 2026-10-24). Its frames are read from the file (AVAssetReader, the video track alone, as they are compressed) and
+// handed to an AVSampleBufferDisplayLayer on a timebase of its own, looped by starting the reader over with the times
+// moved on: no audio session, no now playing, nothing of Spotify's to interrupt. It is a view of the add-on's at the back of the cover sheet's view (CSCoverSheetViewController), over the
 // wallpaper and under everything the lock screen draws, the cover filling the screen and a shade over its lower part so
 // the player and the notifications stay legible. With no now playing info it goes.
 //
@@ -38,6 +46,8 @@ static SGMRGetInfo sg_getInfo;
 static SGMRGetApp sg_getApp;
 static NSURL *sg_clip;   // the clip to play, nil for the still cover
 static BOOL sg_on;
+// The still cover where there is no clip (Spotify's switch, on until switched off): off, the cover shows only with a clip.
+static BOOL sg_still = YES;
 static UIImage *sg_cover;
 static NSData *sg_coverData;
 static __weak UIView *sg_holder;
@@ -48,32 +58,104 @@ static __weak UIView *sg_holder;
 
 @implementation SGVLockCover {
     CAGradientLayer *_shade;
-    AVQueuePlayer *_player;
-    AVPlayerLooper *_looper;
-    AVPlayerLayer *_video;
+    UIVisualEffectView *_blur;
+    AVSampleBufferDisplayLayer *_video;
+    dispatch_queue_t _feed;
+    AVURLAsset *_asset;
+    AVAssetTrack *_track;
+    AVAssetReader *_reader;
+    AVAssetReaderTrackOutput *_output;
+    CMTime _offset;
     NSURL *_playing;
+    NSUInteger _run;
 }
 
-// The clip over the cover, muted and looping, or none: the cover shows until the clip's first frame is ready.
+// The clip over the cover, looping, or none: the blurred cover shows round it, and alone until its first frame.
 - (void)playClip:(NSURL *)clip {
     if ((clip == nil && _playing == nil) || [clip isEqual:_playing]) return;
-    [_player pause];
-    [_video removeFromSuperlayer];
-    _looper = nil;
-    _player = nil;
-    _video = nil;
     _playing = clip;
+    _run++;
+    [_video stopRequestingMediaData];
+    [_video flush];
+    [_video removeFromSuperlayer];
+    [_reader cancelReading];
+    _video = nil;
+    _reader = nil;
+    _output = nil;
+    [UIView animateWithDuration:kCoverFade animations:^{ self->_blur.alpha = clip ? 1 : 0; }];
     if (!clip) return;
-    AVPlayerItem *item = [AVPlayerItem playerItemWithURL:clip];
-    _player = [AVQueuePlayer queuePlayerWithItems:@[]];
-    _player.muted = YES;
-    _player.preventsDisplaySleepDuringVideoPlayback = NO;
-    _looper = [AVPlayerLooper playerLooperWithPlayer:_player templateItem:item];
-    _video = [AVPlayerLayer playerLayerWithPlayer:_player];
-    _video.videoGravity = AVLayerVideoGravityResizeAspectFill;
+    _asset = [AVURLAsset URLAssetWithURL:clip options:nil];
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+    _track = [_asset tracksWithMediaType:AVMediaTypeVideo].firstObject;
+#pragma clang diagnostic pop
+    if (!_track) return;
+    if (!_feed) _feed = dispatch_queue_create("com.vitrine.addon.lockclip", DISPATCH_QUEUE_SERIAL);
+    _video = [AVSampleBufferDisplayLayer layer];
+    _video.videoGravity = AVLayerVideoGravityResizeAspect;
     _video.frame = self.bounds;
+    CMTimebaseRef timebase = NULL;
+    CMTimebaseCreateWithSourceClock(kCFAllocatorDefault, CMClockGetHostTimeClock(), &timebase);
+    CMTimebaseSetTime(timebase, kCMTimeZero);
+    CMTimebaseSetRate(timebase, 1);
+    _video.controlTimebase = timebase;
+    if (timebase) CFRelease(timebase);
     [self.layer insertSublayer:_video below:_shade];
-    [_player play];
+    _offset = kCMTimeZero;
+    NSUInteger run = _run;
+    AVSampleBufferDisplayLayer *video = _video;
+    dispatch_async(_feed, ^{
+        if (run != self->_run || ![self startReader]) return;
+        [video requestMediaDataWhenReadyOnQueue:self->_feed usingBlock:^{ [self feed:video run:run]; }];
+    });
+}
+
+// The clip read once more from its start: the video track alone, its samples as they are in the file.
+- (BOOL)startReader {
+    NSError *error = nil;
+    AVAssetReader *reader = [AVAssetReader assetReaderWithAsset:_asset error:&error];
+    AVAssetReaderTrackOutput *output = [AVAssetReaderTrackOutput assetReaderTrackOutputWithTrack:_track outputSettings:nil];
+    if (!reader || ![reader canAddOutput:output]) return NO;
+    [reader addOutput:output];
+    if (![reader startReading]) return NO;
+    _reader = reader;
+    _output = output;
+    return YES;
+}
+
+- (void)feed:(AVSampleBufferDisplayLayer *)video run:(NSUInteger)run {
+    while (video.isReadyForMoreMediaData && run == _run) {
+        CMSampleBufferRef sample = [_output copyNextSampleBuffer];
+        if (!sample) {
+            // The end of the clip: on from its start, every time moved on by its length.
+            if (_reader.status != AVAssetReaderStatusCompleted) {
+                [video stopRequestingMediaData];
+                return;
+            }
+            _offset = CMTimeAdd(_offset, _asset.duration);
+            if (![self startReader]) {
+                [video stopRequestingMediaData];
+                return;
+            }
+            continue;
+        }
+        CMItemCount count = 0;
+        CMSampleBufferGetSampleTimingInfoArray(sample, 0, NULL, &count);
+        CMSampleTimingInfo stack[8];
+        CMSampleTimingInfo *timing = count <= 8 ? stack : malloc(sizeof(CMSampleTimingInfo) * count);
+        CMSampleBufferGetSampleTimingInfoArray(sample, count, timing, &count);
+        for (CMItemCount i = 0; i < count; i++) {
+            if (CMTIME_IS_VALID(timing[i].presentationTimeStamp)) timing[i].presentationTimeStamp = CMTimeAdd(timing[i].presentationTimeStamp, _offset);
+            if (CMTIME_IS_VALID(timing[i].decodeTimeStamp)) timing[i].decodeTimeStamp = CMTimeAdd(timing[i].decodeTimeStamp, _offset);
+        }
+        CMSampleBufferRef moved = NULL;
+        CMSampleBufferCreateCopyWithNewTiming(kCFAllocatorDefault, sample, count, timing, &moved);
+        if (timing != stack) free(timing);
+        CFRelease(sample);
+        if (!moved) continue;
+        [video enqueueSampleBuffer:moved];
+        CFRelease(moved);
+    }
 }
 
 - (instancetype)initWithFrame:(CGRect)frame {
@@ -84,6 +166,10 @@ static __weak UIView *sg_holder;
     _picture = [UIImageView new];
     _picture.contentMode = UIViewContentModeScaleAspectFill;
     [self addSubview:_picture];
+    // The cover blurred, round a clip that does not fill the screen: in the clip's colours, near enough.
+    _blur = [[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemThickMaterialDark]];
+    _blur.alpha = 0;
+    [self addSubview:_blur];
     _shade = [CAGradientLayer layer];
     _shade.colors = @[(id)[UIColor colorWithWhite:0 alpha:0].CGColor, (id)[UIColor colorWithWhite:0 alpha:kShadeBottom].CGColor];
     _shade.locations = @[@0.35, @1];
@@ -94,6 +180,7 @@ static __weak UIView *sg_holder;
 - (void)layoutSubviews {
     [super layoutSubviews];
     _picture.frame = self.bounds;
+    _blur.frame = self.bounds;
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     _shade.frame = self.bounds;
@@ -110,7 +197,7 @@ static void showCover(void) {
     UIView *holder = sg_holder;
     if (!holder) return;
     SGVLockCover *cover = objc_getAssociatedObject(holder, &kCoverKey);
-    BOOL shown = sg_on && sg_cover;
+    BOOL shown = sg_on && sg_cover && (sg_clip || sg_still);
     if (!cover && !shown) return;
     if (!cover) {
         cover = [[SGVLockCover alloc] initWithFrame:holder.bounds];
@@ -234,6 +321,9 @@ static void listenArt(const char *name, BOOL on) {
     }
     listenArt(kSGRelayLockArtOn, YES);
     listenArt(kSGRelayLockArtOff, NO);
+    int stillOnToken, stillOffToken;
+    notify_register_dispatch(kSGRelayLockStillOn, &stillOnToken, dispatch_get_main_queue(), ^(int t) { sg_still = YES; showCover(); });
+    notify_register_dispatch(kSGRelayLockStillOff, &stillOffToken, dispatch_get_main_queue(), ^(int t) { sg_still = NO; showCover(); });
     int clipToken, noneToken;
     notify_register_dispatch(kSGRelayLockClip, &clipToken, dispatch_get_main_queue(), ^(int t) { readClip(); });
     notify_register_dispatch(kSGRelayLockClipNone, &noneToken, dispatch_get_main_queue(), ^(int t) {

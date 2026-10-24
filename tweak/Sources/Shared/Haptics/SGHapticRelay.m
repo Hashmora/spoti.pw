@@ -20,7 +20,7 @@ BOOL SGHapticRelayAvailable(void) {
 static uint64_t sg_installedBuild;
 
 NSURL *SGHapticAddonPackage(void) {
-    return [NSBundle.mainBundle URLForResource:@"VitrineHaptics" withExtension:@"deb"];
+    return [NSBundle.mainBundle URLForResource:@"VitrineAddon" withExtension:@"deb"];
 }
 
 uint64_t SGHapticAddonInstalledBuild(void) {
@@ -38,7 +38,7 @@ BOOL SGHapticAddonShare(UIView *view) {
     static UIDocumentInteractionController *share;
     share = [UIDocumentInteractionController interactionControllerWithURL:package];
     share.UTI = @"org.debian.deb-archive";
-    share.name = @"Vitrine Haptics";
+    share.name = @"Vitrine Addon";
     CGRect at = CGRectMake(CGRectGetMidX(view.bounds), CGRectGetMidY(view.bounds), 1, 1);
     BOOL shown = [share presentOptionsMenuFromRect:at inView:view animated:YES];
     SGLog(@"music haptics: the add-on's .deb handed to the system's Open In (%@)", shown ? @"shown" : @"nothing takes it");
@@ -69,6 +69,7 @@ void SGHapticRelayAsk(void) {
 }
 
 void SGHapticRelaySendLockArt(void) {
+    notify_post(SGFlag(SGKeyLockCoverStill, YES) ? kSGRelayLockStillOn : kSGRelayLockStillOff);
     notify_post(SGFlag(SGKeyLockCoverAddon, NO) ? kSGRelayLockArtOn : kSGRelayLockArtOff);
 }
 
@@ -83,7 +84,7 @@ void SGHapticAddonExplain(NSString *feature) {
     NSString *message = carried
         ? [NSString stringWithFormat:@"%@ is played by SpringBoard, through a small add-on that comes with Vitrine. Tap Install, pick Sileo or Filza, install it, then respring. The switch stays on and works once the add-on is there.", feature]
         : [NSString stringWithFormat:@"%@ is played by SpringBoard, through a small add-on that comes inside Vitrine's IPA. This install has no copy of it: install Vitrine from its IPA, then turn the switch on again to put the add-on in place.", feature];
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Needs Vitrine Haptics" message:message
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Needs Vitrine Addon" message:message
                                                             preferredStyle:UIAlertControllerStyleAlert];
     alert.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
     if (carried) {

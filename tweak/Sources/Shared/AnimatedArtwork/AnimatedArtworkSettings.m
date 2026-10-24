@@ -48,12 +48,22 @@ NSArray *SGLockScreenMotionRows(void) {
     }
     // Below iOS 26 with a jailbreak the add-on in SpringBoard draws the cover full screen itself.
     if (SGHapticEverywhereOffered()) {
-        SGModRow *cover = SGOptionRow(@"Full-screen cover", @"The Canvas or Apple Music's animated cover behind the lock screen, else the still cover, drawn by the Vitrine Haptics add-on", SGKeyLockCoverAddon);
+        SGModRow *cover = SGOptionRow(@"Full-screen artwork", @"The Canvas or Apple Music's animated cover behind the lock screen, drawn by Vitrine Addon", SGKeyLockCoverAddon);
         cover.changed = ^(BOOL on) {
             SGHapticRelaySendLockArt();
-            if (on && !SGHapticRelayAvailable()) SGHapticAddonExplain(@"The full-screen cover");
+            if (on && !SGHapticRelayAvailable()) SGHapticAddonExplain(@"The full-screen artwork");
         };
-        return @[cover];
+        SGModRow *still = SGSwitchRow(@"Cover without moving artwork", @"Off: the lock screen shows the artwork only once a clip is in", SGKeyLockCoverStill);
+        still.changed = ^(BOOL on) { SGHapticRelaySendLockArt(); };
+        still.waitsOn = SGKeyLockCoverAddon;
+        // The add-on's update, offered here as on the Vibrations page: it draws this screen too.
+        SGModRow *update = SGActionRow(@"Update Vitrine Addon", @"A newer add-on comes with this Vitrine", ^{
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.35 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                SGHapticAddonShare(SGTopController().view);
+            });
+        });
+        update.visible = ^BOOL { return SGHapticAddonOutdated(); };
+        return @[cover, still, update];
     }
     return @[SGLockScreenArtworkNeedsRow()];
 }

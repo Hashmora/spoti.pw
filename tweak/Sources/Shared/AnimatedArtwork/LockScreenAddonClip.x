@@ -1,12 +1,13 @@
-// The lock screen's full-screen cover below iOS 26, with a jailbreak (SGKeyLockCoverAddon): the Vitrine Haptics add-on
+// The lock screen's full-screen cover below iOS 26, with a jailbreak (SGKeyLockCoverAddon): Vitrine Addon
 // in SpringBoard draws it (addons/haptics/LockCover.x), and from here it gets the track's moving artwork to draw in place
 // of the still cover, the Canvas else Apple Music's animated cover, as iOS 26 takes them (LockScreenMotion.x).
 //
 // Each track is walked through the sources the lock screen's motion walks (SGMotionFollower). A clip found is copied to
 // one file of Spotify's caches, kSGLockClipName, which SpringBoard reads through Spotify's data container (it finds the
 // container by the now playing app), and the add-on is told by kSGRelayLockClip; a track with none tells it
-// kSGRelayLockClipNone, and the add-on draws the still cover. A clip is drawn as it is, 9:16 most of them, filling the
-// screen: nothing is cut to a key's shape here, as SpringBoard is not bound to the system's.
+// kSGRelayLockClipNone, and the add-on draws the still cover, or nothing with Cover without moving artwork off. A clip is
+// drawn whole, 9:16 most of them, fitted to the screen's width on its cover blurred: nothing is cut to a key's shape here,
+// as SpringBoard is not bound to the system's.
 //
 // Threading: the walk answers on the main queue; the copy runs on a queue of its own.
 #import <notify.h>

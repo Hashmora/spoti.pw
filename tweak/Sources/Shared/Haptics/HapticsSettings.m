@@ -16,7 +16,7 @@
 
 static NSString *const kMusicInfo = @"The iPhone taps along with the drums and rumbles under the bass, worked out from the sound as Spotify plays it. Only while Spotify is open: iOS stops an app's own haptics in the background, and a song playing on another device through Connect has no sound here to follow.\n\nWith In the Background on too, iOS plays its own haptic track for the songs it has one for, and this waits, so the two never double up.";
 
-static NSString *const kEverywhereInfo = @"With a jailbreak, Music Haptics above keeps playing when Spotify leaves the screen: on the home screen, in other apps and on the lock screen. Spotify still listens to its own sound, and SpringBoard, which iOS lets play haptics at any time, plays the taps and the rumble for it.\n\nThat part is an add-on, Vitrine Haptics, installed once with a package manager (Sileo, Zebra or Filza): Vitrine itself lives in Spotify and cannot reach SpringBoard.";
+static NSString *const kEverywhereInfo = @"With a jailbreak, Music Haptics above keeps playing when Spotify leaves the screen: on the home screen, in other apps and on the lock screen. Spotify still listens to its own sound, and SpringBoard, which iOS lets play haptics at any time, plays the taps and the rumble for it.\n\nThat part is an add-on, Vitrine Addon, installed once with a package manager (Sileo, Zebra or Filza): Vitrine itself lives in Spotify and cannot reach SpringBoard.";
 // The add-on's .deb inside Spotify handed to the package manager, once the alert it is picked from has gone.
 static void shareAddon(void) {
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.35 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
@@ -172,7 +172,7 @@ static NSArray<SGModSection *> *sections(SGVibrationsPreview *preview, void (^ex
     lockScreen.waitsOn = SGKeyMusicHapticsEverywhere;
     lockScreen.visible = ^BOOL { return SGHapticEverywhereOffered(); };
     // A newer add-on inside this Vitrine than the one SpringBoard runs: the same two taps put it in place.
-    SGModRow *addonUpdate = SGActionRow(@"Update Vitrine Haptics", @"A newer add-on comes with this Vitrine", ^{ shareAddon(); });
+    SGModRow *addonUpdate = SGActionRow(@"Update Vitrine Addon", @"A newer add-on comes with this Vitrine", ^{ shareAddon(); });
     addonUpdate.visible = ^BOOL { return SGHapticAddonOutdated(); };
 
     SGModRow *background = SGOptionRow(@"In the Background", nil, SGKeyMusicHapticsBackground);

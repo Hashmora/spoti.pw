@@ -1,7 +1,7 @@
 // Music Haptics > Everywhere, with a jailbreak: the mod's own Music Haptics carried on while Spotify is not in front
 // (the home screen, other apps, the lock screen), where iOS plays no haptics for an app in the background. Spotify
 // keeps listening to its own sound and hands each tap and each level of the rumble to SpringBoard, which is always in
-// front and plays them. The SpringBoard side is an add-on package of its own, Vitrine Haptics (addons/haptics), installed
+// front and plays them. The SpringBoard side is an add-on package of its own, Vitrine Addon (addons/haptics), installed
 // once with a package manager on a jailbroken phone: Vitrine's IPA lives in Spotify's sandbox and has no way into
 // SpringBoard. The IPA build lays the add-on's .deb inside Spotify.app (scripts/pipeline.sh), and the page hands that
 // file to the package manager through the system's Open In (Sileo and Filza both take a .deb that way), so installing it
@@ -30,7 +30,9 @@ enum { kSGRelayLevels = 10, kSGRelaySharpnesses = 3 };
 // 2: the rumble's keepalive and the lock screen switch.
 // 3: the full-screen cover on the lock screen below iOS 26 (kSGRelayLockArtOn).
 // 4: the track's moving artwork there in place of the still cover (kSGRelayLockClip), and no skeleton cover.
-enum { kSGRelayAddonBuild = 4 };
+// 5: Vitrine Addon (the package renamed, com.vitrine.addon replacing com.vitrine.haptics), the clip fitted on the blurred
+//    cover and played with no audio session, and the still cover's switch (kSGRelayLockStillOn).
+enum { kSGRelayAddonBuild = 5 };
 // Below iOS 26, the add-on also fills the lock screen with the now playing cover while Spotify's switch for it is on
 // (AnimatedArtwork.h, SGKeyLockCoverAddon): told "lockart.1" and "lockart.0" as the switch is set and each time the
 // add-on answers. It reads the cover from MediaRemote, as the lock screen's own player does.
@@ -41,6 +43,10 @@ enum { kSGRelayAddonBuild = 4 };
 #define kSGRelayLockClip kSGRelayPrefix "lockclip"
 #define kSGRelayLockClipNone kSGRelayPrefix "lockclip.none"
 #define kSGLockClipName "VitrineLockClip.mp4"
+// Whether the cover shows where the track has no moving artwork (SGKeyLockCoverStill), told as the switch is set and
+// each time the add-on answers: "lockstill.1" the still cover, "lockstill.0" nothing until a clip is in.
+#define kSGRelayLockStillOn kSGRelayPrefix "lockstill.1"
+#define kSGRelayLockStillOff kSGRelayPrefix "lockstill.0"
 // Whether the add-on plays while the phone is locked, told it by Spotify as the switch is set and each time the add-on
 // answers: kSGRelayPrefix "lockscreen.1" plays there, "lockscreen.0" does not.
 #define kSGRelayLockOn kSGRelayPrefix "lockscreen.1"
