@@ -143,15 +143,17 @@ UIView *SGRGlassGroupPill(UIView *host, NSArray<UIView *> *controls, const void 
         holder.accessibilityElementsHidden = YES;
         objc_setAssociatedObject(host, key, holder, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
-    // The controls shown, by their centres and sizes (which a transform on them leaves alone), trailing first; the capsule
+    // The controls shown, where they are drawn (their frames, with the transform a page may move them by: the Library's
+    // header moves its buttons to the trailing edge that way, and by their centres they stood far to the left, so the
+    // capsule took the avatar alone, the phone, 2026-10-24), trailing first; the capsule
     // takes the run of them that stand side by side from the trailing one, so a control standing apart (the Library's
     // Recents, parked at the row's leading edge while it is hidden) does not stretch it across the title (the phone,
     // 2026-10-24).
     NSMutableArray<NSValue *> *spans = [NSMutableArray array];
     for (UIView *control in controls) {
         if (control.bounds.size.width < 1 || control.hidden || control.alpha < 0.01) continue;
-        CGPoint center = [control.superview convertPoint:control.center toView:host];
-        [spans addObject:[NSValue valueWithCGRect:CGRectMake(center.x - control.bounds.size.width / 2, center.y, control.bounds.size.width, 0)]];
+        CGRect drawn = [control.superview convertRect:control.frame toView:host];
+        [spans addObject:[NSValue valueWithCGRect:CGRectMake(CGRectGetMinX(drawn), CGRectGetMidY(drawn), drawn.size.width, 0)]];
     }
     [spans sortUsingComparator:^NSComparisonResult(NSValue *a, NSValue *b) {
         CGFloat ax = CGRectGetMaxX(a.CGRectValue), bx = CGRectGetMaxX(b.CGRectValue);
