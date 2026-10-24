@@ -1007,6 +1007,14 @@ static void rememberPage(NSString *kind) {
     if (self.openWhenRead && !self.ended && !self.displayed) {
         self.openWhenRead = NO;
         openMenuFrom(self.anchor);
+        // Should the menu not come up, Spotify's sheet is shown, so the tap still gets its options.
+        __weak SGRMenuSession *weakSelf = self;
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            SGRMenuSession *session = weakSelf;
+            if (!session || session.displayed || session.ended || session.revealed) return;
+            SGLog(@"system menu: the page's menu did not open from code, Spotify's sheet shown");
+            [session reveal];
+        });
     }
 
     NSArray<dispatch_block_t> *waiting = _whenRead;
