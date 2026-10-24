@@ -25,13 +25,13 @@ static void shareAddon(void) {
 }
 
 // Everywhere switched on without the add-on: what it needs and, from Vitrine's IPA, the add-on itself, two taps away
-// (Install, then Sileo or Filza). An install of Vitrine's .deb alone carries no copy, so there it asks for the add-on's
-// own .deb to be installed alongside. The switch stays on, and Everywhere plays once the add-on answers.
+// (Install, then Sileo or Filza). An install of Vitrine's .deb alone carries no copy, and the add-on is installed from the
+// app only, so there it says the IPA carries it. The switch stays on, and Everywhere plays once the add-on answers.
 static void explainAddon(void) {
     BOOL carried = SGHapticAddonPackage() != nil;
     NSString *message = carried
         ? @"Outside Spotify the vibrations are played by SpringBoard, through a small add-on that comes with Vitrine. Tap Install, pick Sileo or Filza, install it, then respring. Everywhere stays on and starts playing once the add-on is there."
-        : @"Outside Spotify the vibrations are played by SpringBoard, through a small add-on. Install the Vitrine Haptics package alongside Vitrine's: VitrineHaptics.deb comes with the same build. Then respring; Everywhere stays on and starts playing once the add-on is there.";
+        : @"Outside Spotify the vibrations are played by SpringBoard, through a small add-on that comes inside Vitrine's IPA. This install has no copy of it: install Vitrine from its IPA, then turn Everywhere on again to put the add-on in place.";
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Everywhere needs Vitrine Haptics" message:message
                                                             preferredStyle:UIAlertControllerStyleAlert];
     alert.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;

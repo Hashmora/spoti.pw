@@ -5,8 +5,8 @@
 // once with a package manager on a jailbroken phone: Vitrine's IPA lives in Spotify's sandbox and has no way into
 // SpringBoard. The IPA build lays the add-on's .deb inside Spotify.app (scripts/pipeline.sh), and the page hands that
 // file to the package manager through the system's Open In (Sileo and Filza both take a .deb that way), so installing it
-// is two taps. An install of Vitrine's .deb alone has no copy inside Spotify: there the page asks for the add-on's own
-// .deb, built alongside, to be installed too. Everywhere is offered on a jailbroken phone; nothing plays behind Spotify
+// is two taps, and the only way it is offered. An install of Vitrine's .deb alone has no copy inside Spotify: there the
+// page says the IPA carries it. Everywhere is offered on a jailbroken phone; nothing plays behind Spotify
 // until the add-on answers.
 //
 // The add-on answers with its build number (kSGRelayAddonBuild, raised whenever addons/haptics changes) as the state of

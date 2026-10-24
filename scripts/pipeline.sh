@@ -203,11 +203,10 @@ fi
 
 # Music Haptics > Everywhere plays outside Spotify through an add-on in SpringBoard (addons/haptics), which a jailbroken
 # phone installs with its package manager. Its .deb goes inside Spotify.app, where the Vibrations page hands it to Sileo
-# or Filza (Shared/Haptics/SGHapticRelay.h), and next to the IPA in out/ for an install of Vitrine's .deb alone.
+# or Filza (Shared/Haptics/SGHapticRelay.h): the add-on is installed from the app, and nowhere else.
 echo "==> building the Vitrine Haptics add-on"
 env -u MAKELEVEL gmake -C "$ROOT/addons/haptics" clean package THEOS_PACKAGE_SCHEME=rootless >/dev/null
 ADDON_DEB="$(ls -t "$ROOT"/addons/haptics/packages/*.deb | head -1)"
-cp "$ADDON_DEB" "$ROOT/out/VitrineHaptics.deb"
 PATCH="$(mktemp -d)"
 mkdir -p "$PATCH/$APP_DIR"
 cp "$ADDON_DEB" "$PATCH/${APP_DIR}VitrineHaptics.deb"

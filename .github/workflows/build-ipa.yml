@@ -54,15 +54,6 @@ jobs:
           path: out/*.ipa
           if-no-files-found: error
 
-      # Music Haptics > Everywhere's SpringBoard add-on, for a jailbroken phone that installs Vitrine's .deb rather than
-      # the IPA (the IPA carries its own copy inside Spotify.app).
-      - uses: actions/upload-artifact@v5
-        if: inputs.upload_method != 'filebin'
-        with:
-          name: VitrineHaptics.deb
-          path: out/VitrineHaptics.deb
-          if-no-files-found: error
-
       - name: Upload to filebin.net
         if: inputs.upload_method != 'artifacts'
         run: |
