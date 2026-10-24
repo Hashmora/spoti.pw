@@ -73,6 +73,12 @@ static CFTimeInterval sg_requestedAt;
 // The session whose sheet is in the mod's own window, and the presentation the mod is making itself.
 static __weak SGRMenuSession *sg_hosted;
 static BOOL sg_redirecting;
+// Whether the menu up is the player's (quick row, its items and More), which keeps its own height.
+static BOOL sg_playersUp;
+
+BOOL SGRSystemMenuIsPlayers(void) {
+    return sg_playersUp;
+}
 
 // The player's quick items: what the item says, its symbol, the title of Spotify's row it fires (compared
 // without case) and that row's item number, the accessibility identifier of its Encore ListRow on 9.1.78. The
@@ -373,6 +379,7 @@ static void fadeButton(UIView *button, BOOL away) {
                       animator:(id<UIContextMenuInteractionAnimating>)animator {
     [super contextMenuInteraction:interaction willDisplayMenuForConfiguration:configuration animator:animator];
     [self.session shown];
+    sg_playersUp = self.session.items != nil;
     // The ⋯ this anchor covers: the page's pinned one, or Spotify's for the player's (the mod's button sits inside it).
     fadeButton(self.superview, YES);
 }
@@ -716,7 +723,7 @@ static void raiseHost(UIWindow *window) {
     return [UIDeferredMenuElement elementWithUncachedProvider:^(void (^completion)(NSArray<UIMenuElement *> *)) {
         SGRMenuSession *session = weakSelf;
         if (!session || session->_groups) {
-            completion(session ? [session rowElements] : @[]);
+            completion(session ? (session.items ? [session rowElements] : [session pageElements:[session rowElements]]) : @[]);
             return;
         }
         // The rows the last sheet of this kind had, at once, the live ones put in when they come: the player's for the
@@ -725,7 +732,7 @@ static void raiseHost(UIWindow *window) {
         NSArray<UIMenuElement *> *stored = [session storedElements];
         if (stored.count) {
             session->_showedStored = YES;
-            completion(stored);
+            completion(session.items ? stored : [session pageElements:stored]);
             return;
         }
         if (session.direct) [session requestSheet];
@@ -736,7 +743,7 @@ static void raiseHost(UIWindow *window) {
         SGLog(@"system menu: Spotify's rows asked for before the sheet has them");
         [session->_whenRead addObject:^{
             SGRMenuSession *read = weakSelf;
-            NSArray<UIMenuElement *> *elements = read ? (read->_groups ? [read rowElements] : [read unavailable]) : @[];
+            NSArray<UIMenuElement *> *elements = read ? (read->_groups ? (read.items ? [read rowElements] : [read pageElements:[read rowElements]]) : [read unavailable]) : @[];
             completion(elements);
             // UIKit can leave its loading row up although the rows were handed to it: the menu it shows is built
             // again after this one, and its deferred element is never asked (the songs liked by one artist, device
@@ -794,6 +801,7 @@ static void rememberPage(NSString *kind) {
     [pages addObject:kind];
     while (pages.count > kStoredPages) {
         [defaults removeObjectForKey:storedKey(pages.firstObject)];
+        [defaults removeObjectForKey:[storedKey(pages.firstObject) stringByAppendingString:@".quick"]];
         [pages removeObjectAtIndex:0];
     }
     [defaults setObject:pages forKey:listKey];
@@ -805,8 +813,20 @@ static void rememberPage(NSString *kind) {
     if (!self.direct && !self.kind.length) return nil;
     NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
     NSArray<NSArray<NSDictionary *> *> *groups = [defaults arrayForKey:storedKey(self.kind)];
-    if (![groups isKindOfClass:NSArray.class] && self.fallbackKind.length) groups = [defaults arrayForKey:storedKey(self.fallbackKind)];
+    NSString *from = self.kind;
+    if (![groups isKindOfClass:NSArray.class] && self.fallbackKind.length) {
+        groups = [defaults arrayForKey:storedKey(self.fallbackKind)];
+        from = self.fallbackKind;
+    }
     if (![groups isKindOfClass:NSArray.class]) return nil;
+    // The quick items the stored rows' sheet had, for this menu's quick row (pageElements:).
+    if (!self.items && !sg_quickSeen[self.kind ?: @""]) {
+        NSArray *quick = [defaults arrayForKey:[storedKey(from) stringByAppendingString:@".quick"]];
+        if ([quick isKindOfClass:NSArray.class]) {
+            if (!sg_quickSeen) sg_quickSeen = [NSMutableDictionary dictionary];
+            sg_quickSeen[self.kind ?: @""] = quick;
+        }
+    }
     __weak SGRMenuSession *weakSelf = self;
     NSMutableArray<UIMenuElement *> *elements = [NSMutableArray array];
     for (NSArray<NSDictionary *> *group in groups) {
@@ -847,6 +867,14 @@ static void rememberPage(NSString *kind) {
     }
     NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
     if (!groups.count) return;
+    // A page's quick items go with its rows, which leave them out, so a menu opened from the stored rows after a relaunch
+    // has its quick row too.
+    if (!self.items) {
+        NSArray<NSString *> *quick = sg_quickSeen[self.kind ?: @""] ?: @[];
+        for (NSString *kind in @[self.kind ?: @"", self.fallbackKind ?: @""]) {
+            if (kind.length) [defaults setObject:quick forKey:[storedKey(kind) stringByAppendingString:@".quick"]];
+        }
+    }
     if (![[defaults arrayForKey:storedKey(self.kind)] isEqual:groups]) [defaults setObject:groups forKey:storedKey(self.kind)];
     if (self.fallbackKind.length && ![self.kind isEqualToString:self.fallbackKind]) rememberPage(self.kind);
     if (self.fallbackKind.length && ![[defaults arrayForKey:storedKey(self.fallbackKind)] isEqual:groups]) {
@@ -861,9 +889,10 @@ static void rememberPage(NSString *kind) {
     // A page's menu that opened on stored rows: the whole of it is put right, as it shows.
     if (!self.items) {
         if (!_showedStored) return;
+        NSArray<UIMenuElement *> *whole = [self pageElements:live];
         [self.anchor.contextMenuInteraction updateVisibleMenuWithBlock:^UIMenu *(UIMenu *visible) {
             if (![visible.identifier isEqualToString:kTopMenu]) return visible;
-            return [visible menuByReplacingChildren:live];
+            return [visible menuByReplacingChildren:whole];
         }];
         return;
     }
@@ -983,6 +1012,7 @@ static void rememberPage(NSString *kind) {
     SGLog(@"system menu: %lu of Spotify's rows and %lu of the mod's read in %.0f ms, %.2f s after the %@", (unsigned long)read,
           (unsigned long)(header.count + footer.count), (now - started) * 1000, now - from, self.touchedAt ? @"⋯ touch" : @"takeover");
     if (self.items) [self matchQuick];
+    else [self matchPageQuick];
     if (self.direct || self.kind.length) [self storeRows];
     // A page's menu: its anchor's menu becomes the rows themselves. UIKit builds the menu it shows again from the
     // anchor's (the one asked for while the sheet came up is never on screen), so the menu comes up whole instead of
@@ -990,7 +1020,7 @@ static void rememberPage(NSString *kind) {
     // Not while the menu is up: a button given a new menu as its own shows that one over it (the phone, 2026-10-24: a
     // second menu over the first). The menu up is put right in place instead (refreshMore, the deferred rows).
     if (!self.items && self.anchor && !self.ended && !self.displayed) {
-        self.anchor.menu = [UIMenu menuWithTitle:@"" image:nil identifier:kTopMenu options:0 children:[self rowElements]];
+        self.anchor.menu = [UIMenu menuWithTitle:@"" image:nil identifier:kTopMenu options:0 children:[self pageElements:[self rowElements]]];
     }
     if (self.openWhenRead && !self.ended && !self.displayed) {
         self.openWhenRead = NO;
@@ -1060,6 +1090,27 @@ static void rememberPage(NSString *kind) {
 
 // Marks Spotify's rows that are quick items, remembers which this kind of sheet has, and says so in the log,
 // once a kind.
+// A page's: the quick row only when its sheet has all three (Share, Add to Playlist, Add to Queue), as the player's has
+// them; with fewer, its rows stay as they are, none taken out of the list.
+- (void)matchPageQuick {
+    [self matchQuick];
+    NSUInteger found = 0;
+    for (NSArray<SGRSheetRow *> *group in _groups) for (SGRSheetRow *row in group) if (row.quick) found++;
+    if (found == quickItems().count) return;
+    for (NSArray<SGRSheetRow *> *group in _groups) for (SGRSheetRow *row in group) row.quick = nil;
+    if (!sg_quickSeen) sg_quickSeen = [NSMutableDictionary dictionary];
+    sg_quickSeen[self.kind ?: @""] = @[];
+}
+
+// A page's whole menu: its quick row when it has all three, then its rows.
+- (NSArray<UIMenuElement *> *)pageElements:(NSArray<UIMenuElement *> *)rows {
+    NSArray<NSString *> *seen = sg_quickSeen[self.kind ?: @""];
+    BOOL all = _groups ? [self rowForQuick:@"share"] && [self rowForQuick:@"add to playlist"] && [self rowForQuick:@"add to queue"]
+                       : seen.count == quickItems().count;
+    UIMenu *quick = all ? [self quickRow] : nil;
+    return quick ? [@[quick] arrayByAddingObjectsFromArray:rows] : rows;
+}
+
 - (void)matchQuick {
     NSString *kind = self.kind ?: @"";
     NSMutableArray<NSString *> *found = [NSMutableArray array];

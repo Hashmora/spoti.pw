@@ -56,3 +56,7 @@ UIControl *SGRSystemMenuFront(UIView *button);
 // of its own. Nil while `host` has no size.
 static const CGFloat SGRMenuDim = 0.42;
 UIView *SGRMenuGlass(UIView *host, const void *key, CGFloat dim);
+
+// Whether the system menu up now is the player's, for its glass (ContextMenuGlass.x), which holds every other menu to a
+// shorter list and leaves the player's, whose More opens a submenu over it, at UIKit's own height.
+BOOL SGRSystemMenuIsPlayers(void);

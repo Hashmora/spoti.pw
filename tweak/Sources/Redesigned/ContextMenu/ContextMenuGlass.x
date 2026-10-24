@@ -110,10 +110,16 @@ static void bubbleMenu(UIView *list) {
 // shorter list that scrolls, so it stays a menu by the button rather than a sheet over the page (the phone, 2026-10-24).
 static const CGFloat kMenuMaxShare = 0.55;
 
+// Not the player's menu, and never while a submenu is open: a list held to its height under a submenu UIKit lays out
+// round the full one moved and cut the two (the phone, 2026-10-24: the player's More).
 static void holdHeight(UIView *menuView) {
+    if (SGRSystemMenuIsPlayers()) return;
     CGFloat most = round(menuView.window.bounds.size.height * kMenuMaxShare);
     if (most < 100) return;
     Class list = NSClassFromString(@"_UIContextMenuListView");
+    NSUInteger lists = 0;
+    for (UIView *sub in menuView.subviews) if ([sub isKindOfClass:list]) lists++;
+    if (lists > 1) return;
     for (UIView *sub in menuView.subviews) {
         if (![sub isKindOfClass:list] || sub.bounds.size.height <= most + 0.5) continue;
         CGRect frame = sub.frame;
