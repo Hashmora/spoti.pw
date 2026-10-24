@@ -10,13 +10,15 @@ static const CGFloat kLiftWidth = 58.0 / 37, kLiftHeight = 38.333 / 24;
 // The swell is a lively spring and the fall back a calmer, slower one (LiquidGlassKit: 0.4 s at 0.6, 0.6 s at 0.7).
 static const NSTimeInterval kLiftDuration = 0.4, kDropDuration = 0.6;
 static const CGFloat kLiftDamping = 0.6, kDropDamping = 0.7;
-// The held lens's rim, in points: a thin bright line, as the system's lens has over the switch's track.
-static const CGFloat kEdgeWidth = 1.25;
-// How much of the measured lens the held glass takes. The whole of it bent a 38 pt lens over nearly all its height (a
-// 22 pt shift at the rim), so the track's green was pulled across the whole drop and its middle read as a blur with a
-// sliver of the card at one end (the phone against iOS 26's own switch, 2026-10-24). At this share the bend stays in a
-// band of a few points at the rim and the middle shows the track and the card beyond its end as they are.
-static const CGFloat kHeldLensScale = 0.3;
+// How much of the measured lens the held glass takes: the bend of the band at the rim, round the switch's lens's middle.
+static const CGFloat kHeldLensScale = 0.6;
+// iOS 26's held switch thumb (its own Settings in the dark, 2026-10-24) shrinks what is under it: inside the drop the
+// track shows smaller than it is, a green (or grey) pill about the drop's middle on the card's dark, and the drop reaches
+// past the track's end. There is no white outline: the rim is the glass's bend and its light, with a soft shadow under it.
+// The backdrop glass cannot shrink (it holds only what is under it), so the switch's lens draws its middle itself: the
+// card's colour, and the track at kLensShrink about the drop's middle, inset kLensBand from the rim, where the glass
+// bends the real track and card.
+static const CGFloat kLensShrink = 0.7, kLensBand = 3;
 // Past an end of the track the thumb follows the finger by this share of the overshoot, up to kMaxPull, and is
 // stretched along the pull and thinned across it by its share of kPullStretch.
 static const CGFloat kPullShare = 0.3, kMaxPull = 14, kPullStretch = 0.25;
@@ -32,7 +34,9 @@ static const CGFloat kPullShare = 0.3, kMaxPull = 14, kPullStretch = 0.25;
 - (void)setFlat;
 // The colour the held lens glows with, round its rim: the switch's track colour, as iOS 26's lens glows green over a switch
 // that is on. White unless set.
-- (void)setGlowColor:(UIColor *)color;
+- (void)setTrack:(CGRect)track color:(UIColor *)color;
+// The colour of what the switch sits on (its card), for the lens's middle.
+- (void)setSurface:(UIColor *)color;
 @end
 
 @implementation SGGlassThumbView {
@@ -40,7 +44,11 @@ static const CGFloat kPullShare = 0.3, kMaxPull = 14, kPullStretch = 0.25;
     UIView *_pane;
     UIView *_rim;
     CAShapeLayer *_ring;
-    CAShapeLayer *_edge;
+    CALayer *_shade;
+    UIView *_inner;
+    UIView *_mini;
+    CGRect _track;
+    BOOL _hasTrack;
     BOOL _lifted;
     CGFloat _pull;
 }
@@ -67,6 +75,25 @@ static const CGFloat kPullShare = 0.3, kMaxPull = 14, kPullStretch = 0.25;
         // for the cost.
         glass.sharp = YES;
     }
+    // The shadow under the drop, its own layer behind the glass so the glass does not take it for its backdrop.
+    _shade = [CALayer layer];
+    _shade.shadowColor = UIColor.blackColor.CGColor;
+    _shade.shadowOpacity = 0;
+    _shade.shadowRadius = 5;
+    _shade.shadowOffset = CGSizeMake(0, 2);
+    [self.layer insertSublayer:_shade atIndex:0];
+    // The middle of a switch's drop (setTrack:): the card and the track shrunk; nothing on a slider's.
+    _inner = [UIView new];
+    _inner.userInteractionEnabled = NO;
+    _inner.clipsToBounds = YES;
+    _inner.layer.cornerCurve = kCACornerCurveContinuous;
+    _inner.hidden = YES;
+    _inner.alpha = _pane.alpha;
+    _mini = [UIView new];
+    _mini.userInteractionEnabled = NO;
+    _mini.layer.cornerCurve = kCACornerCurveContinuous;
+    [_inner addSubview:_mini];
+    [self addSubview:_inner];
     _ring = [CAShapeLayer layer];
     _ring.fillColor = [UIColor colorWithRed:0.9 green:0.95 blue:1 alpha:0.06].CGColor;
     _ring.strokeColor = UIColor.clearColor.CGColor;
@@ -74,18 +101,6 @@ static const CGFloat kPullShare = 0.3, kMaxPull = 14, kPullStretch = 0.25;
     _rim.userInteractionEnabled = NO;
     _rim.alpha = _pane.alpha;
     [_rim.layer addSublayer:_ring];
-    // iOS 26's held thumb (its own switch, 2026-10-24): a thin bright rim round the clear lens and a soft glow of the
-    // track's colour out of it, the track sharp through the middle. A 3.5 pt white rim with a white glow read as a thick
-    // frame round a blur.
-    _edge = [CAShapeLayer layer];
-    _edge.fillColor = nil;
-    _edge.strokeColor = [UIColor colorWithWhite:1 alpha:0.85].CGColor;
-    _edge.lineWidth = kEdgeWidth;
-    _edge.shadowColor = UIColor.whiteColor.CGColor;
-    _edge.shadowOpacity = 0.5;
-    _edge.shadowRadius = 6;
-    _edge.shadowOffset = CGSizeZero;
-    [_rim.layer addSublayer:_edge];
     [self addSubview:_rim];
     _pill = [UIView new];
     _pill.backgroundColor = UIColor.whiteColor;
@@ -103,9 +118,36 @@ static const CGFloat kPullShare = 0.3, kMaxPull = 14, kPullStretch = 0.25;
     _pill.layer.shadowOpacity = 0;
 }
 
-- (void)setGlowColor:(UIColor *)color {
-    CGColorRef glow = (color ?: UIColor.whiteColor).CGColor;
-    if (!CGColorEqualToColor(_edge.shadowColor, glow)) _edge.shadowColor = glow;
+- (void)setSurface:(UIColor *)color {
+    if (![_inner.backgroundColor isEqual:color]) _inner.backgroundColor = color;
+}
+
+// `track` is the switch's track in the view this thumb sits in; the thumb's centre is read as it is set (the model's,
+// inside the caller's animation), so the shrunk track moves across the drop with it.
+- (void)setTrack:(CGRect)track color:(UIColor *)color {
+    _track = track;
+    _hasTrack = YES;
+    _inner.hidden = NO;
+    _mini.backgroundColor = color;
+    [self placeMini];
+}
+
+- (void)placeMini {
+    if (!_hasTrack) return;
+    CGSize held = [self heldSize];
+    CGSize size = self.bounds.size;
+    // The drop's middle, in the thumb's parent, and the track about it in the drop's own points, then shrunk.
+    CGPoint middle = self.center;
+    CGPoint origin = CGPointMake(middle.x - held.width / 2, middle.y - held.height / 2);
+    CGRect inDrop = CGRectOffset(_track, -origin.x, -origin.y);
+    CGPoint c = CGPointMake(held.width / 2, held.height / 2);
+    CGRect mini = CGRectMake(c.x + (CGRectGetMinX(inDrop) - c.x) * kLensShrink, c.y + (CGRectGetMinY(inDrop) - c.y) * kLensShrink,
+                             inDrop.size.width * kLensShrink, inDrop.size.height * kLensShrink);
+    // In the inner view's points, which is the drop inset by the band.
+    mini = CGRectOffset(mini, -kLensBand, -kLensBand);
+    if (size.width < 1) return;
+    _mini.frame = mini;
+    _mini.layer.cornerRadius = mini.size.height / 2;
 }
 
 // The held glass is laid out at its held size and shrunk by a transform at rest, never grown from the capsule's: grown,
@@ -130,14 +172,19 @@ static const CGFloat kPullShare = 0.3, kMaxPull = 14, kPullStretch = 0.25;
     SGShapeGlass(_pane, held.size.height / 2, YES);
     _rim.bounds = held;
     _rim.center = middle;
+    CGRect inner = CGRectInset(held, kLensBand, kLensBand);
+    _inner.bounds = (CGRect){CGPointZero, inner.size};
+    _inner.center = middle;
+    _inner.layer.cornerRadius = inner.size.height / 2;
+    [self placeMini];
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     CGFloat heldRadius = held.size.height / 2;
     _ring.frame = held;
     _ring.path = [UIBezierPath bezierPathWithRoundedRect:held cornerRadius:heldRadius].CGPath;
-    CGRect edge = CGRectInset(held, kEdgeWidth / 2, kEdgeWidth / 2);
-    _edge.frame = held;
-    _edge.path = [UIBezierPath bezierPathWithRoundedRect:edge cornerRadius:edge.size.height / 2].CGPath;
+    _shade.bounds = held;
+    _shade.position = middle;
+    _shade.shadowPath = [UIBezierPath bezierPathWithRoundedRect:held cornerRadius:heldRadius].CGPath;
     [CATransaction commit];
     [self applyLift];
 }
@@ -147,6 +194,8 @@ static const CGFloat kPullShare = 0.3, kMaxPull = 14, kPullStretch = 0.25;
     _pill.transform = _lifted ? CGAffineTransformMakeScale(_liftX, _liftY) : CGAffineTransformIdentity;
     _pane.transform = _lifted ? CGAffineTransformIdentity : rest;
     _rim.transform = _pane.transform;
+    _inner.transform = _pane.transform;
+    _shade.affineTransform = _pane.transform;
 }
 
 // The pull is the whole thumb's transform; the swell is its parts' (applyLift), so either can change without the other
@@ -167,7 +216,15 @@ static const CGFloat kPullShare = 0.3, kMaxPull = 14, kPullStretch = 0.25;
         self->_pill.alpha = lifted ? 0 : 1;
         self->_pane.alpha = lifted ? 1 : 0;
         self->_rim.alpha = self->_pane.alpha;
+        self->_inner.alpha = self->_pane.alpha;
     } completion:nil];
+    // A layer's shadow is not a view's animatable property: it fades in its own animation, as long as the swell.
+    CABasicAnimation *fade = [CABasicAnimation animationWithKeyPath:@"shadowOpacity"];
+    fade.fromValue = @(_shade.presentationLayer ? _shade.presentationLayer.shadowOpacity : _shade.shadowOpacity);
+    fade.toValue = @(lifted ? 0.35f : 0.0f);
+    fade.duration = lifted ? 0.2 : 0.3;
+    _shade.shadowOpacity = lifted ? 0.35f : 0.0f;
+    [_shade addAnimation:fade forKey:@"fade"];
 }
 
 - (void)setPull:(CGFloat)pull {
@@ -384,6 +441,17 @@ static UIColor *trackColor(UISwitch *toggle, CGFloat position) {
     return [UIColor colorWithRed:r0 + (r1 - r0) * t green:g0 + (g1 - g0) * t blue:b0 + (b1 - b0) * t alpha:a0 + (a1 - a0) * t];
 }
 
+// What the switch sits on, for the middle of its lens: the first ancestor with a fill (the row's card), or the dark of
+// the mod's cards when none has one.
+static UIColor *surfaceOf(UISwitch *toggle) {
+    for (UIView *v = toggle.superview; v; v = v.superview) {
+        CGColorRef fill = v.layer.backgroundColor;
+        if (fill && CGColorGetAlpha(fill) > 0.5) return [UIColor colorWithCGColor:fill];
+        if ([v isKindOfClass:UIWindow.class]) break;
+    }
+    return [UIColor colorWithRed:0x1C / 255.0 green:0x1C / 255.0 blue:0x1E / 255.0 alpha:1];
+}
+
 // The thumb's centre for `position`, in this view; past 0 or 1 while a drag pulls it on its rubber band.
 - (CGPoint)thumbCenterAt:(CGFloat)position {
     CGFloat travel = kSwitchTrack.width - kSwitchThumb.width - 2 * kSwitchInset;
@@ -404,9 +472,9 @@ static UIColor *trackColor(UISwitch *toggle, CGFloat position) {
     void (^apply)(void) = ^{
         self.thumb.center = [self thumbCenterAt:position];
         self->_track.backgroundColor = trackColor(self.toggle, position);
+        [self.thumb setTrack:self->_track.frame color:self->_track.backgroundColor];
     };
-    // The glow takes the colour of the side the switch ends on, not the blend, which is grey for half the way.
-    [self.thumb setGlowColor:position >= 0.5 ? trackColor(self.toggle, 1) : nil];
+    [self.thumb setSurface:surfaceOf(self.toggle)];
     if (!animated || UIAccessibilityIsReduceMotionEnabled()) {
         [UIView performWithoutAnimation:apply];
         return;
