@@ -138,8 +138,22 @@ static SGMSHookFunction hooker(void) {
     return found;
 }
 
+// A hooker that came inside the app (an IPA put together with a substrate framework of its own) is no jailbreak: the
+// one counted is the jailbreak's, loaded from outside the app's bundle (the phone, 2026-10-24: Everywhere showed on a
+// phone with none).
 BOOL SGJailbroken(void) {
-    return hooker() != NULL;
+    static BOOL jailbroken;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        SGMSHookFunction hook = hooker();
+        Dl_info info;
+        if (!hook || !dladdr((const void *)hook, &info) || !info.dli_fname) return;
+        NSString *image = [NSString stringWithUTF8String:info.dli_fname];
+        NSString *bundle = NSBundle.mainBundle.bundlePath;
+        jailbroken = !(bundle.length && [image hasPrefix:bundle]) && ![image containsString:@"/Containers/Bundle/Application/"];
+        SGLog(@"rebind: MSHookFunction comes from %@, %@", image, jailbroken ? @"the jailbreak's" : @"the app's own: no jailbreak");
+    });
+    return jailbroken;
 }
 
 BOOL SGHookFunctionInline(void *function, void *replacement, void **original) {
