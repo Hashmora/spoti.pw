@@ -130,6 +130,9 @@ UIView *SGRGlassCapsuleInside(UIView *control, const void *key, CGSize size, BOO
     return glassInside(control, key, size, YES, prominent);
 }
 
+// How far apart two controls may stand and still share a group's capsule.
+static const CGFloat kGroupGap = 16;
+
 UIView *SGRGlassGroupPill(UIView *host, NSArray<UIView *> *controls, const void *key, CGFloat height, CGFloat pad) {
     if (@available(iOS 26.0, *)) return nil;
     if (!host || !key) return nil;
@@ -140,15 +143,28 @@ UIView *SGRGlassGroupPill(UIView *host, NSArray<UIView *> *controls, const void 
         holder.accessibilityElementsHidden = YES;
         objc_setAssociatedObject(host, key, holder, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
-    // The span of the controls, by their centres and sizes, which a transform on them leaves alone.
-    CGFloat minX = CGFLOAT_MAX, maxX = -CGFLOAT_MAX, midY = 0;
-    NSUInteger counted = 0;
+    // The controls shown, by their centres and sizes (which a transform on them leaves alone), trailing first; the capsule
+    // takes the run of them that stand side by side from the trailing one, so a control standing apart (the Library's
+    // Recents, parked at the row's leading edge while it is hidden) does not stretch it across the title (the phone,
+    // 2026-10-24).
+    NSMutableArray<NSValue *> *spans = [NSMutableArray array];
     for (UIView *control in controls) {
         if (control.bounds.size.width < 1 || control.hidden || control.alpha < 0.01) continue;
         CGPoint center = [control.superview convertPoint:control.center toView:host];
-        minX = MIN(minX, center.x - control.bounds.size.width / 2);
-        maxX = MAX(maxX, center.x + control.bounds.size.width / 2);
-        midY += center.y;
+        [spans addObject:[NSValue valueWithCGRect:CGRectMake(center.x - control.bounds.size.width / 2, center.y, control.bounds.size.width, 0)]];
+    }
+    [spans sortUsingComparator:^NSComparisonResult(NSValue *a, NSValue *b) {
+        CGFloat ax = CGRectGetMaxX(a.CGRectValue), bx = CGRectGetMaxX(b.CGRectValue);
+        return ax > bx ? NSOrderedAscending : ax < bx ? NSOrderedDescending : NSOrderedSame;
+    }];
+    CGFloat minX = CGFLOAT_MAX, maxX = -CGFLOAT_MAX, midY = 0;
+    NSUInteger counted = 0;
+    for (NSValue *value in spans) {
+        CGRect span = value.CGRectValue;
+        if (counted && minX - CGRectGetMaxX(span) > kGroupGap) break;
+        minX = MIN(minX, CGRectGetMinX(span));
+        maxX = MAX(maxX, CGRectGetMaxX(span));
+        midY += span.origin.y;
         counted++;
     }
     if (!counted) {
