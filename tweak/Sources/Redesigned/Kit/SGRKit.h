@@ -7,6 +7,7 @@
 //     SGRField.h     the artwork field behind a page
 //     SGRFlow.h      the player's moving field of the artwork's colors
 //     SGRGlass.h     glass inside Spotify's round controls
+//     SGRGlassMotion.h  iOS 26's glass flowing from one control into the next (iOS < 26)
 //     SGRGlyph.h     bare glyph overlays and glyph buttons
 //     SGRActionRow.h the Play capsule and the stand-in button of a page's action row
 //     SGRDownload.h  Spotify's download state, read, and the glyph drawn for it
@@ -30,6 +31,7 @@
 #import "SGRField.h"
 #import "SGRFlow.h"
 #import "SGRGlass.h"
+#import "SGRGlassMotion.h"
 #import "SGRGlyph.h"
 #import "SGRActionRow.h"
 #import "SGRDownload.h"

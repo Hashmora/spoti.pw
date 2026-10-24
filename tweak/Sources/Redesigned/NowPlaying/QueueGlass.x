@@ -210,6 +210,72 @@ static void clearBar(UIView *bar) {
 }
 %end
 
+#pragma mark - edit mode, flowing
+
+// Edit gives way to the close cross as the queue goes into edit mode, and the cross to Edit as it comes out, the way
+// the Photos app's Select flows into its ⋯ and ✕: Spotify hides the one and shows the other in the same pass
+// (out/tree-queue.txt: the Edit pill at 62x32, the cross at 32x32 hidden beside it), and the glass of the one flows
+// into the other (Kit/SGRGlassMotion.h). The bar under the list, Shuffle / Repeat / Timer or the edit toolbar, comes
+// in control by control as the other goes.
+static char kMorphGlassKey;
+
+static UIView *morphGlass(UIView *host) {
+    UIView *glass = SGGlassFor(host, &kMorphGlassKey);
+    glass.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
+    return glass;
+}
+
+// Before Spotify's setHidden: notes the control that goes. After it: flows the noted one into the control that came.
+static void editControlWillHide(UIView *control, BOOL hidden) {
+    if (hidden && !control.hidden) SGRGlassNoteLeaving(control);
+}
+
+static void editControlDidShow(UIView *control, BOOL was, BOOL hidden) {
+    if (hidden || !was || !sgr_sheetChromeRoot || !SGIsInside(control, sgr_sheetChromeRoot)) return;
+    SGRGlassMorphFromLeaving(control, ^UIView *(UIView *host) { return morphGlass(host); });
+}
+
+%hook _TtCOOO17NowPlaying_ECMKit11QueueHeader2UI7Private10PillButton
+- (void)setHidden:(BOOL)hidden {
+    UIView *pill = (UIView *)self;
+    BOOL was = pill.hidden;
+    editControlWillHide(pill, hidden);
+    %orig;
+    editControlDidShow(pill, was, hidden);
+}
+%end
+
+%hook _TtCCE16Encore_ButtonKitO16EncoreFoundation6Encore6Button8Tertiary
+- (void)setHidden:(BOOL)hidden {
+    UIView *button = (UIView *)self;
+    BOOL close = [button.accessibilityIdentifier isEqualToString:@"queue-close-edit-button"];
+    BOOL was = button.hidden;
+    if (close) editControlWillHide(button, hidden);
+    %orig;
+    if (close) editControlDidShow(button, was, hidden);
+}
+%end
+
+static void barHidden(UIView *bar, BOOL hidden) {
+    if (!hidden && sgr_sheetChromeRoot && SGIsInside(bar, sgr_sheetChromeRoot)) SGRGlassBarAppear(bar);
+}
+
+%hook _TtC14Queue_ViewImpl19EditModeToolbarView
+- (void)setHidden:(BOOL)hidden {
+    BOOL was = ((UIView *)self).hidden;
+    %orig;
+    if (was && !hidden) barHidden((UIView *)self, hidden);
+}
+%end
+
+%hook _TtC14Queue_ViewImpl20SessionModifiersView
+- (void)setHidden:(BOOL)hidden {
+    BOOL was = ((UIView *)self).hidden;
+    %orig;
+    if (was && !hidden) barHidden((UIView *)self, hidden);
+}
+%end
+
 %ctor {
     if (!SGRedesignedUI() || !SGBelowiOS26()) return;
     %init;
