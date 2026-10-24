@@ -33,6 +33,11 @@ static void edgeColors(CGImageRef image, UIColor **top, UIColor **bottom) {
     CAGradientLayer *_bands;
     AVSampleBufferDisplayLayer *_video;
     CAGradientLayer *_mask;
+    CALayer *_still;
+    CAGradientLayer *_stillMask;
+    UIImage *_cover;
+    NSURL *_wanted;   // the clip asked for, kept while suspended
+    BOOL _suspended;
     dispatch_queue_t _feed;
     AVURLAsset *_asset;
     AVAssetTrack *_track;
@@ -53,7 +58,65 @@ static void edgeColors(CGImageRef image, UIColor **top, UIColor **bottom) {
     [self.layer addSublayer:_bands];
     _feed = dispatch_queue_create("com.vitrine.addon.lockclip", DISPATCH_QUEUE_SERIAL);
     _startsPlaying = YES;
+    _still = [CALayer layer];
+    _still.contentsGravity = kCAGravityResizeAspectFill;
+    _stillMask = [self edgeMask];
+    _still.mask = _stillMask;
+    [self.layer addSublayer:_still];
+    [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(failed:) name:AVSampleBufferDisplayLayerFailedToDecodeNotification object:nil];
+    [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(failed:) name:AVSampleBufferDisplayLayerRequiresFlushToResumeDecodingDidChangeNotification object:nil];
     return self;
+}
+
+- (void)dealloc {
+    [NSNotificationCenter.defaultCenter removeObserver:self];
+}
+
+// Its own top and bottom fade into the bands, so no edge of it shows.
+- (CAGradientLayer *)edgeMask {
+    CAGradientLayer *mask = [CAGradientLayer layer];
+    mask.colors = @[(id)UIColor.clearColor.CGColor, (id)UIColor.blackColor.CGColor, (id)UIColor.blackColor.CGColor, (id)UIColor.clearColor.CGColor];
+    mask.locations = @[@0, @(kEdgeFade), @(1 - kEdgeFade), @1];
+    return mask;
+}
+
+- (BOOL)hasContent {
+    return _wanted != nil || _cover != nil;
+}
+
+// The display layer could not go on: the clip again on a new one, unless the screen is dark, where it is built as it lights.
+- (void)failed:(NSNotification *)note {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        AVSampleBufferDisplayLayer *video = self->_video;
+        if (note.object != video || self->_suspended) return;
+        if (video.status != AVQueuedSampleBufferRenderingStatusFailed && !video.requiresFlushToResumeDecoding) return;
+        NSLog(@"[vitrine-addon] the clip's display layer failed, starting it over");
+        [self rebuild];
+    });
+}
+
+- (void)rebuild {
+    NSURL *clip = _wanted;
+    [self load:nil];
+    [self load:clip];
+}
+
+- (void)setSuspended:(BOOL)suspended {
+    if (_suspended == suspended) return;
+    _suspended = suspended;
+    if (suspended) [self load:nil];
+    else [self load:_wanted];
+}
+
+- (void)showCover:(UIImage *)cover {
+    if (cover == _cover) return;
+    _cover = cover;
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    _still.contents = (id)cover.CGImage;
+    [CATransaction commit];
+    [self setNeedsLayout];
+    if (!_wanted) [self paintBands:cover.CGImage];
 }
 
 // Where the clip is drawn: its whole width the screen's, in the middle of the height.
@@ -71,6 +134,9 @@ static void edgeColors(CGImageRef image, UIColor **top, UIColor **bottom) {
     _bands.frame = self.bounds;
     _video.frame = [self fitted];
     _mask.frame = _video.bounds;
+    CGFloat width = self.bounds.size.width;
+    _still.frame = CGRectMake(0, CGRectGetMidY(self.bounds) - width / 2, width, width);
+    _stillMask.frame = _still.bounds;
     [CATransaction commit];
 }
 
@@ -89,6 +155,16 @@ static void edgeColors(CGImageRef image, UIColor **top, UIColor **bottom) {
 }
 
 - (void)playClip:(NSURL *)clip {
+    if ((clip == nil && _wanted == nil) || [clip isEqual:_wanted]) return;
+    _wanted = clip;
+    if (!clip) {
+        [self paintBands:_cover.CGImage];
+        _still.opacity = 1;
+    }
+    if (!_suspended) [self load:clip];
+}
+
+- (void)load:(NSURL *)clip {
     if ((clip == nil && _playing == nil) || [clip isEqual:_playing]) return;
     _playing = clip;
     _run++;
@@ -110,10 +186,7 @@ static void edgeColors(CGImageRef image, UIColor **top, UIColor **bottom) {
     _natural = CGSizeMake(fabs(size.width), fabs(size.height));
     _video = [AVSampleBufferDisplayLayer layer];
     _video.videoGravity = AVLayerVideoGravityResizeAspect;
-    // Its own top and bottom fade into the bands, so no edge of it shows.
-    _mask = [CAGradientLayer layer];
-    _mask.colors = @[(id)UIColor.clearColor.CGColor, (id)UIColor.blackColor.CGColor, (id)UIColor.blackColor.CGColor, (id)UIColor.clearColor.CGColor];
-    _mask.locations = @[@0, @(kEdgeFade), @(1 - kEdgeFade), @1];
+    _mask = [self edgeMask];
     _video.mask = _mask;
     CMTimebaseRef timebase = NULL;
     CMTimebaseCreateWithSourceClock(kCFAllocatorDefault, CMClockGetHostTimeClock(), &timebase);
@@ -136,7 +209,11 @@ static void edgeColors(CGImageRef image, UIColor **top, UIColor **bottom) {
         CGImageRetain(image);
         dispatch_async(dispatch_get_main_queue(), ^{
             SGVLockClip *view = weakSelf;
-            if (view && view->_run == asked) [view paintBands:image];
+            if (view && view->_run == asked) {
+                [view paintBands:image];
+                // The clip is in: the still under it goes, so a clip of another shape shows no cover at its edges.
+                view->_still.opacity = 0;
+            }
             CGImageRelease(image);
         });
     }];

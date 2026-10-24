@@ -13,4 +13,11 @@
 - (void)playClip:(NSURL *)clip;
 // Playing, or held on its frame.
 - (void)setPlaying:(BOOL)playing;
+// The song's still cover, drawn the same way, square, under the clip: shown alone with no clip, and until its first frame.
+- (void)showCover:(UIImage *)cover;
+// Whether anything is drawn: a clip or a cover.
+@property (nonatomic, readonly) BOOL hasContent;
+// While the screen is dark nothing is read or decoded; lit again, the clip starts over on a new display layer, as the
+// one before can come back unable to decode (the phone, 2026-10-25: the bands with no picture between them).
+- (void)setSuspended:(BOOL)suspended;
 @end

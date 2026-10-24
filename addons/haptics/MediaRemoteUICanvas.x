@@ -16,6 +16,11 @@
 // the cover back at once, for MediaRemoteUI to shrink it into the player as it does with no clip, and fades the clip out
 // over it: hidden, the cover had nothing to shrink and the clip went at once.
 //
+// A song with no clip gets its still cover the same way, the screen's width across on the bands of its edges' colours,
+// while Spotify is what plays: the cover from MediaRemote's now playing info, as the lock screen's own player has it.
+// While the screen is dark the clip is not read or decoded (com.apple.springboard.hasBlankedScreen), and lit it starts
+// over on a new display layer.
+//
 // Only the large cover's view and the cover itself are hooked, as they lay out, come and go and take an alpha.
 //
 // Threading: main thread.
@@ -28,11 +33,17 @@
 
 typedef void (*SGMRIsPlaying)(dispatch_queue_t queue, void (^handler)(Boolean playing));
 typedef void (*SGMRRegister)(dispatch_queue_t queue);
+typedef void (*SGMRGetInfo)(dispatch_queue_t queue, void (^handler)(CFDictionaryRef info));
+typedef void (*SGMRGetApp)(dispatch_queue_t queue, void (^handler)(CFStringRef bundle));
 
 static const NSTimeInterval kFade = 0.35;
 
 static SGMRIsPlaying sg_isPlaying;
-static BOOL sg_on, sg_playing = YES, sg_showing;
+static SGMRGetInfo sg_getInfo;
+static SGMRGetApp sg_getApp;
+static BOOL sg_on, sg_playing = YES, sg_showing, sg_blank;
+static UIImage *sg_cover;   // Spotify's song's still cover, nil for none or for another app
+static NSData *sg_coverData;
 static NSURL *sg_clip;   // this process's own copy of the shared clip, nil for none
 static __weak UIView *sg_field;   // the large cover's CoverSheetBackgroundView, while it is open
 static char kClipKey, kTapKey, kHiddenKey, kWantedKey, kClosedKey;
@@ -85,7 +96,7 @@ static void apply(void) {
     }
     UIView *artwork = artworkIn(field);
     // Closed by a tap, the field stays the system's until it is shown again.
-    BOOL on = sg_on && sg_clip && artwork && !objc_getAssociatedObject(field, &kClosedKey);
+    BOOL on = sg_on && (sg_clip || sg_cover) && artwork && !objc_getAssociatedObject(field, &kClosedKey);
     SGVLockClip *clip = objc_getAssociatedObject(field, &kClipKey);
     if (!clip && on) {
         clip = [[SGVLockClip alloc] initWithFrame:field.bounds];
@@ -116,6 +127,8 @@ static void apply(void) {
         if (!(sg_on && sg_clip && artworkIn(field)) || objc_getAssociatedObject(field, &kClosedKey)) [clip playClip:nil];
     }];
     if (on) {
+        [clip setSuspended:sg_blank];
+        [clip showCover:sg_cover];
         [clip playClip:sg_clip];
         [clip setPlaying:sg_playing];
     }
@@ -143,6 +156,27 @@ static void readShared(void) {
     if ([files copyItemAtURL:[NSURL fileURLWithPath:shared] toURL:copy error:&error]) sg_clip = copy;
     else NSLog(@"[vitrine-addon] MediaRemoteUI cannot read the shared clip: %@", error.localizedDescription);
     apply();
+}
+
+// Spotify's still cover from the now playing info, read again as the info changes; another app's is not taken.
+static void readCover(void) {
+    if (!sg_getInfo || !sg_getApp) return;
+    sg_getApp(dispatch_get_main_queue(), ^(CFStringRef bundle) {
+        if (![(__bridge NSString *)bundle isEqualToString:@"com.spotify.client"]) {
+            BOOL had = sg_cover != nil;
+            sg_cover = nil;
+            sg_coverData = nil;
+            if (had) apply();
+            return;
+        }
+        sg_getInfo(dispatch_get_main_queue(), ^(CFDictionaryRef info) {
+            NSData *data = [(__bridge NSDictionary *)info objectForKey:@"kMRMediaRemoteNowPlayingInfoArtworkData"];
+            if (data == sg_coverData || [data isEqualToData:sg_coverData]) return;
+            sg_coverData = data;
+            sg_cover = data ? [UIImage imageWithData:data] : nil;
+            apply();
+        });
+    });
 }
 
 static void readPlaying(void) {
@@ -201,6 +235,8 @@ static void listen(const char *name, void (^handler)(void)) {
     void *remote = dlopen("/System/Library/PrivateFrameworks/MediaRemote.framework/MediaRemote", RTLD_NOW);
     sg_isPlaying = remote ? (SGMRIsPlaying)dlsym(remote, "MRMediaRemoteGetNowPlayingApplicationIsPlaying") : NULL;
     SGMRRegister registerFor = remote ? (SGMRRegister)dlsym(remote, "MRMediaRemoteRegisterForNowPlayingNotifications") : NULL;
+    sg_getInfo = remote ? (SGMRGetInfo)dlsym(remote, "MRMediaRemoteGetNowPlayingInfo") : NULL;
+    sg_getApp = remote ? (SGMRGetApp)dlsym(remote, "MRMediaRemoteGetNowPlayingApplicationDisplayID") : NULL;
     %init;
     if (objc_getClass("MRUArtworkView")) %init(SGVArtwork);
     if (registerFor) registerFor(dispatch_get_main_queue());
@@ -208,7 +244,21 @@ static void listen(const char *name, void (^handler)(void)) {
                                                 usingBlock:^(NSNotification *note) {
         dispatch_async(dispatch_get_main_queue(), ^{ readPlaying(); });
     }];
+    for (NSString *name in @[@"kMRMediaRemoteNowPlayingInfoDidChangeNotification", @"kMRMediaRemoteNowPlayingApplicationDidChangeNotification"]) {
+        [NSNotificationCenter.defaultCenter addObserverForName:name object:nil queue:nil usingBlock:^(NSNotification *note) {
+            dispatch_async(dispatch_get_main_queue(), ^{ readCover(); });
+        }];
+    }
     readPlaying();
+    readCover();
+    static int blankToken;
+    notify_register_dispatch("com.apple.springboard.hasBlankedScreen", &blankToken, dispatch_get_main_queue(), ^(int t) {
+        uint64_t state = 0;
+        notify_get_state(t, &state);
+        sg_blank = state != 0;
+        SGVLockClip *clip = sg_field ? objc_getAssociatedObject(sg_field, &kClipKey) : nil;
+        [clip setSuspended:sg_blank];
+    });
     listen(kSGRelayLockArtOn, ^{ sg_on = YES; apply(); });
     listen(kSGRelayLockArtOff, ^{ sg_on = NO; apply(); });
     listen(kSGRelayLockClipShared, ^{ readShared(); });
