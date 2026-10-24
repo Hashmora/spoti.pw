@@ -19,14 +19,10 @@ typedef NS_ENUM(NSInteger, SGLockArtwork) {
 };
 // Off below iOS 26, which has no animated artwork on the lock screen.
 SGLockArtwork SGLockScreenArtwork(void);
-// Below iOS 26 with a jailbreak: the lock screen filled with the now playing cover by the Vitrine Addon add-on in
-// SpringBoard (Shared/Haptics/SGHapticRelay.h), a still cover where iOS 26 takes moving artwork. Off until switched on.
+// Below iOS 26 with a jailbreak: the song's Canvas, or Apple Music's animated cover, in place of the lock screen's own
+// large cover (a tap on its player's cover opens it), by Vitrine Addon in SpringBoard (Shared/Haptics/SGHapticRelay.h).
+// Off until switched on.
 #define SGKeyLockCoverAddon @"spotifyglass.lockscreen.cover.addon"
-// With it, the still cover where the track has no Canvas or animated cover, or until its clip is in; on until switched
-// off, when the lock screen keeps its wallpaper until a clip is ready.
-#define SGKeyLockCoverStill @"spotifyglass.lockscreen.cover.still"
-// With it, the artwork gone while the song is paused and back as it plays; on until switched off, when it stays.
-#define SGKeyLockCoverHidePaused @"spotifyglass.lockscreen.cover.hidePaused"
 // Under Moving artwork with lyrics, LyricsArtwork.x says whether the playing track has no synced lines (YES), so
 // LockScreenMotion.x shows its moving artwork plain, as Moving artwork does, or has them (NO), so it takes it off
 // for the lyrics' clips. Main queue.
