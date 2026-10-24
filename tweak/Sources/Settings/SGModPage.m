@@ -1060,10 +1060,27 @@ static void showWaiting(UITableViewCell *cell, BOOL waiting, NSString *switchTit
 }
 
 // A UISwitch or an SGGlowSwitch, both answering isOn.
+// Reloads the table once no slider on it is under a finger. A reload mid-drag gave the dragged slider's cell to another
+// row, so the finger went on moving that row's slider instead (the phone, 2026-10-24: Music Haptics' Strength, dragged
+// just after the switch over it was turned on, handed the drag to Controls' Strength above it).
+static BOOL sliderHeld(UIView *view) {
+    if ([view isKindOfClass:UISlider.class] && ((UISlider *)view).isTracking) return YES;
+    for (UIView *sub in view.subviews) if (sliderHeld(sub)) return YES;
+    return NO;
+}
+
 // How long the glass switch takes from a tap to rest: the drop falls back 0.2 s after it sets off and settles over the
 // next 0.6 s (Core/SGGlassThumb.m: kTapDropDelay, kDropDuration), with a little to spare. At 0.7 s the reload still
 // cut the fall short now and then.
 static const NSTimeInterval kGlassSwitchSettle = 0.95;
+
+- (void)reloadWhenIdle {
+    if (sliderHeld(self.tableView)) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.25 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ [self reloadWhenIdle]; });
+        return;
+    }
+    [self.tableView reloadData];
+}
 
 - (void)toggled:(UIControl *)toggle {
     BOOL on = [(UISwitch *)toggle isOn];
@@ -1079,7 +1096,7 @@ static const NSTimeInterval kGlassSwitchSettle = 0.95;
     // that showed of a flip was the drop coming up and going.
     NSTimeInterval wait = [toggle isKindOfClass:SGGlowSwitch.class] ? 0.45 : SGUseLegacyGlass() ? kGlassSwitchSettle : 0;
     void (^reload)(void) = ^{
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(wait * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ [self.tableView reloadData]; });
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(wait * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ [self reloadWhenIdle]; });
     };
     BOOL moved = [self showRowsThen:row.changed ? reload : nil];
     // The rows waiting on this switch stay where they are and fade to their new state.
