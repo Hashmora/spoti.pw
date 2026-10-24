@@ -29,14 +29,13 @@
 
 static char kBarKey, kHostKey, kNavGlassKey, kNavTintKey, kSelPillKey, kRetriesKey, kGlyphOverlayKey, kOutlineLiveKey, kFilledLiveKey, kCreateDiscKey, kGlyphsTakenKey;
 static char kCirclePaneKey, kCircleFilmKey, kLeadKey, kTrailKey, kTabColorKey, kTemplateKey;
-// The film over the bar's glass: a grey, so it draws what it shows towards a dark grey from both sides, as the
-// system's bar does in the dark. Bright content under it is darkened a little (white comes out at 0.85), and
-// plain black is lifted to 0.1, so the bar stands out of a black page instead of melting into it. A black film
-// darkened both and was lost on black; the white one every other pane has lit the bar up.
+// The film over the bar's glass and the minimized bar's circles: the now playing bar's, white at 0.16
+// (NowPlayingBar.x), so the bar, its circles and the player's bar between them read as one material. A grey one
+// (0.4 at 0.25) had made the tab bar a shade apart from the bar above it (the phone, 2026-10-24).
 static UIColor *barFilmColor(void) {
     static UIColor *color;
     static dispatch_once_t once;
-    dispatch_once(&once, ^{ color = [UIColor colorWithWhite:0.4 alpha:0.25]; });
+    dispatch_once(&once, ^{ color = [UIColor colorWithWhite:1 alpha:0.16]; });
     return color;
 }
 // The bar is a floating capsule, not a full-width slab.
