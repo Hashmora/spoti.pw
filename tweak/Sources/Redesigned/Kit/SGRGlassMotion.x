@@ -1,6 +1,7 @@
 #import "SGRGlassMotion.h"
 #import "Core/SGCore.h"
 #import "SGRTokens.h"
+#import "SGRedesign.h"
 
 // How long a noted control waits for what replaces it: the two are shown and hidden in one pass of Spotify's, a turn of
 // the run loop apart at most, and a morph from a control that went long ago would fly from nowhere.
@@ -14,6 +15,17 @@ static const CGFloat kArriveScale = 0.9;
 // A bar's controls, one after another.
 static const NSTimeInterval kBarStagger = 0.04;
 static const CGFloat kBarScale = 0.86;
+
+// The bubble: the drop leaves the control at most this big across, and grows to this share of the menu's shorter side
+// as it flies; the flight, the opening out after it (a spring with a little overshoot) and the fade at its end.
+static const CGFloat kBubbleMinDrop = 30, kBubbleMaxDrop = 56, kBubbleGrowShare = 0.75;
+static const NSTimeInterval kBubbleFlight = 0.2, kBubbleOpenDelay = 0.15, kBubbleOpen = 0.42, kBubbleFadeDelay = 0.36,
+                            kBubbleFade = 0.14, kBubbleArriveDelay = 0.14;
+static const CGFloat kBubbleOpenDamping = 0.7, kBubbleArriveScale = 0.96;
+// A touch counts as where a menu came from for this long; a control bigger than this is a row or a page, and the
+// drop leaves from the finger instead.
+static const CFTimeInterval kTouchLife = 1.0;
+static const CGSize kControlMax = {140, 80};
 
 static CGRect sLeavingRect;
 static CGFloat sLeavingRadius;
@@ -137,4 +149,85 @@ void SGRGlassBarAppear(UIView *bar) {
             arrive(control.layer, i * kBarStagger, kBarScale);
         }];
     });
+}
+
+#pragma mark - the bubble
+
+static CGRect sTouchRect;
+static CFTimeInterval sTouchAt;
+
+void SGRGlassBubbleOpen(UIView *target, CGFloat targetRadius, SGRGlassMaker glass) {
+    if (!motionOn() || !target || !glass || !sTouchAt || CACurrentMediaTime() - sTouchAt > kTouchLife) return;
+    CGRect source = sTouchRect;
+    sTouchAt = 0;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIWindow *window = target.window;
+        if (!onScreen(target)) return;
+        [window layoutIfNeeded];
+        CGRect end = [target convertRect:target.bounds toView:nil];
+        if (end.size.width < 1 || end.size.height < 1) return;
+        CGFloat drop = MAX(kBubbleMinDrop, MIN(kBubbleMaxDrop, MIN(source.size.width, source.size.height)));
+        CGFloat grown = MAX(drop, MIN(end.size.width, end.size.height) * kBubbleGrowShare);
+        CGPoint middle = CGPointMake(CGRectGetMidX(end), CGRectGetMidY(end));
+
+        // A circle of its grown size, shrunk to the drop by a transform: the flight grows it by the transform and the
+        // opening out by its bounds, two animations of their own that overlap as the recording's do.
+        UIView *bubble = [[UIView alloc] initWithFrame:CGRectMake(0, 0, grown, grown)];
+        bubble.userInteractionEnabled = NO;
+        bubble.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
+        bubble.clipsToBounds = YES;
+        bubble.layer.cornerRadius = grown / 2;
+        bubble.layer.cornerCurve = kCACornerCurveContinuous;
+        bubble.center = CGPointMake(CGRectGetMidX(source), CGRectGetMidY(source));
+        bubble.transform = CGAffineTransformMakeScale(drop / grown, drop / grown);
+        UIView *pane = glass(bubble);
+        if (!pane) return;
+        // The pane at the menu's size, in the bubble's middle, clipped by it (see the morph).
+        pane.autoresizingMask = UIViewAutoresizingNone;
+        pane.bounds = CGRectMake(0, 0, MAX(grown, end.size.width), MAX(grown, end.size.height));
+        pane.center = CGPointMake(grown / 2, grown / 2);
+        SGShapeGlass(pane, targetRadius, NO);
+        [window addSubview:bubble];
+
+        arrive(target.layer, kBubbleArriveDelay, kBubbleArriveScale);
+        UIViewAnimationOptions options = UIViewAnimationOptionAllowUserInteraction | UIViewAnimationOptionBeginFromCurrentState;
+        [UIView animateWithDuration:kBubbleFlight delay:0 options:options | UIViewAnimationOptionCurveEaseInOut animations:^{
+            bubble.center = middle;
+            bubble.transform = CGAffineTransformIdentity;
+        } completion:nil];
+        [UIView animateWithDuration:kBubbleOpen delay:kBubbleOpenDelay usingSpringWithDamping:kBubbleOpenDamping
+              initialSpringVelocity:0 options:options animations:^{
+            bubble.bounds = CGRectMake(0, 0, end.size.width, end.size.height);
+            bubble.layer.cornerRadius = targetRadius;
+            pane.center = CGPointMake(end.size.width / 2, end.size.height / 2);
+        } completion:nil];
+        [UIView animateWithDuration:kBubbleFade delay:kBubbleFadeDelay options:UIViewAnimationOptionCurveEaseOut
+                         animations:^{ bubble.alpha = 0; }
+                         completion:^(BOOL finished) { [bubble removeFromSuperview]; }];
+    });
+}
+
+// Where the last touch went down, for the bubble: the control under it, or a drop at the finger.
+%hook UIWindow
+- (void)sendEvent:(UIEvent *)event {
+    if (event.type == UIEventTypeTouches) {
+        UITouch *touch = event.allTouches.anyObject;
+        if (touch.phase == UITouchPhaseBegan) {
+            UIView *view = touch.view;
+            CGRect rect = view ? [view convertRect:view.bounds toView:nil] : CGRectZero;
+            if (!view || rect.size.width > kControlMax.width || rect.size.height > kControlMax.height) {
+                CGPoint at = [touch locationInView:nil];
+                rect = CGRectMake(at.x - 22, at.y - 22, 44, 44);
+            }
+            sTouchRect = rect;
+            sTouchAt = CACurrentMediaTime();
+        }
+    }
+    %orig;
+}
+%end
+
+%ctor {
+    if (!SGRedesignedUI() || !SGBelowiOS26()) return;
+    %init;
 }

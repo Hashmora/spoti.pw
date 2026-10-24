@@ -14,7 +14,7 @@
 
 // The corners UIKit cuts a menu with.
 static const CGFloat kMenuRadius = 14;
-static char kMenuGlassKey;
+static char kMenuGlassKey, kBubbleGlassKey;
 
 // The view holding UIKit's blur: the menu's own surface. Found by the blur rather than by how the platter is
 // clipped, since a submenu (More) is another list that UIKit builds when it opens, and its platter is not
@@ -71,11 +71,24 @@ static void glassLists(UIView *root) {
     });
 }
 
+// The menu's first list opens out of a drop of glass from the control it was opened from, as iOS 26's menus do
+// (Kit/SGRGlassMotion.h); a submenu's list, made later in the same menu, comes in as UIKit has it.
+static char kBubbledKey;
+
+static void bubbleMenu(UIView *list) {
+    UIView *menu = list.superview;
+    while (menu && ![menu isKindOfClass:NSClassFromString(@"_UIContextMenuView")]) menu = menu.superview;
+    if (!menu || objc_getAssociatedObject(menu, &kBubbledKey)) return;
+    objc_setAssociatedObject(menu, &kBubbledKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    SGRGlassBubbleOpen(list, kMenuRadius, ^UIView *(UIView *host) { return SGRMenuGlass(host, &kBubbleGlassKey, SGRMenuDim); });
+}
+
 %hook _UIContextMenuListView
 - (void)didMoveToWindow {
     %orig;
     if (((UIView *)self).window) {
         glassMenu((UIView *)self);
+        bubbleMenu((UIView *)self);
         // Again once it has settled: the first pass can come before the platter has its blur or its size.
         SGRRepeatViewPass((UIView *)self, @[@0, @0.15, @0.45], ^(UIView *v) { glassMenu(v); });
     }
