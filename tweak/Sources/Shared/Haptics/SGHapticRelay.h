@@ -41,7 +41,9 @@ enum { kSGRelayLevels = 10, kSGRelaySharpnesses = 3 };
 // 11: the tree's dumps and the hook on every view's layout taken out, the lock screen walked at most twice a second
 //     and only with a clip to show.
 // 12: loaded into MediaRemoteUI too, which draws the lock screen's player, to say what its views are.
-enum { kSGRelayAddonBuild = 12 };
+// 13: the clip in place of the large cover inside MediaRemoteUI, handed over by SpringBoard, which hides the widgets
+//     under the clock as it shows; no tree walked or dumped.
+enum { kSGRelayAddonBuild = 13 };
 // Below iOS 26, the add-on also fills the lock screen with the now playing cover while Spotify's switch for it is on
 // (AnimatedArtwork.h, SGKeyLockCoverAddon): told "lockart.1" and "lockart.0" as the switch is set and each time the
 // add-on answers. It reads the cover from MediaRemote, as the lock screen's own player does.
@@ -52,6 +54,16 @@ enum { kSGRelayAddonBuild = 12 };
 #define kSGRelayLockClip kSGRelayPrefix "lockclip"
 #define kSGRelayLockClipNone kSGRelayPrefix "lockclip.none"
 #define kSGLockClipName "VitrineLockClip.mp4"
+// Within the add-on: SpringBoard copies the clip where MediaRemoteUI, which draws the large cover, can read it
+// (SGLockSharedClipPath) and posts "lockclip.shared"; MediaRemoteUI posts "lockclip.showing.1" while the clip is in the
+// cover's place and "lockclip.showing.0" as it leaves, for SpringBoard to hide the widgets under the clock.
+#define kSGRelayLockClipShared kSGRelayPrefix "lockclip.shared"
+#define kSGRelayLockShowing kSGRelayPrefix "lockclip.showing.1"
+#define kSGRelayLockNotShowing kSGRelayPrefix "lockclip.showing.0"
+static inline NSString *SGLockSharedClipPath(void) {
+    NSString *root = [NSFileManager.defaultManager fileExistsAtPath:@"/var/jb"] ? @"/var/jb/var/mobile" : @"/var/mobile";
+    return [root stringByAppendingPathComponent:@"Library/Caches/com.vitrine.addon/lockclip.mp4"];
+}
 // Whether the add-on plays while the phone is locked, told it by Spotify as the switch is set and each time the add-on
 // answers: kSGRelayPrefix "lockscreen.1" plays there, "lockscreen.0" does not.
 #define kSGRelayLockOn kSGRelayPrefix "lockscreen.1"
