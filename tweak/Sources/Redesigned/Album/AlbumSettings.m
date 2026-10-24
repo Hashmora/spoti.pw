@@ -11,10 +11,6 @@ UIViewController *SGRAlbumSettingsPage(void) {
             SGSwitchRow(@"Animated covers", @"At the top of an album that has one, about 5 MB each", SGRKeyAlbumMotion),
             SGOptionRow(@"Download in Low Data Mode", nil, SGKeyMotionLowData),
         ], @"Only the album's name is sent to Apple Music. A cover stays still in Low Power Mode."),
-        // Spotify's own: a tap on the cover opens it full screen, where it turns a little with the phone.
-        SGSection(@"Cover", @[
-            SGKillRow(@"No tilting full screen cover", @"ios-creativeworkcommons-cover-art-tilt-configuration-kit.cover_art_tilt_enabled"),
-        ]),
         SGSection(@"Hide on an album's page", @[
             SGSwitchRow(@"Repeated track artists", @"The artist under a track when it is the album's own", SGRKeyAlbumHideTrackArtists),
         ]),

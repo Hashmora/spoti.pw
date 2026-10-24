@@ -6,8 +6,6 @@ UIViewController *SGAlbumSettingsPage(void) {
     NSArray<SGModSection *> *sections = @[
         SGSection(@"Header", @[
             SGOptionRow(@"Artwork background", nil, SGKeyAlbumBackdrop),
-            // Spotify's own: a tap on the cover opens it full screen, where it turns a little with the phone.
-            SGKillRow(@"No tilting full screen cover", @"ios-creativeworkcommons-cover-art-tilt-configuration-kit.cover_art_tilt_enabled"),
         ]),
         SGSection(@"Hide in the header", @[
             SGHideRow(@"Explore (video deck)", nil, SGHideAlbumExplore),
