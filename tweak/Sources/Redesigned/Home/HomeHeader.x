@@ -440,6 +440,8 @@ static void keepHeaderClear(UIView *element) {
         SGRHoldClearClass(object_getClass(element));
         SGLog(@"redesign home: the header's fill is held clear");
     }
+    // The view's own colour as well as its layer's: a view keeps the colour it was given and puts it back on its layer.
+    if (element.backgroundColor) element.backgroundColor = nil;
     if (SGIsVisibleColor(element.layer.backgroundColor)) element.layer.backgroundColor = NULL;
 }
 
