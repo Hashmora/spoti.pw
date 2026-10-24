@@ -712,8 +712,11 @@ static void raiseHost(UIWindow *window) {
     if (quick) [children addObject:quick];
     NSArray<UIMenuElement *> *ours = self.items();
     if (ours.count) [children addObject:inlineGroup(ours)];
-    UIMenu *more = [UIMenu menuWithTitle:@"More" image:[UIImage systemImageNamed:@"ellipsis.circle"] identifier:kMoreMenu options:0 children:@[[self deferredRows]]];
-    [children addObject:inlineGroup(@[more])];
+    // Spotify's rows in the menu itself, under a separator, rather than in a submenu: UIKit opened More upward over the
+    // menu, the menu itself slid down and dimmed under it, and nothing makes a submenu open downward (the phone,
+    // 2026-10-24). The menu is held to a height and scrolls (ContextMenuGlass.x).
+    UIMenu *more = [UIMenu menuWithTitle:@"" image:nil identifier:kMoreMenu options:UIMenuOptionsDisplayInline children:@[[self deferredRows]]];
+    [children addObject:more];
     return [UIMenu menuWithTitle:@"" image:nil identifier:kTopMenu options:0 children:children];
 }
 
@@ -896,9 +899,17 @@ static void rememberPage(NSString *kind) {
         }];
         return;
     }
+    // More is a section of the menu up now, so the menu up is the top one: its More child is put right.
     [self.anchor.contextMenuInteraction updateVisibleMenuWithBlock:^UIMenu *(UIMenu *visible) {
-        if (![visible.identifier isEqualToString:kMoreMenu]) return visible;
-        return [visible menuByReplacingChildren:live];
+        if ([visible.identifier isEqualToString:kMoreMenu]) return [visible menuByReplacingChildren:live];
+        if (![visible.identifier isEqualToString:kTopMenu]) return visible;
+        NSMutableArray<UIMenuElement *> *children = [visible.children mutableCopy];
+        NSUInteger at = [children indexOfObjectPassingTest:^BOOL(UIMenuElement *child, NSUInteger index, BOOL *stop) {
+            return [child isKindOfClass:UIMenu.class] && [((UIMenu *)child).identifier isEqualToString:kMoreMenu];
+        }];
+        if (at == NSNotFound) return visible;
+        children[at] = [(UIMenu *)children[at] menuByReplacingChildren:live];
+        return [visible menuByReplacingChildren:children];
     }];
 }
 
