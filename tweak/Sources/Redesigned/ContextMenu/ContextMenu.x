@@ -62,6 +62,7 @@ static NSString *const kStoredRowsKey = @"spotifyglass.redesign.player.menuRows"
 static char kAnchorKey, kFrontKey, kPlacedKey, kSessionKey;
 
 @class SGRMenuSession;
+static void pageKinds(UIView *button, SGRMenuSession *session);
 // The session whose pick is being fired on its hidden sheet, for a page the row pushes inside the sheet.
 static __weak SGRMenuSession *sg_firing;
 // The player's menu asking Spotify for its sheet, and when: the next presentation is that sheet.
@@ -388,6 +389,8 @@ static void fadeButton(UIView *button, BOOL away) {
     session.spotify = self.spotify;
     session.items = self.items;
     session.kind = self.kind ? self.kind() : nil;
+    // A page's pinned ⋯: its rows, stored under the page and its kind of page, and no quick row or More.
+    if (!self.items) pageKinds(self.spotify, session);
     self.session = session;
     self.menu = [session menu];
     return [super contextMenuInteraction:interaction configurationForMenuAtLocation:location];
@@ -596,6 +599,9 @@ static void raiseHost(UIWindow *window) {
 // for this menu (the presentation hook) and goes into the mod's window.
 - (void)requestSheet {
     if (!self.direct || self.presented || _requested) return;
+    // A page's ⋯ is noted as touched, as a tap on it would have been (the Kit's recorder listens for the touch down), so
+    // what puts rows of its own on the page's sheet (Sort and Mix, PlaylistMenu.x) knows which page the sheet is for.
+    if (!self.items) [self.spotify sendActionsForControlEvents:UIControlEventTouchDown];
     _requested = YES;
     _requestedAt = CACurrentMediaTime();
     sg_requesting = self;
@@ -821,7 +827,7 @@ static void rememberPage(NSString *kind) {
     if (!self.displayed || self.ended) return;
     NSArray<UIMenuElement *> *live = [self rowElements];
     // A page's menu that opened on stored rows: the whole of it is put right, as it shows.
-    if (!self.direct) {
+    if (!self.items) {
         if (!_showedStored) return;
         [self.anchor.contextMenuInteraction updateVisibleMenuWithBlock:^UIMenu *(UIMenu *visible) {
             if (![visible.identifier isEqualToString:kTopMenu]) return visible;
@@ -1210,7 +1216,8 @@ void SGRSystemMenuWatch(UIView *button, SGRMenuItems items, SGRMenuKind kind) {
         front.isAccessibilityElement = YES;
         front.accessibilityTraits = UIAccessibilityTraitButton;
         objc_setAssociatedObject(button, &kFrontKey, front, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        SGLog(@"system menu: the player's ⋯ (%@) opens the menu from a button of the mod's over it", NSStringFromClass(button.class));
+        SGLog(@"system menu: the %@ (%@) opens the menu from a button of the mod's over it", items ? @"player's ⋯" : @"page's pinned ⋯",
+              NSStringFromClass(button.class));
     }
     front.spotify = (UIControl *)button;
     front.items = items;
@@ -1473,8 +1480,18 @@ static void openWhenUp(SGRMenuSession *session, UIViewController *sheet, int tri
 }
 %end
 
+// The pinned ⋯ of the playlist, album, artist and profile pages opens its menu the way the player's does: a button of the
+// mod's over it takes the touch and opens the menu at once, on the rows that page had last, and Spotify's sheet is asked
+// for once the menu is up, in the mod's window, its rows put in as they come. Opened from Spotify's sheet instead (the
+// takeover below, still there for a ⋯ the Kit does not pin), a menu took two taps now and then and opened on a loading
+// row (the phone, 2026-10-24).
+static void watchPinnedMore(SGRMirrorButton *button) {
+    SGRSystemMenuWatch(button, nil, nil);
+}
+
 %ctor {
     if (!SGRedesignedUI()) return;
     %init;
+    SGRPinnedMoreHook = watchPinnedMore;
     SGRequireClasses(@[kSheetClass]);
 }
