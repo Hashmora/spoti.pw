@@ -64,3 +64,7 @@ void SGOfferRestart(NSString *message);
 @end
 // Whether `controller` is a system alert or action sheet, or the mod's stand-in for one.
 BOOL SGIsAlertController(UIViewController *controller);
+
+// `panel` as a dark popover from `from`, at its preferredContentSize, a popover on iPhone too. Picked from a
+// system menu, which is still going away, it waits for the menu.
+void SGPresentPopover(UIViewController *panel, UIView *from);
