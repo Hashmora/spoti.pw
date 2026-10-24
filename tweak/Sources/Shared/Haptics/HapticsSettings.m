@@ -16,7 +16,21 @@
 
 static NSString *const kMusicInfo = @"The iPhone taps along with the drums and rumbles under the bass, worked out from the sound as Spotify plays it. Only while Spotify is open: iOS stops an app's own haptics in the background, and a song playing on another device through Connect has no sound here to follow.\n\nWith In the Background on too, iOS plays its own haptic track for the songs it has one for, and this waits, so the two never double up.";
 
-static NSString *const kEverywhereInfo = @"With a jailbreak, Music Haptics above keeps playing when Spotify leaves the screen: on the home screen, in other apps and on the lock screen. Spotify still listens to its own sound.\n\nWith Vitrine installed as a package, its small SpringBoard part plays the taps and the rumble as finely as in Spotify. Without it (Vitrine's IPA on a jailbroken phone) Spotify plays them through the system's vibration instead, in short pulses, coarser than in front.";
+static NSString *const kEverywhereInfo = @"With a jailbreak, Music Haptics above keeps playing when Spotify leaves the screen: on the home screen, in other apps and on the lock screen. Spotify still listens to its own sound, and SpringBoard, which iOS lets play haptics at any time, plays the taps and the rumble for it.\n\nThat part is an add-on, Vitrine Haptics, installed once with a package manager (Sileo, Zebra or Filza): Vitrine itself lives in Spotify and cannot reach SpringBoard.";
+// Everywhere switched on without the add-on: what it needs, and the way to it. The switch stays on, and Everywhere plays
+// as soon as the add-on answers (SGHapticRelayAvailableNotification).
+static void explainAddon(void) {
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Everywhere needs Vitrine Haptics"
+        message:@"Outside Spotify the vibrations are played by SpringBoard, through a small add-on Vitrine cannot install by itself. Install Vitrine Haptics once with your package manager (Sileo, Zebra or Filza), then respring. Everywhere stays on and starts playing once the add-on is there."
+        preferredStyle:UIAlertControllerStyleAlert];
+    alert.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
+    [alert addAction:[UIAlertAction actionWithTitle:@"Get Vitrine Haptics" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+        SGOpenURL(SGHapticAddonURL());
+    }]];
+    [alert addAction:[UIAlertAction actionWithTitle:@"Later" style:UIAlertActionStyleCancel handler:nil]];
+    [SGTopController() presentViewController:alert animated:YES completion:nil];
+}
+
 static NSString *const kBackgroundInfo = @"Keeps the vibrations going on the lock screen and in other apps, where iOS stops Spotify's own. The mod tells iOS which recording is playing, by its ISRC code from Apple Music's catalog (no sound leaves the phone), and iOS's own Music Haptics, the one Apple Music uses, plays Apple's haptic track for it.\n\nIt needs Settings > Accessibility > Music Haptics on, and only songs Apple has a haptic track for vibrate. While Spotify is open, Music Haptics above plays the others, if it is on.";
 
 NSNotificationName const SGMusicHapticsSwitchesChangedNotification = @"SGMusicHapticsSwitchesChangedNotification";
@@ -148,9 +162,12 @@ static NSArray<SGModSection *> *sections(SGVibrationsPreview *preview, void (^ex
     // Everywhere (SGHapticRelay.h): on a jailbroken phone, played from SpringBoard when its side answers, else by the vibration.
     SGModRow *everywhere = SGOptionRow(@"Everywhere", nil, SGKeyMusicHapticsEverywhere);
     everywhere.info = kEverywhereInfo;
-    everywhere.changed = switched;
+    everywhere.changed = ^(BOOL on) {
+        switched(on);
+        if (on && !SGHapticRelayAvailable()) explainAddon();
+    };
     everywhere.waitsOn = SGKeyMusicHaptics;
-    everywhere.visible = ^BOOL { return SGHapticEverywhereAvailable(); };
+    everywhere.visible = ^BOOL { return SGHapticEverywhereOffered(); };
 
     SGModRow *background = SGOptionRow(@"In the Background", nil, SGKeyMusicHapticsBackground);
     background.info = kBackgroundInfo;

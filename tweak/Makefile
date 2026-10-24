@@ -36,16 +36,6 @@ spotifyglass_LIBRARIES := z
 # Runtime swizzling instead of Substrate so the dylib has no extra dependency inside the IPA.
 spotifyglass_LOGOS_DEFAULT_GENERATOR := internal
 
-# Music Haptics > Everywhere's SpringBoard side (SpringBoard/HapticRelay.x, Sources/Shared/Haptics/SGHapticRelay.h): a
-# library of its own, filtered to SpringBoard, that only a jailbreak's install of the .deb loads there. It hooks
-# nothing and does nothing outside SpringBoard, so the IPA build, which injects every library of the .deb, carries it
-# harmlessly.
-TWEAK_NAME += vitrinehaptics
-vitrinehaptics_FILES := SpringBoard/HapticRelay.x
-vitrinehaptics_CFLAGS := -fobjc-arc
-vitrinehaptics_FRAMEWORKS := UIKit CoreHaptics
-vitrinehaptics_LOGOS_DEFAULT_GENERATOR := internal
-
 # The audio effects' third-party C (vendor/audio: libbs2b, WDL's EEL2) is built by its own Makefile into a
 # static library with its own flags, out of this one's -Werror and with its symbols hidden, into
 # vendor/audio/build/ios/, which `clean` leaves alone and later builds only update. Listed as an object file

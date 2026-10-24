@@ -1,11 +1,10 @@
 // Music Haptics > Everywhere, with a jailbreak: the mod's own Music Haptics carried on while Spotify is not in front
 // (the home screen, other apps, the lock screen), where iOS plays no haptics for an app in the background. Spotify
 // keeps listening to its own sound and hands each tap and each level of the rumble to SpringBoard, which is always in
-// front and plays them; the .deb's second library, VitrineHaptics (tweak/SpringBoard/HapticRelay.x), is the
-// SpringBoard side. An IPA put on a jailbroken phone has no way into SpringBoard: there Spotify plays them itself in
-// the background through the system's vibration (AudioServicesPlaySystemSoundWithVibration, the vibration an app that
-// is playing sound can still ask for behind other apps; not yet confirmed on the phone), short pulses of the tap's or the rumble's strength, coarser than
-// Core Haptics. Everywhere shows on a jailbroken phone either way.
+// front and plays them. The SpringBoard side is an add-on package of its own, Vitrine Haptics (addons/haptics), installed
+// once with a package manager on a jailbroken phone: Vitrine's IPA lives in Spotify's sandbox and has no way into
+// SpringBoard, so it carries none of it. Everywhere is offered on a jailbroken phone; switched on without the add-on,
+// the page says what to install and links to it, and nothing plays behind Spotify until it answers.
 //
 // The two talk by Darwin notifications, which a sandboxed app may post and which carry no payload: the value is in the
 // name. A tap is one of kSGRelayLevels intensities times kSGRelaySharpnesses sharpnesses, the rumble one of
@@ -27,13 +26,16 @@ enum { kSGRelayLevels = 10, kSGRelaySharpnesses = 3 };
 
 // Whether SpringBoard's side has answered in this launch. Main thread.
 BOOL SGHapticRelayAvailable(void);
-// Whether Everywhere can play: SpringBoard's side answered, or the phone is jailbroken and the vibration stands in.
-BOOL SGHapticEverywhereAvailable(void);
+// Whether Everywhere is offered: on a jailbroken phone, or wherever the add-on has answered.
+BOOL SGHapticEverywhereOffered(void);
+// Where the add-on is installed from, opened from the page's notice: the releases of Vitrine's repo for now, where the
+// add-on's .deb is attached, until it has a package source of its own.
+NSString *SGHapticAddonURL(void);
 // Posted on the main thread when SpringBoard first answers, for the Vibrations page to show the switch.
 extern NSNotificationName const SGHapticRelayAvailableNotification;
 // Asks SpringBoard whether it is there; called once at launch.
 void SGHapticRelayAsk(void);
-// A tap of `intensity` and `sharpness`, 0 to 1, felt now, from SpringBoard or the vibration. Any thread.
+// A tap of `intensity` and `sharpness`, 0 to 1, felt now from SpringBoard; nothing without the add-on. Any thread.
 void SGHapticRelayTap(float intensity, float sharpness);
 // The rumble at `level`, 0 to 1, from now on; 0 stops it. Any thread.
 void SGHapticRelayRumble(float level);

@@ -619,7 +619,7 @@ static void readLatency(void) {
 
 // Everywhere: on, and SpringBoard there to play.
 static BOOL everywhere(void) {
-    return SGFlag(SGKeyMusicHapticsEverywhere, NO) && SGHapticEverywhereAvailable();
+    return SGFlag(SGKeyMusicHapticsEverywhere, NO) && SGHapticRelayAvailable();
 }
 
 static void updateListening(void) {

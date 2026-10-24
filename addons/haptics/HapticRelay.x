@@ -1,19 +1,18 @@
-// VitrineHaptics, the .deb's second library, loaded into SpringBoard: it plays the taps and the rumble Spotify's
-// Music Haptics hands it while Spotify is not in front (Sources/Shared/Haptics/SGHapticRelay.h, which names the
-// notifications), since iOS plays haptics for SpringBoard at any time and for an app in the background never.
+// Vitrine Haptics, an add-on package of its own for a jailbroken phone, loaded into SpringBoard: it plays the taps and
+// the rumble Spotify's Music Haptics hands it while Spotify is not in front (tweak/Sources/Shared/Haptics/SGHapticRelay.h,
+// which names the notifications), since iOS plays haptics for SpringBoard at any time and for an app in the background
+// never. Vitrine itself (its IPA or its .deb) does not carry it: it is installed once with a package manager.
 //
 // Each name is registered once and played the moment it is posted: a tap is a transient of its intensity and
 // sharpness, the rumble one looping continuous event whose intensity control follows the level it is posted at, and
 // stopped at 0. It answers Spotify's ping with a pong, and posts one as it starts, so Spotify hears it whichever
 // came up first.
 //
-// The IPA build injects every library of the .deb into Spotify, this one too; there it does nothing.
-//
 // Threading: the notifications and Core Haptics on one serial queue of its own.
 #import <CoreHaptics/CoreHaptics.h>
 #import <UIKit/UIKit.h>
 #import <notify.h>
-#import "../Sources/Shared/Haptics/SGHapticRelay.h"
+#import "../../tweak/Sources/Shared/Haptics/SGHapticRelay.h"
 
 // The rumble's loop, as Spotify's own (MusicHaptics.x: kRumbleLength), restarted by its loop for as long as it plays.
 static const NSTimeInterval kRumbleLength = 30;

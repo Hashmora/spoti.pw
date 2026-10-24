@@ -1,0 +1,8 @@
+Package: com.vitrine.haptics
+Name: Vitrine Haptics
+Depends: firmware (>= 16.0)
+Architecture: iphoneos-arm64
+Description: Lets Vitrine's Music Haptics play on outside Spotify: on the home screen, in other apps and on the lock screen
+Maintainer: Vitrine
+Author: Vitrine
+Section: Tweaks
