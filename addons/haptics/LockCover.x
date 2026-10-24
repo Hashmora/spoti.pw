@@ -9,9 +9,9 @@
 // none, the system's cover stays as it is. Closed again, everything of the system's comes back.
 //
 // The system's large cover is not a class this file can name for every iOS (the lock screen is CoverSheet's, its player
-// MediaRemoteUI's), so it is looked for on each layout of the cover sheet: a view of an "Artwork" class, shown, at least
-// kLargeArtwork across. The widgets are the views of a "Complication" class. What it found is logged once per change
-// ("[vitrine-addon]"), to be checked on a phone.
+// MediaRemoteUI's), so it is looked for after the cover sheet lays out, at most twice a second: a view of an "Artwork"
+// class, shown, at least kLargeArtwork across. The widgets are the views of a "Complication" class. What it found is
+// logged once per change ("[vitrine-addon]").
 //
 // The clip is fitted whole to the screen's width, and the bands above and below it take its first frame's edge colours,
 // its own top and bottom fading into them, as a redesigned album's page runs on in its cover's colour with the cover
@@ -291,52 +291,16 @@ static void hide(UIView *view, BOOL away) {
     [UIView animateWithDuration:kFade delay:0 options:UIViewAnimationOptionBeginFromCurrentState animations:^{ view.alpha = away ? 0 : 1; } completion:nil];
 }
 
-// The cover sheet's whole tree in the system log, a line a view ("[vitrine-addon tree] n depth class frame ..."), for
-// reading the lock screen's own classes off a phone (idevicesyslog) instead of guessing them: dumped as the lock
-// screen's views change (a cover opened or closed), a second after the last change, a few times a launch.
-static const NSUInteger kTreeDumps = 8;
-
-static void dumpView(UIView *view, int depth, NSUInteger *line, NSUInteger dump) {
-    if (depth > 40 || *line > 1500) return;
-    CGRect frame = view.frame;
-    NSMutableString *text = [NSMutableString stringWithFormat:@"[vitrine-addon tree] %lu %lu %*s%@ {%.0f,%.0f,%.0f,%.0f}",
-                             (unsigned long)dump, (unsigned long)(*line)++, depth * 2, "", NSStringFromClass(view.class),
-                             frame.origin.x, frame.origin.y, frame.size.width, frame.size.height];
-    if (view.hidden) [text appendString:@" hidden"];
-    if (view.alpha < 0.99) [text appendFormat:@" a=%.2f", view.alpha];
-    if (view.accessibilityIdentifier.length) [text appendFormat:@" id=%@", view.accessibilityIdentifier];
-    if ([view isKindOfClass:UIImageView.class] && ((UIImageView *)view).image) {
-        CGSize size = ((UIImageView *)view).image.size;
-        [text appendFormat:@" img=%.0fx%.0f", size.width, size.height];
-    }
-    if ([view isKindOfClass:UILabel.class] && ((UILabel *)view).text.length) [text appendFormat:@" \"%@\"", [((UILabel *)view).text substringToIndex:MIN(((UILabel *)view).text.length, 40)]];
-    NSLog(@"%@", text);
-    for (UIView *sub in view.subviews) dumpView(sub, depth + 1, line, dump);
-}
-
-static NSUInteger dumps;
-
-static void dumpSoon(void) {
-    static NSUInteger asked;
-    if (dumps >= kTreeDumps) return;
-    NSUInteger mine = ++asked;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        if (mine != asked || dumps >= kTreeDumps) return;
-        UIView *sheet = sg_sheet;
-        if (!sheet.window) return;
-        NSUInteger dump = ++dumps, line = 0;
-        NSLog(@"[vitrine-addon tree] %lu begin, the cover sheet of %@", (unsigned long)dump, NSStringFromClass(sheet.window.class));
-        dumpView(sheet, 0, &line, dump);
-        NSLog(@"[vitrine-addon tree] %lu end, %lu views", (unsigned long)dump, (unsigned long)line);
-    });
-}
-
 // The clip in the large cover's place while both are there, and everything of the system's given back otherwise.
 static void update(void) {
     UIView *sheet = sg_sheet;
     if (!sheet) return;
-    // With the switch off the walk is only for the tree's dumps: none once they are done.
-    if (!sg_on && !sg_hidden.count && dumps >= kTreeDumps) return;
+    // Nothing to put in the cover's place without a clip: no walk at all then.
+    if ((!sg_on || !sg_clip) && !sg_hidden.count) {
+        SGVLockClip *idle = objc_getAssociatedObject(sheet, &kClipKey);
+        if (idle.alpha > 0.01) [UIView animateWithDuration:kFade animations:^{ idle.alpha = 0; } completion:^(BOOL f) { [idle playClip:nil]; }];
+        return;
+    }
     UIView *large = nil;
     NSMutableArray<UIView *> *widgets = [NSMutableArray array];
     NSMutableString *seen = [NSMutableString string];
@@ -347,7 +311,6 @@ static void update(void) {
     if (![said isEqualToString:logged]) {
         logged = said;
         NSLog(@"[vitrine-addon] %@", said);
-        dumpSoon();
     }
     sg_large = large;
     BOOL on = sg_on && large && sg_clip;
@@ -382,6 +345,22 @@ static void update(void) {
         [UIView animateWithDuration:kFade delay:0 options:UIViewAnimationOptionBeginFromCurrentState animations:^{ clip.alpha = 0; }
                          completion:^(BOOL finished) { if (!(sg_on && sg_large && sg_clip)) [clip playClip:nil]; }];
     }
+}
+
+// The cover sheet lays out on every frame of a swipe or an animation: the walk of its tree runs at most once in
+// kUpdateGap after the last of them, and never while the switch is off. Walked on every pass, it kept SpringBoard busy
+// and the phone hot (the phone, 2026-10-24).
+static const NSTimeInterval kUpdateGap = 0.5;
+
+static void updateSoon(void) {
+    if ((!sg_on || !sg_clip) && !sg_hidden.count) return;
+    static BOOL waiting;
+    if (waiting) return;
+    waiting = YES;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kUpdateGap * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        waiting = NO;
+        update();
+    });
 }
 
 // Spotify's clip for the song, from the data container of the now playing app, copied so the player takes a new file.
@@ -420,22 +399,10 @@ static void readPlaying(void) {
 - (void)viewDidLayoutSubviews {
     %orig;
     sg_sheet = ((UIViewController *)self).view;
-    update();
+    updateSoon();
 }
 %end
 
-// The large cover opening and closing lays itself out without always laying out the sheet around it.
-%hook UIView
-- (void)layoutSubviews {
-    %orig;
-    if (!sg_sheet) return;
-    static Class artwork;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{ artwork = NSClassFromString(@"MRUArtworkView"); });
-    if (!artwork || ![self isKindOfClass:artwork]) return;
-    dispatch_async(dispatch_get_main_queue(), ^{ update(); });
-}
-%end
 
 static void listenArt(const char *name, BOOL on) {
     int token;
