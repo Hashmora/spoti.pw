@@ -28,7 +28,13 @@
 enum { kSGRelayLevels = 10, kSGRelaySharpnesses = 3 };
 // The add-on's build, set on its pong; raise it with every change to addons/haptics.
 // 2: the rumble's keepalive and the lock screen switch.
-enum { kSGRelayAddonBuild = 2 };
+// 3: the full-screen cover on the lock screen below iOS 26 (kSGRelayLockArtOn).
+enum { kSGRelayAddonBuild = 3 };
+// Below iOS 26, the add-on also fills the lock screen with the now playing cover while Spotify's switch for it is on
+// (AnimatedArtwork.h, SGKeyLockCoverAddon): told "lockart.1" and "lockart.0" as the switch is set and each time the
+// add-on answers. It reads the cover from MediaRemote, as the lock screen's own player does.
+#define kSGRelayLockArtOn kSGRelayPrefix "lockart.1"
+#define kSGRelayLockArtOff kSGRelayPrefix "lockart.0"
 // Whether the add-on plays while the phone is locked, told it by Spotify as the switch is set and each time the add-on
 // answers: kSGRelayPrefix "lockscreen.1" plays there, "lockscreen.0" does not.
 #define kSGRelayLockOn kSGRelayPrefix "lockscreen.1"
@@ -46,6 +52,11 @@ enum { kSGRelayAddonBuild = 2 };
 #define SGKeyMusicHapticsLockScreen @"spotifyglass.haptics.music.lockscreen"
 // Tells the add-on the lock screen switch as it is now. Main thread.
 void SGHapticRelaySendLockScreen(void);
+// Tells the add-on whether to fill the lock screen with the cover, as the switch for it is now. Main thread.
+void SGHapticRelaySendLockArt(void);
+// The notice for a feature that needs the add-on, switched on without it: what it needs and, from Vitrine's IPA, the
+// add-on two taps away. `feature` names what asked ("Everywhere", "The full-screen cover").
+void SGHapticAddonExplain(NSString *feature);
 
 // Whether SpringBoard's side has answered in this launch. Main thread.
 BOOL SGHapticRelayAvailable(void);

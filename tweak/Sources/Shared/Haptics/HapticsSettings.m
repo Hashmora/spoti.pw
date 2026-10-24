@@ -24,24 +24,9 @@ static void shareAddon(void) {
     });
 }
 
-// Everywhere switched on without the add-on: what it needs and, from Vitrine's IPA, the add-on itself, two taps away
-// (Install, then Sileo or Filza). An install of Vitrine's .deb alone carries no copy, and the add-on is installed from the
-// app only, so there it says the IPA carries it. The switch stays on, and Everywhere plays once the add-on answers.
+// Everywhere switched on without the add-on: what it needs, and the add-on two taps away (SGHapticAddonExplain).
 static void explainAddon(void) {
-    BOOL carried = SGHapticAddonPackage() != nil;
-    NSString *message = carried
-        ? @"Outside Spotify the vibrations are played by SpringBoard, through a small add-on that comes with Vitrine. Tap Install, pick Sileo or Filza, install it, then respring. Everywhere stays on and starts playing once the add-on is there."
-        : @"Outside Spotify the vibrations are played by SpringBoard, through a small add-on that comes inside Vitrine's IPA. This install has no copy of it: install Vitrine from its IPA, then turn Everywhere on again to put the add-on in place.";
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Everywhere needs Vitrine Haptics" message:message
-                                                            preferredStyle:UIAlertControllerStyleAlert];
-    alert.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
-    if (carried) {
-        [alert addAction:[UIAlertAction actionWithTitle:@"Install" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) { shareAddon(); }]];
-        [alert addAction:[UIAlertAction actionWithTitle:@"Later" style:UIAlertActionStyleCancel handler:nil]];
-    } else {
-        [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleCancel handler:nil]];
-    }
-    [SGTopController() presentViewController:alert animated:YES completion:nil];
+    SGHapticAddonExplain(@"Music Haptics outside Spotify");
 }
 
 static NSString *const kBackgroundInfo = @"Keeps the vibrations going on the lock screen and in other apps, where iOS stops Spotify's own. The mod tells iOS which recording is playing, by its ISRC code from Apple Music's catalog (no sound leaves the phone), and iOS's own Music Haptics, the one Apple Music uses, plays Apple's haptic track for it.\n\nIt needs Settings > Accessibility > Music Haptics on, and only songs Apple has a haptic track for vibrate. While Spotify is open, Music Haptics above plays the others, if it is on.";

@@ -2,6 +2,8 @@
 #import "Core/SGCore.h"
 #import <notify.h>
 #import "Core/SGRebind.h"
+#import "Settings/SGPageStyle.h"
+#import "Shared/AnimatedArtwork/AnimatedArtwork.h"
 #import <stdatomic.h>
 
 NSNotificationName const SGHapticRelayAvailableNotification = @"SGHapticRelayAvailableNotification";
@@ -55,6 +57,7 @@ void SGHapticRelayAsk(void) {
             uint64_t build = 0;
             if (notify_get_state(t, &build) == NOTIFY_STATUS_OK) sg_installedBuild = build;
             SGHapticRelaySendLockScreen();
+            SGHapticRelaySendLockArt();
             if (sg_available) return;
             sg_available = YES;
             SGLog(@"music haptics: SpringBoard plays them everywhere (the add-on's build %llu, this one carries %d)",
@@ -63,6 +66,33 @@ void SGHapticRelayAsk(void) {
         });
     });
     notify_post(kSGRelayPing);
+}
+
+void SGHapticRelaySendLockArt(void) {
+    notify_post(SGFlag(SGKeyLockCoverAddon, NO) ? kSGRelayLockArtOn : kSGRelayLockArtOff);
+}
+
+static void shareAddonSoon(void) {
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.35 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        SGHapticAddonShare(SGTopController().view);
+    });
+}
+
+void SGHapticAddonExplain(NSString *feature) {
+    BOOL carried = SGHapticAddonPackage() != nil;
+    NSString *message = carried
+        ? [NSString stringWithFormat:@"%@ is played by SpringBoard, through a small add-on that comes with Vitrine. Tap Install, pick Sileo or Filza, install it, then respring. The switch stays on and works once the add-on is there.", feature]
+        : [NSString stringWithFormat:@"%@ is played by SpringBoard, through a small add-on that comes inside Vitrine's IPA. This install has no copy of it: install Vitrine from its IPA, then turn the switch on again to put the add-on in place.", feature];
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Needs Vitrine Haptics" message:message
+                                                            preferredStyle:UIAlertControllerStyleAlert];
+    alert.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
+    if (carried) {
+        [alert addAction:[UIAlertAction actionWithTitle:@"Install" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) { shareAddonSoon(); }]];
+        [alert addAction:[UIAlertAction actionWithTitle:@"Later" style:UIAlertActionStyleCancel handler:nil]];
+    } else {
+        [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleCancel handler:nil]];
+    }
+    [SGTopController() presentViewController:alert animated:YES completion:nil];
 }
 
 void SGHapticRelaySendLockScreen(void) {
