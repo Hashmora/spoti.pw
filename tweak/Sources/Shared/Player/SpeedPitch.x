@@ -1140,44 +1140,6 @@ BOOL SGPlayerMusicClientFormat(AudioStreamBasicDescription *format) {
     return read;
 }
 
-// The jailbreak's way in (SGHookFunctionInline), where Spotify's import page cannot be written: the functions
-// themselves are hooked, every caller comes through, and only Spotify's own calls go to the replacements above,
-// as only they would through its imports. The rest, the system's frameworks and the mod's own units, go straight
-// to the original.
-#define SG_FROM_SPOTIFY SGCalledFromMainExecutable(__builtin_return_address(0))
-
-static OSStatus inlineSetProperty(AudioUnit unit, AudioUnitPropertyID property, AudioUnitScope scope, AudioUnitElement element,
-                                  const void *data, UInt32 size) {
-    if (SG_FROM_SPOTIFY) return setProperty(unit, property, scope, element, data, size);
-    return sg_setProperty(unit, property, scope, element, data, size);
-}
-
-static OSStatus inlineStartOutput(AudioUnit unit) {
-    return SG_FROM_SPOTIFY ? startOutput(unit) : sg_startOutput(unit);
-}
-
-static OSStatus inlineStopOutput(AudioUnit unit) {
-    return SG_FROM_SPOTIFY ? stopOutput(unit) : sg_stopOutput(unit);
-}
-
-static OSStatus inlineDisposeUnit(AudioComponentInstance unit) {
-    return SG_FROM_SPOTIFY ? disposeUnit(unit) : sg_dispose(unit);
-}
-
-// All four or none: a start seen without its stop or its dispose would leave an output the mod thinks is running.
-static BOOL hookInline(void) {
-    void *setOriginal = NULL, *startOriginal = NULL, *stopOriginal = NULL, *disposeOriginal = NULL;
-    if (!SGHookFunctionInline((void *)AudioOutputUnitStart, (void *)inlineStartOutput, &startOriginal)) return NO;
-    sg_startOutput = startOriginal;
-    if (SGHookFunctionInline((void *)AudioOutputUnitStop, (void *)inlineStopOutput, &stopOriginal)) sg_stopOutput = stopOriginal;
-    else sg_stopOutput = AudioOutputUnitStop;
-    if (SGHookFunctionInline((void *)AudioComponentInstanceDispose, (void *)inlineDisposeUnit, &disposeOriginal)) sg_dispose = disposeOriginal;
-    else sg_dispose = AudioComponentInstanceDispose;
-    if (!sg_setProperty && SGHookFunctionInline((void *)AudioUnitSetProperty, (void *)inlineSetProperty, &setOriginal)) sg_setProperty = setOriginal;
-    SGLog(@"audio: Spotify's output reached through the jailbreak's hooks (speed %@)", sg_setProperty ? @"too" : @"not");
-    return YES;
-}
-
 static void rebind(void) {
     static dispatch_once_t once;
     dispatch_once(&once, ^{
@@ -1191,9 +1153,7 @@ static void rebind(void) {
         }
         sg_reachable = SGRebindImport("AudioOutputUnitStart", startOutput, (void **)&sg_startOutput) && sg_startOutput;
         if (!sg_reachable) {
-            sg_startOutput = NULL;
-            sg_reachable = hookInline();
-            if (!sg_reachable) SGLog(@"audio: Spotify does not import AudioOutputUnitStart, its output cannot be reached");
+            SGLog(@"audio: Spotify does not import AudioOutputUnitStart, its output cannot be reached");
             return;
         }
         if (!SGRebindImport("AudioOutputUnitStop", stopOutput, (void **)&sg_stopOutput) || !sg_stopOutput) sg_stopOutput = AudioOutputUnitStop;

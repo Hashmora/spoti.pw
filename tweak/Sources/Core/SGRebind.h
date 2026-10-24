@@ -10,14 +10,3 @@
 // Returns YES when at least one slot named `symbol` (without the leading underscore) was repointed.
 // `original` receives what the first slot held, which is what the replacement calls on.
 BOOL SGRebindImport(const char *symbol, void *replacement, void **original);
-
-// Where the import page cannot be written (a jailbreak that makes Spotify's __DATA_CONST unchangeable: an iPhone 11 on
-// Dopamine, iOS 17.5.1), the function itself is hooked with the jailbreak's own hooker, ElleKit's (Substrate's)
-// MSHookFunction, when it is in the process or can be loaded. Every caller then goes through `replacement`, the
-// system's frameworks too, so a replacement tells Spotify's calls by SGCalledFromMainExecutable and hands the rest to
-// `original`. NO when there is no hooker (any device without a jailbreak) or on iOS 26 and later.
-BOOL SGHookFunctionInline(void *function, void *replacement, void **original);
-// Whether the jailbreak's hooker is in the process or can be loaded: a jailbroken phone, whatever way Vitrine came onto it.
-BOOL SGJailbroken(void);
-// Whether `returnAddress` (__builtin_return_address(0) of a hooked function) is in the main executable's code.
-BOOL SGCalledFromMainExecutable(void *returnAddress);
