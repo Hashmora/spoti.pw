@@ -119,7 +119,7 @@ static UIImageView *glyph(NSString *symbol) {
 
 @end
 
-static char kVolumeKey, kPlayKey, kSettleKey;
+static char kVolumeKey, kPlayKey, kSettleKey, kRowKey;
 // Passes the footer's layout is asked for again while the row's place keeps changing, at most.
 static const NSUInteger kSettlePasses = 6;
 
@@ -153,6 +153,12 @@ static void settle(UIView *stack, UIView *row, BOOL moved, CGRect frame) {
     });
 }
 
+// The footer's row of the stack that holds a volume row, nil for any other stack. Weak: the stack does not own it.
+UIView *SGRPlayerVolumeFooter(UIView *stack) {
+    UIView *row = objc_getAssociatedObject(stack, &kRowKey);
+    return row.superview == stack ? row : nil;
+}
+
 BOOL SGRPlayerPlaceVolume(UIView *stack, UIView *controls, UIView *row, CGFloat margin) {
     SGRVolumeRow *volume = objc_getAssociatedObject(stack, &kVolumeKey);
     if (!SGRPlayerVolumeOn() || !controls) {
@@ -164,6 +170,7 @@ BOOL SGRPlayerPlaceVolume(UIView *stack, UIView *controls, UIView *row, CGFloat 
         objc_setAssociatedObject(stack, &kVolumeKey, volume, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
     if (volume.superview != stack) [stack addSubview:volume];
+    objc_setAssociatedObject(stack, &kRowKey, row, OBJC_ASSOCIATION_ASSIGN);
     // Halfway between the play button's bottom and the footer glyphs' top, each where it is drawn (convertRect: takes
     // the moves' transforms in). Without the button there is nothing to stand under: a guess from the controls' unit
     // put the row across the buttons on an iPhone 13 Pro with iOS 17 (issue #32) and took their taps, so no row.
