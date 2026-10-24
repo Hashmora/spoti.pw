@@ -22,8 +22,8 @@ BOOL SGAccessibilityTextSize(void);   // an accessibility size, where a row's va
 // layout returns the y under the text; the height is the same text measured at the same width.
 CGFloat SGSliderTextHeight(NSString *title, NSString *subtitle, CGFloat width);
 CGFloat SGLayOutSliderText(UILabel *title, UILabel *value, UILabel *subtitle, CGFloat x, CGFloat y, CGFloat width);
-// Takes the 13pt title font off Spotify's own settings list, once, for the Mod Settings row the mod adds to it
-// (App/ModSettings.x), which reads as one of Spotify's rows; SGSpotifyListFont hands it out.
+// Takes the rows' title font off Spotify's own settings list or side drawer, once, for the Mod Settings row the mod adds
+// to it (App/ModSettings.x), which reads as one of Spotify's rows; SGSpotifyListFont hands it out.
 void SGAdoptFonts(UIView *list, UIView *exclude);
 UIFont *SGSpotifyListFont(void);
 
